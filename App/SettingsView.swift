@@ -11,9 +11,18 @@ struct SettingsView: View {
                 group("外观") {
                     VStack(spacing: 0) {
                         row("外观", "circle.lefthalf.filled") { EmptyView() }
-                        Picker("外观", selection: $model.settings.appearance) {
-                            ForEach(["跟随系统", "浅色", "深色"], id: \.self) { Text($0) }
-                        }.pickerStyle(.segmented).padding(.horizontal, 14).padding(.bottom, 12)
+                        HStack(spacing: 0) {
+                            ForEach(["跟随系统", "浅色", "深色"], id: \.self) { appearance in
+                                Button { model.settings.appearance = appearance } label: {
+                                    Text(appearance).font(.system(size: 12, weight: .medium))
+                                        .frame(maxWidth: .infinity).frame(height: 29)
+                                        .foregroundStyle(model.settings.appearance == appearance ? Color.black : Color.secondary)
+                                        .background(model.settings.appearance == appearance ? Color.white.opacity(0.94) : .clear, in: Capsule())
+                                }.buttonStyle(.plain)
+                                    .accessibilityAddTraits(model.settings.appearance == appearance ? .isSelected : [])
+                            }
+                        }.padding(3).background(Color.primary.opacity(0.045), in: Capsule())
+                            .padding(.horizontal, 14).padding(.bottom, 12)
                         separator
                         row("点缀色", "paintpalette") {
                             HStack(spacing: 10) {

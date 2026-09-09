@@ -42,7 +42,7 @@ final class AppModel: ObservableObject {
     private var libraryReadable = true
     let repository: LibraryRepository
     static let sample = GameRecord(id: UUID(uuidString: "A84D1897-2F77-4DAD-9F38-69ACFFB1022B")!,
-        title: "青空下的加缪", directory: "demo", entryPoint: ".", byteCount: 512124518)
+        title: "青空下的加缪", directory: "demo", entryPoint: ".", byteCount: 488400000)
 
     init() {
         settings = UserDefaults.standard.data(forKey: "settings.v1").flatMap { try? JSONDecoder().decode(PlayerSettings.self, from: $0) } ?? PlayerSettings()

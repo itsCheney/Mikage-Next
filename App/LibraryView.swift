@@ -28,7 +28,7 @@ struct RootView: View {
                 Image(systemName: symbol).font(.system(size: 25, weight: .semibold))
                 Text(title).font(.system(size: 11, weight: .medium))
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(model.tab == index ? Color.primary.opacity(0.10) : .clear, in: Capsule())
+                .background(model.tab == index ? Color(.systemBackground).opacity(0.85) : .clear, in: Capsule())
         }.buttonStyle(.plain).accessibilityAddTraits(model.tab == index ? .isSelected : [])
     }
 }
