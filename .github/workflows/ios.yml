@@ -48,8 +48,15 @@ jobs:
           set -o pipefail
           xcodebuild test -project VNPlayer.xcodeproj -scheme VNPlayer \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -parallel-testing-enabled NO \
             -derivedDataPath build/SimulatorData -resultBundlePath build/UITests.xcresult \
             CODE_SIGNING_ALLOWED=NO | tee build/ui-tests.log
+      - name: Export native screenshots
+        if: always()
+        run: |
+          if [ -d build/UITests.xcresult ]; then
+            xcrun xcresulttool export attachments --path build/UITests.xcresult --output-path build/screenshots
+          fi
       - name: Upload build logs and UI test report
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,4 +65,5 @@ jobs:
           path: |
             build/*.log
             build/*.xcresult
+            build/screenshots/
           if-no-files-found: ignore

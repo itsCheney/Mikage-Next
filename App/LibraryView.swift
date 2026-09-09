@@ -37,14 +37,20 @@ struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
     @State private var importPicker = false
     @State private var selectedGame: GameRecord?
+    @FocusState private var searchFocused: Bool
     var body: some View {
+        ScrollViewReader { scrollProxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                header.padding(.top, 16)
+                header.padding(.top, 16).id("library-top")
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("搜索游戏", text: $model.query).autocorrectionDisabled()
-                    if !model.query.isEmpty { Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("清除搜索") }
+                        .focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
+                    if !model.query.isEmpty { Button {
+                        model.query = ""; searchFocused = false
+                        withAnimation { scrollProxy.scrollTo("library-top", anchor: .top) }
+                    } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("清除搜索") }
                 }.padding(14).glass(17)
                 if model.importing { HStack { ProgressView(); Text("正在复制游戏文件…").font(.subheadline) }.padding() }
                 if model.demo {
@@ -71,6 +77,8 @@ struct LibraryView: View {
                 }
             }.padding(.horizontal, 16).padding(.bottom, 20)
                 .frame(maxWidth: 850).frame(maxWidth: .infinity)
+        }
+        .scrollDismissesKeyboard(.interactively)
         }
         .fileImporter(isPresented: $importPicker, allowedContentTypes: [.folder]) { result in
             switch result { case .success(let url): Task { await model.importFolder(url) }; case .failure(let error): model.alert = error.localizedDescription }
@@ -106,6 +114,7 @@ struct LibraryView: View {
             Image(systemName: icon).font(.system(size: 16, weight: .semibold)).frame(width: 34, height: 34)
                 .foregroundStyle(model.settings.listLayout == list ? Color(.systemBackground) : Color.secondary)
                 .background(model.settings.listLayout == list ? Color.primary : .clear, in: Circle())
+                .contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel(list ? "列表视图" : "网格视图")
     }
     private func continueCard(_ game: GameRecord) -> some View {
