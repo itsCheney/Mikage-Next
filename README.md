@@ -22,7 +22,7 @@ node scripts/preview-server.mjs
 
 1. macOS runner 用 swift test 检查扫描、路径隔离、导入与持久化。
 2. XcodeGen 根据 project.yml 生成工程。
-3. Xcode 编译未签名 arm64 App，打包 VNPlayer-unsigned.ipa。
+3. Xcode 编译未签名 arm64 App，打包 Mikage-unsigned.ipa。
 4. 编译成功上传 IPA artifact；随后运行模拟器 UI 测试并保留 xcresult 截图附件和日志。
 5. 下载 artifact，解压取得 IPA。**未签名 IPA 不能直接安装，需先用你自己的工具/证书重新签名。** CI 不要求 Apple 密码或证书。
 
@@ -35,10 +35,10 @@ node scripts/preview-server.mjs
 ```sh
 brew install xcodegen
 xcodegen generate
-open VNPlayer.xcodeproj
+open Mikage.xcodeproj
 ```
 
-选择 VNPlayer scheme，设置自己的 Team 和唯一 Bundle Identifier 后运行。核心逻辑可用 swift test 验证。
+选择 Mikage scheme，设置自己的 Team 和唯一 Bundle Identifier 后运行。核心逻辑可用 swift test 验证。
 
 首次启动游戏库为空，点“查看界面演示”核对布局。实际导入入口为右上角加号 → 导入文件夹。每次安装使用独立 UUID 目录，游戏文件可通过“文件”App 备份。
 

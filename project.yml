@@ -1,6 +1,6 @@
-name: VNPlayer
+name: Mikage
 options:
-  bundleIdPrefix: dev.vnplayer
+  bundleIdPrefix: moe.cheney233
   deploymentTarget:
     iOS: '16.0'
   developmentLanguage: zh-Hans
@@ -15,7 +15,7 @@ packages:
   VNCore:
     path: .
 targets:
-  VNPlayer:
+  Mikage:
     type: application
     platform: iOS
     sources:
@@ -32,24 +32,24 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
-  VNPlayerUITests:
+  MikageUITests:
     type: bundle.ui-testing
     platform: iOS
     sources: [UITests]
     dependencies:
-      - target: VNPlayer
+      - target: Mikage
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  VNPlayer:
+  Mikage:
     build:
       targets:
-        VNPlayer: all
+        Mikage: all
     run:
       config: Debug
     test:
       config: Debug
-      targets: [VNPlayerUITests]
+      targets: [MikageUITests]
     archive:
       config: Release

@@ -81,19 +81,19 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain("已导入 \(model.games.count) 部作品\n游戏文件：\(AppModel.size(model.games.reduce(0) { $0 + $1.byteCount }))\n\n文件保存在“文件 → 我的 iPhone → Mikage Next → VNPlayer”中。可在此备份游戏及其 savedata 目录。")
+                        explain("已导入 \(model.games.count) 部作品\n游戏文件：\(AppModel.size(model.games.reduce(0) { $0 + $1.byteCount }))\n\n文件保存在“文件 → 我的 iPhone → Mikage Next → Mikage”中。可在此备份游戏及其 savedata 目录。")
                     } label: {
                         Label("存储信息", systemImage: "internaldrive.fill")
                     }
                 }
 
                 Section("更多") {
-                    ShareLink(item: "VNPlayer 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n问题描述：\n复现步骤：") {
+                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n问题描述：\n复现步骤：") {
                         Label("问题反馈", systemImage: "envelope.fill")
                     }
 
                     Button {
-                        explain("VNPlayer 0.1 · 界面与导入原型\n\n按参考截图实现游戏库、设置和游戏内菜单。此构建尚未连接 KRKR、ZIP 解压和 Wi-Fi 传输，不能运行真实游戏。\n\n封面为原创矢量示意图，应用不附带游戏内容。")
+                        explain("Mikage 0.1 · 界面与导入原型\n\n按参考截图实现游戏库、设置和游戏内菜单。此构建尚未连接 KRKR、ZIP 解压和 Wi-Fi 传输，不能运行真实游戏。\n\n封面为原创矢量示意图，应用不附带游戏内容。")
                     } label: {
                         Label("关于", systemImage: "info.circle.fill")
                     }
@@ -119,7 +119,7 @@ struct SettingsView: View {
             .background(AppBackground())
             .navigationTitle("设置")
         }
-        .alert("VNPlayer", isPresented: $showInfo) {
+        .alert("Mikage", isPresented: $showInfo) {
             Button("好", role: .cancel) { }
         } message: {
             Text(info ?? "")

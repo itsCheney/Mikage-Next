@@ -7,5 +7,5 @@ xcuserdata/
 third_party/
 node_modules/
 artifacts/
-VNPlayer.xcodeproj/
+Mikage.xcodeproj/
 artifacts-preview*.log
