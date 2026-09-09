@@ -12,7 +12,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Inspect toolchain
@@ -23,6 +23,16 @@ jobs:
         run: brew install xcodegen
       - name: Test library import and persistence
         run: swift test
+      - name: Cache KRKR dependencies
+        uses: actions/cache@v4
+        with:
+          path: build/krkr-vcpkg-installed
+          key: krkr-vcpkg-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+      - name: Build KRKR runtime framework
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-krkr-ios.sh 2>&1 | tee build/krkr-runtime-build.log
       - name: Generate Xcode project
         run: xcodegen generate
       - name: Build unsigned iPhone app

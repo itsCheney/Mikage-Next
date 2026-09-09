@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+KRKR_BUILD_COMMIT="66fb7d9533478d33317208cd8ec8696ab9340d6f"
+KRKR_CORE_COMMIT="5a8bd422f82d3758045f403520a64b772a59f40c"
+VCPKG_BASELINE="8e8dfb4ba483886936ded5ca201b500b8d8b0096"
+SOURCE_DIR="${PROJECT_DIR}/build/krkr-source"
+OUTPUT="${PROJECT_DIR}/build/KRKRRuntime.xcframework"
+VCPKG_INSTALLED_DIR="${PROJECT_DIR}/build/krkr-vcpkg-installed"
+
+if [[ -e "${OUTPUT}" ]]; then
+    echo "${OUTPUT} already exists; remove the generated build directory before rebuilding." >&2
+    exit 1
+fi
+
+if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
+    if [[ -e "${SOURCE_DIR}" ]]; then
+        echo "${SOURCE_DIR} exists but is not a prepared Mikage source tree." >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "${SOURCE_DIR}")"
+    git init "${SOURCE_DIR}"
+    git -C "${SOURCE_DIR}" remote add origin https://github.com/krkrsdl3/krkrsdl3_build.git
+    git -C "${SOURCE_DIR}" fetch --depth 1 origin "${KRKR_BUILD_COMMIT}"
+    git -C "${SOURCE_DIR}" checkout --detach FETCH_HEAD
+    git -C "${SOURCE_DIR}" submodule update --init --depth 1 cpp
+    test "$(git -C "${SOURCE_DIR}/cpp" rev-parse HEAD)" = "${KRKR_CORE_COMMIT}"
+
+    git -C "${SOURCE_DIR}" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-build-host.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-core-host.patch"
+    mkdir -p "${SOURCE_DIR}/host"
+    cp "${PROJECT_DIR}/Engine/KRKRRuntime/Host/"* "${SOURCE_DIR}/host/"
+    touch "${SOURCE_DIR}/.mikage-host-prepared"
+fi
+
+if [[ -n "${VCPKG_ROOT:-}" && -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
+    export VCPKG_ROOT
+elif [[ -n "${VCPKG_INSTALLATION_ROOT:-}" && -f "${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
+    export VCPKG_ROOT="${VCPKG_INSTALLATION_ROOT}"
+else
+    VCPKG_ROOT="${PROJECT_DIR}/build/vcpkg-${VCPKG_BASELINE}"
+    if [[ ! -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
+        git init "${VCPKG_ROOT}"
+        git -C "${VCPKG_ROOT}" remote add origin https://github.com/microsoft/vcpkg.git
+        git -C "${VCPKG_ROOT}" fetch --depth 1 origin "${VCPKG_BASELINE}"
+        git -C "${VCPKG_ROOT}" checkout --detach FETCH_HEAD
+        "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+    fi
+    export VCPKG_ROOT
+fi
+
+export VCPKG_DISABLE_METRICS=1
+mkdir -p "${VCPKG_INSTALLED_DIR}"
+
+cmake --preset "iOS Device Config" \
+    -S "${SOURCE_DIR}" \
+    -DKRKR_HOST_LIBRARY=ON \
+    -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
+cmake --build --preset "iOS Device Release Build" --parallel
+
+cmake --preset "iOS Simulator Config" \
+    -S "${SOURCE_DIR}" \
+    -DKRKR_HOST_LIBRARY=ON \
+    -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
+cmake --build --preset "iOS Simulator Release Build" --parallel
+
+DEVICE_FRAMEWORK="${SOURCE_DIR}/out/ios-device/Release/KRKRRuntime.framework"
+SIMULATOR_FRAMEWORK="${SOURCE_DIR}/out/ios-simulator/Release/KRKRRuntime.framework"
+if [[ ! -d "${DEVICE_FRAMEWORK}" || ! -d "${SIMULATOR_FRAMEWORK}" ]]; then
+    echo "KRKRRuntime.framework was not produced for both device and simulator." >&2
+    exit 1
+fi
+
+xcodebuild -create-xcframework \
+    -framework "${DEVICE_FRAMEWORK}" \
+    -framework "${SIMULATOR_FRAMEWORK}" \
+    -output "${OUTPUT}"
+
+test -f "${OUTPUT}/Info.plist"
+echo "Created ${OUTPUT}"

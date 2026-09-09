@@ -1,0 +1,66 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 67f100a..7854e9e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -91,6 +91,7 @@ option(USE_FFMPEG "Use FFmpeg for video/audio decoding" ON)
+ # 图形后端编译选项
+ option(USE_RENDER_GL "OpenGL 3.3+/OpenGLES 3.0+ backend" ON)
+ option(USE_RENDER_VK "Vulkan backend" ON)
++option(KRKR_HOST_LIBRARY "Build KRKR as an embeddable iOS framework" OFF)
+ 
+ # 建立项目
+ if(ONLYCONSOLE)
+diff --git a/cmake/cmake_main.txt b/cmake/cmake_main.txt
+index 61ce387..835b457 100644
+--- a/cmake/cmake_main.txt
++++ b/cmake/cmake_main.txt
+@@ -12,6 +12,12 @@ set(KRKRSDL_SRC
+     ${KRKRSDL_PLUGINS_SRC}
+ 	${KRKRSDL_TJS2_SRC}
+     )
++if(IOS AND KRKR_HOST_LIBRARY)
++    add_definitions(-DKRKR_HOST_LIBRARY=1)
++    list(REMOVE_ITEM KRKRSDL_SRC
++        ${KRKRSDL_ENVIRON_PATH}/${KRKRSDL_SDL_NAME}/${KRKRSDL_SDL_NAME}_entry.cpp)
++    list(APPEND KRKRSDL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/host/MikageKRKRRuntime.mm)
++endif()
+ 
+ if(USE_FFMPEG)
+     list(APPEND KRKRSDL_SRC ${KRKRSDL_CORE_FFMPEG_SRC})
+@@ -67,13 +73,29 @@ elseif(EMSCRIPTEN)
+         "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/Res@/Res"
+     )
+ elseif(IOS)
+-    add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${KRKRSDL_SRC})
+-    set_target_properties(${PROJECT_NAME} PROPERTIES
+-        MACOSX_BUNDLE TRUE
+-        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.tvp.krkrsdl3"
+-        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+-        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+-    )
++    if(KRKR_HOST_LIBRARY)
++        add_library(${PROJECT_NAME} SHARED ${KRKRSDL_SRC})
++        set_target_properties(${PROJECT_NAME} PROPERTIES
++            FRAMEWORK TRUE
++            FRAMEWORK_VERSION A
++            OUTPUT_NAME "KRKRRuntime"
++            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/host/MikageKRKRRuntime.h"
++            MACOSX_FRAMEWORK_IDENTIFIER "moe.cheney233.mikage.krkr-runtime"
++            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
++            XCODE_ATTRIBUTE_DEFINES_MODULE "YES"
++            XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES "YES"
++            XCODE_ATTRIBUTE_MODULEMAP_FILE "${CMAKE_CURRENT_SOURCE_DIR}/host/module.modulemap"
++            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
++        )
++    else()
++        add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${KRKRSDL_SRC})
++        set_target_properties(${PROJECT_NAME} PROPERTIES
++            MACOSX_BUNDLE TRUE
++            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.tvp.krkrsdl3"
++            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
++            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
++        )
++    endif()
+ elseif(LINUX OR WINDOWS OR MACOS)
+     add_executable(${PROJECT_NAME} ${KRKRSDL_SRC})
+ else()

@@ -23,9 +23,11 @@ targets:
         excludes: [Info.plist]
     dependencies:
       - package: VNCore
+      - framework: build/KRKRRuntime.xcframework
+        embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.vnplayer.app
+        PRODUCT_BUNDLE_IDENTIFIER: moe.cheney233.mikage
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
