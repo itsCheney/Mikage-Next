@@ -8,3 +8,4 @@ third_party/
 node_modules/
 artifacts/
 VNPlayer.xcodeproj/
+artifacts-preview*.log

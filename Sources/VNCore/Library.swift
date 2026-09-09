@@ -41,6 +41,7 @@ public enum GameScanner {
         func scan(_ directory: URL, _ depth: Int) throws -> [URL] {
             visited += 1
             guard visited <= 10_000 else { throw LibraryError.ambiguousRoots }
+            guard try directory.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw LibraryError.symbolicLink }
             let entries = try fm.contentsOfDirectory(at: directory,
                 includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: [.skipsHiddenFiles])
             for entry in entries {
@@ -69,7 +70,19 @@ public enum GameScanner {
         guard !relative.isEmpty, !relative.hasPrefix("/"), !relative.contains("\\"),
               !relative.split(separator: "/").contains("..") else { throw LibraryError.unsafePath }
         let base = root.standardizedFileURL.resolvingSymlinksInPath()
-        let result = base.appendingPathComponent(relative).standardizedFileURL.resolvingSymlinksInPath()
+        // Foundation may leave intermediate links unresolved when the leaf does not exist.
+        // Check each existing component before constructing a writable path.
+        var candidate = base
+        for component in relative.split(separator: "/") {
+            candidate.appendPathComponent(String(component))
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: candidate.path)
+                if attributes[.type] as? FileAttributeType == .typeSymbolicLink { throw LibraryError.unsafePath }
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+                // New paths are allowed; existing ancestors have been checked.
+            }
+        }
+        let result = candidate.standardizedFileURL
         guard result.path.hasPrefix(base.path + "/") else { throw LibraryError.unsafePath }
         return result
     }
