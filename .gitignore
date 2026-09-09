@@ -1,0 +1,11 @@
+.DS_Store
+.build/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+third_party/
+node_modules/
+artifacts/
+VNPlayer.xcodeproj/
+artifacts-preview*.log
