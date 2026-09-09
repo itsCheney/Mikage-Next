@@ -4,13 +4,10 @@ import VNCore
 struct AppBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            (scheme == .dark ? Color(red: 0.035, green: 0.039, blue: 0.049) : Color(red: 0.94, green: 0.95, blue: 0.97))
-            LinearGradient(colors: scheme == .dark
-                ? [Color(red: 0.24, green: 0.27, blue: 0.33), .clear]
-                : [Color(red: 0.81, green: 0.85, blue: 0.92), .clear], startPoint: .top, endPoint: .bottom)
-                .frame(height: 560)
-        }.ignoresSafeArea()
+        (scheme == .dark
+            ? Color.black
+            : Color(red: 242 / 255, green: 242 / 255, blue: 246 / 255))
+            .ignoresSafeArea()
     }
 }
 
