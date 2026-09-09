@@ -29,6 +29,23 @@ final class ReplicaUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.searchFields["搜索游戏"].waitForExistence(timeout: 5))
     }
+    func testKRKRRuntimeCanRestartInOneProcess() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--krkr-smoke"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["游戏库"].firstMatch.waitForExistence(timeout: 15))
+
+        for title in ["KRKR Smoke A", "KRKR Smoke B", "KRKR Smoke A"] {
+            let launch = app.buttons["运行 \(title)"]
+            XCTAssertTrue(launch.waitForExistence(timeout: 15), "Missing smoke game: \(title)")
+            launch.tap()
+            XCTAssertTrue(
+                app.staticTexts["游戏库"].firstMatch.waitForExistence(timeout: 30),
+                "KRKR did not return to the library after running \(title)"
+            )
+            XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2))
+        }
+    }
     private func attach(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways

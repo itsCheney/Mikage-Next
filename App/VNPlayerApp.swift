@@ -49,6 +49,9 @@ final class AppModel: ObservableObject {
         do { games = try repository.load() }
         catch { libraryReadable = false; alert = "无法读取游戏库：\(error.localizedDescription)。原文件已保留。" }
         if ProcessInfo.processInfo.arguments.contains("--demo") { demo = true }
+        if ProcessInfo.processInfo.arguments.contains("--krkr-smoke") {
+            prepareKRKRSmokeLibrary()
+        }
     }
 
     var displayedGames: [GameRecord] { demo ? [Self.sample] : games }
@@ -130,6 +133,28 @@ final class AppModel: ObservableObject {
     func coverURL(_ game: GameRecord) -> URL? {
         guard let name = game.coverName else { return nil }
         return try? GameScanner.containedURL(name, in: repository.root.appendingPathComponent("Covers"))
+    }
+    private func prepareKRKRSmokeLibrary() {
+        let fixtures = [
+            (UUID(uuidString: "11111111-1111-1111-1111-111111111111")!, "KRKR Smoke A"),
+            (UUID(uuidString: "22222222-2222-2222-2222-222222222222")!, "KRKR Smoke B")
+        ]
+        do {
+            try FileManager.default.createDirectory(at: repository.gamesURL, withIntermediateDirectories: true)
+            games = try fixtures.map { fixture in
+                let (id, title) = fixture
+                let directory = repository.gamesURL.appendingPathComponent(id.uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let startup = directory.appendingPathComponent("startup.tjs")
+                if !FileManager.default.fileExists(atPath: startup.path) {
+                    try Data("// Mikage KRKR lifecycle smoke test\n".utf8).write(to: startup, options: .atomic)
+                }
+                return GameRecord(id: id, title: title, directory: id.uuidString, entryPoint: ".")
+            }
+            demo = false
+        } catch {
+            alert = "KRKR smoke test fixture 创建失败：\(error.localizedDescription)"
+        }
     }
     func updateCover(_ game: GameRecord, image: UIImage) {
         guard libraryReadable, let index = games.firstIndex(where: { $0.id == game.id }),

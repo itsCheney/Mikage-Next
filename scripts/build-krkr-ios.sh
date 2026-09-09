@@ -60,13 +60,13 @@ cmake --preset "iOS Device Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
-cmake --build --preset "iOS Device Release Build" --parallel
+cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
 
 cmake --preset "iOS Simulator Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
-cmake --build --preset "iOS Simulator Release Build" --parallel
+cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
 
 DEVICE_FRAMEWORK="${SOURCE_DIR}/out/ios-device/Release/KRKRRuntime.framework"
 SIMULATOR_FRAMEWORK="${SOURCE_DIR}/out/ios-simulator/Release/KRKRRuntime.framework"
