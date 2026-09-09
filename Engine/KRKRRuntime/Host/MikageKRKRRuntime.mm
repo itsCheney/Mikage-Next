@@ -3,6 +3,7 @@
 #import <Foundation/Foundation.h>
 
 #include <SDL3/SDL.h>
+#define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 
 #include <string>
@@ -19,10 +20,10 @@ extern "C" NSString *MikageKRKRFrameworkResourcePath(void)
     return [[NSBundle bundleForClass:MikageKRKRBundleMarker.class] resourcePath];
 }
 
-extern SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]);
-extern SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event);
-extern SDL_AppResult SDL_AppIterate(void *appstate);
-extern void SDL_AppQuit(void *appstate, SDL_AppResult result);
+extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]);
+extern "C" SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event);
+extern "C" SDL_AppResult SDL_AppIterate(void *appstate);
+extern "C" void SDL_AppQuit(void *appstate, SDL_AppResult result);
 extern tTVPApplication *Application;
 extern "C" void TVPSetGameRunningOrientation(bool running);
 extern "C" void MikageKRKRSetWindowScene(void *scene);
