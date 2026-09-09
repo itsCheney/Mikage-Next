@@ -1,0 +1,162 @@
+diff --git a/environ/apple/apple_core.mm b/environ/apple/apple_core.mm
+index 535cbe2..dc8c813 100644
+--- a/environ/apple/apple_core.mm
++++ b/environ/apple/apple_core.mm
+@@ -9,6 +9,9 @@
+ #include <sys/sysctl.h>
+ 
+ #include <string>
++#if defined(_KRKRSDL3_IOS) && defined(KRKR_HOST_LIBRARY)
++extern "C" NSString* MikageKRKRFrameworkResourcePath(void);
++#endif
+ 
+ //---------------------------------------------------------------------------
+ tTVPMemoryStream* GetResourceStream(const ttstr& filename)
+@@ -45,6 +48,15 @@ tTVPMemoryStream* GetResourceStream(const ttstr& filename)
+             path = [[resRoot stringByAppendingPathComponent:@"Res"] stringByAppendingPathComponent:name];
+             data = [NSData dataWithContentsOfFile:path];
+         }
++#if defined(_KRKRSDL3_IOS) && defined(KRKR_HOST_LIBRARY)
++        if (!data)
++        {
++            NSString* frameworkRoot = MikageKRKRFrameworkResourcePath();
++            path = [[frameworkRoot stringByAppendingPathComponent:@"Res"]
++                stringByAppendingPathComponent:name];
++            data = [NSData dataWithContentsOfFile:path];
++        }
++#endif
+         if (!data)
+             return nullptr;
+ 
+@@ -54,8 +66,17 @@ tTVPMemoryStream* GetResourceStream(const ttstr& filename)
+     }
+ }
+ //---------------------------------------------------------------------------
++#if defined(_KRKRSDL3_IOS) && defined(KRKR_HOST_LIBRARY)
++extern "C" void MikageKRKRNotifyMenu(void);
++#endif
++
+ void TVPInvokeMenu(int x, int y, void* _menu)
+ {
++#if defined(_KRKRSDL3_IOS) && defined(KRKR_HOST_LIBRARY)
++    dispatch_async(dispatch_get_main_queue(), ^{
++        MikageKRKRNotifyMenu();
++    });
++#endif
+ }
+ //---------------------------------------------------------------------------
+ void TVPGetMemoryInfo(TVPMemoryInfo& m)
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+index 3311d1d..5b21d8d 100644
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -40,9 +40,25 @@
+ #endif
+ #endif
+ 
+-static SDL_Window* tvp_window;
++static SDL_Window* tvp_window = NULL;
+ static SDL_Renderer* tvp_renderer = NULL;
+ static SDL_GLContext tvp_glContext = NULL;
++static void* tvp_hostWindowScene = NULL;
++static bool tvp_hostMenuGestureEnabled = true;
++
++extern "C" void MikageKRKRSetWindowScene(void* scene)
++{
++    tvp_hostWindowScene = scene;
++}
++
++extern "C" SDL_Window* MikageKRKRGetSDLWindow(void)
++{
++    return tvp_window;
++}
++extern "C" void MikageKRKRSetMenuGestureEnabled(bool enabled)
++{
++    tvp_hostMenuGestureEnabled = enabled;
++}
+ 
+ // 按后端名创建窗口（尺寸来自 TVPSettings，-window=WxH 可配置）
+ static bool TVPCreateWindowForBackend(const std::string& renderer)
+@@ -72,6 +88,11 @@ static bool TVPCreateWindowForBackend(const std::string& renderer)
+         }
+ #endif
+     }
++#if defined(_KRKRSDL3_IOS)
++    if (tvp_hostWindowScene)
++        SDL_SetPointerProperty(props, SDL_PROP_WINDOW_CREATE_WINDOWSCENE_POINTER,
++                               tvp_hostWindowScene);
++#endif
+     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, flags);
+     tvp_window = SDL_CreateWindowWithProperties(props);
+     SDL_DestroyProperties(props);
+@@ -309,17 +330,22 @@ void handleFingerDown(const SDL_TouchFingerEvent& e)
+         // 双击->右键
+         _state = STATE_MULTI_FINGER;
+     }
+-    else
+-    {
+-        // 三击->菜单
+-        _state = STATE_MENU;
+-        int windowWidth, windowHeight;
+-        SDL_GetWindowSize(tvp_window, &windowWidth, &windowHeight);
+-        int pixelX = static_cast<int>(f.x * windowWidth);
+-        int pixelY = static_cast<int>(f.y * windowHeight);
+-        TVPInvokeMenu(pixelX, pixelY);
+-        fingers.clear();
+-        _state = STATE_IDLE;
++    else if (tvp_hostMenuGestureEnabled)
++    {
++        // 三击->菜单
++        _state = STATE_MENU;
++        int windowWidth, windowHeight;
++        SDL_GetWindowSize(tvp_window, &windowWidth, &windowHeight);
++        int pixelX = static_cast<int>(f.x * windowWidth);
++        int pixelY = static_cast<int>(f.y * windowHeight);
++        TVPInvokeMenu(pixelX, pixelY);
++        fingers.clear();
++        _state = STATE_IDLE;
++    }
++    else
++    {
++        // Keep normal one/two-finger input intact when the host disables the menu gesture.
++        fingers.erase(e.fingerID);
+     }
+ }
+ void handleFingerUp(const SDL_TouchFingerEvent& e)
+@@ -570,13 +596,20 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
+     // 后端先于上下文销毁（GL 后端析构需要上下文仍有效）
+     krkrsdl3::TVPShutdownRenderBackend();
+     if (tvp_glContext)
++    {
+         SDL_GL_DestroyContext(tvp_glContext);
++        tvp_glContext = NULL;
++    }
+     if (tvp_renderer)
+     {
+         SDL_DestroyRenderer(tvp_renderer);
+         tvp_renderer = NULL;
+     }
+-    SDL_DestroyWindow(tvp_window);
++    if (tvp_window)
++    {
++        SDL_DestroyWindow(tvp_window);
++        tvp_window = NULL;
++    }
+ #ifdef _KRKRSDL3_USE_VULKAN
+     if (TVPSettings.renderer == "vulkan")
+         SDL_Vulkan_UnloadLibrary();
+@@ -584,6 +617,14 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
+     SDL_Log("KRKRSDL3 quit successfully!");
+     SDL_Quit();
+     TVPClearAllArguments();
++    tvp_hostWindowScene = NULL;
++    tvp_hostMenuGestureEnabled = true;
++#if defined(_KRKRSDL3_ANDROID) || defined(_KRKRSDL3_EMSCRIPTEN) || defined(_KRKRSDL3_IOS)
++    fingers.clear();
++    _state = STATE_IDLE;
++    rightClickX = rightClickY = 0;
++    rightClickStartTime = 0;
++#endif
+ }
+ 
+ void TVPSetWindowTitle(const char* title)

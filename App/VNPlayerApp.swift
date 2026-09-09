@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
     @Published var player: GameRecord?
     private var libraryReadable = true
     let repository: LibraryRepository
+    let krkrSession = NativeKRKRSession()
     static let sample = GameRecord(id: UUID(uuidString: "A84D1897-2F77-4DAD-9F38-69ACFFB1022B")!,
         title: "青空下的加缪", directory: "demo", entryPoint: ".", byteCount: 488400000)
 
@@ -73,8 +74,43 @@ final class AppModel: ObservableObject {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
     func launch(_ game: GameRecord) {
+        guard demo || game.engine == "kirikiri" else {
+            alert = "该作品不是 KiriKiri 游戏，当前版本暂不启动其他引擎。"
+            return
+        }
+        player = game
+    }
+
+    func launchConfiguration(for game: GameRecord) throws -> KRKRLaunchConfiguration {
+        let directory = try repository.directory(for: game)
+        let entryPoint = game.entryPoint == "."
+            ? directory
+            : try GameScanner.containedURL(game.entryPoint, in: directory)
+        let renderer = settings.renderer == "OpenGL ES" ? "opengl" : "metal"
+        return KRKRLaunchConfiguration(
+            gameDirectory: directory,
+            entryPoint: entryPoint,
+            renderer: renderer,
+            floatingButton: settings.floatingButton,
+            idleOpacity: settings.idleOpacity,
+            threeFingerMenu: settings.threeFingerMenu
+        )
+    }
+
+    func recordPlayback(of game: GameRecord, duration: TimeInterval) {
+        guard !demo, let index = games.firstIndex(where: {     func launch(_ game: GameRecord) {
         if demo { player = game; return }
         alert = "此构建尚未连接 KRKR 运行时，暂时不能运行游戏。已导入的文件会保留。可在“关于”中打开界面演示。"
+    }.id == game.id }) else { return }
+        var updated = games
+        updated[index].lastPlayedAt = Date()
+        updated[index].playTime += max(duration, 0)
+        do {
+            try repository.save(updated)
+            games = updated
+        } catch {
+            alert = "游玩记录保存失败：\(error.localizedDescription)"
+        }
     }
     func importFolder(_ url: URL) async {
         guard !importing, libraryReadable else { return }
