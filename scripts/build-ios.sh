@@ -3,8 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build
 xcodebuild build \
-  -project VNPlayer.xcodeproj \
-  -scheme VNPlayer \
+  -project Mikage.xcodeproj \
+  -scheme Mikage \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -derivedDataPath build/DerivedData \

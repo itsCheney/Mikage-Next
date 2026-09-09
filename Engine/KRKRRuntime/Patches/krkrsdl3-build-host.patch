@@ -11,7 +11,7 @@ index 67f100a..7854e9e 100644
  # 建立项目
  if(ONLYCONSOLE)
 diff --git a/cmake/cmake_main.txt b/cmake/cmake_main.txt
-index 61ce387..835b457 100644
+index 61ce387..4268191 100644
 --- a/cmake/cmake_main.txt
 +++ b/cmake/cmake_main.txt
 @@ -12,6 +12,12 @@ set(KRKRSDL_SRC
@@ -27,7 +27,7 @@ index 61ce387..835b457 100644
  
  if(USE_FFMPEG)
      list(APPEND KRKRSDL_SRC ${KRKRSDL_CORE_FFMPEG_SRC})
-@@ -67,13 +73,29 @@ elseif(EMSCRIPTEN)
+@@ -67,13 +73,32 @@ elseif(EMSCRIPTEN)
          "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/Res@/Res"
      )
  elseif(IOS)
@@ -39,7 +39,10 @@ index 61ce387..835b457 100644
 -        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
 -    )
 +    if(KRKR_HOST_LIBRARY)
-+        add_library(${PROJECT_NAME} SHARED ${KRKRSDL_SRC})
++        add_library(${PROJECT_NAME} SHARED
++            ${KRKRSDL_SRC}
++            ${CMAKE_CURRENT_SOURCE_DIR}/host/MikageKRKRRuntime.h
++        )
 +        set_target_properties(${PROJECT_NAME} PROPERTIES
 +            FRAMEWORK TRUE
 +            FRAMEWORK_VERSION A

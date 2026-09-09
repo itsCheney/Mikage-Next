@@ -2,7 +2,7 @@ import SwiftUI
 import VNCore
 
 @main
-struct VNPlayerApp: App {
+struct MikageApp: App {
     @StateObject private var model = AppModel()
     var body: some Scene {
         WindowGroup {
@@ -44,7 +44,7 @@ final class AppModel: ObservableObject {
 
     init() {
         settings = UserDefaults.standard.data(forKey: "settings.v1").flatMap { try? JSONDecoder().decode(PlayerSettings.self, from: $0) } ?? PlayerSettings()
-        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("VNPlayer")
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mikage")
         repository = LibraryRepository(root: root)
         do { games = try repository.load() }
         catch { libraryReadable = false; alert = "无法读取游戏库：\(error.localizedDescription)。原文件已保留。" }
@@ -101,10 +101,7 @@ final class AppModel: ObservableObject {
     }
 
     func recordPlayback(of game: GameRecord, duration: TimeInterval) {
-        guard !demo, let index = games.firstIndex(where: {     func launch(_ game: GameRecord) {
-        if demo { player = game; return }
-        alert = "此构建尚未连接 KRKR 运行时，暂时不能运行游戏。已导入的文件会保留。可在“关于”中打开界面演示。"
-    }.id == game.id }) else { return }
+        guard !demo, let index = games.firstIndex(where: { $0.id == game.id }) else { return }
         var updated = games
         updated[index].lastPlayedAt = Date()
         updated[index].playTime += max(duration, 0)
