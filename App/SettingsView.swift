@@ -16,15 +16,6 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    Picker(selection: $model.settings.accent) {
-                        Text("雾灰").tag(0)
-                        Text("麦金").tag(1)
-                        Text("晴蓝").tag(2)
-                    } label: {
-                        Label("点缀色", systemImage: "paintpalette")
-                    }
-                    .pickerStyle(.menu)
-
                     Button {
                         explain("当前提供默认应用图标，替换图标资源将在后续版本加入。")
                     } label: {
