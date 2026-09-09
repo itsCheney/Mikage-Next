@@ -32,9 +32,16 @@ struct PlayerView: View {
                 }
                 if !menu {
                     Button { withAnimation { menu = true } } label: {
-                        Image(systemName: model.settings.floatingButton ? "pawprint.fill" : "line.3.horizontal")
-                            .font(.system(size: 22)).padding(14).glass(30)
-                    }.buttonStyle(.plain).opacity(model.settings.floatingButton ? model.settings.idleOpacity : 0.8)
+                        Label(
+                            "唤出游戏菜单",
+                            systemImage: model.settings.floatingButton ? "pawprint.fill" : "line.3.horizontal"
+                        )
+                        .labelStyle(.iconOnly)
+                        .font(.title3.weight(.medium))
+                        .frame(width: 44, height: 44)
+                    }
+                    .nativeGlassButtonStyle()
+                    .opacity(model.settings.floatingButton ? model.settings.idleOpacity : 0.8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(20)
                         .accessibilityLabel("唤出游戏菜单")
                 }
@@ -92,19 +99,23 @@ struct PlayerView: View {
                 action("截图", "camera") { screenshot() }
                 action("退出", "rectangle.portrait.and.arrow.right", destructive: true) { confirmExit = true }
             }
-        }.padding(compact ? 18 : 22).glass(30).foregroundStyle(.white)
+        }.padding(compact ? 18 : 22).nativeGlassPanel(30).foregroundStyle(.white)
     }
     private var duration: String { String(format: "%d:%02d:%02d", elapsed / 3600, elapsed / 60 % 60, elapsed % 60) }
     private func action(_ title: String, _ icon: String, selected: Bool = false, destructive: Bool = false, perform: @escaping () -> Void) -> some View {
-        Button(action: perform) {
+        Button(role: destructive ? .destructive : nil, action: perform) {
             VStack(spacing: 8) {
-                Image(systemName: icon).font(.system(size: 25, weight: .medium))
-                Text(title).font(.system(size: 16, weight: .medium))
-            }.frame(maxWidth: .infinity).frame(height: 82)
-                .background(selected ? model.settings.tint.opacity(0.4) : .white.opacity(0.035), in: RoundedRectangle(cornerRadius: 22))
-                .glass(22).foregroundStyle(destructive ? Color.red : Color.white)
-        }.buttonStyle(.plain)
+                Image(systemName: icon)
+                    .font(.title2.weight(.medium))
+                    .symbolRenderingMode(.hierarchical)
+                Text(title).font(.body.weight(.medium))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 82)
+        }
+        .nativeGlassButtonStyle(prominent: selected)
     }
+
     private func screenshot() {
         let renderer = ImageRenderer(content: demoScene.frame(width: 1280, height: 720))
         renderer.scale = 1

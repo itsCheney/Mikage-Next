@@ -8,14 +8,12 @@ struct VNPlayerApp: App {
         WindowGroup {
             RootView().environmentObject(model)
                 .preferredColorScheme(model.settings.appearance == "跟随系统" ? nil : model.settings.appearance == "浅色" ? .light : .dark)
-                .tint(model.settings.tint)
         }
     }
 }
 
 struct PlayerSettings: Codable {
     var appearance = "深色"
-    var accent = 0
     var renderer = "Metal 原生"
     var background = "游戏封面"
     var floatingButton = true
@@ -24,7 +22,6 @@ struct PlayerSettings: Codable {
     var performance = false
     var listLayout = false
     var sort = "最近游玩"
-    var tint: Color { [Color(red: 0.60, green: 0.64, blue: 0.72), Color(red: 0.84, green: 0.73, blue: 0.55), Color(red: 0.51, green: 0.64, blue: 0.83)][min(max(accent, 0), 2)] }
 }
 
 @MainActor

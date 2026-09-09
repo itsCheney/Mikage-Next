@@ -11,23 +11,46 @@ struct AppBackground: View {
     }
 }
 
-struct Glass: ViewModifier {
-    var radius: CGFloat = 24
-    func body(content: Content) -> some View {
-        content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(LinearGradient(colors: [.white.opacity(0.30), .white.opacity(0.06)], startPoint: .top, endPoint: .bottom), lineWidth: 0.7))
+extension View {
+    @ViewBuilder
+    func nativeGlassButtonStyle(prominent: Bool = false) -> some View {
+        if #available(iOS 26.0, *) {
+            if prominent {
+                buttonStyle(.glassProminent)
+            } else {
+                buttonStyle(.glass)
+            }
+        } else if prominent {
+            buttonStyle(.borderedProminent)
+        } else {
+            buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    func nativeGlassPanel(_ radius: CGFloat = 24) -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(in: .rect(cornerRadius: radius))
+        } else {
+            background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+        }
     }
 }
-extension View { func glass(_ radius: CGFloat = 24) -> some View { modifier(Glass(radius: radius)) } }
 
 struct RoundButton: View {
     let symbol: String
     let label: String
     let action: () -> Void
+
     var body: some View {
-        Button(action: action) { Image(systemName: symbol).font(.system(size: 21, weight: .medium)).frame(width: 42, height: 42).glass(30) }
-            .buttonStyle(.plain).accessibilityLabel(label)
+        Button(action: action) {
+            Label(label, systemImage: symbol)
+                .labelStyle(.iconOnly)
+                .font(.title3.weight(.medium))
+                .frame(width: 44, height: 44)
+        }
+        .nativeGlassButtonStyle()
+        .accessibilityLabel(label)
     }
 }
 
