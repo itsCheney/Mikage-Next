@@ -34,13 +34,10 @@ final class AppModel: ObservableObject {
     @Published var query = ""
     @Published var importing = false
     @Published var alert: String?
-    @Published var demo = false
     @Published var player: GameRecord?
     private var libraryReadable = true
     let repository: LibraryRepository
     let krkrSession = NativeKRKRSession()
-    static let sample = GameRecord(id: UUID(uuidString: "A84D1897-2F77-4DAD-9F38-69ACFFB1022B")!,
-        title: "青空下的加缪", directory: "demo", entryPoint: ".", byteCount: 488400000)
 
     init() {
         settings = UserDefaults.standard.data(forKey: "settings.v1").flatMap { try? JSONDecoder().decode(PlayerSettings.self, from: $0) } ?? PlayerSettings()
@@ -48,13 +45,12 @@ final class AppModel: ObservableObject {
         repository = LibraryRepository(root: root)
         do { games = try repository.load() }
         catch { libraryReadable = false; alert = "无法读取游戏库：\(error.localizedDescription)。原文件已保留。" }
-        if ProcessInfo.processInfo.arguments.contains("--demo") { demo = true }
         if ProcessInfo.processInfo.arguments.contains("--krkr-smoke") {
             prepareKRKRSmokeLibrary()
         }
     }
 
-    var displayedGames: [GameRecord] { demo ? [Self.sample] : games }
+    var displayedGames: [GameRecord] { games }
     var filteredGames: [GameRecord] {
         displayedGames.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }.sorted {
             switch settings.sort {
@@ -66,18 +62,17 @@ final class AppModel: ObservableObject {
         }
     }
     var latest: GameRecord? {
-        demo ? Self.sample : games.filter { $0.lastPlayedAt != nil }.max { ($0.lastPlayedAt ?? .distantPast) < ($1.lastPlayedAt ?? .distantPast) }
+        games.filter { $0.lastPlayedAt != nil }.max { ($0.lastPlayedAt ?? .distantPast) < ($1.lastPlayedAt ?? .distantPast) }
     }
     var totalSize: String { Self.size(displayedGames.reduce(0) { $0 + $1.byteCount }) }
     static func size(_ count: Int64) -> String { ByteCountFormatter.string(fromByteCount: count, countStyle: .file) }
     func recency(_ game: GameRecord) -> String {
-        if demo { return "7分钟前" }
         guard let date = game.lastPlayedAt else { return "尚未游玩" }
         let formatter = RelativeDateTimeFormatter(); formatter.locale = Locale(identifier: "zh_CN")
         return formatter.localizedString(for: date, relativeTo: Date())
     }
     func launch(_ game: GameRecord) {
-        guard demo || game.engine == "kirikiri" else {
+        guard game.engine == "kirikiri" else {
             alert = "该作品不是 KiriKiri 游戏，当前版本暂不启动其他引擎。"
             return
         }
@@ -101,7 +96,7 @@ final class AppModel: ObservableObject {
     }
 
     func recordPlayback(of game: GameRecord, duration: TimeInterval) {
-        guard !demo, let index = games.firstIndex(where: { $0.id == game.id }) else { return }
+        guard let index = games.firstIndex(where: { $0.id == game.id }) else { return }
         var updated = games
         updated[index].lastPlayedAt = Date()
         updated[index].playTime += max(duration, 0)
@@ -124,7 +119,7 @@ final class AppModel: ObservableObject {
             }.value
             do { try repository.save(games + [record]) }
             catch { try? repository.removeImportedDirectory(for: record); throw error }
-            games.append(record); demo = false
+            games.append(record)
         } catch { alert = error.localizedDescription }
     }
     func coverURL(_ game: GameRecord) -> URL? {
@@ -148,7 +143,6 @@ final class AppModel: ObservableObject {
                 }
                 return GameRecord(id: id, title: title, directory: id.uuidString, entryPoint: ".")
             }
-            demo = false
         } catch {
             alert = "KRKR smoke test fixture 创建失败：\(error.localizedDescription)"
         }

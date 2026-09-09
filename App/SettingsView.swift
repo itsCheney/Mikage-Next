@@ -34,7 +34,7 @@ struct SettingsView: View {
                 } header: {
                     Text("图形")
                 } footer: {
-                    Text("游戏显示异常时可尝试切换。当前构建尚未连接渲染器。")
+                    Text("游戏显示异常时可尝试切换。Metal 使用 SDL 系统渲染器，OpenGL ES 使用 KRKR OpenGL 后端。")
                 }
 
                 Section("游戏内") {
@@ -93,17 +93,11 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain("Mikage 0.1 · 界面与导入原型\n\n按参考截图实现游戏库、设置和游戏内菜单。此构建尚未连接 KRKR、ZIP 解压和 Wi-Fi 传输，不能运行真实游戏。\n\n封面为原创矢量示意图，应用不附带游戏内容。")
+                        explain("Mikage 0.1 · KiriKiri 播放器\n\n内置 KRKRSDL3 runtime，支持从游戏库启动 KiriKiri 游戏、触摸输入、音频、视频、存档和游戏内菜单。ZIP 解压与 Wi-Fi 传输仍待接入。\n\n应用不附带游戏内容。")
                     } label: {
                         Label("关于", systemImage: "info.circle.fill")
                     }
 
-                    Button {
-                        model.demo = true
-                        model.tab = 0
-                    } label: {
-                        Label("查看界面演示", systemImage: "play.rectangle")
-                    }
                 }
 
                 Section {

@@ -50,6 +50,7 @@ enum KRKRSessionError: LocalizedError {
 
 @MainActor
 final class NativeKRKRSession: NSObject, KRKRSession {
+    @MainActor
     private final class DisplayLinkTarget: NSObject {
         weak var owner: NativeKRKRSession?
         init(owner: NativeKRKRSession) { self.owner = owner }
@@ -116,7 +117,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
         installFloatingButton(
             in: engineWindow,
-            visible: configuration.floatingButton,
+            pawStyle: configuration.floatingButton,
             opacity: configuration.idleOpacity
         )
         let target = DisplayLinkTarget(owner: self)
@@ -198,8 +199,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         _ = MikageKRKRStep()
     }
 
-    private func installFloatingButton(in window: UIWindow, visible: Bool, opacity: Double) {
-        guard visible, let rootView = window.rootViewController?.view else { return }
+    private func installFloatingButton(in window: UIWindow, pawStyle: Bool, opacity: Double) {
+        guard let rootView = window.rootViewController?.view else { return }
         let configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
             configuration = .glass()
@@ -207,9 +208,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             configuration = .filled()
         }
         let button = UIButton(configuration: configuration)
-        button.setImage(UIImage(systemName: "pawprint.fill"), for: .normal)
+        button.setImage(UIImage(systemName: pawStyle ? "pawprint.fill" : "line.3.horizontal"), for: .normal)
         button.accessibilityLabel = "唤出游戏菜单"
-        button.alpha = max(0.1, min(opacity, 1))
+        button.alpha = pawStyle ? max(0.1, min(opacity, 1)) : 0.8
         button.frame = CGRect(x: max(rootView.bounds.width - 72, 12), y: 28, width: 52, height: 52)
         button.autoresizingMask = [.flexibleLeftMargin, .flexibleBottomMargin]
         button.addAction(UIAction { [weak self] _ in self?.runtimeRequestedMenu() }, for: .touchUpInside)

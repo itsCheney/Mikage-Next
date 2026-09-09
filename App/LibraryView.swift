@@ -55,18 +55,6 @@ struct LibraryView: View {
                         .font(.subheadline)
                     }
 
-                    if model.demo {
-                        HStack {
-                            Label("界面演示 · 不包含游戏", systemImage: "sparkles")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button("结束演示") { model.demo = false }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                        }
-                    }
-
                     if model.query.isEmpty, let latest = model.latest {
                         continueCard(latest)
                     }
@@ -188,11 +176,6 @@ struct LibraryView: View {
             } label: {
                 Label("ZIP 与 Wi-Fi 导入", systemImage: "wifi")
             }
-            if model.games.isEmpty {
-                Button { model.demo = true } label: {
-                    Label("查看界面演示", systemImage: "sparkles")
-                }
-            }
         } label: {
             Label("添加游戏", systemImage: "plus")
                 .labelStyle(.iconOnly)
@@ -297,8 +280,6 @@ struct LibraryView: View {
                 Button("导入游戏") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
-                Button("查看界面演示") { model.demo = true }
-                    .buttonStyle(.bordered)
             }
             .padding(.top, 60)
         } else {
@@ -311,8 +292,6 @@ struct LibraryView: View {
                 Button("导入游戏") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
-                Button("查看界面演示") { model.demo = true }
-                    .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 60)
@@ -347,13 +326,11 @@ struct GameDetailView: View {
                     .frame(height: 170)
                     .listRowInsets(EdgeInsets())
                 LabeledContent("名称", value: game.title)
-                LabeledContent("引擎", value: "KiriKiri（候选）")
+                LabeledContent("引擎", value: "KiriKiri · KRKRSDL3")
                 LabeledContent("文件大小", value: AppModel.size(game.byteCount))
                 LabeledContent("最近游玩", value: model.recency(game))
-                if !model.demo {
-                    PhotosPicker(selection: $photo, matching: .images) {
-                        Label("更换封面", systemImage: "photo")
-                    }
+                PhotosPicker(selection: $photo, matching: .images) {
+                    Label("更换封面", systemImage: "photo")
                 }
                 Text("长按游戏卡片可打开此页面。引擎识别不代表已经验证兼容性。")
                     .font(.footnote)
