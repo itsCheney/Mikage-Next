@@ -1,0 +1,61 @@
+name: iOS build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Test library import and persistence
+        run: swift test
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build unsigned iPhone app
+        run: bash scripts/build-ios.sh
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/package/Payload
+          ditto build/DerivedData/Build/Products/Release-iphoneos/VNPlayer.app build/package/Payload/VNPlayer.app
+          cd build/package
+          ditto -c -k --keepParent Payload ../VNPlayer-unsigned.ipa
+      - name: Upload device build
+        uses: actions/upload-artifact@v4
+        with:
+          name: VNPlayer-unsigned-${{ github.run_number }}
+          path: build/VNPlayer-unsigned.ipa
+          if-no-files-found: error
+      - name: Choose available iPhone simulator
+        run: |
+          xcrun simctl list devices available -j > build/devices.json
+          python3 scripts/select-simulator.py >> "$GITHUB_ENV"
+      - name: Exercise UI and capture screenshots
+        run: |
+          set -o pipefail
+          xcodebuild test -project VNPlayer.xcodeproj -scheme VNPlayer \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/SimulatorData -resultBundlePath build/UITests.xcresult \
+            CODE_SIGNING_ALLOWED=NO | tee build/ui-tests.log
+      - name: Upload build logs and UI test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VNPlayer-validation-${{ github.run_number }}
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: ignore
