@@ -1,37 +1,50 @@
 # KRKR 接入记录
 
-当前默认构建是原生界面与导入原型，**没有链接 KRKR**。`App/Engine/KRKRSession.swift` 只有宿主契约。
+Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframework`。runtime、对应源码补丁、Swift session 和 PlayerView 启停链路均已接入主工程；不再使用只显示演示界面的占位 session。
 
-已下载并检查核心源码版本：`fb880072d603e4bcbdae68ea1e41d44dc25ab63d`。
-上游：https://github.com/krkrsdl3/krkrsdl3
-构建系统：https://github.com/krkrsdl3/krkrsdl3_build
-本地 `third_party/` 不会打进原型 IPA，也不提交。
+## 固定版本
 
-## 已确认的接入点
+- `krkrsdl3_build`: `66fb7d9533478d33317208cd8ec8696ab9340d6f`
+- 官方构建仓库锁定的 `krkrsdl3` core: `5a8bd422f82d3758045f403520a64b772a59f40c`
+- vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
+- 上游核心：https://github.com/krkrsdl3/krkrsdl3
+- 上游构建：https://github.com/krkrsdl3/krkrsdl3_build
 
-- `environ/sdl3/sdl3_app.cpp:198` 的 `SDL_AppInit` 解析参数、初始化 SDL、创建窗口/渲染器、创建 Application 并运行启动脚本。
-- 同文件 `SDL_AppQuit:561` 调用 Application.OnExit、删除 Application、清理后端/窗口并 SDL_Quit。
-- 退出时 `tvp_window` 和 `tvp_glContext` 未清零；触摸静态状态也不能假定已复位。仅调用现有 quit 不足以证明可重入。
-- `environ/apple/apple_core.mm:57` 的 TVPInvokeMenu 是空实现，可连接原生菜单回调。
-- SDL 回调返回 APP_SUCCESS/FAILURE 属于应用终止流程，需要把游戏停止和宿主退出分开。
+完整对应修改位于 `Engine/KRKRRuntime/Patches/`，公共 C API 位于 `Engine/KRKRRuntime/Host/`。`third_party/` 仅用于本地检查，不提交。
 
-## 下一阶段的实际工作
+## 已接入
 
-1. 固定构建仓库、核心子模块、vcpkg baseline；在独立 Actions 作业编译原版 iOS 目标，保留完整依赖日志。
-2. 确定 UIKit/SDL 事件循环及 UIWindow 的归属，再抽出 session start、frame/event、stop。保留上游独立程序构建入口。
-3. 将 TVPInvokeMenu 转发给主线程 Swift 回调；保存 renderer、输入选项在每次启动的配置中。
-4. 实测 A→退出→B→退出→A，检查脚本 VM、插件、线程、音频、纹理缓存与全局状态。失败前不要宣称热切换受支持。
-5. 接入真实的菜单/自动/鼠标事件映射。自动模式不能假设所有游戏共享一个键位。
-6. 接入 libarchive（ZIP 导入）与 FlyingFox（前台局域网上传），大文件以流处理，支持取消、剩余空间检查、路径穿越防护及重名处理。
-7. 启动游戏后不要自动弹出菜单，且应当能够自动横屏。菜单应当在游戏内可访问，且不阻塞游戏线程。
-8. 悬浮球应当能够正确显示并能够被拖拽移动。
-9. 将项目名称改为Mikage-Next，bundle id等改为 `moe.cheney233.mikage` 。
-## 真机验收
+1. `scripts/build-krkr-ios.sh` 从固定提交构建 device 与 Apple Silicon simulator framework，再合成 XCFramework。
+2. 保留上游独立 iOS App target；仅在 `KRKR_HOST_LIBRARY=ON` 时排除 `sdl3_entry.cpp` 并生成动态 framework。
+3. Swift 宿主在主线程调用 `SDL_SetMainReady`，通过 `CADisplayLink` 驱动 `SDL_AppEvent` 与 `SDL_AppIterate`。
+4. SDL window 绑定当前 `UIWindowScene`。游戏启动时自动请求横屏，结束后恢复系统方向策略。
+5. 导入目录和 entry point 经过 containment 校验。每个游戏使用独立 UUID 目录，默认存档保存在该目录的 `savedata/`。
+6. KRKR `TVPInvokeMenu`、三指手势和原生悬浮球统一回调 Swift 菜单。悬浮球使用 iOS 26 Liquid Glass，并支持安全区域内拖拽。
+7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 使用当前 SDL window 截图作为叠层背景，不阻塞 KRKR 线程。
+8. 正常退出依次执行 Application.OnExit、插件/脚本 VM/窗口/纹理清理、render backend 销毁、SDL window/context/audio 清理，并重置触摸静态状态。
+9. UI test 提供无商业内容的空 `startup.tjs` fixture，执行 A→B→A 同进程启停 smoke test。
+10. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
 
-- 已知兼容的小型测试游戏能启动、触摸、播放音频和存读档。
-- 20 次启停后无持续内存上涨、后台残留音频或第二次启动崩溃。
-- 切后台/回前台、旋转、音频中断后继续可用。
-- 两次安装有独立目录；默认 savedata 留在各自游戏目录，导出时整目录处理。
-- 未连接的性能数据不使用伪造 FPS/内存数字。
+## 设计约束
 
-此列表是后续集成计划，不是本轮已通过的验收。
+- 自动模式不能假设所有游戏共享一个键位；当前不会向真实游戏伪造“自动”按键。
+- iOS runtime 使用 SDL 系统 Metal renderer 或 KRKR OpenGL ES backend，不启用 Vulkan。
+- framework 自带 `DroidSansFallback.ttf`，资源读取会在主 bundle 失败后回退到 framework bundle。
+- App 不附带游戏或商业素材。
+- 分发修改后的 KRKRSDL3 runtime 或商业游戏移植版前，必须遵守 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的声明和源码公开条件。
+
+## 真机验收仍需实际游戏
+
+以下项目不能由空脚本或模拟器替代，发布前必须使用有权测试的真实 KiriKiri 游戏完成：
+
+- 启动、单指触摸、双指右键、三指菜单、音频、视频和存读档。
+- A→退出→B→退出→A，检查脚本 VM、插件、线程、音频、纹理缓存与全局状态。
+- 连续 20 次启停后无持续内存上涨、后台残留音频或第二次启动崩溃。
+- 切后台/回前台、旋转和音频中断后继续可用。
+- 加密 XP3、游戏自带插件和不同 KiriKiri 版本的兼容性矩阵。
+
+在这些真机测试通过前，只能声明“KRKR runtime 已集成并通过构建/生命周期 smoke test”，不能声明所有 KiriKiri 游戏均兼容。
+
+## 后续阶段
+
+KRKR 真机门槛通过后，按 `docs/PHASE-2-MULTI-ENGINE-PLAN.md` 抽象统一 adapter，并依次评估 ONScripter、Ren’Py 和 Artemis。KRKR 未通过真实游戏验收前，不改变默认单引擎路由。
