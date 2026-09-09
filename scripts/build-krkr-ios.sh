@@ -68,8 +68,8 @@ cmake --preset "iOS Simulator Config" \
     -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
 
-DEVICE_FRAMEWORK="${SOURCE_DIR}/out/ios-device/Release/KRKRRuntime.framework"
-SIMULATOR_FRAMEWORK="${SOURCE_DIR}/out/ios-simulator/Release/KRKRRuntime.framework"
+DEVICE_FRAMEWORK="${SOURCE_DIR}/out/ios-device/Release-iphoneos/KRKRRuntime.framework"
+SIMULATOR_FRAMEWORK="${SOURCE_DIR}/out/ios-simulator/Release-iphonesimulator/KRKRRuntime.framework"
 if [[ ! -d "${DEVICE_FRAMEWORK}" || ! -d "${SIMULATOR_FRAMEWORK}" ]]; then
     echo "KRKRRuntime.framework was not produced for both device and simulator." >&2
     exit 1
