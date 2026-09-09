@@ -29,6 +29,8 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     test "$(git -C "${SOURCE_DIR}/cpp" rev-parse HEAD)" = "${KRKR_CORE_COMMIT}"
 
     git -C "${SOURCE_DIR}" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-build-host.patch"
+    python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))' \
+        "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-core-host.patch"
     mkdir -p "${SOURCE_DIR}/host"
     cp "${PROJECT_DIR}/Engine/KRKRRuntime/Host/"* "${SOURCE_DIR}/host/"
