@@ -2,4 +2,4 @@
 *.sh text eol=lf
 *.yml text eol=lf
 *.swift text eol=lf
-*.patch -text
+*.patch text eol=lf
