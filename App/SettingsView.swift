@@ -71,7 +71,7 @@ struct SettingsView: View {
 
                 Section("文件与传输") {
                     Button {
-                        explain("局域网上传模块尚未连接，当前不会启动网络服务。请通过游戏库右上角的加号导入文件夹。")
+                        explain("局域网上传模块尚未连接。请通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents/krkr、ons、renpy、artemis。")
                     } label: {
                         HStack {
                             Label("局域网上传", systemImage: "wifi")
@@ -81,7 +81,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain("已导入 \(model.games.count) 部作品\n游戏文件：\(AppModel.size(model.games.reduce(0) { $0 + $1.byteCount }))\n\n文件保存在“文件 → 我的 iPhone → Mikage Next → Mikage”中。可在此备份游戏及其 savedata 目录。")
+                        explain("当前 \(model.games.count) 部作品，另有 \(model.missingGames.count) 条缺失记录。\n游戏文件：\(AppModel.size(model.games.reduce(0) { $0 + $1.byteCount }))\n\n文件保存在“文件 → 我的 iPhone → Mikage Next”下的 krkr、ons、renpy、artemis 目录中。KiriKiri 存档仍位于各游戏的 savedata 目录。")
                     } label: {
                         Label("存储信息", systemImage: "internaldrive.fill")
                     }
@@ -93,7 +93,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain("Mikage 0.1 · KiriKiri 播放器\n\n内置 KRKRSDL3 runtime，支持从游戏库启动 KiriKiri 游戏、触摸输入、音频、视频、存档和游戏内菜单。ZIP 解压与 Wi-Fi 传输仍待接入。\n\n应用不附带游戏内容。")
+                        explain("Mikage 0.1 · 多引擎视觉小说播放器\n\n当前内置 KRKRSDL3 runtime，支持自动扫描并启动 KiriKiri 游戏。ONScripter、Ren’Py 与 Artemis 目录已接入游戏库，运行时将在后续阶段适配。\n\n应用不附带游戏内容。")
                     } label: {
                         Label("关于", systemImage: "info.circle.fill")
                     }

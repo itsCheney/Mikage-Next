@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import KRKRRuntime
+import VNCore
 
 @MainActor
 protocol KRKRSession: AnyObject {
@@ -18,6 +19,7 @@ protocol KRKRSession: AnyObject {
 struct KRKRLaunchConfiguration {
     let gameDirectory: URL
     let entryPoint: URL
+    let targetKind: LaunchTargetKind
     let renderer: String
     let floatingButton: Bool
     let idleOpacity: Double
@@ -73,6 +75,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
               FileManager.default.fileExists(atPath: configuration.entryPoint.path) else {
             throw KRKRSessionError.invalidGameDirectory
         }
+        let rawTarget = configuration.entryPoint.standardizedFileURL
+        let root = configuration.gameDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        let target = rawTarget.resolvingSymlinksInPath()
+        guard target == root || target.path.hasPrefix(root.path + "/"),
+              (try? rawTarget.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else {
+            throw KRKRSessionError.invalidGameDirectory
+        }
         guard let window = viewController.viewIfLoaded?.window,
               let windowScene = window.windowScene else {
             throw KRKRSessionError.missingHostWindow
@@ -87,7 +96,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         hostWindow = window
         let context = Unmanaged.passUnretained(self).toOpaque()
         let scenePointer = Unmanaged.passUnretained(windowScene).toOpaque()
-        let started = configuration.entryPoint.path.withCString { gamePath in
+        var runtimePath = target.path
+        if configuration.targetKind == .directory && !runtimePath.hasSuffix("/") {
+            runtimePath.append("/")
+        }
+        let started = runtimePath.withCString { gamePath in
             configuration.renderer.withCString { renderer in
                 MikageKRKRStart(
                     gamePath,

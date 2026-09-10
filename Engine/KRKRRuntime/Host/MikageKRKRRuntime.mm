@@ -7,9 +7,11 @@
 #include <SDL3/SDL_main.h>
 
 #include <string>
+#include <exception>
 #include <vector>
 
 #include "TVPApplication.h"
+#include "tjsError.h"
 @interface MikageKRKRBundleMarker : NSObject
 @end
 @implementation MikageKRKRBundleMarker
@@ -38,6 +40,26 @@ std::string lastError;
 MikageKRKRMenuCallback menuCallback = nullptr;
 MikageKRKRCompletionCallback completionCallback = nullptr;
 void *callbackContext = nullptr;
+
+void resetAfterStartFailure(const std::string &message)
+{
+    if (appState) {
+        try {
+            SDL_AppQuit(appState, SDL_APP_FAILURE);
+        } catch (...) {
+            // A partially initialized runtime must not throw across the C boundary.
+        }
+    }
+    TVPSetGameRunningOrientation(false);
+    MikageKRKRSetWindowScene(nullptr);
+    running = false;
+    foreground = true;
+    appState = nullptr;
+    menuCallback = nullptr;
+    completionCallback = nullptr;
+    callbackContext = nullptr;
+    lastError = message.empty() ? "KRKR initialization failed." : message;
+}
 
 void finish(SDL_AppResult result, const char *message)
 {
@@ -92,33 +114,61 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
         return false;
     }
 
-    SDL_SetMainReady();
-    MikageKRKRSetWindowScene(uiWindowScene);
-    MikageKRKRSetMenuGestureEnabled(menuGestureEnabled);
-    TVPSetGameRunningOrientation(true);
+    @autoreleasepool {
+        NSString *path = [NSString stringWithUTF8String:gamePath];
+        BOOL isDirectory = NO;
+        if (!path || ![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory]) {
+            lastError = "The KRKR game path does not exist.";
+            return false;
+        }
 
-    std::vector<std::string> arguments;
-    arguments.emplace_back("MikageNext");
-    arguments.emplace_back(gamePath);
-    if (renderer && *renderer)
-        arguments.emplace_back(std::string("-render=") + renderer);
+        std::string normalizedPath(gamePath);
+        if (isDirectory && normalizedPath.back() != '/')
+            normalizedPath.push_back('/');
 
-    std::vector<char *> argv;
-    argv.reserve(arguments.size());
-    for (auto &argument : arguments)
-        argv.push_back(argument.data());
+        try {
+            SDL_SetMainReady();
+            MikageKRKRSetWindowScene(uiWindowScene);
+            MikageKRKRSetMenuGestureEnabled(menuGestureEnabled);
+            TVPSetGameRunningOrientation(true);
 
-    menuCallback = menu;
-    completionCallback = completion;
-    callbackContext = context;
-    lastError.clear();
-    appState = nullptr;
+            std::vector<std::string> arguments;
+            arguments.emplace_back("MikageNext");
+            arguments.emplace_back(normalizedPath);
+            if (renderer && *renderer)
+                arguments.emplace_back(std::string("-render=") + renderer);
 
-    SDL_AppResult result = SDL_AppInit(&appState, static_cast<int>(argv.size()), argv.data());
-    if (result != SDL_APP_CONTINUE) {
-        running = true;
-        finish(result, SDL_GetError());
-        return false;
+            std::vector<char *> argv;
+            argv.reserve(arguments.size());
+            for (auto &argument : arguments)
+                argv.push_back(argument.data());
+
+            menuCallback = menu;
+            completionCallback = completion;
+            callbackContext = context;
+            lastError.clear();
+            appState = nullptr;
+
+            SDL_AppResult result = SDL_AppInit(
+                &appState,
+                static_cast<int>(argv.size()),
+                argv.data()
+            );
+            if (result != SDL_APP_CONTINUE) {
+                running = true;
+                finish(result, SDL_GetError());
+                return false;
+            }
+        } catch (const eTJS &error) {
+            resetAfterStartFailure(std::string(error.GetMessage().c_str()));
+            return false;
+        } catch (const std::exception &error) {
+            resetAfterStartFailure(error.what() ? error.what() : "C++ exception during KRKR startup.");
+            return false;
+        } catch (...) {
+            resetAfterStartFailure("Unknown C++ exception during KRKR startup.");
+            return false;
+        }
     }
 
     running = true;

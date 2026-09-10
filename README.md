@@ -1,10 +1,10 @@
 # Mikage Next
 
-Mikage Next 是原生 iOS KiriKiri 视觉小说播放器。界面使用 SwiftUI 与 iOS 26 原生 Liquid Glass 控件，游戏运行时由 KRKRSDL3 驱动。
+Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 26 原生 Liquid Glass 控件；当前可运行 KiriKiri 游戏，并为后续引擎预留统一游戏库。
 
-当前实现包括游戏库、文件夹导入、XP3/startup.tjs 检测、网格与列表、搜索排序、自定义封面、设置持久化、KRKR 启停、SDL 触摸/音频/视频链路、游戏内菜单、可拖拽悬浮球、截图分享和独立 savedata。应用不附带任何游戏内容。
+当前实现包括按引擎目录自动扫描、文件夹导入、XP3/startup.tjs 启动目标检测、根目录封面识别、自定义封面、缺失游戏管理、KRKR 启停、SDL 触摸/音频/视频链路、游戏内菜单、截图分享和 savedata。应用不附带任何游戏内容。
 
-目前只启用 KiriKiri 引擎；其他引擎将在 KRKR 真机兼容性稳定后再适配。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
+目前只有 KiriKiri 引擎可启动；ONScripter、Ren’Py 和 Artemis 游戏可以被扫描并显示，但在对应运行时接入前保持禁用。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
 
 ## Windows 预览
 
@@ -40,7 +40,16 @@ open Mikage.xcodeproj
 
 选择 Mikage scheme，设置自己的 Team 后运行。Bundle Identifier 为 `moe.cheney233.mikage`。
 
-首次启动游戏库为空。通过右上角加号选择包含 `startup.tjs` 或有效 XP3 的游戏目录。每个导入使用独立 UUID 目录，默认存档位于该游戏目录的 `savedata/`。
+首次启动会在 App 的 Documents 根目录创建四个引擎目录：
+
+- `krkr/<游戏文件夹>/`
+- `ons/<游戏文件夹>/`
+- `renpy/<游戏文件夹>/`
+- `artemis/<游戏文件夹>/`
+
+可以通过右上角加号导入，也可以直接使用“文件”App 放置游戏文件夹；Mikage 在启动、回到前台和下拉刷新时扫描各引擎目录的直属子目录。可见文件夹保持原名，UUID、游玩历史和手动封面只存于 Application Support。旧的 `Documents/Mikage/Games/<UUID>` 不会自动迁移或删除。
+
+KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、`data.xp3` 选择通过签名验证的 XP3。默认存档仍位于游戏目录的 `savedata/`。
 
 ## 结构
 

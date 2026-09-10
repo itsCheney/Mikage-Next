@@ -11,6 +11,11 @@ final class ReplicaUITests: XCTestCase {
         app.buttons["显示方式"].tap()
         app.buttons["列表视图"].tap()
         XCTAssertTrue(app.buttons["运行 KRKR Smoke A"].exists)
+        let unsupported = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "ONS Smoke")
+        ).firstMatch
+        XCTAssertTrue(unsupported.exists)
+        XCTAssertFalse(unsupported.isEnabled)
 
         let search = app.searchFields["搜索游戏"]
         search.tap()
@@ -18,9 +23,16 @@ final class ReplicaUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["没有找到游戏"].exists)
         search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
 
+        let missing = app.buttons["缺失游戏 1"]
+        XCTAssertTrue(missing.exists)
+        missing.tap()
+        XCTAssertTrue(app.staticTexts["Missing Smoke"].waitForExistence(timeout: 5))
+        attach("02-missing-games")
+        app.buttons["完成"].tap()
+
         app.buttons["设置"].tap()
         XCTAssertTrue(app.staticTexts["渲染方式"].waitForExistence(timeout: 5))
-        attach("02-settings")
+        attach("03-settings")
         app.buttons["游戏库"].tap()
         XCTAssertTrue(app.searchFields["搜索游戏"].waitForExistence(timeout: 5))
     }
