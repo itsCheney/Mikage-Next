@@ -1,0 +1,61 @@
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+index 7f75f29..819b55f 100644
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -309,28 +309,13 @@ static const Uint32 RIGHT_CLICK_CONFIRM_DELAY = 150;
+ void sendMouseEvent(int button, int eventType, float pX, float pY);
+ void sendMouseMotion(float pX, float pY);
+-void normalizedTouchToGame(float pX, float pY, int& gameX, int& gameY)
++void normalizedTouchToDrawable(float pX, float pY, int& pixelX, int& pixelY)
+ {
+     int drawableWidth = 1, drawableHeight = 1;
+     SDL_GetWindowSizeInPixels(tvp_window, &drawableWidth, &drawableHeight);
+     drawableWidth = std::max(drawableWidth, 1);
+     drawableHeight = std::max(drawableHeight, 1);
+-    float pixelX = pX * drawableWidth;
+-    float pixelY = pY * drawableHeight;
+-    TVPSprite* sprite = krkrsdl3::KRKR_Get_Current_Sprite();
+-    if (!sprite || sprite->width <= 0 || sprite->height <= 0)
+-    {
+-        gameX = static_cast<int>(pixelX);
+-        gameY = static_cast<int>(pixelY);
+-        return;
+-    }
+-    float scale = std::min(static_cast<float>(drawableWidth) / sprite->width,
+-                           static_cast<float>(drawableHeight) / sprite->height);
+-    float offsetX = (drawableWidth - sprite->width * scale) * 0.5f;
+-    float offsetY = (drawableHeight - sprite->height * scale) * 0.5f;
+-    gameX = static_cast<int>((pixelX - offsetX) / scale);
+-    gameY = static_cast<int>((pixelY - offsetY) / scale);
+-    gameX = std::max(0, std::min(gameX, sprite->width - 1));
+-    gameY = std::max(0, std::min(gameY, sprite->height - 1));
++    pixelX = static_cast<int>(pX * drawableWidth);
++    pixelY = static_cast<int>(pY * drawableHeight);
+ }
+ void handleFingerDown(const SDL_TouchFingerEvent& e)
+ {
+@@ -359,7 +344,7 @@ void handleFingerDown(const SDL_TouchFingerEvent& e)
+         // 三击->菜单
+         _state = STATE_MENU;
+         int pixelX = 0, pixelY = 0;
+-        normalizedTouchToGame(f.x, f.y, pixelX, pixelY);
++        normalizedTouchToDrawable(f.x, f.y, pixelX, pixelY);
+         TVPInvokeMenu(pixelX, pixelY);
+         fingers.clear();
+         _state = STATE_IDLE;
+@@ -429,6 +414,6 @@ void sendMouseEvent(int button, int eventType, float pX, float pY)
+ {
+     int pixelX = 0, pixelY = 0;
+-    normalizedTouchToGame(pX, pY, pixelX, pixelY);
++    normalizedTouchToDrawable(pX, pY, pixelX, pixelY);
+
+     tTVPMouseButton tmp = mbX1;
+     switch (button)
+@@ -462,6 +447,6 @@ void sendMouseMotion(float pX, float pY)
+ {
+     int pixelX = 0, pixelY = 0;
+-    normalizedTouchToGame(pX, pY, pixelX, pixelY);
++    normalizedTouchToDrawable(pX, pY, pixelX, pixelY);
+     krkrsdl3::KRKR_Trig_MouseMove(pixelX,pixelY);
+ }
+ #endif

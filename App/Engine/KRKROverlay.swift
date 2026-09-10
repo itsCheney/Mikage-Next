@@ -181,6 +181,7 @@ private struct KRKROverlayView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .confirmationDialog(
             "结束游戏并返回游戏库？",
             isPresented: $model.confirmExit,
