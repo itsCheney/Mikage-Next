@@ -19,6 +19,8 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
+          XCODE_CACHE_KEY="$(xcodebuild -version | shasum -a 256 | awk '{print $1}')"
+          echo "XCODE_CACHE_KEY=${XCODE_CACHE_KEY}" >> "$GITHUB_ENV"
       - name: Install project generator
         run: brew install xcodegen
       - name: Test library import and persistence
@@ -28,11 +30,24 @@ jobs:
         with:
           path: build/krkr-vcpkg-installed
           key: krkr-vcpkg-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+      - name: Restore KRKR runtime framework
+        id: cache-krkr-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/KRKRRuntime.xcframework
+          key: krkr-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Host/**', 'Engine/KRKRRuntime/Patches/**', 'scripts/build-krkr-ios.sh') }}
       - name: Build KRKR runtime framework
+        if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
         run: |
           mkdir -p build
           set -o pipefail
           bash scripts/build-krkr-ios.sh 2>&1 | tee build/krkr-runtime-build.log
+      - name: Save KRKR runtime framework
+        if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/KRKRRuntime.xcframework
+          key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: xcodegen generate
       - name: Build unsigned iPhone app
