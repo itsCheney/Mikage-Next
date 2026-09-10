@@ -53,6 +53,12 @@ final class ReplicaUITests: XCTestCase {
                 app.staticTexts["游戏库"].firstMatch.waitForExistence(timeout: 30),
                 "KRKR did not return to the library after running \(title)"
             )
+            let libraryFrame = app.windows.firstMatch.frame
+            XCTAssertGreaterThan(
+                libraryFrame.height,
+                libraryFrame.width,
+                "Library was exposed before the host window returned to portrait"
+            )
             XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2))
         }
     }

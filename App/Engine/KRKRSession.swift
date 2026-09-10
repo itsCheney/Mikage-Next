@@ -9,6 +9,7 @@ protocol KRKRSession: AnyObject {
     var state: KRKRSessionState { get }
     var onFinished: ((Result<Void, Error>) -> Void)? { get set }
     var onWarning: ((Error) -> Void)? { get set }
+    var onReturningToLibrary: (() -> Void)? { get set }
     func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) async throws
     func requestStop()
     func setForeground(_ foreground: Bool)
@@ -30,7 +31,7 @@ struct KRKRLaunchConfiguration {
 }
 
 enum KRKRSessionState: Equatable {
-    case idle, preparingOrientation, starting, running, stopping, failed(String)
+    case idle, preparingOrientation, starting, running, stopping, restoringOrientation, failed(String)
 }
 
 enum KRKRSessionError: LocalizedError {
@@ -71,6 +72,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private(set) var state: KRKRSessionState = .idle
     var onFinished: ((Result<Void, Error>) -> Void)?
     var onWarning: ((Error) -> Void)?
+    var onReturningToLibrary: (() -> Void)?
 
     private weak var hostWindow: UIWindow?
     private weak var engineWindow: UIWindow?
@@ -146,7 +148,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             try await prepareLandscape(scene: scene, window: window, controller: viewController)
         } catch {
             state = .failed(error.localizedDescription)
-            restorePreviousOrientation()
+            await restorePreviousOrientation()
             throw error
         }
 
@@ -178,7 +180,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard started else {
             let message = String(cString: MikageKRKRLastError())
             state = .failed(message)
-            restorePreviousOrientation()
+            await restorePreviousOrientation()
             throw KRKRSessionError.runtime(message)
         }
         let startupWarning = String(cString: MikageKRKRLastError())
@@ -192,7 +194,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard let engineWindow else {
             MikageKRKRRequestStop()
             state = .failed("KRKR 没有创建可用的 SDL window。")
-            restorePreviousOrientation()
+            await restorePreviousOrientation()
             throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
         }
 
@@ -279,7 +281,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         showMenuOverlay()
     }
 
-    fileprivate func runtimeFinished(success: Bool, message: String?) {
+    fileprivate func runtimeFinished(success: Bool, message: String?) async {
         displayLink?.invalidate()
         displayLink = nil
         displayLinkTarget = nil
@@ -289,13 +291,16 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         overlayCoordinator = nil
         engineWindow = nil
 
+        state = .restoringOrientation
+        onReturningToLibrary?()
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
-        restorePreviousOrientation()
+        await restorePreviousOrientation()
 
         let completion = onFinished
         onFinished = nil
         onWarning = nil
+        onReturningToLibrary = nil
         if success {
             state = .idle
             completion?(.success(()))
@@ -339,10 +344,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         throw KRKRSessionError.orientationUnavailable
     }
 
-    private func restorePreviousOrientation() {
+    private func restorePreviousOrientation() async {
         guard let scene = windowScene else { return }
+        let targetOrientation = previousOrientation
         let mask: UIInterfaceOrientationMask
-        switch previousOrientation {
+        switch targetOrientation {
         case .portrait:
             mask = .portrait
         case .portraitUpsideDown:
@@ -352,11 +358,43 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         case .landscapeRight:
             mask = .landscapeRight
         default:
-            mask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
+            mask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
         }
         hostWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
         scene.requestGeometryUpdate(preferences) { _ in }
+        UIViewController.attemptRotationToDeviceOrientation()
+
+        let expectsPortrait = targetOrientation.isPortrait ||
+            (targetOrientation == .unknown && UIDevice.current.userInterfaceIdiom != .pad)
+        let expectsLandscape = targetOrientation.isLandscape
+        var stableLayoutSamples = 0
+        for _ in 0..<60 {
+            let sceneBounds = scene.coordinateSpace.bounds
+            let windowBounds = hostWindow?.bounds ?? .zero
+            let layoutMatches: Bool
+            if expectsPortrait {
+                layoutMatches = scene.interfaceOrientation.isPortrait &&
+                    sceneBounds.height > sceneBounds.width &&
+                    windowBounds.height > windowBounds.width
+            } else if expectsLandscape {
+                layoutMatches = scene.interfaceOrientation.isLandscape &&
+                    sceneBounds.width > sceneBounds.height &&
+                    windowBounds.width > windowBounds.height
+            } else {
+                layoutMatches = true
+            }
+
+            if layoutMatches {
+                stableLayoutSamples += 1
+                if stableLayoutSamples >= 3 { break }
+            } else {
+                stableLayoutSamples = 0
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        hostWindow?.layoutIfNeeded()
+        try? await Task.sleep(nanoseconds: 100_000_000)
         windowScene = nil
         previousOrientation = .unknown
     }
@@ -438,5 +476,5 @@ private func mikageKRKRCompletionCallback(
     guard let context else { return }
     let session = Unmanaged<NativeKRKRSession>.fromOpaque(context).takeUnretainedValue()
     let detail = message.map { String(cString: $0) }
-    Task { @MainActor in session.runtimeFinished(success: success, message: detail) }
+    Task { @MainActor in await session.runtimeFinished(success: success, message: detail) }
 }
