@@ -30,6 +30,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 14. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
 15. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
 16. 图像缓存读写与 compact 使用同一递归锁，防止异步图片加载破坏缓存哈希链；触摸先映射到 drawable 像素，再由 KRKR 仅执行一次 letterbox 逆变换。
+17. 退出时清空普通、输入、窗口与 continuous 事件，并丢弃会话级 compact/continuous hook；仅显式标记的进程级静态缓存回调跨会话保留。
 
 ## 设计约束
 

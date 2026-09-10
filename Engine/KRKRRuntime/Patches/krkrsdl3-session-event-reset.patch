@@ -1,0 +1,156 @@
+diff --git a/core/archive/XP3Archive.cpp b/core/archive/XP3Archive.cpp
+index 7612aff..5671fd8 100644
+--- a/core/archive/XP3Archive.cpp
++++ b/core/archive/XP3Archive.cpp
+@@ -661,7 +661,7 @@ static void TVPPushToSegmentCache(const tTVPSegmentCacheSearchData& sdata,
+ {
+     if (!TVPClearSegmentCacheCallbackInit)
+     {
+-        TVPAddCompactEventHook(&TVPClearSegmentCacheCallback);
++        TVPAddCompactEventHook(&TVPClearSegmentCacheCallback, true);
+         TVPClearSegmentCacheCallbackInit = true;
+     }
+
+diff --git a/core/main/TVPApplication.cpp b/core/main/TVPApplication.cpp
+index 3bf06ec..9a19ed2 100644
+--- a/core/main/TVPApplication.cpp
++++ b/core/main/TVPApplication.cpp
+@@ -184,6 +184,7 @@ void tTVPApplication::OnExit()
+
+     delete image_load_thread_;
+     image_load_thread_ = NULL;
++    TVPResetEventState();
+     TVPDeliverCompactEvent(TVP_COMPACT_LEVEL_MAX);
+
+     if (TVPSystemControl)
+diff --git a/core/main/TVPEvent.cpp b/core/main/TVPEvent.cpp
+index 3b2bc21..079ae64 100644
+--- a/core/main/TVPEvent.cpp
++++ b/core/main/TVPEvent.cpp
+@@ -1013,11 +1013,19 @@ void TVPRemoveContinuousHandler(tTJSVariantClosure clo)
+ // or etc ...
+ //---------------------------------------------------------------------------
+ static std::vector<tTVPCompactEventCallbackIntf*> TVPCompactEventVector; // TODO 全静态生命周期？
++static std::vector<tTVPCompactEventCallbackIntf*> TVPPersistentCompactEventVector;
+ bool TVPEnableGlobalHeapCompaction = false;
+ //---------------------------------------------------------------------------
+-void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf* cb)
++void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf* cb, bool persistent)
+ {
+-    TVPCompactEventVector.push_back(cb);
++    if (std::find(TVPCompactEventVector.begin(), TVPCompactEventVector.end(), cb) ==
++        TVPCompactEventVector.end())
++        TVPCompactEventVector.push_back(cb);
++    if (persistent &&
++        std::find(TVPPersistentCompactEventVector.begin(),
++                  TVPPersistentCompactEventVector.end(), cb) ==
++            TVPPersistentCompactEventVector.end())
++        TVPPersistentCompactEventVector.push_back(cb);
+ }
+ //---------------------------------------------------------------------------
+ void TVPRemoveCompactEventHook(tTVPCompactEventCallbackIntf* cb)
+@@ -1075,6 +1083,38 @@ void TVPDeliverCompactEvent(tjs_int level)
+ }
+ //---------------------------------------------------------------------------
+
++//---------------------------------------------------------------------------
++// Embedded runtime session reset
++//---------------------------------------------------------------------------
++void TVPResetEventState()
++{
++    TVPDestroyEventQueue();
++    TVPWinUpdateEventQueue.clear();
++    TVPDestroyContinuousHandlerVector();
++    TVPContinuousEventVector.clear();
++    TVPEndContinuousEvent();
++    TVPContinuousEventProcessing = false;
++    TVPProcessContinuousHandlerEventFlag = false;
++
++    TVPCompactEventVector.erase(
++        std::remove_if(
++            TVPCompactEventVector.begin(), TVPCompactEventVector.end(),
++            [](tTVPCompactEventCallbackIntf* callback) {
++                return !callback ||
++                       std::find(TVPPersistentCompactEventVector.begin(),
++                                 TVPPersistentCompactEventVector.end(), callback) ==
++                           TVPPersistentCompactEventVector.end();
++            }),
++        TVPCompactEventVector.end());
++
++    TVPExclusiveEventPosted = false;
++    TVPEventSequenceNumber = 0;
++    TVPEventSequenceNumberToProcess = 0;
++    TVPEventDisabled = false;
++    TVPEventInterrupting = false;
++}
++//---------------------------------------------------------------------------
++
+ //---------------------------------------------------------------------------
+ // AsyncTrigger related
+ //---------------------------------------------------------------------------
+diff --git a/core/main/TVPEvent.h b/core/main/TVPEvent.h
+index cee624a..c08359b 100644
+--- a/core/main/TVPEvent.h
++++ b/core/main/TVPEvent.h
+@@ -277,10 +277,12 @@ public:
+ };
+ /*]*/
+ //---------------------------------------------------------------------------
+-extern void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf* cb);
++extern void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf* cb,
++                                   bool persistent = false);
+ extern void TVPRemoveCompactEventHook(tTVPCompactEventCallbackIntf* cb);
+
+ extern void TVPDeliverCompactEvent(tjs_int level);
++extern void TVPResetEventState();
+ // must be called by each platforms's implementation
+ //---------------------------------------------------------------------------
+
+diff --git a/core/media/image/TVPGraphicsLoader.cpp b/core/media/image/TVPGraphicsLoader.cpp
+index 314e21d..6fca530 100644
+--- a/core/media/image/TVPGraphicsLoader.cpp
++++ b/core/media/image/TVPGraphicsLoader.cpp
+@@ -826,7 +826,7 @@ void TVPPushGraphicCache(const ttstr& nname,
+         // graphic compact initialization
+         if (!TVPClearGraphicCacheCallbackInit)
+         {
+-            TVPAddCompactEventHook(&TVPClearGraphicCacheCallback);
++            TVPAddCompactEventHook(&TVPClearGraphicCacheCallback, true);
+             TVPClearGraphicCacheCallbackInit = true;
+         }
+
+@@ -946,7 +946,7 @@ static void TVPNormalizeGraphicNames(ttstr& _name, ttstr* maskname, ttstr* provi
+     // graphic compact initialization
+     if (!TVPClearGraphicCacheCallbackInit)
+     {
+-        TVPAddCompactEventHook(&TVPClearGraphicCacheCallback);
++        TVPAddCompactEventHook(&TVPClearGraphicCacheCallback, true);
+         TVPClearGraphicCacheCallbackInit = true;
+     }
+
+diff --git a/core/render/LayerBitmap.cpp b/core/render/LayerBitmap.cpp
+index cfdc393..4693c8f 100644
+--- a/core/render/LayerBitmap.cpp
++++ b/core/render/LayerBitmap.cpp
+@@ -1923,7 +1923,7 @@ static tTVPCharacterData* TVPGetCharacter(const tTVPFontAndCharacterData& font,
+     // compact interface initialization
+     if (!TVPClearFontCacheCallbackInit)
+     {
+-        TVPAddCompactEventHook(&TVPClearFontCacheCallback);
++        TVPAddCompactEventHook(&TVPClearFontCacheCallback, true);
+         TVPClearFontCacheCallbackInit = true;
+     }
+
+diff --git a/core/script/tjsNativeKAGParser.cpp b/core/script/tjsNativeKAGParser.cpp
+index bc4b7a0..0e3a324 100644
+--- a/core/script/tjsNativeKAGParser.cpp
++++ b/core/script/tjsNativeKAGParser.cpp
+@@ -302,7 +302,7 @@ tTVPScenarioCacheItem* TVPGetScenario(const ttstr& storagename, bool isstring)
+     // compact interface initialization
+     if (!TVPClearScenarioCacheCallbackInit)
+     {
+-        TVPAddCompactEventHook(&TVPClearScenarioCacheCallback);
++        TVPAddCompactEventHook(&TVPClearScenarioCacheCallback, true);
+         TVPClearScenarioCacheCallbackInit = true;
+         TJSAddStaticToRegisterHeap([](void*) { TVPScenarioCache.Clear(); }, NULL);
+     }

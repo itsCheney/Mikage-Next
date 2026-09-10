@@ -35,6 +35,7 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-event-reset.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
 else
     # Upgrade legacy prepared trees without reverse-checking an earlier patch
@@ -47,6 +48,9 @@ else
     fi
     if ! grep -q 'TVPGraphicCacheMutex' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
+    fi
+    if ! grep -q 'TVPResetEventState' "${SOURCE_DIR}/cpp/core/main/TVPEvent.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-event-reset.patch"
     fi
 fi
 
