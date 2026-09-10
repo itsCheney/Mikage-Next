@@ -62,8 +62,12 @@ struct GameCover: View {
             if let url = model.coverURL(game), let image = UIImage(contentsOfFile: url.path) {
                 Image(uiImage: image).resizable().scaledToFill().frame(width: proxy.size.width, height: proxy.size.height).clipped()
             } else {
-                LinearGradient(colors: [.indigo.opacity(0.7), .blue.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .overlay(Image(systemName: "book.closed.fill").font(.system(size: 34)).foregroundStyle(.white.opacity(0.5)))
+                Color(uiColor: .secondarySystemGroupedBackground)
+                    .overlay(
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(.secondary)
+                    )
             }
         }
     }

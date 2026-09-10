@@ -39,7 +39,7 @@ GameScanner
 - `GameEngineAdapter`: 验证资源、准备启动配置、创建 session、声明能力。
 - `EngineCapabilities`: 菜单、截图、鼠标语义、视频、外部插件、热重启等能力位。
 - `EngineSession`: 统一 `start/requestStop/setForeground/showMenuOverlay/hideMenuOverlay/snapshot` 和状态回调。
-- `SaveLocationPolicy`: 每个导入 UUID 独立存档根；引擎原有相对路径映射到该根，禁止越界。
+- `SaveLocationPolicy`: 游戏目录按 `Documents/<engine>/<游戏文件夹>` 管理，UUID 仅作为 Application Support 内的隐藏身份；各 adapter 明确存档位置并禁止路径越界。KRKR 当前继续使用游戏目录内的 `savedata/`。
 
 检测必须保留 evidence 并处理冲突。例如同一目录同时出现 `startup.tjs` 与 `game/script.rpyc` 时标为 ambiguous，不能静默选择第一个。
 
@@ -153,7 +153,7 @@ Ren’Py 官方支持生成 iPhone/iPad Xcode 工程，但官方文档也说明 
 - 每次 session 后检查 window 数、活动 display link、音频、后台线程和存档目录。
 - 记录 IPA 增量体积、冷启动时间、峰值内存和首次画面时间。
 - detector 单元测试覆盖阳性、阴性、伪装文件、符号链接、路径穿越和 ambiguous roots。
-- runtime 失败不能损坏 library.json、原游戏目录或其他引擎存档。
+- runtime 失败不能损坏 Application Support 中的 `library-v2.json`、原游戏目录或其他引擎存档。
 
 ## 第二阶段完成定义
 
