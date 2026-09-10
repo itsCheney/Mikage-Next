@@ -1,0 +1,412 @@
+diff --git a/core/main/TVPApplication.cpp b/core/main/TVPApplication.cpp
+index a6f2523..3bf06ec 100644
+--- a/core/main/TVPApplication.cpp
++++ b/core/main/TVPApplication.cpp
+@@ -189,11 +189,13 @@ void tTVPApplication::OnExit()
+     if (TVPSystemControl)
+         delete TVPSystemControl;
+     TVPSystemControl = NULL;
++    TVPSystemControlAlive = false;
+     TVPUninitScriptEngine();
+     TVPClearAllAutoPath();
+     TVPClearAllWindows();
+     krkrsdl3::TVPClearAllTexture();
+     iTVPTexture2D::RecycleProcess();
++    TVPProjectDirSelected = false;
+ }
+
+ void tTVPApplication::LoadImageRequest(class iTJSDispatch2* owner,
+@@ -214,3 +216,13 @@ void tTVPApplication::RegisterActiveEvent(
+     else
+         m_activeEvents.erase(host);
+ }
++
++void tTVPApplication::NotifyActiveEvent(eTVPActiveEvent event)
++{
++    auto callbacks = m_activeEvents;
++    for (const auto& item : callbacks)
++    {
++        if (item.second)
++            item.second(item.first, event);
++    }
++}
+diff --git a/core/main/TVPApplication.h b/core/main/TVPApplication.h
+index 17b38de..b4a102e 100644
+--- a/core/main/TVPApplication.h
++++ b/core/main/TVPApplication.h
+@@ -54,6 +54,7 @@ public:
+
+     void RegisterActiveEvent(
+         void* host, const std::function<void(void*, eTVPActiveEvent)>& func /*empty = unregister*/);
++    void NotifyActiveEvent(eTVPActiveEvent event);
+
+ private:
+     tTJSCriticalSection m_msgQueueLock;
+diff --git a/core/media/movie/VideoPlayer.cpp b/core/media/movie/VideoPlayer.cpp
+index 9746686..4fb2231 100644
+--- a/core/media/movie/VideoPlayer.cpp
++++ b/core/media/movie/VideoPlayer.cpp
+@@ -174,6 +174,16 @@ BasePlayer::BasePlayer(CBaseRenderer* renderer)
+     m_pRenderer(renderer),
+     tTVPThread("TVPVideoPlayer")
+ {
++    if (::Application)
++    {
++        ::Application->RegisterActiveEvent(this, [](void* host, eTVPActiveEvent event) {
++            BasePlayer* player = static_cast<BasePlayer*>(host);
++            if (event == eTVPActiveEvent::onActive)
++                player->OnActive();
++            else
++                player->OnDeactive();
++        });
++    }
+     TVPInitDirectSound(); // to avoid initialize in other thread
+     m_playSpeed = DVD_PLAYSPEED_NORMAL;
+     m_newPlaySpeed = DVD_PLAYSPEED_NORMAL;
+diff --git a/core/script/TVPScript.cpp b/core/script/TVPScript.cpp
+index bddfa50..fd770cd 100644
+--- a/core/script/TVPScript.cpp
++++ b/core/script/TVPScript.cpp
+@@ -151,9 +151,10 @@ void TVPCauseAtInstallExtensionClass(iTJSDispatch2* global)
+             dsp->Release();
+             global->PropSet(TJS_MEMBERENSURE | TJS_IGNOREPROP, i->Name, NULL, &val, global);
+         }
+-        delete TVPAtClassInstallInfos;
+-        TVPAtClassInstallInfos = NULL;
+     }
++    // Registrations are created by static constructors only once, so retain
++    // them and allow the next embedded session to install the same classes.
++    TVPAtInstallClass = false;
+ }
+ //---------------------------------------------------------------------------
+
+@@ -651,6 +652,7 @@ void TVPUninitScriptEngine()
+             freed here in some occations.
+     */
+     TVPScriptEngine = NULL;
++    TVPStartupSuccess = false;
+ }
+ //---------------------------------------------------------------------------
+
+diff --git a/environ/PlatformAudio.h b/environ/PlatformAudio.h
+index b2292a7..148378b 100644
+--- a/environ/PlatformAudio.h
++++ b/environ/PlatformAudio.h
+@@ -37,4 +37,5 @@ public:
+
+ void TVPInitDirectSound(int freq = 48000);
+ void TVPUninitDirectSound();
+-iTVPSoundBuffer* TVPCreateSoundBuffer(tTVPWaveFormat& fmt, int bufcount);
+\ No newline at end of file
++iTVPSoundBuffer* TVPCreateSoundBuffer(tTVPWaveFormat& fmt, int bufcount);
++void TVPSetAudioSuspended(bool suspended);
+diff --git a/environ/iOS/ios_core.mm b/environ/iOS/ios_core.mm
+index 482f8a5..bdaad83 100644
+--- a/environ/iOS/ios_core.mm
++++ b/environ/iOS/ios_core.mm
+@@ -57,52 +57,4 @@ extern "C" void TVPSetGameRunningOrientation(bool running)
+         SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+     else
+         SDL_SetHint(SDL_HINT_ORIENTATIONS, "");
+-
+-    dispatch_async(dispatch_get_main_queue(), ^{
+-        UIWindow* keyWin = nil;
+-        for (UIScene* scene in UIApplication.sharedApplication.connectedScenes)
+-        {
+-            if (![scene isKindOfClass:UIWindowScene.class])
+-                continue;
+-            UIWindowScene* ws = (UIWindowScene*)scene;
+-            for (UIWindow* w in ws.windows)
+-            {
+-                if (w.isKeyWindow)
+-                {
+-                    keyWin = w;
+-                    break;
+-                }
+-            }
+-            if (!keyWin && ws.windows.count)
+-                keyWin = ws.windows.firstObject;
+-            if (keyWin)
+-                break;
+-        }
+-        if (!keyWin)
+-            return;
+-        UIViewController* root = keyWin.rootViewController;
+-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 160000
+-
+-        if (@available(iOS 16.0, *))
+-        {
+-            [root setNeedsUpdateOfSupportedInterfaceOrientations];
+-            UIWindowScene* scene = keyWin.windowScene;
+-            if (scene)
+-            {
+-                UIInterfaceOrientationMask mask =
+-                    running ? UIInterfaceOrientationMaskLandscape : UIInterfaceOrientationMaskAll;
+-                UIWindowSceneGeometryPreferencesIOS* pref =
+-                    [[UIWindowSceneGeometryPreferencesIOS alloc]
+-                        initWithInterfaceOrientations:mask];
+-                [scene requestGeometryUpdateWithPreferences:pref
+-                                               errorHandler:^(NSError* e){}];
+-            }
+-        }
+-        else
+-#endif
+-        {
+-
+-            [UIViewController attemptRotationToDeviceOrientation];
+-        }
+-    });
+ }
+diff --git a/environ/sdl3/sdl3_audio.cpp b/environ/sdl3/sdl3_audio.cpp
+index ab4c021..a3b0aa6 100644
+--- a/environ/sdl3/sdl3_audio.cpp
++++ b/environ/sdl3/sdl3_audio.cpp
+@@ -6,11 +6,17 @@
+ #include <iomanip>
+ #include <unordered_set>
+ #include <algorithm>
++#include <atomic>
+
+ #include <SDL3/SDL_audio.h>
+ #include <SDL3/SDL_log.h>
+ #include <SDL3/SDL_init.h>
+
++class tTVPSoundBufferSDL;
++static tTJSCriticalSection s_hostAudioBuffersCS;
++static std::unordered_set<tTVPSoundBufferSDL*> s_hostAudioBuffers;
++static std::atomic<bool> s_hostAudioSuspended{false};
++
+ class tTVPSoundBufferSDL : public iTVPSoundBuffer
+ {
+ public:
+@@ -77,6 +82,10 @@ public:
+       : _bufferLimitCount(bufcount),
+         _frame_size(fmt.BitsPerSample * fmt.Channels)
+     {
++        {
++            tTJSCriticalSectionHolder holder(s_hostAudioBuffersCS);
++            s_hostAudioBuffers.insert(this);
++        }
+         _bufferSizeCache = new tjs_uint[bufcount];
+         memset(&spec, 0, sizeof(spec));
+         spec.freq = fmt.SamplesPerSec;
+@@ -118,11 +127,17 @@ public:
+             return false;
+         }
+         SDL_BindAudioStream(sdl_audio_device, _stream);
++        if (s_hostAudioSuspended.load(std::memory_order_acquire))
++            SDL_PauseAudioStreamDevice(_stream);
+         return true;
+     }
+
+     virtual ~tTVPSoundBufferSDL()
+     {
++        {
++            tTJSCriticalSectionHolder holder(s_hostAudioBuffersCS);
++            s_hostAudioBuffers.erase(this);
++        }
+         Stop();
+
+         if (_stream)
+@@ -140,8 +155,9 @@ public:
+     {
+         if (_playing)
+             return;
+-        SDL_ResumeAudioStreamDevice(_stream);
+         _playing = true;
++        if (!s_hostAudioSuspended.load(std::memory_order_acquire))
++            SDL_ResumeAudioStreamDevice(_stream);
+     }
+     virtual void Pause() override
+     {
+@@ -225,6 +241,16 @@ public:
+     virtual tjs_uint GetLatencySamples() override { return 0; }
+     virtual float GetLatencySeconds() override { return 0; }
+
++    void SetHostSuspended(bool suspended)
++    {
++        if (!_stream)
++            return;
++        if (suspended)
++            SDL_PauseAudioStreamDevice(_stream);
++        else if (_playing)
++            SDL_ResumeAudioStreamDevice(_stream);
++    }
++
+     virtual void SetPosition(float x, float y, float z) override
+     {
+         // not implemented
+@@ -269,4 +295,12 @@ iTVPSoundBuffer* TVPCreateSoundBuffer(tTVPWaveFormat& fmt, int bufcount)
+         return s;
+     else
+         return nullptr;
+-}
+\ No newline at end of file
++}
++
++void TVPSetAudioSuspended(bool suspended)
++{
++    s_hostAudioSuspended.store(suspended, std::memory_order_release);
++    tTJSCriticalSectionHolder holder(s_hostAudioBuffersCS);
++    for (auto* buffer : s_hostAudioBuffers)
++        buffer->SetHostSuspended(suspended);
++}
+diff --git a/tjs2/tjs.cpp b/tjs2/tjs.cpp
+index 341aaf5..7db5ac0 100644
+--- a/tjs2/tjs.cpp
++++ b/tjs2/tjs.cpp
+@@ -182,6 +182,15 @@ tTJS::~tTJS()
+     TJSReleaseRegex();
+ #endif
+
++    // Release the global object through normal reference counting before
++    // force-clearing fallback pools. The previous process-exit-only cleanup
++    // left live dispatch objects behind and corrupted the next TJS session.
++    if (Global)
++    {
++        Global->Release();
++        Global = nullptr;
++    }
++
+     if (PPValues)
+         delete PPValues;
+     if (Cache)
+diff --git a/tjs2/tjs.h b/tjs2/tjs.h
+index 635a1a6..1f678b6 100644
+--- a/tjs2/tjs.h
++++ b/tjs2/tjs.h
+@@ -300,6 +300,7 @@ public:
+         }
+         head = initialCapacity;
+         freeStackSize = initialCapacity;
++        size = initialCapacity;
+     }
+
+     size_t registerObject(T* obj)
+@@ -340,13 +341,16 @@ public:
+         }
+
+         // 重置空闲栈
+-        size_t stackSize = freeStackSize.load(std::memory_order_acquire);
++        size_t stackSize = slots.size();
++        if (freeStack.size() < stackSize)
++            freeStack.resize(stackSize);
+         for (size_t i = 0; i < stackSize; ++i)
+         {
+             freeStack[i] = i;
+         }
++        freeStackSize.store(stackSize, std::memory_order_release);
+         head.store(stackSize, std::memory_order_release);
+-        size.store(0, std::memory_order_release);
++        size.store(stackSize, std::memory_order_release);
+     }
+
+     template<typename Func>
+@@ -388,7 +392,7 @@ private:
+         {
+             size_t newHead = oldHead + 1;
+             size_t stackSize = freeStackSize.load(std::memory_order_acquire);
+-            if (newHead >= stackSize)
++            if (newHead > stackSize)
+             {
+                 growFreeStack();
+                 // 重新加载 head，因为 growFreeStack 可能改变了它
+@@ -418,7 +422,7 @@ private:
+             {
+                 size_t newHead = oldHead + 1;
+                 size_t stackSize = freeStackSize.load(std::memory_order_acquire);
+-                if (newHead >= stackSize)
++                if (newHead > stackSize)
+                 {
+                     growFreeStack();
+                     oldHead = head.load(std::memory_order_acquire);
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+index 5b21d8d..7f75f29 100644
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -70,6 +70,6 @@ static bool TVPCreateWindowForBackend(const std::string& renderer)
+     Uint64 flags = SDL_WINDOW_RESIZABLE;
+ #if defined(_KRKRSDL3_IOS)
+-    flags |= SDL_WINDOW_FULLSCREEN;
++    flags |= SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+     flags &= ~SDL_WINDOW_RESIZABLE;
+ #endif
+     if (renderer == "opengl")
+@@ -306,5 +306,29 @@ static const Uint32 RIGHT_CLICK_CONFIRM_DELAY = 150;
+ void sendMouseEvent(int button, int eventType, float pX, float pY);
+ void sendMouseMotion(float pX, float pY);
++void normalizedTouchToGame(float pX, float pY, int& gameX, int& gameY)
++{
++    int drawableWidth = 1, drawableHeight = 1;
++    SDL_GetWindowSizeInPixels(tvp_window, &drawableWidth, &drawableHeight);
++    drawableWidth = std::max(drawableWidth, 1);
++    drawableHeight = std::max(drawableHeight, 1);
++    float pixelX = pX * drawableWidth;
++    float pixelY = pY * drawableHeight;
++    TVPSprite* sprite = krkrsdl3::KRKR_Get_Current_Sprite();
++    if (!sprite || sprite->width <= 0 || sprite->height <= 0)
++    {
++        gameX = static_cast<int>(pixelX);
++        gameY = static_cast<int>(pixelY);
++        return;
++    }
++    float scale = std::min(static_cast<float>(drawableWidth) / sprite->width,
++                           static_cast<float>(drawableHeight) / sprite->height);
++    float offsetX = (drawableWidth - sprite->width * scale) * 0.5f;
++    float offsetY = (drawableHeight - sprite->height * scale) * 0.5f;
++    gameX = static_cast<int>((pixelX - offsetX) / scale);
++    gameY = static_cast<int>((pixelY - offsetY) / scale);
++    gameX = std::max(0, std::min(gameX, sprite->width - 1));
++    gameY = std::max(0, std::min(gameY, sprite->height - 1));
++}
+ void handleFingerDown(const SDL_TouchFingerEvent& e)
+ {
+     Finger f;
+@@ -335,10 +359,8 @@ void handleFingerDown(const SDL_TouchFingerEvent& e)
+     {
+         // 三击->菜单
+         _state = STATE_MENU;
+-        int windowWidth, windowHeight;
+-        SDL_GetWindowSize(tvp_window, &windowWidth, &windowHeight);
+-        int pixelX = static_cast<int>(f.x * windowWidth);
+-        int pixelY = static_cast<int>(f.y * windowHeight);
++        int pixelX = 0, pixelY = 0;
++        normalizedTouchToGame(f.x, f.y, pixelX, pixelY);
+         TVPInvokeMenu(pixelX, pixelY);
+         fingers.clear();
+         _state = STATE_IDLE;
+@@ -402,10 +424,8 @@ void handleFingerMotion(const SDL_TouchFingerEvent& e)
+
+ void sendMouseEvent(int button, int eventType, float pX, float pY)
+ {
+-    int windowWidth, windowHeight;
+-    SDL_GetWindowSize(tvp_window, &windowWidth, &windowHeight);
+-    int pixelX = static_cast<int>(pX * windowWidth);
+-    int pixelY = static_cast<int>(pY * windowHeight);
++    int pixelX = 0, pixelY = 0;
++    normalizedTouchToGame(pX, pY, pixelX, pixelY);
+
+     tTVPMouseButton tmp = mbX1;
+     switch (button)
+@@ -437,10 +457,8 @@ void sendMouseEvent(int button, int eventType, float pX, float pY)
+ }
+ void sendMouseMotion(float pX, float pY)
+ {
+-    int windowWidth, windowHeight;
+-    SDL_GetWindowSize(tvp_window, &windowWidth, &windowHeight);
+-    int pixelX = static_cast<int>(pX * windowWidth);
+-    int pixelY = static_cast<int>(pY * windowHeight);
++    int pixelX = 0, pixelY = 0;
++    normalizedTouchToGame(pX, pY, pixelX, pixelY);
+     krkrsdl3::KRKR_Trig_MouseMove(pixelX,pixelY);
+ }
+ #endif
+@@ -573,7 +591,7 @@ SDL_AppResult SDL_AppIterate(void* appstate)
+         return SDL_APP_SUCCESS;
+     // 写入缓冲区
+     int RW = 1280, RH = 720;
+-    SDL_GetWindowSize(tvp_window, &RW, &RH);
++    SDL_GetWindowSizeInPixels(tvp_window, &RW, &RH);
+     // 合成器完成渲染（清屏/绘制/呈现全部由当前渲染后端负责）
+     krkrsdl3::TVPRenderOnce(RW, RH);
+     return SDL_APP_CONTINUE;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,14 @@ typedef enum MikageKRKRStepResult {
 typedef void (*MikageKRKRMenuCallback)(void *context);
 typedef void (*MikageKRKRCompletionCallback)(bool success, const char *message, void *context);
 
+typedef struct MikageKRKRStats {
+    double framesPerSecond;
+    double frameTimeMilliseconds;
+    int32_t drawableWidth;
+    int32_t drawableHeight;
+    char renderer[32];
+} MikageKRKRStats;
+
 bool MikageKRKRStart(const char *gamePath,
                      const char *renderer,
                      void *uiWindowScene,
@@ -25,7 +34,8 @@ bool MikageKRKRStart(const char *gamePath,
                      void *context);
 MikageKRKRStepResult MikageKRKRStep(void);
 void MikageKRKRRequestStop(void);
-void MikageKRKRSetForeground(bool foreground);
+bool MikageKRKRSetForeground(bool foreground);
+bool MikageKRKRGetStats(MikageKRKRStats *stats);
 bool MikageKRKRIsRunning(void);
 const char *MikageKRKRLastError(void);
 void *MikageKRKRNativeWindow(void);

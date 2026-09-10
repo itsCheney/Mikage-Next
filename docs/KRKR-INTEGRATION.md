@@ -25,6 +25,10 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 9. UI test 提供无商业内容的空 `startup.tjs` fixture，执行 A→B→A 同进程启停 smoke test。
 10. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
 11. 目录启动目标在 Swift 与 Objective-C++ 边界统一补全结尾 `/`；桥接层捕获 `eTJS`、标准 C++ 和未知异常，将启动错误返回 Swift，避免异常越过 C API 导致 `SIGABRT`。
+12. 启动前由 Swift 等待 `UIWindowScene` 完成横屏 geometry update，再创建 SDL window；iOS 使用 high-pixel-density drawable 和真实像素 viewport。
+13. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，Metal 画面不再通过 `CALayer.render` 伪截图作为背景。
+14. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
+15. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
 
 ## 设计约束
 

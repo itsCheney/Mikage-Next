@@ -23,7 +23,8 @@ final class ReplicaUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["没有找到游戏"].exists)
         search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
 
-        let missing = app.buttons["缺失游戏 1"]
+        app.searchFields["搜索游戏"].typeText(XCUIKeyboardKey.return.rawValue)
+        let missing = app.buttons["missing-games-button"]
         XCTAssertTrue(missing.exists)
         missing.tap()
         XCTAssertTrue(app.staticTexts["Missing Smoke"].waitForExistence(timeout: 5))
@@ -43,7 +44,8 @@ final class ReplicaUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["游戏库"].firstMatch.waitForExistence(timeout: 15))
 
-        for title in ["KRKR Smoke A", "KRKR Smoke B", "KRKR Smoke A"] {
+        for index in 0..<10 {
+            let title = index.isMultiple(of: 2) ? "KRKR Smoke A" : "KRKR Smoke B"
             let launch = app.buttons["运行 \(title)"]
             XCTAssertTrue(launch.waitForExistence(timeout: 15), "Missing smoke game: \(title)")
             launch.tap()

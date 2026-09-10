@@ -2,7 +2,7 @@
 
 Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 26 原生 Liquid Glass 控件；当前可运行 KiriKiri 游戏，并为后续引擎预留统一游戏库。
 
-当前实现包括按引擎目录自动扫描、文件夹导入、XP3/startup.tjs 启动目标检测、根目录封面识别、自定义封面、缺失游戏管理、KRKR 启停、SDL 触摸/音频/视频链路、游戏内菜单、截图分享和 savedata。应用不附带任何游戏内容。
+当前实现包括按引擎目录自动扫描、文件夹导入、XP3/startup.tjs 启动目标检测、根目录封面识别、自定义封面、缺失游戏管理、可重入 KRKR 启停、Retina drawable、前后台完整暂停、同窗口游戏菜单、真实性能 HUD、截图分享和 savedata。应用不附带任何游戏内容。
 
 目前只有 KiriKiri 引擎可启动；ONScripter、Ren’Py 和 Artemis 游戏可以被扫描并显示，但在对应运行时接入前保持禁用。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
 
