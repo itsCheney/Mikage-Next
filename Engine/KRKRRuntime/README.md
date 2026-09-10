@@ -8,7 +8,7 @@ Pinned inputs:
 - `krkrsdl3` core submodule: `5a8bd422f82d3758045f403520a64b772a59f40c`
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 
-`Host/` contains the public C API, frame metrics and lifecycle driver. `Patches/krkrsdl3-core-host.patch` contains the embedding changes; `Patches/krkrsdl3-lifecycle-host.patch` contains restart-safe TJS cleanup, foreground audio/video suspension and Retina drawable changes. Follow-up patches serialize the asynchronous graphics cache and keep touch input in drawable coordinates until KRKR performs its letterbox transform. `scripts/build-krkr-ios.sh` fetches the pinned sources, applies the complete patch chain, builds device and Apple Silicon simulator frameworks, then creates `build/KRKRRuntime.xcframework`.
+`Host/` contains the public C API, frame metrics and lifecycle driver. `Patches/krkrsdl3-core-host.patch` contains the embedding changes; `Patches/krkrsdl3-lifecycle-host.patch` contains restart-safe TJS cleanup, foreground audio/video suspension and Retina drawable changes. Follow-up patches serialize the asynchronous graphics cache, keep touch input in drawable coordinates until KRKR performs its letterbox transform, and discard session-scoped event hooks before the next game starts. `scripts/build-krkr-ios.sh` fetches the pinned sources, applies the complete patch chain, builds device and Apple Silicon simulator frameworks, then creates `build/KRKRRuntime.xcframework`.
 
 The host patch deliberately removes only `sdl3_entry.cpp` from the framework build. The official standalone iOS target remains unchanged when `KRKR_HOST_LIBRARY=OFF`.
 
