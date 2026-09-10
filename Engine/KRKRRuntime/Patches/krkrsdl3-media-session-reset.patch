@@ -1,0 +1,154 @@
+diff --git a/core/script/tjsNativeVideoOverlay.cpp b/core/script/tjsNativeVideoOverlay.cpp
+index 99a4fb8..7cb0fe6 100644
+--- a/core/script/tjsNativeVideoOverlay.cpp
++++ b/core/script/tjsNativeVideoOverlay.cpp
+@@ -210,12 +210,13 @@ static void TVPRemoveVideoOverlay(tTJSNI_VideoOverlay* ovl)
+ //---------------------------------------------------------------------------
+ static void TVPShutdownVideoOverlay()
+ {
+-    // shutdown all overlay object and release krmovie.dll / krflash.dll
+-    std::vector<tTJSNI_VideoOverlay*>::iterator i;
+-    for (i = TVPVideoOverlayVector.begin(); i != TVPVideoOverlayVector.end(); i++)
+-    {
+-        (*i)->Shutdown();
+-    }
++    // Fully release every session player before SDL tears down its audio and
++    // rendering devices. Shutdown() alone intentionally caches the player.
++    const auto overlays = TVPVideoOverlayVector;
++    for (auto* overlay : overlays)
++        if (overlay)
++            overlay->FinalizeSession();
++    TVPVideoOverlayVector.clear();
+ }
+ static tTVPAtExit TVPShutdownVideoOverlayAtExit(TVP_ATEXIT_PRI_PREPARE, TVPShutdownVideoOverlay);
+ //---------------------------------------------------------------------------
+@@ -248,6 +249,13 @@ tTJSNI_VideoOverlay::tTJSNI_VideoOverlay() : EventQueue(this, &tTJSNI_VideoOverl
+
+     Bitmap[0] = Bitmap[1] = NULL;
+     BmpBits[0] = BmpBits[1] = NULL;
++    TVPAddVideOverlay(this);
++}
++//---------------------------------------------------------------------------
++tTJSNI_VideoOverlay::~tTJSNI_VideoOverlay()
++{
++    FinalizeSession();
++    TVPRemoveVideoOverlay(this);
+ }
+ //---------------------------------------------------------------------------
+ tjs_error tTJSNI_VideoOverlay::Construct(tjs_int numparams,
+@@ -448,6 +456,50 @@ void tTJSNI_VideoOverlay::Shutdown()
+     CanDeliverEvents = c;
+ }
+ //---------------------------------------------------------------------------
++void tTJSNI_VideoOverlay::FinalizeSession() noexcept
++{
++    CanDeliverEvents = false;
++    ClearWndProcMessages();
++
++    iTVPVideoOverlay* active = VideoOverlay;
++    iTVPVideoOverlay* cached = CachedOverlay;
++    VideoOverlay = nullptr;
++    CachedOverlay = nullptr;
++
++    if (active)
++    {
++        try
++        {
++            active->SetVisible(false);
++            active->Pause();
++            active->Release();
++        }
++        catch (...)
++        {
++        }
++    }
++    if (cached && cached != active)
++    {
++        try
++        {
++            cached->Release();
++        }
++        catch (...)
++        {
++        }
++    }
++
++    if (LocalTempStorageHolder)
++        delete LocalTempStorageHolder, LocalTempStorageHolder = nullptr;
++    if (Bitmap[0])
++        delete Bitmap[0];
++    if (Bitmap[1])
++        delete Bitmap[1];
++    Bitmap[0] = Bitmap[1] = nullptr;
++    BmpBits[0] = BmpBits[1] = nullptr;
++    Status = ssUnload;
++}
++//---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Disconnect()
+ {
+     // disconnect the object
+diff --git a/core/script/tjsNativeVideoOverlay.h b/core/script/tjsNativeVideoOverlay.h
+index f695d64..69d95ab 100644
+--- a/core/script/tjsNativeVideoOverlay.h
++++ b/core/script/tjsNativeVideoOverlay.h
+@@ -110,6 +110,7 @@ class tTJSNI_VideoOverlay : public tTJSNI_BaseVideoOverlay, public iTVPVideoCall
+
+ public:
+     tTJSNI_VideoOverlay();
++    ~tTJSNI_VideoOverlay() override;
+     tjs_error Construct(tjs_int numparams, tTJSVariant** param, iTJSDispatch2* tjs_obj) override;
+     void Invalidate() override;
+
+@@ -117,6 +118,7 @@ public:
+     void Open(const ttstr& name);
+     void Close();
+     void Shutdown();
++    void FinalizeSession() noexcept;
+     void Disconnect() override; // tTJSNI_BaseVideoOverlay::Disconnect override
+
+     void Play();
+diff --git a/environ/PlatformAudio.h b/environ/PlatformAudio.h
+index 148378b..0d26f49 100644
+--- a/environ/PlatformAudio.h
++++ b/environ/PlatformAudio.h
+@@ -39,3 +39,4 @@ void TVPInitDirectSound(int freq = 48000);
+ void TVPUninitDirectSound();
+ iTVPSoundBuffer* TVPCreateSoundBuffer(tTVPWaveFormat& fmt, int bufcount);
+ void TVPSetAudioSuspended(bool suspended);
++void TVPResetAudioSessionState();
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+index 9ef5668..75603b7 100644
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -46,6 +46,8 @@ static SDL_GLContext tvp_glContext = NULL;
+ static void* tvp_hostWindowScene = NULL;
+ static bool tvp_hostMenuGestureEnabled = true;
+
++extern void TVPResetAudioSessionState();
++
+ extern "C" void MikageKRKRSetWindowScene(void* scene)
+ {
+     tvp_hostWindowScene = scene;
+@@ -596,6 +598,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
+         delete Application;
+         Application = NULL;
+     }
++    TVPResetAudioSessionState();
+     // 后端先于上下文销毁（GL 后端析构需要上下文仍有效）
+     krkrsdl3::TVPShutdownRenderBackend();
+     if (tvp_glContext)
+diff --git a/environ/sdl3/sdl3_audio.cpp b/environ/sdl3/sdl3_audio.cpp
+index ef88387..8d1141c 100644
+--- a/environ/sdl3/sdl3_audio.cpp
++++ b/environ/sdl3/sdl3_audio.cpp
+@@ -305,3 +305,10 @@ void TVPSetAudioSuspended(bool suspended)
+     for (auto* buffer : s_hostAudioBuffers)
+         buffer->SetHostSuspended(suspended);
+ }
++
++void TVPResetAudioSessionState()
++{
++    s_hostAudioSuspended.store(true, std::memory_order_release);
++    tTJSCriticalSectionHolder holder(s_hostAudioBuffersCS);
++    s_hostAudioBuffers.clear();
++}
