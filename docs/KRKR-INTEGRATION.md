@@ -20,7 +20,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 4. SDL window 绑定当前 `UIWindowScene`。游戏启动时自动请求横屏，结束后恢复系统方向策略。
 5. 游戏从 `Documents/krkr/<游戏文件夹>` 扫描，目录保持用户命名；隐藏 UUID 和历史位于 Application Support。目录和启动目标均经过 containment 与符号链接校验，默认存档保存在游戏目录的 `savedata/`。
 6. KRKR `TVPInvokeMenu`、三指手势和原生悬浮球统一回调 Swift 菜单。悬浮球使用 iOS 26 Liquid Glass，并支持安全区域内拖拽。
-7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 使用当前 SDL window 截图作为叠层背景，不阻塞 KRKR 线程。
+7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 透明浮层直接覆盖 SDL window，底层 Metal 游戏画面保持可见。
 8. 正常退出依次执行 Application.OnExit、插件/脚本 VM/窗口/纹理清理、render backend 销毁、SDL window/context/audio 清理，并重置触摸静态状态。
 9. UI test 提供无商业内容的空 `startup.tjs` fixture，执行 A→B→A 同进程启停 smoke test。
 10. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
@@ -29,6 +29,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 13. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，Metal 画面不再通过 `CALayer.render` 伪截图作为背景。
 14. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
 15. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
+16. 图像缓存读写与 compact 使用同一递归锁，防止异步图片加载破坏缓存哈希链；触摸先映射到 drawable 像素，再由 KRKR 仅执行一次 letterbox 逆变换。
 
 ## 设计约束
 

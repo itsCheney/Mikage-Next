@@ -33,12 +33,20 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
         "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-core-host.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
 fi
 
 # Upgrade an already prepared local source tree when lifecycle patches change.
 if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
+fi
+if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"; then
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
+fi
+if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"; then
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
 fi
 
 # Host sources belong to this repository and may change independently of the pinned upstream tree.
