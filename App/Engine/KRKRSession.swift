@@ -1,14 +1,15 @@
 import Foundation
 import UIKit
+import Darwin
 import KRKRRuntime
 import VNCore
 
 @MainActor
 protocol KRKRSession: AnyObject {
     var state: KRKRSessionState { get }
-    var onMenuRequested: (() -> Void)? { get set }
     var onFinished: ((Result<Void, Error>) -> Void)? { get set }
-    func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) throws
+    var onWarning: ((Error) -> Void)? { get set }
+    func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) async throws
     func requestStop()
     func setForeground(_ foreground: Bool)
     func showMenuOverlay()
@@ -24,16 +25,20 @@ struct KRKRLaunchConfiguration {
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
+    let performance: Bool
+    let gameTitle: String
 }
 
 enum KRKRSessionState: Equatable {
-    case idle, starting, running, stopping, failed(String)
+    case idle, preparingOrientation, starting, running, stopping, failed(String)
 }
 
 enum KRKRSessionError: LocalizedError {
     case alreadyRunning
     case missingHostWindow
     case invalidGameDirectory
+    case orientationUnavailable
+    case audioSession(String)
     case runtime(String)
 
     var errorDescription: String? {
@@ -44,6 +49,10 @@ enum KRKRSessionError: LocalizedError {
             return "无法取得当前 iOS 窗口，KRKR 未启动。"
         case .invalidGameDirectory:
             return "游戏目录或启动入口已经不存在。"
+        case .orientationUnavailable:
+            return "无法切换到横屏。请确认方向锁定允许横屏，然后旋转设备后重试。"
+        case .audioSession(let message):
+            return "音频会话切换失败，游戏将保持静音：\(message)"
         case .runtime(let message):
             return message.isEmpty ? "KRKR 启动失败。" : "KRKR 启动失败：\(message)"
         }
@@ -60,17 +69,59 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     }
 
     private(set) var state: KRKRSessionState = .idle
-    var onMenuRequested: (() -> Void)?
     var onFinished: ((Result<Void, Error>) -> Void)?
+    var onWarning: ((Error) -> Void)?
 
     private weak var hostWindow: UIWindow?
     private weak var engineWindow: UIWindow?
+    private weak var windowScene: UIWindowScene?
+    private var previousOrientation: UIInterfaceOrientation = .unknown
     private var displayLink: CADisplayLink?
     private var displayLinkTarget: DisplayLinkTarget?
-    private var floatingButton: UIButton?
+    private var metricsTimer: Timer?
+    private var overlayCoordinator: KRKROverlayCoordinator?
+    private var observers: [NSObjectProtocol] = []
+    private var isForeground = true
+    private var requestedForeground = true
+    private var elapsedSeconds = 0
+    private var rendererLabel = "Metal"
+    private var performanceEnabled = false
 
-    func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) throws {
+    override init() {
+        super.init()
+        let center = NotificationCenter.default
+        observers.append(
+            center.addObserver(
+                forName: UIApplication.willResignActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.setForeground(false) }
+            }
+        )
+        observers.append(
+            center.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.setForeground(true) }
+            }
+        )
+    }
+
+    deinit {
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    func start(
+        configuration: KRKRLaunchConfiguration,
+        in viewController: UIViewController
+    ) async throws {
         guard state == .idle || isFailed else { throw KRKRSessionError.alreadyRunning }
+        requestedForeground = UIApplication.shared.applicationState == .active
         guard FileManager.default.fileExists(atPath: configuration.gameDirectory.path),
               FileManager.default.fileExists(atPath: configuration.entryPoint.path) else {
             throw KRKRSessionError.invalidGameDirectory
@@ -83,8 +134,20 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             throw KRKRSessionError.invalidGameDirectory
         }
         guard let window = viewController.viewIfLoaded?.window,
-              let windowScene = window.windowScene else {
+              let scene = window.windowScene else {
             throw KRKRSessionError.missingHostWindow
+        }
+
+        state = .preparingOrientation
+        hostWindow = window
+        windowScene = scene
+        previousOrientation = scene.interfaceOrientation
+        do {
+            try await prepareLandscape(scene: scene, window: window, controller: viewController)
+        } catch {
+            state = .failed(error.localizedDescription)
+            restorePreviousOrientation()
+            throw error
         }
 
         try FileManager.default.createDirectory(
@@ -93,9 +156,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         )
 
         state = .starting
-        hostWindow = window
         let context = Unmanaged.passUnretained(self).toOpaque()
-        let scenePointer = Unmanaged.passUnretained(windowScene).toOpaque()
+        let scenePointer = Unmanaged.passUnretained(scene).toOpaque()
         var runtimePath = resolvedTarget.path
         if configuration.targetKind == .directory && !runtimePath.hasSuffix("/") {
             runtimePath.append("/")
@@ -116,7 +178,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard started else {
             let message = String(cString: MikageKRKRLastError())
             state = .failed(message)
+            restorePreviousOrientation()
             throw KRKRSessionError.runtime(message)
+        }
+        let startupWarning = String(cString: MikageKRKRLastError())
+        if !startupWarning.isEmpty {
+            onWarning?(KRKRSessionError.audioSession(startupWarning))
         }
 
         if let nativeWindow = MikageKRKRNativeWindow() {
@@ -125,20 +192,42 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard let engineWindow else {
             MikageKRKRRequestStop()
             state = .failed("KRKR 没有创建可用的 SDL window。")
+            restorePreviousOrientation()
             throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
         }
 
-        installFloatingButton(
-            in: engineWindow,
-            pawStyle: configuration.floatingButton,
-            opacity: configuration.idleOpacity
+        rendererLabel = configuration.renderer == "opengl" ? "OpenGL ES" : "Metal"
+        performanceEnabled = configuration.performance
+        elapsedSeconds = 0
+        let overlay = KRKROverlayCoordinator(
+            gameTitle: configuration.gameTitle,
+            performanceVisible: configuration.performance,
+            renderer: rendererLabel
         )
+        overlay.install(
+            in: engineWindow,
+            floatingButtonEnabled: configuration.floatingButton,
+            floatingButtonOpacity: configuration.idleOpacity,
+            onExit: { [weak self] in
+                self?.overlayCoordinator?.hideMenu()
+                self?.requestStop()
+            },
+            onScreenshot: { [weak self] in self?.snapshot() }
+        )
+        overlayCoordinator = overlay
+
         let target = DisplayLinkTarget(owner: self)
         let link = CADisplayLink(target: target, selector: #selector(DisplayLinkTarget.tick))
         link.add(to: .main, forMode: .common)
         displayLinkTarget = target
         displayLink = link
+        startMetricsTimer()
         state = .running
+        isForeground = true
+        if !requestedForeground {
+            _ = MikageKRKRSetForeground(false)
+            isForeground = false
+        }
 
         engineWindow.makeKeyAndVisible()
         hostWindow?.isHidden = true
@@ -147,58 +236,73 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     func requestStop() {
         guard state == .running || state == .starting else { return }
         state = .stopping
+        _ = MikageKRKRSetForeground(false)
         MikageKRKRRequestStop()
     }
 
     func setForeground(_ foreground: Bool) {
+        requestedForeground = foreground
         guard state == .running || state == .stopping else { return }
-        MikageKRKRSetForeground(foreground)
+        guard isForeground != foreground else { return }
+        let changed = MikageKRKRSetForeground(foreground)
+        if !foreground || changed {
+            isForeground = foreground
+        }
+        if !changed {
+            let detail = String(cString: MikageKRKRLastError())
+            if !detail.isEmpty {
+                onWarning?(KRKRSessionError.audioSession(detail))
+            }
+        }
     }
 
     func showMenuOverlay() {
         guard state == .running || state == .stopping else { return }
-        hostWindow?.isHidden = false
-        hostWindow?.makeKeyAndVisible()
+        overlayCoordinator?.showMenu()
     }
 
     func hideMenuOverlay() {
         guard state == .running else { return }
-        hostWindow?.isHidden = true
-        engineWindow?.makeKeyAndVisible()
+        overlayCoordinator?.hideMenu()
     }
 
     func snapshot() -> UIImage? {
         guard let window = engineWindow, !window.bounds.isEmpty else { return nil }
         let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
-        return renderer.image { context in
-            window.layer.render(in: context.cgContext)
+        return renderer.image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
         }
     }
 
     fileprivate func runtimeRequestedMenu() {
         guard state == .running else { return }
         showMenuOverlay()
-        onMenuRequested?()
     }
 
     fileprivate func runtimeFinished(success: Bool, message: String?) {
         displayLink?.invalidate()
         displayLink = nil
         displayLinkTarget = nil
-        floatingButton?.removeFromSuperview()
-        floatingButton = nil
+        metricsTimer?.invalidate()
+        metricsTimer = nil
+        overlayCoordinator?.remove()
+        overlayCoordinator = nil
         engineWindow = nil
 
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
+        restorePreviousOrientation()
 
+        let completion = onFinished
+        onFinished = nil
+        onWarning = nil
         if success {
             state = .idle
-            onFinished?(.success(()))
+            completion?(.success(()))
         } else {
             let detail = message ?? "KRKR runtime 已停止。"
             state = .failed(detail)
-            onFinished?(.failure(KRKRSessionError.runtime(detail)))
+            completion?(.failure(KRKRSessionError.runtime(detail)))
         }
     }
 
@@ -207,41 +311,116 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         return false
     }
 
+    private func prepareLandscape(
+        scene: UIWindowScene,
+        window: UIWindow,
+        controller: UIViewController
+    ) async throws {
+        controller.setNeedsUpdateOfSupportedInterfaceOrientations()
+        window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        let preferences = UIWindowScene.GeometryPreferences.iOS(
+            interfaceOrientations: [.landscapeLeft, .landscapeRight]
+        )
+        scene.requestGeometryUpdate(preferences) { _ in }
+        UIViewController.attemptRotationToDeviceOrientation()
+
+        for _ in 0..<80 {
+            let sceneLandscape = scene.interfaceOrientation.isLandscape
+            let sceneBounds = scene.coordinateSpace.bounds
+            let windowBounds = window.bounds
+            if sceneLandscape,
+               sceneBounds.width > sceneBounds.height,
+               windowBounds.width > windowBounds.height {
+                await Task.yield()
+                return
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        throw KRKRSessionError.orientationUnavailable
+    }
+
+    private func restorePreviousOrientation() {
+        guard let scene = windowScene else { return }
+        let mask: UIInterfaceOrientationMask
+        switch previousOrientation {
+        case .portrait:
+            mask = .portrait
+        case .portraitUpsideDown:
+            mask = .portraitUpsideDown
+        case .landscapeLeft:
+            mask = .landscapeLeft
+        case .landscapeRight:
+            mask = .landscapeRight
+        default:
+            mask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
+        }
+        hostWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
+        scene.requestGeometryUpdate(preferences) { _ in }
+        windowScene = nil
+        previousOrientation = .unknown
+    }
+
     private func step() {
         guard state == .running || state == .stopping else { return }
         _ = MikageKRKRStep()
     }
 
-    private func installFloatingButton(in window: UIWindow, pawStyle: Bool, opacity: Double) {
-        guard let rootView = window.rootViewController?.view else { return }
-        let configuration: UIButton.Configuration
-        if #available(iOS 26.0, *) {
-            configuration = .glass()
-        } else {
-            configuration = .filled()
+    private func startMetricsTimer() {
+        metricsTimer?.invalidate()
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updateMetrics() }
         }
-        let button = UIButton(configuration: configuration)
-        button.setImage(UIImage(systemName: pawStyle ? "pawprint.fill" : "line.3.horizontal"), for: .normal)
-        button.accessibilityLabel = "唤出游戏菜单"
-        button.alpha = pawStyle ? max(0.1, min(opacity, 1)) : 0.8
-        button.frame = CGRect(x: max(rootView.bounds.width - 72, 12), y: 28, width: 52, height: 52)
-        button.autoresizingMask = [.flexibleLeftMargin, .flexibleBottomMargin]
-        button.addAction(UIAction { [weak self] _ in self?.runtimeRequestedMenu() }, for: .touchUpInside)
-        button.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragFloatingButton(_:))))
-        rootView.addSubview(button)
-        rootView.bringSubviewToFront(button)
-        floatingButton = button
+        RunLoop.main.add(timer, forMode: .common)
+        metricsTimer = timer
+        updateMetrics()
     }
 
-    @objc private func dragFloatingButton(_ recognizer: UIPanGestureRecognizer) {
-        guard let button = recognizer.view, let container = button.superview else { return }
-        let translation = recognizer.translation(in: container)
-        var center = CGPoint(x: button.center.x + translation.x, y: button.center.y + translation.y)
-        let safe = container.safeAreaLayoutGuide.layoutFrame.insetBy(dx: -4, dy: -4)
-        center.x = min(max(center.x, safe.minX + button.bounds.width / 2), safe.maxX - button.bounds.width / 2)
-        center.y = min(max(center.y, safe.minY + button.bounds.height / 2), safe.maxY - button.bounds.height / 2)
-        button.center = center
-        recognizer.setTranslation(.zero, in: container)
+    private func updateMetrics() {
+        guard state == .running || state == .stopping else { return }
+        if isForeground && state == .running {
+            elapsedSeconds += 1
+        }
+        guard performanceEnabled else {
+            overlayCoordinator?.update(
+                KRKRPerformanceSnapshot(
+                    renderer: rendererLabel,
+                    elapsedSeconds: elapsedSeconds
+                )
+            )
+            return
+        }
+        var raw = MikageKRKRStats()
+        guard MikageKRKRGetStats(&raw) else { return }
+        overlayCoordinator?.update(
+            KRKRPerformanceSnapshot(
+                framesPerSecond: raw.framesPerSecond,
+                frameTimeMilliseconds: raw.frameTimeMilliseconds,
+                drawableWidth: raw.drawableWidth,
+                drawableHeight: raw.drawableHeight,
+                renderer: rendererLabel,
+                residentMemoryBytes: residentMemoryBytes(),
+                elapsedSeconds: elapsedSeconds
+            )
+        )
+    }
+
+    private func residentMemoryBytes() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size
+        )
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(
+                    mach_task_self_,
+                    task_flavor_t(MACH_TASK_BASIC_INFO),
+                    $0,
+                    &count
+                )
+            }
+        }
+        return result == KERN_SUCCESS ? UInt64(info.resident_size) : 0
     }
 }
 

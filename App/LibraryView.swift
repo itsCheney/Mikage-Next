@@ -138,6 +138,7 @@ struct LibraryView: View {
                             )
                         }
                         .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
+                        .accessibilityIdentifier("missing-games-button")
                     }
                     displayMenu
                     sortMenu

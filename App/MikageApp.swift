@@ -164,7 +164,9 @@ final class AppModel: ObservableObject {
             renderer: renderer,
             floatingButton: settings.floatingButton,
             idleOpacity: settings.idleOpacity,
-            threeFingerMenu: settings.threeFingerMenu
+            threeFingerMenu: settings.threeFingerMenu,
+            performance: settings.performance,
+            gameTitle: game.title
         )
     }
 
@@ -306,10 +308,14 @@ final class AppModel: ObservableObject {
                     .appendingPathComponent(title, isDirectory: true)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let startup = directory.appendingPathComponent("startup.tjs")
-                if !FileManager.default.fileExists(atPath: startup.path) {
-                    try Data("// Mikage KRKR lifecycle smoke test".utf8)
-                        .write(to: startup, options: .atomic)
+                let script = """
+                var stress = new Array();
+                for (var i = 0; i < 4096; i++) {
+                    stress.add(new Dictionary());
                 }
+                """
+                try Data(script.utf8)
+                    .write(to: startup, options: .atomic)
             }
             let invalid = repository.engineRoot(for: .kirikiri)
                 .appendingPathComponent("Broken KRKR", isDirectory: true)

@@ -32,7 +32,13 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))' \
         "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-core-host.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
+fi
+
+# Upgrade an already prepared local source tree when lifecycle patches change.
+if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"; then
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
 fi
 
 # Host sources belong to this repository and may change independently of the pinned upstream tree.
