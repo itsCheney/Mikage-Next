@@ -52,6 +52,11 @@ struct PlayerView: View {
                 model.krkrSession.onWarning = { error in
                     model.alert = error.localizedDescription
                 }
+                model.krkrSession.onReturningToLibrary = {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        engineStopping = true
+                    }
+                }
                 model.krkrSession.onFinished = { result in
                     model.recordPlayback(of: game, duration: TimeInterval(elapsed))
                     if case .failure(let error) = result {
