@@ -36,17 +36,18 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
-fi
-
-# Upgrade an already prepared local source tree when lifecycle patches change.
-if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"; then
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
-fi
-if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"; then
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
-fi
-if ! git -C "${SOURCE_DIR}/cpp" apply --reverse --check "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"; then
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
+else
+    # Upgrade legacy prepared trees without reverse-checking an earlier patch
+    # after a later patch has intentionally changed the same hunk.
+    if ! grep -q 'SDL_WINDOW_HIGH_PIXEL_DENSITY' "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
+    fi
+    if ! grep -q 'normalizedTouchToDrawable' "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
+    fi
+    if ! grep -q 'TVPGraphicCacheMutex' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
+    fi
 fi
 
 # Host sources belong to this repository and may change independently of the pinned upstream tree.
