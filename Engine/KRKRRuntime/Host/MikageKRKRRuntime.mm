@@ -13,8 +13,9 @@
 #include <vector>
 
 #include "TVPApplication.h"
-#include "PlatformAudio.h"
 #include "tjsError.h"
+
+extern void TVPSetAudioSuspended(bool suspended);
 @interface MikageKRKRBundleMarker : NSObject
 @end
 @implementation MikageKRKRBundleMarker
