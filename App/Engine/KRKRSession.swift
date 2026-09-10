@@ -77,8 +77,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         }
         let rawTarget = configuration.entryPoint.standardizedFileURL
         let root = configuration.gameDirectory.standardizedFileURL.resolvingSymlinksInPath()
-        let target = rawTarget.resolvingSymlinksInPath()
-        guard target == root || target.path.hasPrefix(root.path + "/"),
+        let resolvedTarget = rawTarget.resolvingSymlinksInPath()
+        guard resolvedTarget == root || resolvedTarget.path.hasPrefix(root.path + "/"),
               (try? rawTarget.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else {
             throw KRKRSessionError.invalidGameDirectory
         }
@@ -96,7 +96,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         hostWindow = window
         let context = Unmanaged.passUnretained(self).toOpaque()
         let scenePointer = Unmanaged.passUnretained(windowScene).toOpaque()
-        var runtimePath = target.path
+        var runtimePath = resolvedTarget.path
         if configuration.targetKind == .directory && !runtimePath.hasSuffix("/") {
             runtimePath.append("/")
         }
