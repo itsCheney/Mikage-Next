@@ -1,5 +1,5 @@
 diff --git a/core/media/movie/KRMovieOverlay.cpp b/core/media/movie/KRMovieOverlay.cpp
-index bf2e8e2..b496b6e 100644
+index d855427..649b8ba 100644
 --- a/core/media/movie/KRMovieOverlay.cpp
 +++ b/core/media/movie/KRMovieOverlay.cpp
 @@ -53,6 +53,13 @@ VideoPresentOverlay::VideoPresentOverlay()
@@ -16,17 +16,6 @@ index bf2e8e2..b496b6e 100644
      if (pSprite != NULL)
      {
          if (spriteJoined)
-@@ -87,6 +94,10 @@ void VideoPresentOverlay::Stop()
- void VideoPresentOverlay::SetVisible(bool b)
- {
-     TVPMoviePlayer::SetVisible(b);
-+    // Session-switch diagnostics: the wrapper's Visible defaults to false, so a
-+    // stray false here hides a movie the game is still playing.
-+    TVPAddImportantLog(ttstr(TJS_N("(info) Video overlay visible ")) + ttstr((tjs_int)b) +
-+                       TJS_N(": session ") + ttstr((tjs_int64)sessionGeneration));
-     if (pSprite != nullptr)
-         pSprite->isVisible = b;
- }
 diff --git a/core/render/TVPCompositor.cpp b/core/render/TVPCompositor.cpp
 index def43be..d8132a3 100644
 --- a/core/render/TVPCompositor.cpp
@@ -109,7 +98,7 @@ index def43be..d8132a3 100644
      backend->EndFrame();
  }
 diff --git a/core/script/tjsNativeVideoOverlay.cpp b/core/script/tjsNativeVideoOverlay.cpp
-index a37e29d..0eee7e0 100644
+index 8221a1e..7c41554 100644
 --- a/core/script/tjsNativeVideoOverlay.cpp
 +++ b/core/script/tjsNativeVideoOverlay.cpp
 @@ -329,10 +329,12 @@ void tTJSNI_VideoOverlay::Open(const ttstr& _name)

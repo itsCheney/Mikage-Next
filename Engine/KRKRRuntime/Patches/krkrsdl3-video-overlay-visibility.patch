@@ -1,0 +1,45 @@
+diff --git a/core/media/movie/KRMovieOverlay.cpp b/core/media/movie/KRMovieOverlay.cpp
+index bf2e8e2..d855427 100644
+--- a/core/media/movie/KRMovieOverlay.cpp
++++ b/core/media/movie/KRMovieOverlay.cpp
+@@ -86,9 +86,12 @@ void VideoPresentOverlay::Stop()
+ 
+ void VideoPresentOverlay::SetVisible(bool b)
+ {
++    // Compositor visibility is owned by Play()/Stop() and by session teardown,
++    // not by this call. tTJSNI_VideoOverlay::ResetOverlayParams() re-pushes the
++    // wrapper's Visible member on every window geometry change, and that member
++    // is still false while a freshly opened movie is already playing, so binding
++    // pSprite->isVisible here hid movies the game was still showing.
+     TVPMoviePlayer::SetVisible(b);
+-    if (pSprite != nullptr)
+-        pSprite->isVisible = b;
+ }
+ 
+ void VideoPresentOverlay::OnContinuousCallback(tjs_uint64 tick)
+diff --git a/core/script/tjsNativeVideoOverlay.cpp b/core/script/tjsNativeVideoOverlay.cpp
+index a37e29d..8221a1e 100644
+--- a/core/script/tjsNativeVideoOverlay.cpp
++++ b/core/script/tjsNativeVideoOverlay.cpp
+@@ -408,7 +408,10 @@ void tTJSNI_VideoOverlay::Close()
+             CachedOverlay = nullptr;
+         }
+         VideoOverlay->SetVisible(false);
+-        VideoOverlay->Pause();
++        // Stop() (not Pause()) takes the player off the compositor. A paused
++        // player keeps its last decoded frame, which would stay on screen while
++        // the closed overlay is held in the reuse cache.
++        VideoOverlay->Stop();
+         CachedOverlay = VideoOverlay;
+         VideoOverlay = NULL;
+     }
+@@ -443,7 +446,8 @@ void tTJSNI_VideoOverlay::Shutdown()
+                 CachedOverlay = nullptr;
+             }
+             VideoOverlay->SetVisible(false);
+-            VideoOverlay->Pause();
++            // Stop() (not Pause()) takes the player off the compositor; see Close().
++            VideoOverlay->Stop();
+             CachedOverlay = VideoOverlay;
+             VideoOverlay = NULL;
+         }
