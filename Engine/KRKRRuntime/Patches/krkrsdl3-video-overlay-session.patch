@@ -98,8 +98,15 @@ diff --git a/core/media/movie/KRMovieOverlay.cpp b/core/media/movie/KRMovieOverl
  }
  
  void VideoPresentOverlay::Play()
-@@ -50,6 +81,8 @@ void VideoPresentOverlay::Stop()
+@@ -50,6 +81,15 @@ void VideoPresentOverlay::Stop()
  
++void VideoPresentOverlay::SetVisible(bool b)
++{
++    TVPMoviePlayer::SetVisible(b);
++    if (pSprite != nullptr)
++        pSprite->isVisible = b;
++}
++
  void VideoPresentOverlay::OnContinuousCallback(tjs_uint64 tick)
  {
 +    if (sessionGeneration != TVPGetMovieSessionGeneration())
@@ -161,6 +168,12 @@ diff --git a/core/media/movie/KRMovieOverlay.h b/core/media/movie/KRMovieOverlay
  
      VideoPresentOverlay();
      ~VideoPresentOverlay();
+@@ -21,4 +25,5 @@ public:
+     virtual void Stop() override;
+     virtual void Play() override;
++    virtual void SetVisible(bool b) override;
+     virtual void OnContinuousCallback(tjs_uint64 tick) override;
+ };
 @@ -43,3 +47,9 @@ public:
  };
  

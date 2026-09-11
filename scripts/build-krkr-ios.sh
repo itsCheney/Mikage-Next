@@ -61,7 +61,7 @@ else
     if ! grep -q 'TVPResetGraphicSessionState' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-session-reset.patch"
     fi
-    if ! grep -q 'TVPBeginMovieSession' "${SOURCE_DIR}/cpp/core/media/movie/KRMovieOverlay.cpp"; then
+    if ! grep -q 'TVPMoviePlayer::SetVisible(b)' "${SOURCE_DIR}/cpp/core/media/movie/KRMovieOverlay.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
     fi
 fi
