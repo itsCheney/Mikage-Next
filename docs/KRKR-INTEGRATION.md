@@ -34,6 +34,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 18. 每个 VideoOverlay 都加入会话注册表；退出时同步释放 active/cached player 及其解码线程、overlay 纹理和 SDL audio stream，再清空 host 音频注册表并关闭 SDL。
 19. 返回游戏库前保持黑色 Player 过渡层，等待 WindowScene 与宿主窗口连续确认恢复进入游戏前的方向和 bounds 后才 dismiss，避免库页面短暂按横屏重排。
 20. 每次会话开始和结束都把图像缓存开关、上限与格式 handler 表恢复到冷启动状态；异步图片错误写入各游戏 `savedata/krkr.console.log`，连续三帧无 KRKR 窗口时自动返回游戏库。
+21. 视频 overlay 在通用 AtExit 前显式同步释放；每次启动分配新的 generation，旧解码帧不能进入新游戏的 compositor。性能 HUD 同时显示 KRKR compositor 与实际 SDL driver。
 
 ## 设计约束
 

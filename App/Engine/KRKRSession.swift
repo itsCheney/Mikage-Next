@@ -436,11 +436,33 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 frameTimeMilliseconds: raw.frameTimeMilliseconds,
                 drawableWidth: raw.drawableWidth,
                 drawableHeight: raw.drawableHeight,
-                renderer: rendererLabel,
+                renderer: rendererName(from: &raw),
                 residentMemoryBytes: residentMemoryBytes(),
                 elapsedSeconds: elapsedSeconds
             )
         )
+    }
+
+    private func rendererName(from stats: inout MikageKRKRStats) -> String {
+        let rawName = withUnsafePointer(to: &stats.renderer) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: 32) {
+                String(cString: $0)
+            }
+        }
+        switch rawName.lowercased() {
+        case "software/metal":
+            return "软件合成 · Metal"
+        case "software/opengles2":
+            return "软件合成 · OpenGL ES"
+        case "opengl":
+            return "OpenGL ES"
+        case "vulkan":
+            return "Vulkan"
+        case "":
+            return rendererLabel
+        default:
+            return rawName
+        }
     }
 
     private func residentMemoryBytes() -> UInt64 {

@@ -35,6 +35,7 @@ extern "C" void TVPSetGameRunningOrientation(bool running);
 extern "C" void MikageKRKRSetWindowScene(void *scene);
 extern "C" void MikageKRKRSetMenuGestureEnabled(bool enabled);
 extern "C" SDL_Window *MikageKRKRGetSDLWindow(void);
+extern "C" const char *MikageKRKRGetActiveRendererName(void);
 
 namespace {
 bool running = false;
@@ -227,6 +228,9 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
                 static_cast<int>(argv.size()),
                 argv.data()
             );
+            const char *actualRenderer = MikageKRKRGetActiveRendererName();
+            if (actualRenderer && *actualRenderer)
+                activeRenderer = actualRenderer;
             if (result != SDL_APP_CONTINUE) {
                 running = true;
                 finish(result, SDL_GetError());

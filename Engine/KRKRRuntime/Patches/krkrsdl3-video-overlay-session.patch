@@ -1,0 +1,306 @@
+diff --git a/core/main/TVPApplication.cpp b/core/main/TVPApplication.cpp
+--- a/core/main/TVPApplication.cpp
++++ b/core/main/TVPApplication.cpp
+@@ -20,6 +20,8 @@
+ #include "WindowManager.h"
+ #include "TVPEvent.h"
+ #include "TVPCompositor.h"
++#include "KRMovieOverlay.h"
++#include "tjsNativeVideoOverlay.h"
+ 
+ #include "TVPStorage.h"
+ #include "TVPColor.h"
+@@ -107,6 +109,8 @@ bool tTVPApplication::StartApplication()
+         // TVPInitializeBaseSystems
+         TVPInitializeBaseSystems();
+         
++        krkrsdl3::TVPResetCompositorSessionState();
++        TVPBeginMovieSession();
+         TVPResetGraphicSessionState();
+         image_load_thread_ = new tTVPAsyncImageLoader();
+ 
+@@ -179,6 +182,10 @@ void tTVPApplication::PostUserMessage(const std::function<void()>& func, void* h
+ 
+ void tTVPApplication::OnExit()
+ {
++    // Invalidate decoder callbacks and synchronously release all movie players
++    // while their event hooks, renderer and SDL devices are still alive.
++    TVPInvalidateMovieSession();
++    TVPFinalizeVideoOverlaySession();
+     TVPSystemUninit();
+     TVPUnloadPlugins();
+ 
+diff --git a/core/media/movie/KRMovieOverlay.cpp b/core/media/movie/KRMovieOverlay.cpp
+--- a/core/media/movie/KRMovieOverlay.cpp
++++ b/core/media/movie/KRMovieOverlay.cpp
+@@ -10,11 +10,40 @@ extern "C"
+ #include "CodecVideo.h"
+ #include "PlatformAudio.h"
++#include "TVPDebug.h"
++#include "TVPMsg.h"
++
++#include <atomic>
++
++namespace
++{
++std::atomic<tjs_uint64> TVPMovieSessionGeneration{0};
++}
++
++void TVPBeginMovieSession()
++{
++    const auto generation = TVPMovieSessionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
++    TVPAddImportantLog(TVPFormatMessage(TJS_N("(info) Movie session %1 started"),
++                                       static_cast<tjs_int64>(generation)));
++}
++
++void TVPInvalidateMovieSession()
++{
++    const auto generation = TVPMovieSessionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
++    TVPAddImportantLog(TVPFormatMessage(TJS_N("(info) Movie session invalidated at %1"),
++                                       static_cast<tjs_int64>(generation)));
++}
++
++tjs_uint64 TVPGetMovieSessionGeneration()
++{
++    return TVPMovieSessionGeneration.load(std::memory_order_acquire);
++}
+ 
+ NS_KRMOVIE_BEGIN
+ #define DRAW_VIDEO_FRAME 30
+ 
+ VideoPresentOverlay::VideoPresentOverlay()
+ {
++    sessionGeneration = TVPGetMovieSessionGeneration();
+     pSprite = new TVPSprite;
+     pSprite->isVisible = true;
+     pSprite->type = 2;
+@@ -25,14 +54,19 @@ VideoPresentOverlay::~VideoPresentOverlay()
+ {
+     if (pSprite != NULL)
+     {
++        if (spriteJoined)
++            krkrsdl3::TVPDepartTexture(pSprite);
++        spriteJoined = false;
+         if (pSprite->texture != nullptr)
+-        {
+-            krkrsdl3::TVPDepartTexture(pSprite);
+             krkrsdl3::TVPDestroyTexture(pSprite);
+-        }
+         delete pSprite;
++        pSprite = nullptr;
++    }
++    if (continuousHookRegistered)
++    {
++        TVPRemoveContinuousEventHook(this);
++        continuousHookRegistered = false;
+     }
+-    TVPRemoveContinuousEventHook(this);
+ }
+ 
+ void VideoPresentOverlay::Play()
+@@ -50,6 +81,8 @@ void VideoPresentOverlay::Stop()
+ 
+ void VideoPresentOverlay::OnContinuousCallback(tjs_uint64 tick)
+ {
++    if (sessionGeneration != TVPGetMovieSessionGeneration())
++        return;
+     if (!m_usedPicture)
+         return;
+     double m_curpts = m_pPlayer->GetClock() / DVD_TIME_BASE;
+@@ -84,10 +117,26 @@ void VideoPresentOverlay::OnContinuousCallback(tjs_uint64 tick)
+             pSprite->width = pic.width;
+             pSprite->height = pic.height;
+             krkrsdl3::TVPCreateTexture(*pSprite);
++            if (!pSprite->texture)
++            {
++                TVPAddImportantLog(TJS_N("(error) Video overlay texture creation failed"));
++                return;
++            }
++        }
++        if (!spriteJoined)
++        {
+             krkrsdl3::TVPJoinTexture(pSprite);
++            spriteJoined = true;
+         }
+         int pitch = pic.width * 4;
+         krkrsdl3::TVPUpdateTexture(pSprite, pic.rgba, pic.width, pic.height, pitch);
++        if (!firstFramePresented)
++        {
++            firstFramePresented = true;
++            TVPAddImportantLog(TVPFormatMessage(
++                TJS_N("(info) Video overlay first frame: %1x%2"),
++                pic.width, pic.height));
++        }
+     }
+ }
+ 
+@@ -99,7 +147,11 @@ MoviePlayerOverlay::~MoviePlayerOverlay()
+ 
+ void MoviePlayerOverlay::SetWindow(tTJSNI_Window* window)
+ {
+-    TVPAddContinuousEventHook(this);
++    if (!continuousHookRegistered)
++    {
++        TVPAddContinuousEventHook(this);
++        continuousHookRegistered = true;
++    }
+ }
+ 
+ void MoviePlayerOverlay::BuildGraph(iTVPVideoCallback* callbackwin,
+diff --git a/core/media/movie/KRMovieOverlay.h b/core/media/movie/KRMovieOverlay.h
+--- a/core/media/movie/KRMovieOverlay.h
++++ b/core/media/movie/KRMovieOverlay.h
+@@ -15,6 +15,10 @@ class VideoPresentOverlay : public TVPMoviePlayer, public tTVPContinuousEventCal
+ {
+ protected:
+     TVPSprite* pSprite;
++    bool spriteJoined = false;
++    bool continuousHookRegistered = false;
++    tjs_uint64 sessionGeneration = 0;
++    bool firstFramePresented = false;
+ 
+     VideoPresentOverlay();
+     ~VideoPresentOverlay();
+@@ -43,3 +47,9 @@ public:
+ };
+ 
+ NS_KRMOVIE_END
++
++// Embedded hosts run multiple games in one process. A generation invalidates
++// decoder callbacks that arrive after their owning game session has ended.
++void TVPBeginMovieSession();
++void TVPInvalidateMovieSession();
++tjs_uint64 TVPGetMovieSessionGeneration();
+diff --git a/core/render/TVPCompositor.cpp b/core/render/TVPCompositor.cpp
+--- a/core/render/TVPCompositor.cpp
++++ b/core/render/TVPCompositor.cpp
+@@ -87,20 +87,23 @@ void fetchGLInfo()
++void TVPResetCompositorSessionState()
++{
++    renderTexture.clear();
++}
++
+ // 素材加入渲染
+ void TVPJoinTexture(TVPSprite* sp)
+ {
+-    renderTexture.push_back(sp);
++    if (!sp)
++        return;
++    if (std::find(renderTexture.begin(), renderTexture.end(), sp) == renderTexture.end())
++        renderTexture.push_back(sp);
+ }
+ 
+ // 素材离开渲染
+ void TVPDepartTexture(TVPSprite* sp)
+ {
+-    for (size_t i = 0; i < renderTexture.size(); i++)
+-    {
+-        if (renderTexture.at(i)->texture == sp->texture)
+-        {
+-            renderTexture.erase(renderTexture.begin() + i);
+-            break;
+-        }
+-    }
++    renderTexture.erase(
++        std::remove(renderTexture.begin(), renderTexture.end(), sp),
++        renderTexture.end());
+ }
+ 
+ // 统一 letterbox 计算：保持宽高比地缩放并居中（所有后端共用同一套行为）
+diff --git a/core/render/TVPCompositor.h b/core/render/TVPCompositor.h
+--- a/core/render/TVPCompositor.h
++++ b/core/render/TVPCompositor.h
+@@ -181,6 +181,7 @@ TVPSprite* KRKR_Get_Current_Sprite();
+ // 贴图管理
+ void TVPJoinTexture(TVPSprite* sp);
+ void TVPDepartTexture(TVPSprite* sp);
++void TVPResetCompositorSessionState();
+ // 渲染函数
+ void TVPRenderOnce(int winWidth, int winHeight);
+ void TVPCreateTexture(TVPSprite& sp);
+diff --git a/core/script/tjsNativeVideoOverlay.cpp b/core/script/tjsNativeVideoOverlay.cpp
+--- a/core/script/tjsNativeVideoOverlay.cpp
++++ b/core/script/tjsNativeVideoOverlay.cpp
+@@ -210,16 +210,16 @@ static void TVPRemoveVideoOverlay(tTJSNI_VideoOverlay* ovl)
+ }
+ //---------------------------------------------------------------------------
+-static void TVPShutdownVideoOverlay()
++void TVPFinalizeVideoOverlaySession()
+ {
+     // Fully release every session player before SDL tears down its audio and
+-    // rendering devices. Shutdown() alone intentionally caches the player.
++    // rendering devices. The wrapper registry is repopulated by the next TJS session.
+     const auto overlays = TVPVideoOverlayVector;
+     for (auto* overlay : overlays)
+         if (overlay)
+             overlay->FinalizeSession();
+     TVPVideoOverlayVector.clear();
+ }
+-static tTVPAtExit TVPShutdownVideoOverlayAtExit(TVP_ATEXIT_PRI_PREPARE, TVPShutdownVideoOverlay);
++static tTVPAtExit TVPShutdownVideoOverlayAtExit(TVP_ATEXIT_PRI_PREPARE, TVPFinalizeVideoOverlaySession);
+ //---------------------------------------------------------------------------
+ 
+ //---------------------------------------------------------------------------
+diff --git a/core/script/tjsNativeVideoOverlay.h b/core/script/tjsNativeVideoOverlay.h
+--- a/core/script/tjsNativeVideoOverlay.h
++++ b/core/script/tjsNativeVideoOverlay.h
+@@ -266,3 +266,6 @@ public:
+ //---------------------------------------------------------------------------
+ extern tTJSNativeClass* TVPCreateNativeClass_VideoOverlay();
+ //---------------------------------------------------------------------------
++
++// Synchronously releases all native movie players for the current host session.
++extern void TVPFinalizeVideoOverlaySession();
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -46,6 +46,7 @@ static SDL_GLContext tvp_glContext = NULL;
+ static void* tvp_hostWindowScene = NULL;
+ static bool tvp_hostMenuGestureEnabled = true;
+ static int tvp_noWindowFrames = 0;
++static std::string tvp_activeRendererName;
+ 
+ extern void TVPResetAudioSessionState();
+ 
+@@ -58,5 +59,10 @@ extern "C" SDL_Window* MikageKRKRGetSDLWindow(void)
+     return tvp_window;
+ }
++extern "C" const char* MikageKRKRGetActiveRendererName(void)
++{
++    return tvp_activeRendererName.c_str();
++}
++
+ extern "C" void MikageKRKRSetMenuGestureEnabled(bool enabled)
+ {
+     tvp_hostMenuGestureEnabled = enabled;
+@@ -130,5 +136,6 @@ static bool TVPInitRenderBackend()
+         krkrsdl3::TVPSetRenderBackend(new krkrsdl3::GLRenderBackend());
+         krkrsdl3::fetchGLInfo();
++        tvp_activeRendererName = "opengl";
+     }
+ #endif
+ #ifdef _KRKRSDL3_USE_VULKAN
+@@ -179,5 +186,6 @@ static bool TVPInitRenderBackend()
+         // 设置
+         krkrsdl3::TVPSetRenderBackend(backend);
++        tvp_activeRendererName = "vulkan";
+     }
+ #endif
+     else
+@@ -193,6 +201,8 @@ static bool TVPInitRenderBackend()
+         SDL_SetRenderVSync(tvp_renderer, TVPSettings.vsync);
+         SDL_Log("SWRender Backend: %s", SDL_GetRendererName(tvp_renderer));
+         krkrsdl3::TVPSetRenderBackend(new krkrsdl3::SWRenderBackend());
++        tvp_activeRendererName = "software/";
++        tvp_activeRendererName += SDL_GetRendererName(tvp_renderer);
+     }
+     return true;
+ }
+@@ -635,6 +645,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
+     tvp_hostWindowScene = NULL;
+     tvp_hostMenuGestureEnabled = true;
+     tvp_noWindowFrames = 0;
++    tvp_activeRendererName.clear();
+ #if defined(_KRKRSDL3_ANDROID) || defined(_KRKRSDL3_EMSCRIPTEN) || defined(_KRKRSDL3_IOS)
+     fingers.clear();
+     _state = STATE_IDLE;
