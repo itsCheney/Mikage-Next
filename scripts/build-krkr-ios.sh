@@ -38,6 +38,7 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-event-reset.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-media-session-reset.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-session-reset.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
 else
     # Upgrade legacy prepared trees without reverse-checking an earlier patch
@@ -59,6 +60,9 @@ else
     fi
     if ! grep -q 'TVPResetGraphicSessionState' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-session-reset.patch"
+    fi
+    if ! grep -q 'TVPBeginMovieSession' "${SOURCE_DIR}/cpp/core/media/movie/KRMovieOverlay.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
     fi
 fi
 
