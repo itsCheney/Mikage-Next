@@ -204,6 +204,7 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
             std::vector<std::string> arguments;
             arguments.emplace_back("MikageNext");
             arguments.emplace_back(normalizedPath);
+            arguments.emplace_back("-forcelog=yes");
             if (renderer && *renderer)
                 arguments.emplace_back(std::string("-render=") + renderer);
 
