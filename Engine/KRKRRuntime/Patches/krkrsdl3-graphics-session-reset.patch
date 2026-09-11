@@ -1,0 +1,131 @@
+diff --git a/core/main/TVPApplication.cpp b/core/main/TVPApplication.cpp
+index 9a19ed2..27b96e1 100644
+--- a/core/main/TVPApplication.cpp
++++ b/core/main/TVPApplication.cpp
+@@ -108,3 +108,4 @@ bool tTVPApplication::StartApplication()
++        TVPResetGraphicSessionState();
+         image_load_thread_ = new tTVPAsyncImageLoader();
+
+         TVPLoadPluigins(); // load plugin module *.tpm
+@@ -186,6 +187,7 @@ void tTVPApplication::OnExit()
+     image_load_thread_ = NULL;
+     TVPResetEventState();
+     TVPDeliverCompactEvent(TVP_COMPACT_LEVEL_MAX);
++    TVPResetGraphicSessionState();
+
+     if (TVPSystemControl)
+         delete TVPSystemControl;
+diff --git a/core/media/image/GraphicsLoadThread.cpp b/core/media/image/GraphicsLoadThread.cpp
+index 282456c..95c1adb 100644
+--- a/core/media/image/GraphicsLoadThread.cpp
++++ b/core/media/image/GraphicsLoadThread.cpp
+@@ -7,6 +7,7 @@
+ #include "TVPStorage.h"
+ #include "LayerBitmap.h"
+ #include "TVPMsg.h"
++#include "TVPDebug.h"
+ #include "UtilStreams.h"
+ #include "NativeEventQueue.h"
+
+@@ -176,6 +177,8 @@ void tTVPAsyncImageLoader::HandleLoadedImage()
+             if (cmd->result_.length() > 0)
+             {
+                 // error
++                TVPAddImportantLog(TJS_N("(error) Async image load failed: ") + cmd->path_ +
++                                   TJS_N(" : ") + cmd->result_);
+                 tTJSVariant param[4];
+                 param[0] = tTJSVariant((iTJSDispatch2*)NULL, (iTJSDispatch2*)NULL);
+                 param[1] = 1;            // true async
+diff --git a/core/media/image/TVPGraphicsLoader.cpp b/core/media/image/TVPGraphicsLoader.cpp
+index 6fca530..b54cfa2 100644
+--- a/core/media/image/TVPGraphicsLoader.cpp
++++ b/core/media/image/TVPGraphicsLoader.cpp
+@@ -83,6 +83,14 @@ public:
+         }
+     }
+
++    void ResetToDefaultHandlers()
++    {
++        _handlers.clear();
++        _handlers.push_back(&_bmpGraphicInfo);
++        _handlers.push_back(&_tlgGraphicInfo);
++        Avail = true;
++    }
++
+     tTVPRegisterGraphicInfo* QuickTest(tTJSBinaryStream* src)
+     {
+         for (auto handler : _handlers)
+@@ -801,6 +809,17 @@ void TVPClearGraphicCache()
+     TVPGraphicCache.Clear();
+     TVPGraphicCacheTotalBytes = 0;
+ }
++void TVPResetGraphicSessionState()
++{
++    std::lock_guard<std::recursive_mutex> lock(TVPGraphicCacheMutex);
++    TVPGraphicCache.Clear();
++    TVPGraphicCacheTotalBytes = 0;
++    TVPGraphicCacheEnabled = false;
++    TVPGraphicCacheLimit = 0;
++    TVPGraphicCacheSystemLimit = 0;
++    TVPAllocGraphicCacheOnHeap = false;
++    TVPGraphicType.ResetToDefaultHandlers();
++}
+ static tTVPAtExit TVPUninitMessageLoad(TVP_ATEXIT_PRI_RELEASE, TVPClearGraphicCache);
+ //---------------------------------------------------------------------------
+ struct tTVPClearGraphicCacheCallback : public tTVPCompactEventCallbackIntf
+diff --git a/core/media/image/TVPGraphicsLoader.h b/core/media/image/TVPGraphicsLoader.h
+index d523c85..4b0c160 100644
+--- a/core/media/image/TVPGraphicsLoader.h
++++ b/core/media/image/TVPGraphicsLoader.h
+@@ -183,6 +183,7 @@ extern tjs_uint64 TVPGraphicCacheSystemLimit;
+
+ extern void TVPClearGraphicCache();
+ // clear graphic cache
++extern void TVPResetGraphicSessionState();
+
+ extern void TVPTouchImages(const std::vector<ttstr>& storages, tjs_int64 limit, tjs_uint64 timeout);
+
+diff --git a/environ/sdl3/sdl3_app.cpp b/environ/sdl3/sdl3_app.cpp
+index 734484a..76c6a70 100644
+--- a/environ/sdl3/sdl3_app.cpp
++++ b/environ/sdl3/sdl3_app.cpp
+@@ -45,6 +45,7 @@ static SDL_Renderer* tvp_renderer = NULL;
+ static SDL_GLContext tvp_glContext = NULL;
+ static void* tvp_hostWindowScene = NULL;
+ static bool tvp_hostMenuGestureEnabled = true;
++static int tvp_noWindowFrames = 0;
+
+ extern void TVPResetAudioSessionState();
+
+@@ -220,6 +221,7 @@ static bool TVPInitRenderBackend()
+
+ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
+ {
++    tvp_noWindowFrames = 0;
+     // exeName gameNamey args
+     if (argc < 2)
+     {
+@@ -575,6 +577,15 @@ SDL_AppResult SDL_AppIterate(void* appstate)
+ {
+     if (!::Application->Run())
+         return SDL_APP_SUCCESS;
++    if (TVPGetWindowCount() == 0)
++    {
++        if (++tvp_noWindowFrames >= 3)
++            return SDL_APP_SUCCESS;
++    }
++    else
++    {
++        tvp_noWindowFrames = 0;
++    }
+     // 写入缓冲区
+     int RW = 1280, RH = 720;
+     SDL_GetWindowSizeInPixels(tvp_window, &RW, &RH);
+@@ -625,6 +636,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result)
+     TVPClearAllArguments();
+     tvp_hostWindowScene = NULL;
+     tvp_hostMenuGestureEnabled = true;
++    tvp_noWindowFrames = 0;
+ #if defined(_KRKRSDL3_ANDROID) || defined(_KRKRSDL3_EMSCRIPTEN) || defined(_KRKRSDL3_IOS)
+     fingers.clear();
+     _state = STATE_IDLE;

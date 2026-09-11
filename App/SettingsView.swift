@@ -88,7 +88,7 @@ struct SettingsView: View {
                 }
 
                 Section("更多") {
-                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n问题描述：\n复现步骤：") {
+                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\nKRKR 日志：Documents/krkr/<游戏文件夹>/savedata/krkr.console.log\n问题描述：\n复现步骤：") {
                         Label("问题反馈", systemImage: "envelope.fill")
                     }
 
