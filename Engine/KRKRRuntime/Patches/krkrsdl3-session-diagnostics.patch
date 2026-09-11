@@ -1,0 +1,140 @@
+diff --git a/core/media/movie/KRMovieOverlay.cpp b/core/media/movie/KRMovieOverlay.cpp
+index bf2e8e2..b496b6e 100644
+--- a/core/media/movie/KRMovieOverlay.cpp
++++ b/core/media/movie/KRMovieOverlay.cpp
+@@ -53,6 +53,13 @@ VideoPresentOverlay::VideoPresentOverlay()
+ 
+ VideoPresentOverlay::~VideoPresentOverlay()
+ {
++    // Session-switch diagnostics: a player destroyed right after presenting its
++    // first frame means the sprite leaves the compositor while the game still
++    // expects the movie on screen.
++    TVPAddImportantLog(ttstr(TJS_N("(info) Video overlay destroyed: session ")) +
++                       ttstr((tjs_int64)sessionGeneration) + TJS_N(", joined ") +
++                       ttstr((tjs_int)spriteJoined) + TJS_N(", presented ") +
++                       ttstr((tjs_int)firstFramePresented));
+     if (pSprite != NULL)
+     {
+         if (spriteJoined)
+@@ -87,6 +94,10 @@ void VideoPresentOverlay::Stop()
+ void VideoPresentOverlay::SetVisible(bool b)
+ {
+     TVPMoviePlayer::SetVisible(b);
++    // Session-switch diagnostics: the wrapper's Visible defaults to false, so a
++    // stray false here hides a movie the game is still playing.
++    TVPAddImportantLog(ttstr(TJS_N("(info) Video overlay visible ")) + ttstr((tjs_int)b) +
++                       TJS_N(": session ") + ttstr((tjs_int64)sessionGeneration));
+     if (pSprite != nullptr)
+         pSprite->isVisible = b;
+ }
+diff --git a/core/render/TVPCompositor.cpp b/core/render/TVPCompositor.cpp
+index def43be..d8132a3 100644
+--- a/core/render/TVPCompositor.cpp
++++ b/core/render/TVPCompositor.cpp
+@@ -1,5 +1,6 @@
+ #include "tjsCommHead.h"
+ #include "TVPCompositor.h"
++#include "TVPDebug.h"
+ 
+ #include <algorithm>
+ #include <vector>
+@@ -96,9 +97,46 @@ void fetchGLInfo()
+         backend->FetchInfo();
+ }
+ 
++//---------------------------------------------------------------------------
++// 会话切换诊断：只在合成状态发生变化时记录一行，避免每帧刷日志。
++// 用来区分"overlay 不在列表里"、"在列表但被判定不可见"和"窗口贴图本身为空"。
++// reset = true 时清空上一次会话的状态，保证新游戏的第一行一定被记录。
++//---------------------------------------------------------------------------
++static void TVPReportCompositorFrame(int spriteCount,
++                                     int overlayCandidates,
++                                     int overlayDrawn,
++                                     bool windowDrawn,
++                                     bool reset = false)
++{
++    static int lastSpriteCount = -1;
++    static int lastOverlayCandidates = -1;
++    static int lastOverlayDrawn = -1;
++    static int lastWindowDrawn = -1;
++    if (reset)
++    {
++        lastSpriteCount = -1;
++        lastOverlayCandidates = -1;
++        lastOverlayDrawn = -1;
++        lastWindowDrawn = -1;
++        return;
++    }
++    if (spriteCount == lastSpriteCount && overlayCandidates == lastOverlayCandidates &&
++        overlayDrawn == lastOverlayDrawn && (int)windowDrawn == lastWindowDrawn)
++        return;
++    lastSpriteCount = spriteCount;
++    lastOverlayCandidates = overlayCandidates;
++    lastOverlayDrawn = overlayDrawn;
++    lastWindowDrawn = (int)windowDrawn;
++    TVPAddImportantLog(ttstr(TJS_N("(info) Compositor: sprites ")) + ttstr(spriteCount) +
++                       TJS_N(", overlay ") + ttstr(overlayDrawn) + TJS_N("/") +
++                       ttstr(overlayCandidates) + TJS_N(" drawn, window ") +
++                       ttstr((tjs_int)windowDrawn));
++}
++
+ void TVPResetCompositorSessionState()
+ {
+     renderTexture.clear();
++    TVPReportCompositorFrame(0, 0, 0, false, true);
+ }
+ 
+ // 素材加入渲染
+@@ -145,15 +183,22 @@ void TVPRenderOnce(int winWidth, int winHeight)
+     }
+ 
+     // 绘制 overlay
++    int overlayCandidates = 0;
++    int overlayDrawn = 0;
+     for (auto texture : renderTexture)
+     {
++        if (texture->type == 2)
++            overlayCandidates++;
+         if (texture->isVisible && texture->type == 2 && texture->texture)
+         {
++            overlayDrawn++;
+             TVPCalcLetterbox(texture, winWidth, winHeight);
+             backend->DrawWindowTexture(texture->texture, texture->xPos, texture->yPos,
+                                        texture->scale * texture->width, texture->scale * texture->height);
+         }
+     }
++    TVPReportCompositorFrame((int)renderTexture.size(), overlayCandidates, overlayDrawn,
++                             retSpr != nullptr && retSpr->texture != nullptr);
+ 
+     backend->EndFrame();
+ }
+diff --git a/core/script/tjsNativeVideoOverlay.cpp b/core/script/tjsNativeVideoOverlay.cpp
+index a37e29d..0eee7e0 100644
+--- a/core/script/tjsNativeVideoOverlay.cpp
++++ b/core/script/tjsNativeVideoOverlay.cpp
+@@ -329,10 +329,12 @@ void tTJSNI_VideoOverlay::Open(const ttstr& _name)
+     // 'istream' is an IStream instance at this point
+ 
+     // create video overlay object
++    bool reusedCachedOverlay = false;
+     try
+     {
+         if (CachedOverlay && CachedOverlayMode == Mode && CachedPlayingFile == _name)
+         {
++            reusedCachedOverlay = true;
+             VideoOverlay = CachedOverlay;
+             CachedOverlay = nullptr;
+             VideoOverlay->Rewind();
+@@ -387,6 +389,12 @@ void tTJSNI_VideoOverlay::Open(const ttstr& _name)
+         throw;
+     }
+ 
++    // Session-switch diagnostics: records the visibility the wrapper will push
++    // to the freshly opened player, plus whether the cached player was reused.
++    TVPAddImportantLog(ttstr(TJS_N("(info) Video overlay opened: mode ")) + ttstr((tjs_int)Mode) +
++                       TJS_N(", visible ") + ttstr((tjs_int)Visible) + TJS_N(", reused ") +
++                       ttstr((tjs_int)reusedCachedOverlay) + TJS_N(", ") + _name);
++
+     // set Status
+     ClearWndProcMessages();
+     SetStatus(ssStop);
