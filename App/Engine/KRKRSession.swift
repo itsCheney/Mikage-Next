@@ -94,6 +94,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var performanceEnabled = false
     private var displayTicks = 0
     private var lastStepResult = "none"
+    private var isStepping = false
 
     override init() {
         super.init()
@@ -180,19 +181,24 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         if configuration.targetKind == .directory && !runtimePath.hasSuffix("/") {
             runtimePath.append("/")
         }
-        let started = runtimePath.withCString { gamePath in
-            configuration.renderer.withCString { renderer in
-                MikageKRKRStart(
-                    gamePath,
-                    renderer,
-                    scenePointer,
-                    configuration.threeFingerMenu,
-                    mikageKRKRMenuCallback,
-                    mikageKRKRCompletionCallback,
-                    context
-                )
+        AppDiagnostics.shared.event("bridge", "start.scheduledOnRunLoop")
+        let started = await KRKRMainRunLoop.perform {
+            AppDiagnostics.shared.event("bridge", "start.enteredFromRunLoop")
+            return runtimePath.withCString { gamePath in
+                configuration.renderer.withCString { renderer in
+                    MikageKRKRStart(
+                        gamePath,
+                        renderer,
+                        scenePointer,
+                        configuration.threeFingerMenu,
+                        mikageKRKRMenuCallback,
+                        mikageKRKRCompletionCallback,
+                        context
+                    )
+                }
             }
         }
+        AppDiagnostics.shared.event("bridge", "start.returned", ["success": String(started)])
         guard started else {
             let message = String(cString: MikageKRKRLastError())
             AppDiagnostics.shared.event("bridge", "start.failed", ["message": message])
@@ -436,6 +442,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     private func step() {
         guard state == .running || state == .stopping else { return }
+        // A synchronous SDL dialog pumps the run loop, which can fire another
+        // display-link callback before the current script invocation returns.
+        guard !isStepping else { return }
+        isStepping = true
+        defer { isStepping = false }
         displayTicks += 1
         let result = MikageKRKRStep()
         lastStepResult = String(describing: result)
