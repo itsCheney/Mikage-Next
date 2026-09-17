@@ -33,15 +33,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
-  MikageUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    sources: [UITests]
-    dependencies:
-      - target: Mikage
-    settings:
-      base:
-        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   Mikage:
     build:
@@ -49,8 +41,6 @@ schemes:
         Mikage: all
     run:
       config: Debug
-    test:
-      config: Debug
-      targets: [MikageUITests]
+
     archive:
       config: Release

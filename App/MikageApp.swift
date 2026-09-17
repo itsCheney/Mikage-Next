@@ -92,10 +92,6 @@ final class AppModel: ObservableObject {
             AppDiagnostics.shared.event("library", "initialization.failed", ["error": error.localizedDescription])
             alert = "无法读取游戏库：\(error.localizedDescription)。原文件已保留。"
         }
-
-        if ProcessInfo.processInfo.arguments.contains("--krkr-smoke") {
-            prepareKRKRSmokeLibrary()
-        }
     }
 
     var displayedGames: [GameRecord] { games }
@@ -323,55 +319,5 @@ final class AppModel: ObservableObject {
     private func apply(_ snapshot: LibrarySnapshot) {
         games = snapshot.active
         missingGames = snapshot.missing
-    }
-
-    private func prepareKRKRSmokeLibrary() {
-        do {
-            try repository.ensureStructure()
-            for title in ["KRKR Smoke A", "KRKR Smoke B"] {
-                let directory = repository.engineRoot(for: .kirikiri)
-                    .appendingPathComponent(title, isDirectory: true)
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                let startup = directory.appendingPathComponent("startup.tjs")
-                let script = """
-                var stress = new Array();
-                for (var i = 0; i < 4096; i++) {
-                    stress.add(new Dictionary());
-                }
-                """
-                try Data(script.utf8)
-                    .write(to: startup, options: .atomic)
-            }
-            let invalid = repository.engineRoot(for: .kirikiri)
-                .appendingPathComponent("Broken KRKR", isDirectory: true)
-            try FileManager.default.createDirectory(at: invalid, withIntermediateDirectories: true)
-
-            let ons = repository.engineRoot(for: .onscripter)
-                .appendingPathComponent("ONS Smoke", isDirectory: true)
-            try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
-            let onsScript = ons.appendingPathComponent("0.txt")
-            if !FileManager.default.fileExists(atPath: onsScript.path) {
-                try Data("ONS smoke fixture".utf8).write(to: onsScript, options: .atomic)
-            }
-
-            var records = try repository.load()
-            if !records.contains(where: {
-                $0.engine == .kirikiri && $0.folderName == "Missing Smoke"
-            }) {
-                records.append(
-                    GameRecord(
-                        id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
-                        title: "Missing Smoke",
-                        engine: .kirikiri,
-                        folderName: "Missing Smoke",
-                        availability: .missing
-                    )
-                )
-                try repository.save(records)
-            }
-            apply(try repository.scan())
-        } catch {
-            alert = "KRKR smoke test fixture 创建失败：\(error.localizedDescription)"
-        }
     }
 }

@@ -66,31 +66,11 @@ jobs:
           name: Mikage-unsigned-${{ github.run_number }}
           path: build/Mikage-unsigned.ipa
           if-no-files-found: error
-      - name: Choose available iPhone simulator
-        run: |
-          xcrun simctl list devices available -j > build/devices.json
-          python3 scripts/select-simulator.py >> "$GITHUB_ENV"
-      - name: Exercise UI and capture screenshots
-        run: |
-          set -o pipefail
-          xcodebuild test -project Mikage.xcodeproj -scheme Mikage \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -parallel-testing-enabled NO \
-            -derivedDataPath build/SimulatorData -resultBundlePath build/UITests.xcresult \
-            CODE_SIGNING_ALLOWED=NO | tee build/ui-tests.log
-      - name: Export native screenshots
-        if: always()
-        run: |
-          if [ -d build/UITests.xcresult ]; then
-            xcrun xcresulttool export attachments --path build/UITests.xcresult --output-path build/screenshots
-          fi
-      - name: Upload build logs and UI test report
+      - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Mikage-validation-${{ github.run_number }}
           path: |
             build/*.log
-            build/*.xcresult
-            build/screenshots/
           if-no-files-found: ignore

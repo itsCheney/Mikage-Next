@@ -22,19 +22,18 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 6. KRKR `TVPInvokeMenu`、三指手势和原生悬浮球统一回调 Swift 菜单。悬浮球使用 iOS 26 Liquid Glass，并支持安全区域内拖拽。
 7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 透明浮层直接覆盖 SDL window，底层 Metal 游戏画面保持可见。
 8. 正常退出依次执行 Application.OnExit、插件/脚本 VM/窗口/纹理清理、render backend 销毁、SDL window/context/audio 清理，并重置触摸静态状态。
-9. UI test 提供无商业内容的空 `startup.tjs` fixture，执行 A→B→A 同进程启停 smoke test。
-10. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
-11. 目录启动目标在 Swift 与 Objective-C++ 边界统一补全结尾 `/`；桥接层捕获 `eTJS`、标准 C++ 和未知异常，将启动错误返回 Swift，避免异常越过 C API 导致 `SIGABRT`。
-12. 启动前由 Swift 等待 `UIWindowScene` 完成横屏 geometry update，再创建 SDL window；iOS 使用 high-pixel-density drawable 和真实像素 viewport。
-13. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，Metal 画面不再通过 `CALayer.render` 伪截图作为背景。
-14. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
-15. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
-16. 图像缓存读写与 compact 使用同一递归锁，防止异步图片加载破坏缓存哈希链；触摸先映射到 drawable 像素，再由 KRKR 仅执行一次 letterbox 逆变换。
-17. 退出时清空普通、输入、窗口与 continuous 事件，并丢弃会话级 compact/continuous hook；仅显式标记的进程级静态缓存回调跨会话保留。
-18. 每个 VideoOverlay 都加入会话注册表；退出时同步释放 active/cached player 及其解码线程、overlay 纹理和 SDL audio stream，再清空 host 音频注册表并关闭 SDL。
-19. 返回游戏库前保持黑色 Player 过渡层，等待 WindowScene 与宿主窗口连续确认恢复进入游戏前的方向和 bounds 后才 dismiss，避免库页面短暂按横屏重排。
-20. 每次会话开始和结束都把图像缓存开关、上限与格式 handler 表恢复到冷启动状态；异步图片错误写入各游戏 `savedata/krkr.console.log`，连续三帧无 KRKR 窗口时自动返回游戏库。
-21. 视频 overlay 在通用 AtExit 前显式同步释放；每次启动分配新的 generation，旧解码帧不能进入新游戏的 compositor。性能 HUD 同时显示 KRKR compositor 与实际 SDL driver。
+9. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
+9. 目录启动目标在 Swift 与 Objective-C++ 边界统一补全结尾 `/`；桥接层捕获 `eTJS`、标准 C++ 和未知异常，将启动错误返回 Swift，避免异常越过 C API 导致 `SIGABRT`。
+9. 启动前由 Swift 等待 `UIWindowScene` 完成横屏 geometry update，再创建 SDL window；iOS 使用 high-pixel-density drawable 和真实像素 viewport。
+9. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，Metal 画面不再通过 `CALayer.render` 伪截图作为背景。
+9. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
+9. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
+9. 图像缓存读写与 compact 使用同一递归锁，防止异步图片加载破坏缓存哈希链；触摸先映射到 drawable 像素，再由 KRKR 仅执行一次 letterbox 逆变换。
+9. 退出时清空普通、输入、窗口与 continuous 事件，并丢弃会话级 compact/continuous hook；仅显式标记的进程级静态缓存回调跨会话保留。
+9. 每个 VideoOverlay 都加入会话注册表；退出时同步释放 active/cached player 及其解码线程、overlay 纹理和 SDL audio stream，再清空 host 音频注册表并关闭 SDL。
+9. 返回游戏库前保持黑色 Player 过渡层，等待 WindowScene 与宿主窗口连续确认恢复进入游戏前的方向和 bounds 后才 dismiss，避免库页面短暂按横屏重排。
+9. 每次会话开始和结束都把图像缓存开关、上限与格式 handler 表恢复到冷启动状态；异步图片错误写入各游戏 `savedata/krkr.console.log`，连续三帧无 KRKR 窗口时自动返回游戏库。
+9. 视频 overlay 在通用 AtExit 前显式同步释放；每次启动分配新的 generation，旧解码帧不能进入新游戏的 compositor。性能 HUD 同时显示 KRKR compositor 与实际 SDL driver。
 
 ## 设计约束
 
@@ -54,7 +53,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 - 切后台/回前台、旋转和音频中断后继续可用。
 - 加密 XP3、游戏自带插件和不同 KiriKiri 版本的兼容性矩阵。
 
-在这些真机测试通过前，只能声明“KRKR runtime 已集成并通过构建/生命周期 smoke test”，不能声明所有 KiriKiri 游戏均兼容。
+在这些真机测试通过前，只能声明“KRKR runtime 已集成并通过构建与缓存隔离测试”，不能声明所有 KiriKiri 游戏均兼容。
 
 ## 后续阶段
 

@@ -6,24 +6,15 @@ Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 2
 
 目前只有 KiriKiri 引擎可启动；ONScripter、Ren’Py 和 Artemis 游戏可以被扫描并显示，但在对应运行时接入前保持禁用。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
 
-## Windows 预览
-
-```sh
-node scripts/preview-server.mjs
-```
-
-打开 http://127.0.0.1:4173 。网页仅预览游戏库、系统主题、搜索、布局和横屏菜单，不执行游戏。
-
 ## GitHub Actions 编译
 
 推送至 main，或在 Actions → iOS build → Run workflow 手动运行。
 
 1. macOS 26 runner 运行 VNCore 扫描、路径隔离、导入与持久化测试。
-2. 从固定提交获取 KRKRSDL3、构建系统和 vcpkg 依赖，应用仓库内可审查的宿主补丁。
+2. 初始化固定的 KRKRSDL3 fork 递归子模块，并准备 vcpkg 依赖。
 3. 构建 device 与 Apple Silicon simulator 两个 KRKRRuntime framework，并合成 XCFramework。
 4. XcodeGen 生成 Mikage 工程，Xcode 26 编译未签名 arm64 App 并打包 `Mikage-unsigned.ipa`。
-5. 模拟器运行界面截图测试及 KRKR A→B→A 同进程启停 smoke test。
-6. 上传 IPA、完整构建日志、xcresult 和截图附件。
+5. 上传 IPA 和完整构建日志。
 
 未签名 IPA 不能直接安装，需要使用自己的工具和证书签名。CI 不需要 Apple 密码或证书。
 
@@ -57,9 +48,8 @@ KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`start
 - `Engine/KRKRRuntime/`：固定的 KRKRSDL3 fork 子模块、许可证和集成说明。
 - `Sources/VNCore/`：游戏扫描、路径安全、导入与索引。
 - `Tests/VNCoreTests/`：核心单元测试。
-- `UITests/`：界面截图与 KRKR 生命周期 smoke test。
 - `scripts/build-krkr-ios.sh`：可复现的 device/simulator XCFramework 构建。
-- `.github/workflows/ios.yml`：完整 engine + App 云端构建和测试。
+- `.github/workflows/ios.yml`：完整 engine + App 云端构建。
 - docs/PHASE-2-MULTI-ENGINE-PLAN.md：KRKR 真机验收通过后的 ONScripter、Ren’Py、Artemis 多引擎计划。
 
-KRKRSDL3 的修改以补丁源码形式随仓库提供。分发修改后的 runtime 或商业游戏移植版前，请阅读 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的再分发与源码公开条件。
+KRKRSDL3 的修改通过仓库固定的 fork 递归子模块提供。分发修改后的 runtime 或商业游戏移植版前，请阅读 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的再分发与源码公开条件。

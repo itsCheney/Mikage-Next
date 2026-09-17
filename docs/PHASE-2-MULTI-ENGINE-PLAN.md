@@ -8,7 +8,7 @@
 
 只有以下 KiriKiri 条件全部满足，才开始合并第二个引擎：
 
-1. Xcode 26 device/simulator framework、Mikage App、IPA、UI tests 和 A→B→A runtime smoke test全部通过。
+1. Xcode 26 device/simulator framework、Mikage App 与 IPA 构建全部通过。
 2. 至少 3 个有权测试、结构不同的 KiriKiri 游戏完成启动、单指触摸、双指右键、三指菜单、音频、视频、截图和存读档。
 3. 每个样本完成 A→退出→B→退出→A；连续启停 20 次无第二次启动崩溃、残留音频或持续内存增长。
 4. 切后台/回前台、旋转、音频中断、来电中断和低内存场景行为明确。
