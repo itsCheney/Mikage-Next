@@ -4,11 +4,11 @@ Mikage Next builds KRKRSDL3 as an embeddable iOS dynamic framework instead of us
 
 Pinned inputs:
 
-- `krkrsdl3_build`: `66fb7d9533478d33317208cd8ec8696ab9340d6f`
-- `krkrsdl3` core submodule: `5a8bd422f82d3758045f403520a64b772a59f40c`
+- `krkrsdl3_build` fork submodule: `0d280d242703dfec2bdb886fbbc67c0e57f04e2a` (`itsCheney/krkrsdl3_build`, branch `mikage`)
+- nested `krkrsdl3` core submodule: `723ae742e11e4581f18537c552fc446ba8cbee9f` (`itsCheney/krkrsdl3`, branch `mikage`)
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 
-`Host/` contains the public C API, frame metrics and lifecycle driver. `Patches/krkrsdl3-core-host.patch` contains the embedding changes; `Patches/krkrsdl3-lifecycle-host.patch` contains restart-safe TJS cleanup, foreground audio/video suspension and Retina drawable changes. Follow-up patches serialize and reset the graphics cache, keep touch input in drawable coordinates until KRKR performs its letterbox transform, discard session-scoped event hooks, invalidate late video frames by session generation, and synchronously release cached video/audio players before SDL shutdown. Runtime logging is appended to each game's `savedata/krkr.console.log`. `scripts/build-krkr-ios.sh` fetches the pinned sources, applies the complete patch chain, builds device and Apple Silicon simulator frameworks, then creates `build/KRKRRuntime.xcframework`.
+`Source/` is the pinned `itsCheney/krkrsdl3_build` fork and contains the public C API, frame metrics, lifecycle driver, and its nested pinned `itsCheney/krkrsdl3` core fork. The forked changes make KRKR restart-safe, maintain drawable-space touch coordinates, isolate graphics/event/media/session state, invalidate late video frames, and append runtime logging to each game's `savedata/krkr.console.log`. `scripts/build-krkr-ios.sh` initializes the nested submodule, verifies the scenario cache isolation, builds device and Apple Silicon simulator frameworks, then creates `build/KRKRRuntime.xcframework`.
 
 The host patch deliberately removes only `sdl3_entry.cpp` from the framework build. The official standalone iOS target remains unchanged when `KRKR_HOST_LIBRARY=OFF`.
 

@@ -1,20 +1,20 @@
 # KRKR 接入记录
 
-Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframework`。runtime、对应源码补丁、Swift session 和 PlayerView 启停链路均已接入主工程；不再使用只显示演示界面的占位 session。
+Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframework`。runtime、fork 内的对应源码改动、Swift session 和 PlayerView 启停链路均已接入主工程；不再使用只显示演示界面的占位 session。
 
 ## 固定版本
 
-- `krkrsdl3_build`: `66fb7d9533478d33317208cd8ec8696ab9340d6f`
-- 官方构建仓库锁定的 `krkrsdl3` core: `5a8bd422f82d3758045f403520a64b772a59f40c`
+- `itsCheney/krkrsdl3_build` fork submodule: `0d280d242703dfec2bdb886fbbc67c0e57f04e2a` (`mikage`)
+- 嵌套的 `itsCheney/krkrsdl3` core fork submodule: `723ae742e11e4581f18537c552fc446ba8cbee9f` (`mikage`)
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 - 上游核心：https://github.com/krkrsdl3/krkrsdl3
 - 上游构建：https://github.com/krkrsdl3/krkrsdl3_build
 
-完整对应修改位于 `Engine/KRKRRuntime/Patches/`，公共 C API 位于 `Engine/KRKRRuntime/Host/`。`third_party/` 仅用于本地检查，不提交。
+对应源码修改和公共 C API 均位于递归子模块 `Engine/KRKRRuntime/Source/`；主仓只固定经验证的 build fork commit。`third_party/` 仅用于本地检查，不提交。
 
 ## 已接入
 
-1. `scripts/build-krkr-ios.sh` 从固定提交构建 device 与 Apple Silicon simulator framework，再合成 XCFramework。
+1. `scripts/build-krkr-ios.sh` 从固定的递归子模块构建 device 与 Apple Silicon simulator framework，再合成 XCFramework。
 2. 保留上游独立 iOS App target；仅在 `KRKR_HOST_LIBRARY=ON` 时排除 `sdl3_entry.cpp` 并生成动态 framework。
 3. Swift 宿主在主线程调用 `SDL_SetMainReady`，通过 `CADisplayLink` 驱动 `SDL_AppEvent` 与 `SDL_AppIterate`。
 4. SDL window 绑定当前 `UIWindowScene`。游戏启动时自动请求横屏，结束后恢复系统方向策略。

@@ -3,10 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-KRKR_BUILD_COMMIT="66fb7d9533478d33317208cd8ec8696ab9340d6f"
-KRKR_CORE_COMMIT="5a8bd422f82d3758045f403520a64b772a59f40c"
 VCPKG_BASELINE="8e8dfb4ba483886936ded5ca201b500b8d8b0096"
-SOURCE_DIR="${PROJECT_DIR}/build/krkr-source"
+SOURCE_DIR="${PROJECT_DIR}/Engine/KRKRRuntime/Source"
 OUTPUT="${PROJECT_DIR}/build/KRKRRuntime.xcframework"
 VCPKG_INSTALLED_DIR="${PROJECT_DIR}/build/krkr-vcpkg-installed"
 
@@ -15,80 +13,17 @@ if [[ -e "${OUTPUT}" ]]; then
     exit 1
 fi
 
-if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
-    if [[ -e "${SOURCE_DIR}" ]]; then
-        echo "${SOURCE_DIR} exists but is not a prepared Mikage source tree." >&2
-        exit 1
-    fi
-    mkdir -p "$(dirname "${SOURCE_DIR}")"
-    git init "${SOURCE_DIR}"
-    git -C "${SOURCE_DIR}" remote add origin https://github.com/krkrsdl3/krkrsdl3_build.git
-    git -C "${SOURCE_DIR}" fetch --depth 1 origin "${KRKR_BUILD_COMMIT}"
-    git -C "${SOURCE_DIR}" checkout --detach FETCH_HEAD
-    git -C "${SOURCE_DIR}" submodule update --init --depth 1 cpp
-    test "$(git -C "${SOURCE_DIR}/cpp" rev-parse HEAD)" = "${KRKR_CORE_COMMIT}"
-
-    git -C "${SOURCE_DIR}" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-build-host.patch"
-    python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))' \
-        "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-core-host.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-event-reset.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-media-session-reset.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-session-reset.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-visibility.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-scenario-cache-session.patch"
-    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
-    touch "${SOURCE_DIR}/.mikage-host-prepared"
-else
-    # Upgrade legacy prepared trees without reverse-checking an earlier patch
-    # after a later patch has intentionally changed the same hunk.
-    if ! grep -q 'SDL_WINDOW_HIGH_PIXEL_DENSITY' "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-lifecycle-host.patch"
-    fi
-    if ! grep -q 'normalizedTouchToDrawable' "${SOURCE_DIR}/cpp/environ/sdl3/sdl3_app.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-touch-coordinate.patch"
-    fi
-    if ! grep -q 'TVPGraphicCacheMutex' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-cache-lock.patch"
-    fi
-    if ! grep -q 'TVPResetEventState' "${SOURCE_DIR}/cpp/core/main/TVPEvent.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-event-reset.patch"
-    fi
-    if ! grep -q 'FinalizeSession' "${SOURCE_DIR}/cpp/core/script/tjsNativeVideoOverlay.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-media-session-reset.patch"
-    fi
-    if ! grep -q 'TVPResetGraphicSessionState' "${SOURCE_DIR}/cpp/core/media/image/TVPGraphicsLoader.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-graphics-session-reset.patch"
-    fi
-    if ! grep -q 'TVPMoviePlayer::SetVisible(b)' "${SOURCE_DIR}/cpp/core/media/movie/KRMovieOverlay.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
-    fi
-    # Compositor visibility must not track the wrapper's Visible member.
-    if grep -q 'pSprite->isVisible = b' "${SOURCE_DIR}/cpp/core/media/movie/KRMovieOverlay.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-visibility.patch"
-    fi
-    if ! grep -q 'TVPReportCompositorFrame' "${SOURCE_DIR}/cpp/core/render/TVPCompositor.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
-    fi
-    if ! grep -q 'Scenario cache session hooks armed: KAGParser' "${SOURCE_DIR}/cpp/core/script/tjsNativeKAGParser.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-scenario-cache-session.patch"
-    fi
-    if ! grep -q 'MikageKRKRForwardLog' "${SOURCE_DIR}/cpp/core/msg/TVPDebug.cpp"; then
-        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
-    fi
+if [[ ! -f "${SOURCE_DIR}/CMakeLists.txt" ]]; then
+    echo "KRKR source submodule is missing. Run: git submodule update --init --recursive" >&2
+    exit 1
 fi
 
+# `cpp` is a nested submodule pinned by the build fork. This is a no-op for
+# normal developer and CI checkouts, but makes a fresh clone self-contained.
+git -C "${SOURCE_DIR}" submodule update --init --recursive
 # Verify cache isolation before spending time on the device/simulator builds.
 python3 "${PROJECT_DIR}/scripts/check-krkr-scenario-cache.py" --source "${SOURCE_DIR}/cpp"
 
-# Host sources belong to this repository and may change independently of the pinned upstream tree.
-mkdir -p "${SOURCE_DIR}/host"
-cp "${PROJECT_DIR}/Engine/KRKRRuntime/Host/"* "${SOURCE_DIR}/host/"
 
 if [[ -n "${VCPKG_ROOT:-}" && -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
     export VCPKG_ROOT

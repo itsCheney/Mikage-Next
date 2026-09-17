@@ -54,7 +54,7 @@ KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`start
 ## 结构
 
 - `App/`：SwiftUI 游戏库、设置、PlayerView 和 KRKR session。
-- `Engine/KRKRRuntime/`：公开 C API、完整对应补丁、许可证和固定版本说明。
+- `Engine/KRKRRuntime/`：固定的 KRKRSDL3 fork 子模块、许可证和集成说明。
 - `Sources/VNCore/`：游戏扫描、路径安全、导入与索引。
 - `Tests/VNCoreTests/`：核心单元测试。
 - `UITests/`：界面截图与 KRKR 生命周期 smoke test。

@@ -38,7 +38,7 @@ def function(text, signature):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path,
-                        help="KRKR cpp directory with the host patches applied")
+                        help="KRKR cpp directory from the pinned Mikage core fork")
     parser.add_argument("--cxx", default=os.environ.get("CXX"))
     args = parser.parse_args()
     compiler = args.cxx or shutil.which("clang++") or shutil.which("g++")
