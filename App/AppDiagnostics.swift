@@ -44,7 +44,7 @@ final class AppDiagnostics: @unchecked Sendable {
             "sourceRevision": Bundle.main.infoDictionary?["MikageSourceRevision"] as? String ?? "unknown",
             "system": UIDevice.current.systemVersion,
             "device": UIDevice.current.model,
-            "screenPoints": NSStringFromCGRect(UIScreen.main.bounds),
+            "screenPoints": NSCoder.string(for: UIScreen.main.bounds),
             "screenScale": String(Double(UIScreen.main.scale)),
             "process": ProcessInfo.processInfo.processName,
             "pid": String(ProcessInfo.processInfo.processIdentifier)
@@ -91,7 +91,7 @@ final class AppDiagnostics: @unchecked Sendable {
             event("UIKit", name, ["scene": scene.session.persistentIdentifier,
                                   "orientation": String(scene.interfaceOrientation.rawValue),
                                   "activation": String(scene.activationState.rawValue),
-                                  "sceneBounds": NSStringFromCGRect(scene.coordinateSpace.bounds),
+                                  "sceneBounds": NSCoder.string(for: scene.coordinateSpace.bounds),
                                   "windowCount": String(scene.windows.count)])
             for (index, window) in scene.windows.enumerated() {
                 event("UIKit", name + ".window", [
@@ -99,11 +99,11 @@ final class AppDiagnostics: @unchecked Sendable {
                     "identity": String(describing: ObjectIdentifier(window)),
                     "type": String(describing: type(of: window)),
                     "key": String(window.isKeyWindow), "hidden": String(window.isHidden),
-                    "alpha": String(Double(window.alpha)), "bounds": NSStringFromCGRect(window.bounds),
-                    "safeArea": NSStringFromUIEdgeInsets(window.safeAreaInsets),
+                    "alpha": String(Double(window.alpha)), "bounds": NSCoder.string(for: window.bounds),
+                    "safeArea": NSCoder.string(for: window.safeAreaInsets),
                     "root": window.rootViewController.map { String(describing: type(of: $0)) } ?? "none",
                     "subviews": window.rootViewController?.viewIfLoaded?.subviews.prefix(8).map {
-                        "\(type(of: $0)) frame=\(NSStringFromCGRect($0.frame)) hidden=\($0.isHidden) alpha=\($0.alpha)"
+                        "\(type(of: $0)) frame=\(NSCoder.string(for: $0.frame)) hidden=\($0.isHidden) alpha=\($0.alpha)"
                     }.joined(separator: " | ") ?? "none"
                 ])
             }

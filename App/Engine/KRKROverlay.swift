@@ -54,7 +54,7 @@ final class KRKROverlayCoordinator: NSObject {
         onScreenshot: @escaping () -> UIImage?
     ) {
         guard let rootController = window.rootViewController else { return }
-        AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSStringFromCGRect(window.bounds), "root": String(describing: type(of: rootController))])
+        AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSCoder.string(for: window.bounds), "root": String(describing: type(of: rootController))])
         let overlay = KRKROverlayView(model: model)
         let controller = UIHostingController(rootView: overlay)
         controller.view.backgroundColor = .clear
