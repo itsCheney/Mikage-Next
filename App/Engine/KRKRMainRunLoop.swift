@@ -1,4 +1,5 @@
 import CoreFoundation
+import Foundation
 
 enum KRKRMainRunLoop {
     @MainActor
@@ -9,7 +10,7 @@ enum KRKRMainRunLoop {
         // engine from a run-loop block instead; UIKit still stays on main.
         await withCheckedContinuation { continuation in
             let runLoop = CFRunLoopGetMain()
-            CFRunLoopPerformBlock(runLoop, kCFRunLoopCommonModes) {
+            CFRunLoopPerformBlock(runLoop, RunLoop.Mode.common.rawValue as CFString) {
                 continuation.resume(returning: operation())
             }
             CFRunLoopWakeUp(runLoop)
