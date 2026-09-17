@@ -1,0 +1,29 @@
+diff --git a/core/msg/TVPDebug.cpp b/core/msg/TVPDebug.cpp
+--- a/core/msg/TVPDebug.cpp
++++ b/core/msg/TVPDebug.cpp
+@@ -361,6 +361,12 @@ void TVPAddLog(const ttstr& line, bool appendtoimportant)
+ {
++#if defined(KRKR_HOST_LIBRARY)
++    // Independent host sink: do not replace TVPOnLog or script log handlers.
++    extern void MikageKRKRForwardLog(const ttstr& line);
++    MikageKRKRForwardLog(line);
++#endif
++
+     // add a line to the log.
+     // exceeded lines over TVPLogMaxLines are eliminated.
+     // this function is not thread-safe ...
+ 
+     TVPEnsureLogObjects();
+@@ -420,6 +426,11 @@ void TVPAddLog(const ttstr& line, bool appendtoimportant)
+-    TVPConsoleLog("%s", buf.c_str());
++#if defined(KRKR_HOST_LIBRARY)
++    extern void MikageKRKRMirrorConsoleLog(const ttstr& line);
++    MikageKRKRMirrorConsoleLog(buf);
++#else
++    TVPConsoleLog("%s", buf.c_str());
++#endif
+ 
+     if (TVPLoggingToFile)
+         TVPLogStreamHolder.Log(buf);
+ }
+ //---------------------------------------------------------------------------

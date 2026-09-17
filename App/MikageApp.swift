@@ -42,6 +42,7 @@ final class AppModel: ObservableObject {
     @Published var missingGames: [GameRecord] = []
     @Published var settings: PlayerSettings {
         didSet {
+            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer, "appearance": settings.appearance, "performance": String(settings.performance)])
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: "settings.v1")
             }
@@ -51,7 +52,11 @@ final class AppModel: ObservableObject {
     @Published var query = ""
     @Published var importing = false
     @Published var scanning = false
-    @Published var alert: String?
+    @Published var alert: String? {
+        didSet {
+            if let alert { AppDiagnostics.shared.event("app", "user.error", ["message": alert]) }
+        }
+    }
     @Published var player: GameRecord?
     @Published var pendingImport: PendingGameImport?
 
@@ -69,6 +74,13 @@ final class AppModel: ObservableObject {
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Mikage", isDirectory: true)
         repository = LibraryRepository(documentsRoot: documents, metadataRoot: applicationSupport)
+        do {
+            try AppDiagnostics.shared.configure(enabled: UserDefaults.standard.bool(forKey: AppDiagnostics.preferenceKey))
+        } catch {
+            UserDefaults.standard.set(false, forKey: AppDiagnostics.preferenceKey)
+            alert = "无法启动日志记录：\(error.localizedDescription)"
+        }
+        AppDiagnostics.shared.event("app", "launch")
 
         do {
             try repository.ensureStructure()
@@ -77,6 +89,7 @@ final class AppModel: ObservableObject {
             missingGames = records.filter { $0.availability == .missing }
         } catch {
             libraryReadable = false
+            AppDiagnostics.shared.event("library", "initialization.failed", ["error": error.localizedDescription])
             alert = "无法读取游戏库：\(error.localizedDescription)。原文件已保留。"
         }
 
@@ -143,6 +156,7 @@ final class AppModel: ObservableObject {
     }
 
     func launch(_ game: GameRecord) {
+        AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName])
         guard game.engine == .kirikiri, game.availability.canLaunch else {
             alert = availabilityText(game)
             return
@@ -173,6 +187,7 @@ final class AppModel: ObservableObject {
     func refreshLibrary(showErrors: Bool = true) async {
         guard libraryReadable, !scanning else { return }
         scanning = true
+        AppDiagnostics.shared.event("library", "scan.begin")
         defer { scanning = false }
         do {
             let repository = self.repository
@@ -180,7 +195,9 @@ final class AppModel: ObservableObject {
                 try repository.scan()
             }.value
             apply(snapshot)
+            AppDiagnostics.shared.event("library", "scan.end", ["active": String(snapshot.active.count), "missing": String(snapshot.missing.count)])
         } catch {
+            AppDiagnostics.shared.event("library", "scan.failed", ["error": error.localizedDescription])
             if showErrors {
                 alert = "扫描游戏目录失败：\(error.localizedDescription)"
             }
@@ -188,6 +205,7 @@ final class AppModel: ObservableObject {
     }
 
     func beginImport(_ url: URL) async {
+        AppDiagnostics.shared.event("library", "import.begin", ["folder": url.lastPathComponent])
         guard !importing, libraryReadable else { return }
         importing = true
         let scoped = url.startAccessingSecurityScopedResource()
@@ -201,12 +219,14 @@ final class AppModel: ObservableObject {
                 try GameScanner.detectEngines(in: url)
             }.value
             if detected.count == 1, let engine = detected.first {
+                AppDiagnostics.shared.event("library", "import.engineDetected", ["engine": engine.rawValue])
                 let repository = self.repository
                 try await Task.detached(priority: .userInitiated) {
                     try repository.importFolder(url, engine: engine)
                 }.value
                 await refreshLibrary()
             } else {
+                AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
                 pendingImport = PendingGameImport(url: url, detectedEngines: detected)
             }
         } catch {
@@ -215,6 +235,7 @@ final class AppModel: ObservableObject {
     }
 
     func importPending(_ pendingImport: PendingGameImport, as engine: EngineID) async {
+        AppDiagnostics.shared.event("library", "import.engineSelected", ["folder": pendingImport.url.lastPathComponent, "engine": engine.rawValue])
         guard !importing, libraryReadable else { return }
         self.pendingImport = nil
         importing = true
@@ -236,6 +257,7 @@ final class AppModel: ObservableObject {
     }
 
     func relink(_ game: GameRecord, to url: URL) async {
+        AppDiagnostics.shared.event("library", "relink.requested", ["oldFolder": game.folderName, "newFolder": url.lastPathComponent])
         guard !importing, libraryReadable else { return }
         importing = true
         let scoped = url.startAccessingSecurityScopedResource()
@@ -255,6 +277,7 @@ final class AppModel: ObservableObject {
     }
 
     func forget(_ game: GameRecord) async {
+        AppDiagnostics.shared.event("library", "recordDeletion.requested", ["folder": game.folderName])
         guard libraryReadable else { return }
         do {
             let repository = self.repository
@@ -268,6 +291,7 @@ final class AppModel: ObservableObject {
     }
 
     func recordPlayback(of game: GameRecord, duration: TimeInterval) {
+        AppDiagnostics.shared.event("library", "history.save", ["folder": game.folderName, "duration": String(duration)])
         var records = games + missingGames
         guard let index = records.firstIndex(where: { $0.id == game.id }) else { return }
         records[index].lastPlayedAt = Date()
@@ -287,6 +311,7 @@ final class AppModel: ObservableObject {
     }
 
     func updateCover(_ game: GameRecord, image: UIImage) {
+        AppDiagnostics.shared.event("library", "cover.update", ["folder": game.folderName])
         guard libraryReadable, let data = image.jpegData(compressionQuality: 0.85) else { return }
         do {
             apply(try repository.setCustomCover(for: game.id, jpegData: data))

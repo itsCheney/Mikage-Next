@@ -31,9 +31,11 @@ struct PlayerView: View {
         .ignoresSafeArea()
         .statusBarHidden()
         .onDisappear {
+            AppDiagnostics.shared.event("player", "view.disappeared")
             model.krkrSession.requestStop()
         }
         .onChange(of: scenePhase) { phase in
+            AppDiagnostics.shared.event("player", "scenePhase.changed", ["phase": String(describing: phase)])
             model.krkrSession.setForeground(phase == .active)
         }
         .onReceive(timer) { _ in
@@ -50,6 +52,7 @@ struct PlayerView: View {
             do {
                 let configuration = try model.launchConfiguration(for: game)
                 model.krkrSession.onWarning = { error in
+                    AppDiagnostics.shared.event("player", "runtime.warning", ["error": error.localizedDescription])
                     model.alert = error.localizedDescription
                 }
                 model.krkrSession.onReturningToLibrary = {
@@ -71,6 +74,8 @@ struct PlayerView: View {
                 engineStarted = true
                 engineStarting = false
             } catch {
+                AppDiagnostics.shared.event("player", "startup.error", ["error": error.localizedDescription])
+                AppDiagnostics.shared.endGame()
                 engineStarting = false
                 model.alert = error.localizedDescription
                 dismiss()

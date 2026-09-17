@@ -41,6 +41,7 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-visibility.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
 else
     # Upgrade legacy prepared trees without reverse-checking an earlier patch
@@ -72,6 +73,9 @@ else
     fi
     if ! grep -q 'TVPReportCompositorFrame' "${SOURCE_DIR}/cpp/core/render/TVPCompositor.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
+    fi
+    if ! grep -q 'MikageKRKRForwardLog' "${SOURCE_DIR}/cpp/core/msg/TVPDebug.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
     fi
 fi
 

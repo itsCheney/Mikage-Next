@@ -54,6 +54,7 @@ final class KRKROverlayCoordinator: NSObject {
         onScreenshot: @escaping () -> UIImage?
     ) {
         guard let rootController = window.rootViewController else { return }
+        AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSStringFromCGRect(window.bounds), "root": String(describing: type(of: rootController))])
         let overlay = KRKROverlayView(model: model)
         let controller = UIHostingController(rootView: overlay)
         controller.view.backgroundColor = .clear
@@ -85,6 +86,7 @@ final class KRKROverlayCoordinator: NSObject {
     }
 
     func showMenu() {
+        AppDiagnostics.shared.event("overlay", "menu.show")
         guard let controller = hostingController else { return }
         controller.view.isUserInteractionEnabled = true
         containerView?.bringSubviewToFront(controller.view)
@@ -92,6 +94,7 @@ final class KRKROverlayCoordinator: NSObject {
     }
 
     func hideMenu() {
+        AppDiagnostics.shared.event("overlay", "menu.hide")
         model.menuVisible = false
         hostingController?.view.isUserInteractionEnabled = false
         if let floatingButton {
@@ -104,6 +107,7 @@ final class KRKROverlayCoordinator: NSObject {
     }
 
     func remove() {
+        AppDiagnostics.shared.event("overlay", "remove")
         floatingButton?.removeFromSuperview()
         floatingButton = nil
         hostingController?.willMove(toParent: nil)

@@ -69,7 +69,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         @objc func tick() { owner?.step() }
     }
 
-    private(set) var state: KRKRSessionState = .idle
+    private(set) var state: KRKRSessionState = .idle {
+        didSet {
+            AppDiagnostics.shared.event("session", "state.changed", ["from": String(describing: oldValue), "to": String(describing: state)])
+        }
+    }
     var onFinished: ((Result<Void, Error>) -> Void)?
     var onWarning: ((Error) -> Void)?
     var onReturningToLibrary: (() -> Void)?
@@ -88,6 +92,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var elapsedSeconds = 0
     private var rendererLabel = "Metal"
     private var performanceEnabled = false
+    private var displayTicks = 0
+    private var lastStepResult = "none"
 
     override init() {
         super.init()
@@ -140,6 +146,16 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             throw KRKRSessionError.missingHostWindow
         }
 
+        AppDiagnostics.shared.beginGame(["folder": configuration.gameDirectory.lastPathComponent,
+                                         "entryPoint": configuration.entryPoint.lastPathComponent,
+                                         "targetKind": String(describing: configuration.targetKind),
+                                         "requestedRenderer": configuration.renderer,
+                                         "performanceHUD": String(configuration.performance),
+                                         "floatingButton": String(configuration.floatingButton),
+                                         "threeFingerMenu": String(configuration.threeFingerMenu)])
+        displayTicks = 0
+        lastStepResult = "none"
+        AppDiagnostics.shared.windows("launch.hostWindow")
         state = .preparingOrientation
         hostWindow = window
         windowScene = scene
@@ -179,6 +195,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         }
         guard started else {
             let message = String(cString: MikageKRKRLastError())
+            AppDiagnostics.shared.event("bridge", "start.failed", ["message": message])
             state = .failed(message)
             await restorePreviousOrientation()
             throw KRKRSessionError.runtime(message)
@@ -192,6 +209,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             engineWindow = Unmanaged<UIWindow>.fromOpaque(nativeWindow).takeUnretainedValue()
         }
         guard let engineWindow else {
+            AppDiagnostics.shared.event("UIKit", "SDL.window.missing")
             MikageKRKRRequestStop()
             state = .failed("KRKR 没有创建可用的 SDL window。")
             await restorePreviousOrientation()
@@ -217,6 +235,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             onScreenshot: { [weak self] in self?.snapshot() }
         )
         overlayCoordinator = overlay
+        AppDiagnostics.shared.windows("overlay.installed")
 
         let target = DisplayLinkTarget(owner: self)
         let link = CADisplayLink(target: target, selector: #selector(DisplayLinkTarget.tick))
@@ -233,9 +252,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
         engineWindow.makeKeyAndVisible()
         hostWindow?.isHidden = true
+        AppDiagnostics.shared.windows("launch.windowsSwitched")
     }
 
     func requestStop() {
+        AppDiagnostics.shared.event("session", "stop.requested")
         guard state == .running || state == .starting else { return }
         state = .stopping
         _ = MikageKRKRSetForeground(false)
@@ -243,10 +264,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     }
 
     func setForeground(_ foreground: Bool) {
+        AppDiagnostics.shared.event("lifecycle", "foreground.requested", ["active": String(foreground)])
         requestedForeground = foreground
         guard state == .running || state == .stopping else { return }
         guard isForeground != foreground else { return }
         let changed = MikageKRKRSetForeground(foreground)
+        AppDiagnostics.shared.event("audio", "foreground.result", ["active": String(foreground), "success": String(changed), "error": String(cString: MikageKRKRLastError())])
         if !foreground || changed {
             isForeground = foreground
         }
@@ -282,6 +305,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     }
 
     fileprivate func runtimeFinished(success: Bool, message: String?) async {
+        AppDiagnostics.shared.event("bridge", "completion", ["success": String(success), "message": message ?? ""])
         displayLink?.invalidate()
         displayLink = nil
         displayLinkTarget = nil
@@ -296,6 +320,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
         await restorePreviousOrientation()
+        AppDiagnostics.shared.windows("return.windowsRestored")
+        AppDiagnostics.shared.endGame()
 
         let completion = onFinished
         onFinished = nil
@@ -326,7 +352,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         let preferences = UIWindowScene.GeometryPreferences.iOS(
             interfaceOrientations: [.landscapeLeft, .landscapeRight]
         )
-        scene.requestGeometryUpdate(preferences) { _ in }
+        AppDiagnostics.shared.event("UIKit", "geometry.landscape.request")
+        scene.requestGeometryUpdate(preferences) { error in
+            AppDiagnostics.shared.event("UIKit", "geometry.landscape.rejected", ["error": error.localizedDescription])
+        }
         UIViewController.attemptRotationToDeviceOrientation()
 
         for _ in 0..<80 {
@@ -336,11 +365,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             if sceneLandscape,
                sceneBounds.width > sceneBounds.height,
                windowBounds.width > windowBounds.height {
+                AppDiagnostics.shared.windows("geometry.landscape.ready")
                 await Task.yield()
                 return
             }
             try await Task.sleep(nanoseconds: 50_000_000)
         }
+        AppDiagnostics.shared.windows("geometry.landscape.timeout")
         throw KRKRSessionError.orientationUnavailable
     }
 
@@ -362,7 +393,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         }
         hostWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
-        scene.requestGeometryUpdate(preferences) { _ in }
+        AppDiagnostics.shared.event("UIKit", "geometry.restore.request", ["orientation": String(targetOrientation.rawValue)])
+        scene.requestGeometryUpdate(preferences) { error in
+            AppDiagnostics.shared.event("UIKit", "geometry.restore.rejected", ["error": error.localizedDescription])
+        }
         UIViewController.attemptRotationToDeviceOrientation()
 
         let expectsPortrait = targetOrientation.isPortrait ||
@@ -394,6 +428,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
         hostWindow?.layoutIfNeeded()
+        AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
         try? await Task.sleep(nanoseconds: 100_000_000)
         windowScene = nil
         previousOrientation = .unknown
@@ -401,7 +436,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     private func step() {
         guard state == .running || state == .stopping else { return }
-        _ = MikageKRKRStep()
+        displayTicks += 1
+        let result = MikageKRKRStep()
+        lastStepResult = String(describing: result)
     }
 
     private func startMetricsTimer() {
@@ -416,6 +453,20 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     private func updateMetrics() {
         guard state == .running || state == .stopping else { return }
+        if AppDiagnostics.shared.isEnabled {
+            var diagnosticStats = MikageKRKRStats()
+            if MikageKRKRGetStats(&diagnosticStats) {
+                AppDiagnostics.shared.event("session", "heartbeat", [
+                    "displayTicks": String(displayTicks), "stepResult": lastStepResult,
+                    "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
+                    "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),
+                    "drawable": "\(diagnosticStats.drawableWidth)x\(diagnosticStats.drawableHeight)",
+                    "actualRenderer": rendererName(from: &diagnosticStats),
+                    "residentBytes": String(residentMemoryBytes())
+                ])
+                AppDiagnostics.shared.windows("heartbeat.windows")
+            }
+        }
         if isForeground && state == .running {
             elapsedSeconds += 1
         }

@@ -4,6 +4,12 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var info: String?
     @State private var showInfo = false
+    @AppStorage(AppDiagnostics.preferenceKey) private var diagnosticLogging = false
+    @State private var exportingLogs = false
+    @State private var logExport: URL?
+    @State private var showLogExport = false
+    @State private var confirmClearLogs = false
+    @State private var diagnosticError: String?
 
     var body: some View {
         NavigationStack {
@@ -87,8 +93,40 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("完整诊断日志", isOn: $diagnosticLogging)
+                        .accessibilityIdentifier("diagnostic-logging-toggle")
+                    if let diagnosticError {
+                        Text("日志记录已停止：\(diagnosticError)")
+                            .foregroundStyle(.red)
+                    }
+                    Button {
+                        exportingLogs = true
+                        Task {
+                            do {
+                                logExport = try await Task.detached(priority: .utility) {
+                                    try AppDiagnostics.shared.export()
+                                }.value
+                                showLogExport = true
+                            } catch { explain(error.localizedDescription) }
+                            exportingLogs = false
+                        }
+                    } label: {
+                        Label(exportingLogs ? "正在导出…" : "导出诊断日志", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(exportingLogs)
+                    .accessibilityIdentifier("export-diagnostic-logs")
+                    Button("清除诊断日志", role: .destructive) { confirmClearLogs = true }
+                        .disabled(exportingLogs)
+                        .accessibilityIdentifier("clear-diagnostic-logs")
+                } header: {
+                    Text("诊断与日志")
+                } footer: {
+                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 8 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
+                }
+
                 Section("更多") {
-                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\nKRKR 日志：Documents/krkr/<游戏文件夹>/savedata/krkr.console.log\n问题描述：\n复现步骤：") {
+                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
                         Label("问题反馈", systemImage: "envelope.fill")
                     }
 
@@ -117,6 +155,33 @@ struct SettingsView: View {
             Button("好", role: .cancel) { }
         } message: {
             Text(info ?? "")
+        }
+        .onChange(of: diagnosticLogging) { enabled in
+            if enabled { diagnosticError = nil }
+            do { try AppDiagnostics.shared.configure(enabled: enabled) }
+            catch {
+                diagnosticLogging = false
+                explain("无法启动日志记录：\(error.localizedDescription)")
+            }
+        }
+        .sheet(isPresented: $showLogExport) {
+            if let logExport { ActivitySheet(items: [logExport]) }
+        }
+        .task(id: diagnosticLogging) {
+            while diagnosticLogging && !Task.isCancelled {
+                if let error = AppDiagnostics.shared.lastError {
+                    diagnosticError = error
+                    diagnosticLogging = false
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+        .confirmationDialog("清除已记录的诊断日志？", isPresented: $confirmClearLogs, titleVisibility: .visible) {
+            Button("清除日志", role: .destructive) {
+                do { try AppDiagnostics.shared.clear() }
+                catch { explain("清除日志失败：\(error.localizedDescription)") }
+            }
         }
     }
 

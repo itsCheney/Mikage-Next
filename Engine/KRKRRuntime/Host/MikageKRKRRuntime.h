@@ -16,6 +16,11 @@ typedef enum MikageKRKRStepResult {
 
 typedef void (*MikageKRKRMenuCallback)(void *context);
 typedef void (*MikageKRKRCompletionCallback)(bool success, const char *message, void *context);
+typedef void (*MikageKRKRLogCallback)(const char *source, int32_t level, const char *message);
+
+// Strings are borrowed for the duration of the callback; copy before returning.
+// May be called on runtime worker threads. NULL disables host log collection.
+void MikageKRKRSetLogCallback(MikageKRKRLogCallback callback);
 
 typedef struct MikageKRKRStats {
     double framesPerSecond;

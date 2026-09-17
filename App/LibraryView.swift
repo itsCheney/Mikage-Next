@@ -28,6 +28,7 @@ struct RootView: View {
             await model.refreshLibrary(showErrors: false)
         }
         .onChange(of: scenePhase) { phase in
+            AppDiagnostics.shared.event("app", "scenePhase.changed", ["phase": String(describing: phase)])
             if phase == .active {
                 Task { await model.refreshLibrary(showErrors: false) }
             }

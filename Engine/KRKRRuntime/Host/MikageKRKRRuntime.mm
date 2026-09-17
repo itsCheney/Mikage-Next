@@ -11,9 +11,94 @@
 #include <exception>
 #include <cstring>
 #include <vector>
+#include <atomic>
+#include <mutex>
+#include <cstdio>
+
+namespace {
+std::atomic<MikageKRKRLogCallback> diagnosticCallback{nullptr};
+std::mutex logOutputMutex;
+thread_local bool mirroringKRKRLog = false;
+SDL_LogOutputFunction previousLogOutput = nullptr;
+void *previousLogContext = nullptr;
+
+void diagnosticSDLOutput(void *, int category, SDL_LogPriority priority, const char *message)
+{
+    auto callback = diagnosticCallback.load(std::memory_order_acquire);
+    if (callback && !mirroringKRKRLog) {
+        char source[32];
+        std::snprintf(source, sizeof(source), "SDL.%d", category);
+        callback(source, static_cast<int32_t>(priority), message ? message : "");
+    }
+    SDL_LogOutputFunction output;
+    void *context;
+    {
+        std::lock_guard<std::mutex> lock(logOutputMutex);
+        output = previousLogOutput;
+        context = previousLogContext;
+    }
+    if (output && output != diagnosticSDLOutput)
+        output(context, category, priority, message);
+}
+}
+
+extern "C" void MikageKRKRLogMessage(const char *source, int32_t level, const char *message)
+{
+    if (auto callback = diagnosticCallback.load(std::memory_order_acquire))
+        callback(source, level, message ? message : "");
+}
+
+extern "C" void MikageKRKRSetLogCallback(MikageKRKRLogCallback callback)
+{
+    diagnosticCallback.store(callback, std::memory_order_release);
+    SDL_LogOutputFunction current = nullptr;
+    void *context = nullptr;
+    SDL_GetLogOutputFunction(&current, &context);
+    if (callback && current != diagnosticSDLOutput) {
+        {
+            std::lock_guard<std::mutex> lock(logOutputMutex);
+            previousLogOutput = current;
+            previousLogContext = context;
+        }
+        SDL_SetLogOutputFunction(diagnosticSDLOutput, nullptr);
+    } else if (!callback && current == diagnosticSDLOutput) {
+        SDL_LogOutputFunction previous;
+        void *previousContext;
+        {
+            std::lock_guard<std::mutex> lock(logOutputMutex);
+            previous = previousLogOutput;
+            previousContext = previousLogContext;
+        }
+        SDL_SetLogOutputFunction(previous, previousContext);
+    }
+}
 
 #include "TVPApplication.h"
 #include "tjsError.h"
+
+void MikageKRKRForwardLog(const ttstr &line)
+{
+    if (!diagnosticCallback.load(std::memory_order_acquire))
+        return;
+    try {
+        const auto message = line.AsStdString();
+        MikageKRKRLogMessage("KRKR", 3, message.c_str());
+    } catch (...) {
+        // Diagnostics must never introduce a new runtime exception.
+    }
+}
+
+void MikageKRKRMirrorConsoleLog(const ttstr &line)
+{
+    // Preserve the engine's SDL console output without collecting the same
+    // message twice (or bypassing the host's VM-dump privacy filter).
+    struct Restore {
+        bool previous;
+        ~Restore() { mirroringKRKRLog = previous; }
+    } restore{mirroringKRKRLog};
+    mirroringKRKRLog = true;
+    SDL_Log("%s", line.c_str());
+}
 
 extern void TVPSetAudioSuspended(bool suspended);
 @interface MikageKRKRBundleMarker : NSObject
@@ -90,6 +175,7 @@ void recordFrame(Uint64 presentedAt)
 
 void resetAfterStartFailure(const std::string &message)
 {
+    MikageKRKRLogMessage("bridge", 5, message.c_str());
     TVPSetAudioSuspended(true);
     if (appState) {
         try {
@@ -114,6 +200,9 @@ void resetAfterStartFailure(const std::string &message)
 
 void finish(SDL_AppResult result, const char *message)
 {
+    MikageKRKRLogMessage("bridge", 3, "runtime.finish.begin");
+    if (message && *message)
+        MikageKRKRLogMessage("bridge", 5, message);
     if (!running && !appState)
         return;
 
@@ -153,6 +242,8 @@ void finish(SDL_AppResult result, const char *message)
     callbackContext = nullptr;
     activeRenderer.clear();
     resetStats();
+    MikageKRKRLogMessage("bridge", success ? 3 : 5,
+                         success ? "runtime.finish.success" : lastError.c_str());
     if (callback)
         callback(success, success ? nullptr : lastError.c_str(), context);
 }
@@ -197,6 +288,7 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
             normalizedPath.push_back('/');
 
         try {
+            MikageKRKRSetLogCallback(diagnosticCallback.load(std::memory_order_acquire));
             SDL_SetMainReady();
             MikageKRKRSetWindowScene(uiWindowScene);
             MikageKRKRSetMenuGestureEnabled(menuGestureEnabled);
@@ -205,7 +297,8 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
             std::vector<std::string> arguments;
             arguments.emplace_back("MikageNext");
             arguments.emplace_back(normalizedPath);
-            arguments.emplace_back("-forcelog=yes");
+            if (diagnosticCallback.load(std::memory_order_acquire))
+                arguments.emplace_back("-forcelog=yes");
             if (renderer && *renderer)
                 arguments.emplace_back(std::string("-render=") + renderer);
 
@@ -231,6 +324,7 @@ extern "C" bool MikageKRKRStart(const char *gamePath,
             const char *actualRenderer = MikageKRKRGetActiveRendererName();
             if (actualRenderer && *actualRenderer)
                 activeRenderer = actualRenderer;
+            MikageKRKRLogMessage("bridge", 3, activeRenderer.c_str());
             if (result != SDL_APP_CONTINUE) {
                 running = true;
                 finish(result, SDL_GetError());
@@ -310,6 +404,7 @@ extern "C" void MikageKRKRRequestStop(void)
 
 extern "C" bool MikageKRKRSetForeground(bool value)
 {
+    MikageKRKRLogMessage("audio", 3, value ? "foreground.resume.requested" : "foreground.suspend.requested");
     try {
         if (foreground == value)
             return true;
@@ -327,6 +422,8 @@ extern "C" bool MikageKRKRSetForeground(bool value)
                 lastError = error.localizedDescription.UTF8String;
             else
                 lastError.clear();
+            MikageKRKRLogMessage("audio", error ? 5 : 3,
+                                 error ? lastError.c_str() : "foreground.suspended");
             return error == nil;
         }
 
@@ -334,6 +431,7 @@ extern "C" bool MikageKRKRSetForeground(bool value)
         [[AVAudioSession sharedInstance] setActive:YES error:&error];
         if (error) {
             lastError = error.localizedDescription.UTF8String;
+            MikageKRKRLogMessage("audio", 5, lastError.c_str());
             return false;
         }
         TVPSetAudioSuspended(false);
@@ -341,6 +439,7 @@ extern "C" bool MikageKRKRSetForeground(bool value)
             Application->NotifyActiveEvent(eTVPActiveEvent::onActive);
         foreground = value;
         lastError.clear();
+        MikageKRKRLogMessage("audio", 3, "foreground.resumed");
         return true;
     } catch (const eTJS &error) {
         lastError = error.GetMessage().c_str();
@@ -351,6 +450,7 @@ extern "C" bool MikageKRKRSetForeground(bool value)
     }
     TVPSetAudioSuspended(true);
     foreground = false;
+    MikageKRKRLogMessage("audio", 5, lastError.c_str());
     return false;
 }
 

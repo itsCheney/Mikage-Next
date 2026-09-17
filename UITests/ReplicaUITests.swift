@@ -63,6 +63,34 @@ final class ReplicaUITests: XCTestCase {
         }
     }
 
+    func testDiagnosticLoggingSettingPersists() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--krkr-smoke"]
+        app.launch()
+        app.buttons["设置"].tap()
+        let toggle = app.switches["diagnostic-logging-toggle"]
+        for _ in 0..<5 {
+            if toggle.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        if toggle.value as? String == "1" { toggle.tap() }
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertTrue(app.buttons["export-diagnostic-logs"].exists)
+        XCTAssertTrue(app.buttons["clear-diagnostic-logs"].exists)
+        app.terminate()
+        app.launch()
+        app.buttons["设置"].tap()
+        for _ in 0..<5 {
+            if toggle.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
     private func attach(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
