@@ -41,6 +41,7 @@ if [[ ! -f "${SOURCE_DIR}/.mikage-host-prepared" ]]; then
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-session.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-video-overlay-visibility.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
+    git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-scenario-cache-session.patch"
     git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
     touch "${SOURCE_DIR}/.mikage-host-prepared"
 else
@@ -74,10 +75,16 @@ else
     if ! grep -q 'TVPReportCompositorFrame' "${SOURCE_DIR}/cpp/core/render/TVPCompositor.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-session-diagnostics.patch"
     fi
+    if ! grep -q 'Scenario cache session hooks armed: KAGParser' "${SOURCE_DIR}/cpp/core/script/tjsNativeKAGParser.cpp"; then
+        git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-scenario-cache-session.patch"
+    fi
     if ! grep -q 'MikageKRKRForwardLog' "${SOURCE_DIR}/cpp/core/msg/TVPDebug.cpp"; then
         git -C "${SOURCE_DIR}/cpp" apply "${PROJECT_DIR}/Engine/KRKRRuntime/Patches/krkrsdl3-host-logging.patch"
     fi
 fi
+
+# Verify cache isolation before spending time on the device/simulator builds.
+python3 "${PROJECT_DIR}/scripts/check-krkr-scenario-cache.py" --source "${SOURCE_DIR}/cpp"
 
 # Host sources belong to this repository and may change independently of the pinned upstream tree.
 mkdir -p "${SOURCE_DIR}/host"

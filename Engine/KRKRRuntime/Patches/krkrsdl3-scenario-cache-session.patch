@@ -1,0 +1,51 @@
+diff --git a/core/script/tjsNativeKAGParser.cpp b/core/script/tjsNativeKAGParser.cpp
+--- a/core/script/tjsNativeKAGParser.cpp
++++ b/core/script/tjsNativeKAGParser.cpp
+@@ -304,5 +304,12 @@ tTVPScenarioCacheItem* TVPGetScenario(const ttstr& storagename, bool isstring)
+     {
+         TVPAddCompactEventHook(&TVPClearScenarioCacheCallback, true);
+         TVPClearScenarioCacheCallbackInit = true;
+-        TJSAddStaticToRegisterHeap([](void*) { TVPScenarioCache.Clear(); }, NULL);
++        TJSAddStaticToRegisterHeap([](void*) {
++            TVPScenarioCache.Clear();
++            // Register-heap callbacks are consumed at the end of each session.
++            // Re-arm both hooks for the next game, including debug builds where
++            // the compact callback deliberately leaves the cache untouched.
++            TVPClearScenarioCacheCallbackInit = false;
++        }, NULL);
++        TVPAddLog(TJS_N("(info) Scenario cache session hooks armed: KAGParser"));
+     }
+diff --git a/plugins/KAGParserEx/KAGParserEx.cpp b/plugins/KAGParserEx/KAGParserEx.cpp
+--- a/plugins/KAGParserEx/KAGParserEx.cpp
++++ b/plugins/KAGParserEx/KAGParserEx.cpp
+@@ -298,5 +298,12 @@ static tTVPScenarioCacheItemEX* TVPGetScenario(const ttstr& storagename, bool isstring)
+     {
+         TVPAddCompactEventHook(&TVPClearScenarioCacheCallback);
+         TVPClearScenarioCacheCallbackInit = true;
+-        TJSAddStaticToRegisterHeap([](void*) { TVPScenarioCache.Clear(); }, NULL);
++        TJSAddStaticToRegisterHeap([](void*) {
++            TVPScenarioCache.Clear();
++            // Event reset drops the compact hook; register-heap teardown also
++            // consumes this callback. Re-arm registration on every session so
++            // a later game cannot reuse another game's same-named .ks file.
++            TVPClearScenarioCacheCallbackInit = false;
++        }, NULL);
++        TVPAddLog(TJS_N("(info) Scenario cache session hooks armed: KAGParserEx"));
+     }
+diff --git a/plugins/ExtKAGParser/ExtKAGParser.cpp b/plugins/ExtKAGParser/ExtKAGParser.cpp
+--- a/plugins/ExtKAGParser/ExtKAGParser.cpp
++++ b/plugins/ExtKAGParser/ExtKAGParser.cpp
+@@ -345,5 +345,12 @@ static tExtTVPScenarioCacheItem* TVPGetScenario(const ttstr& storagename, bool isstring)
+     {
+         TVPAddCompactEventHook(&TVPClearScenarioCacheCallback);
+         TVPClearScenarioCacheCallbackInit = true;
+-        TJSAddStaticToRegisterHeap([](void*) { TVPScenarioCache.Clear(); }, NULL);
++        TJSAddStaticToRegisterHeap([](void*) {
++            TVPScenarioCache.Clear();
++            // Event reset drops the compact hook; register-heap teardown also
++            // consumes this callback. Re-arm registration on every session so
++            // a later game cannot reuse another game's same-named .ks file.
++            TVPClearScenarioCacheCallbackInit = false;
++        }, NULL);
++        TVPAddLog(TJS_N("(info) Scenario cache session hooks armed: ExtKAGParser"));
+     }
