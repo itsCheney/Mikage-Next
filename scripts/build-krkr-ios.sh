@@ -47,12 +47,14 @@ mkdir -p "${VCPKG_INSTALLED_DIR}"
 cmake --preset "iOS Device Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
+    -DUSE_RENDER_METAL=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
 cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
 
 cmake --preset "iOS Simulator Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
+    -DUSE_RENDER_METAL=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
 

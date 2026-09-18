@@ -20,7 +20,7 @@ struct MikageApp: App {
 
 struct PlayerSettings: Codable {
     var appearance = "深色"
-    var renderer = "Metal 原生"
+    var renderer = "Metal"
     var background = "游戏封面"
     var floatingButton = true
     var idleOpacity = 0.38
@@ -65,9 +65,17 @@ final class AppModel: ObservableObject {
     let krkrSession = NativeKRKRSession()
 
     init() {
-        settings = UserDefaults.standard.data(forKey: "settings.v1")
+        var loadedSettings = UserDefaults.standard.data(forKey: "settings.v1")
             .flatMap { try? JSONDecoder().decode(PlayerSettings.self, from: $0) }
             ?? PlayerSettings()
+        if loadedSettings.renderer == "Metal 原生" {
+            loadedSettings.renderer = "Metal"
+            if let data = try? JSONEncoder().encode(loadedSettings) {
+                UserDefaults.standard.set(data, forKey: "settings.v1")
+            }
+        }
+
+        settings = loadedSettings
 
         let fileManager = FileManager.default
         let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -166,7 +174,12 @@ final class AppModel: ObservableObject {
         }
         let directory = try repository.directory(for: game)
         let entryPoint = try repository.entryPoint(for: game)
-        let renderer = settings.renderer == "OpenGL ES" ? "opengl" : "metal"
+        let renderer: String
+        switch settings.renderer {
+        case "OpenGL ES": renderer = "opengl"
+        case "软件合成 · Metal": renderer = "software-metal"
+        default: renderer = "metal"
+        }
         return KRKRLaunchConfiguration(
             gameDirectory: directory,
             entryPoint: entryPoint,

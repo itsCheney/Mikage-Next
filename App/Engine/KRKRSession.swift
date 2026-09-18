@@ -222,7 +222,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
         }
 
-        rendererLabel = configuration.renderer == "opengl" ? "OpenGL ES" : "Metal"
+        switch configuration.renderer {
+        case "opengl": rendererLabel = "OpenGL ES"
+        case "software-metal": rendererLabel = "软件合成 · Metal"
+        default: rendererLabel = "Metal"
+        }
         performanceEnabled = configuration.performance
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
@@ -299,6 +303,34 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     func snapshot() -> UIImage? {
         guard let window = engineWindow, !window.bounds.isEmpty else { return nil }
+        var frame = MikageKRKRCapturedFrame()
+        if MikageKRKRCaptureFrame(&frame) {
+            defer { MikageKRKRFreeCapturedFrame(&frame) }
+            guard let pixels = frame.pixels else { return nil }
+            let data = Data(bytes: pixels, count: Int(frame.pitch) * Int(frame.height))
+            guard let provider = CGDataProvider(data: data as CFData),
+                  let image = CGImage(
+                    width: Int(frame.width), height: Int(frame.height),
+                    bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: Int(frame.pitch),
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue)
+                        .union(.byteOrder32Big),
+                    provider: provider, decode: nil, shouldInterpolate: false,
+                    intent: .defaultIntent
+                  ) else { return nil }
+            let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
+            return renderer.image { _ in
+                UIColor.black.setFill()
+                UIRectFill(window.bounds)
+                UIImage(cgImage: image).draw(in: window.bounds)
+                overlayCoordinator?.drawScreenshotOverlay(in: window)
+            }
+        }
+        var stats = MikageKRKRStats()
+        if MikageKRKRGetStats(&stats), rendererName(from: &stats) == "Metal" {
+            AppDiagnostics.shared.event("session", "screenshot.native.failed")
+            return nil
+        }
         let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
         return renderer.image { _ in
             window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
@@ -512,6 +544,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             }
         }
         switch rawName.lowercased() {
+        case "metal":
+            return "Metal"
         case "software/metal":
             return "软件合成 · Metal"
         case "software/opengles2":

@@ -31,7 +31,8 @@ struct SettingsView: View {
 
                 Section {
                     Picker(selection: $model.settings.renderer) {
-                        Text("Metal 原生").tag("Metal 原生")
+                        Text("Metal").tag("Metal")
+                        Text("软件合成 · Metal").tag("软件合成 · Metal")
                         Text("OpenGL ES").tag("OpenGL ES")
                     } label: {
                         Label("渲染方式", systemImage: "cpu")
@@ -40,7 +41,7 @@ struct SettingsView: View {
                 } header: {
                     Text("图形")
                 } footer: {
-                    Text("游戏显示异常时可尝试切换。Metal 使用 SDL 系统渲染器，OpenGL ES 使用 KRKR OpenGL 后端。")
+                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal 或 OpenGL ES。")
                 }
 
                 Section("游戏内") {

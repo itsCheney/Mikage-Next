@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, codex/metal-render-backend]
   pull_request:
 permissions:
   contents: read
@@ -24,7 +24,13 @@ jobs:
           XCODE_CACHE_KEY="$(xcodebuild -version | shasum -a 256 | awk '{print $1}')"
           echo "XCODE_CACHE_KEY=${XCODE_CACHE_KEY}" >> "$GITHUB_ENV"
       - name: Install project generator
-        run: brew install xcodegen
+        run: brew install xcodegen sdl3
+      - name: Build and test native Metal backend
+        run: |
+          cmake -S Tests/MetalRenderBackend -B build/metal-render-tests \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/metal-render-tests --parallel
+          ctest --test-dir build/metal-render-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
       - name: Cache KRKR dependencies

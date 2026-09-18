@@ -106,6 +106,18 @@ final class KRKROverlayCoordinator: NSObject {
         model.performance = performance
     }
 
+    // Render only UIKit overlays over the native Metal screenshot. Drawing the
+    // full SDL hierarchy would cover the captured image with an empty GPU view.
+    func drawScreenshotOverlay(in window: UIWindow) {
+        let views = [hostingController?.view, floatingButton].compactMap { $0 }
+        guard let container = containerView else { return }
+        for view in container.subviews where views.contains(where: { $0 === view }) {
+            guard !view.isHidden, view.alpha > 0 else { continue }
+            let rect = view.convert(view.bounds, to: window)
+            view.drawHierarchy(in: rect, afterScreenUpdates: true)
+        }
+    }
+
     func remove() {
         AppDiagnostics.shared.event("overlay", "remove")
         floatingButton?.removeFromSuperview()
