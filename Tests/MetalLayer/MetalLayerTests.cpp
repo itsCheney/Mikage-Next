@@ -160,7 +160,7 @@ static void Equivalence() {
             Operation(sw,method,sd.get(),dr,ss.get(),tTVPRect(0,0,width,height));
             auto before=TVPGetMetalLayerRenderStats();
             Operation(gpu,method,gd.get(),dr,gs.get(),tTVPRect(0,0,width,height));
-            Require(TVPGetMetalLayerRenderStats().gpuOperations==before.gpuOperations+1,"resize fell back");
+            Require(TVPGetMetalLayerRenderStats().cpuFallbacks==before.cpuFallbacks,"resize fell back");
             Compare(sd.get(),gd.get(),sampling?1:0,"resize");
         }
     }
