@@ -240,7 +240,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             floatingButtonOpacity: configuration.idleOpacity,
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
-                self?.requestStop()
+                self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() }
         )
@@ -269,6 +269,16 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         engineWindow.makeKeyAndVisible()
         hostWindow?.isHidden = true
         AppDiagnostics.shared.windows("launch.windowsSwitched")
+    }
+
+    private func requestNativeExit() {
+        guard state == .running else { return }
+        AppDiagnostics.shared.event("session", "nativeExit.requested")
+        if !MikageKRKRRequestExit() {
+            AppDiagnostics.shared.event("session", "nativeExit.unavailable")
+        }
+        // Continue stepping/foreground audio: the game's onCloseQuery owns
+        // confirmation and cancellation; completion handles the eventual exit.
     }
 
     func requestStop() {

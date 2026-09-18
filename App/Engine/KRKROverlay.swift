@@ -23,7 +23,6 @@ struct KRKRPerformanceSnapshot {
 @MainActor
 private final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
-    @Published var confirmExit = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
 
@@ -207,16 +206,6 @@ private struct KRKROverlayView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog(
-            "结束游戏并返回游戏库？",
-            isPresented: $model.confirmExit,
-            titleVisibility: .visible
-        ) {
-            Button("返回游戏库", role: .destructive) {
-                model.onExit?()
-            }
-            Button("继续游戏", role: .cancel) { }
-        }
         .sheet(
             isPresented: Binding(
                 get: { model.sharedImage != nil },
@@ -280,7 +269,7 @@ private struct KRKROverlayView: View {
                     model.sharedImage = model.onScreenshot?()
                 }
                 action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
-                    model.confirmExit = true
+                    model.onExit?()
                 }
             }
         }

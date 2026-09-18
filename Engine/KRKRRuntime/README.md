@@ -4,8 +4,8 @@ Mikage Next builds KRKRSDL3 as an embeddable iOS dynamic framework instead of us
 
 Pinned inputs:
 
-- `krkrsdl3_build` fork submodule: `394cacff01d64cf477b84152819ea51fde94368b` (`itsCheney/krkrsdl3_build`, branch `codex/metal-layer-composition`)
-- nested `krkrsdl3` core submodule: `60727915107e7790d8ab29f91ebb62687d87bdd4` (`itsCheney/krkrsdl3`, branch `codex/metal-layer-composition`)
+- `krkrsdl3_build` fork submodule: `947b828f19cc76158835e0624027e84651ebf333` (`itsCheney/krkrsdl3_build`, branch `codex/metal-layer-composition`)
+- nested `krkrsdl3` core submodule: `aa0079eb2f2779c51cc75e7c0fab0697804d481b` (`itsCheney/krkrsdl3`, branch `codex/metal-layer-composition`)
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 
 `Source/` is the pinned `itsCheney/krkrsdl3_build` fork and contains the public C API, frame metrics, lifecycle driver, and its nested pinned `itsCheney/krkrsdl3` core fork. The forked changes make KRKR restart-safe, maintain drawable-space touch coordinates, isolate graphics/event/media/session state, invalidate late video frames, and append runtime logging to each game's `savedata/krkr.console.log`. `scripts/build-krkr-ios.sh` initializes the nested submodule, verifies the scenario cache isolation, builds device and Apple Silicon simulator frameworks, then creates `build/KRKRRuntime.xcframework`.
