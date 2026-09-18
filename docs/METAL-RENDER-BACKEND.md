@@ -48,3 +48,28 @@ Changes span the root application, the `krkrsdl3_build` submodule and its nested
 nested source changes must be committed/published first, then the build fork's
 source pointer and changes, then the application pointer. Local uncommitted
 changes do not travel through a root repository commit or recursive CI checkout.
+
+## Frame pacing and diagnostics
+
+The player requests a 60 Hz CADisplayLink range and opts into the iPhone frame
+rate hint through its Info.plist. This is a system preference: thermal/power
+policy or an overloaded main thread can still reduce the actual callback rate.
+Three presentation surfaces are available independently of the two-submission
+GPU limit. Drawable size is changed only when the window pixel size changes.
+
+The HUD distinguishes average frame interval from main-thread step wall time,
+its one-second peak, the last completed GPU submission duration and the last
+frame's queue-capacity/drawable wait. GPU timing excludes queue wait; the wait
+metric is already part of main-thread step time. These values must not be added
+as independent sequential stages. GPU metrics are asynchronous and are not
+necessarily from the same frame as the one-second main-thread average.
+
+Heartbeat logs include the same timings, the requested rate, thermal state and
+Low Power Mode. Startup/shader compilation and background time are excluded
+from gameplay cadence windows. The FPS metric counts runtime frame submissions,
+not script-level content changes. The optional timing methods return -1 on
+backends which cannot report the requested GPU/wait measurements.
+
+TJS cleanup also drains inactive register references while globals are live,
+and keeps pooling disabled for shutdown-time finalizers. Per-VM GC now actually
+compacts that pool. See the [lifecycle regressions](../Tests/KRKRRuntime/README.md).

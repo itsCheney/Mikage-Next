@@ -249,7 +249,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
         let target = DisplayLinkTarget(owner: self)
         let link = CADisplayLink(target: target, selector: #selector(DisplayLinkTarget.tick))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
         link.add(to: .main, forMode: .common)
+        AppDiagnostics.shared.event("session", "displayLink.configured", [
+            "preferredFPS": "60", "maximumScreenFPS": String(engineWindow.screen.maximumFramesPerSecond),
+            "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
+            "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled)
+        ])
         displayLinkTarget = target
         displayLink = link
         startMetricsTimer()
@@ -503,6 +509,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
                     "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),
+                    "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
+                    "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds),
+                    "gpuSubmissionTimeMS": String(diagnosticStats.gpuSubmissionTimeMilliseconds),
+                    "presentationWaitTimeMS": String(diagnosticStats.presentationWaitTimeMilliseconds),
+                    "preferredFPS": "60",
+                    "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
+                    "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
                     "drawable": "\(diagnosticStats.drawableWidth)x\(diagnosticStats.drawableHeight)",
                     "actualRenderer": rendererName(from: &diagnosticStats),
                     "residentBytes": String(residentMemoryBytes())
@@ -528,6 +541,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             KRKRPerformanceSnapshot(
                 framesPerSecond: raw.framesPerSecond,
                 frameTimeMilliseconds: raw.frameTimeMilliseconds,
+                cpuFrameTimeMilliseconds: raw.cpuFrameTimeMilliseconds,
+                maxCpuFrameTimeMilliseconds: raw.maxCpuFrameTimeMilliseconds,
+                gpuSubmissionTimeMilliseconds: raw.gpuSubmissionTimeMilliseconds,
+                presentationWaitTimeMilliseconds: raw.presentationWaitTimeMilliseconds,
                 drawableWidth: raw.drawableWidth,
                 drawableHeight: raw.drawableHeight,
                 renderer: rendererName(from: &raw),

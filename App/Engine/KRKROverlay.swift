@@ -4,6 +4,10 @@ import UIKit
 struct KRKRPerformanceSnapshot {
     var framesPerSecond = 0.0
     var frameTimeMilliseconds = 0.0
+    var cpuFrameTimeMilliseconds = 0.0
+    var maxCpuFrameTimeMilliseconds = 0.0
+    var gpuSubmissionTimeMilliseconds = -1.0
+    var presentationWaitTimeMilliseconds = -1.0
     var drawableWidth: Int32 = 0
     var drawableHeight: Int32 = 0
     var renderer = "Metal"
@@ -223,7 +227,14 @@ private struct KRKROverlayView: View {
     private var performanceHUD: some View {
         let stats = model.performance
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · 间隔 \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("主线程 \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · 峰值 \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
+            if stats.gpuSubmissionTimeMilliseconds >= 0 {
+                Text("GPU 提交 \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
+            }
+            if stats.presentationWaitTimeMilliseconds >= 0 {
+                Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
+            }
             Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
             Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
             Text("本次游玩 \(duration(stats.elapsedSeconds))")

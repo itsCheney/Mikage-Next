@@ -31,6 +31,12 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
+      - name: Test TJS shutdown and reentrant finalizers
+        run: |
+          cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests
+          cmake --build build/tjs-shutdown-tests --parallel
+          ctest --test-dir build/tjs-shutdown-tests --output-on-failure
+          python3 scripts/check-krkr-frame-times.py
       - name: Test library import and persistence
         run: swift test
       - name: Cache KRKR dependencies
