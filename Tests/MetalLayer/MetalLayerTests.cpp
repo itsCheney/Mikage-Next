@@ -69,6 +69,7 @@ public:
             case TVPLayerOperationKind::Fill: name="FillARGB"; break;
             case TVPLayerOperationKind::FillColor: name="FillColor"; break;
             case TVPLayerOperationKind::FillMask: name="FillMask"; break;
+            case TVPLayerOperationKind::FillBlend: name="ConstColorAlphaBlend"; break;
             default:
                 name=op.kind==TVPLayerOperationKind::Alpha ? "AlphaBlend" : op.kind==TVPLayerOperationKind::ConstAlpha ? "ConstAlphaBlend" : "ApplyColorMap";
                 break;
@@ -129,14 +130,14 @@ static void Equivalence() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     const char* methods[]={"Copy","CopyColor","CopyMask","CopyOpaqueImage","FillARGB","FillColor","FillMask",
         "AlphaBlend","AlphaBlend_HDA","AlphaBlend_d","AlphaBlend_a","ConstAlphaBlend","ConstAlphaBlend_HDA","ConstAlphaBlend_d","ConstAlphaBlend_a",
-        "ApplyColorMap","ApplyColorMap_d","ApplyColorMap_a"};
+        "ApplyColorMap","ApplyColorMap_d","ApplyColorMap_a","ConstColorAlphaBlend","ConstColorAlphaBlend_d","ConstColorAlphaBlend_a"};
     for(auto* name:methods) for(int opacity:{0,1,63,127,254,255}) {
         auto* method=sw->GetRenderMethod(name); Require(method==gpu->GetRenderMethod(name),"canonical method pointer changed");
         method->SetParameterOpa(method->EnumParameterID("opacity"),opacity);
         method->SetParameterColor4B(method->EnumParameterID("color"),0x9139a7e2);
         TVPLayerOperation op; Require(method->DescribeGpuOperation(op),"missing semantic descriptor");
         bool glyph=op.kind==TVPLayerOperationKind::ColorMap;
-        bool fill=op.kind==TVPLayerOperationKind::Fill || op.kind==TVPLayerOperationKind::FillColor || op.kind==TVPLayerOperationKind::FillMask;
+        bool fill=op.kind==TVPLayerOperationKind::Fill || op.kind==TVPLayerOperationKind::FillColor || op.kind==TVPLayerOperationKind::FillMask || op.kind==TVPLayerOperationKind::FillBlend;
         auto source=Image(17,13,glyph?1:4,2), destination=Image(17,13,4,5);
         auto f=glyph?TVPTextureFormat::Gray:TVPTextureFormat::RGBA;
         auto ss=Create(sw,17,13,f,source), gs=Create(gpu,17,13,f,source);
@@ -161,7 +162,8 @@ static void Equivalence() {
             auto before=TVPGetMetalLayerRenderStats();
             Operation(gpu,method,gd.get(),dr,gs.get(),tTVPRect(0,0,width,height));
             Require(TVPGetMetalLayerRenderStats().cpuFallbacks==before.cpuFallbacks,"resize fell back");
-            Compare(sd.get(),gd.get(),sampling?1:0,"resize");
+            std::string label="resize sampling="+std::to_string(sampling)+" source="+std::to_string(width)+"x"+std::to_string(height)+" destination="+std::to_string(dr.left)+","+std::to_string(dr.top)+","+std::to_string(dr.right)+","+std::to_string(dr.bottom);
+            Compare(sd.get(),gd.get(),sampling?1:0,label.c_str());
         }
     }
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
