@@ -59,6 +59,11 @@ public:
     bool ReadLayerTexture(void* handle,std::vector<uint8_t>& pixels,int& pitch) override {
         auto& r=*resources.at(handle);pixels=r.pixels;pitch=r.w*r.bpp;return true;
     }
+    bool ReadLayerTextureRegion(void* handle,const TVPLayerRect& rc,std::vector<uint8_t>& pixels,int& pitch) override {
+        auto& r=*resources.at(handle);pitch=rc.Width()*r.bpp;pixels.resize(size_t(pitch)*rc.Height());
+        for(int y=0;y<rc.Height();++y) std::memcpy(pixels.data()+y*pitch,r.pixels.data()+((y+rc.top)*r.w+rc.left)*r.bpp,pitch);
+        return true;
+    }
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
         auto* sw=TVPGetSoftwareRenderManager(); const char* name=nullptr;
         switch(op.kind) {
@@ -307,10 +312,22 @@ int main() {
 #else
         backend=std::make_unique<DeviceDouble>();
 #endif
+#ifndef TEST_NATIVE_METAL
+        class UnavailableDevice final : public DeviceDouble {
+            void* CreateLayerTexture(int,int,TVPLayerTextureFormat) override { return nullptr; }
+        } unavailable;
+        Require(!TVPBindMetalLayerRenderManager(&unavailable) && TVPIsSoftwareRenderManager() && std::strlen(TVPMetalLayerFallbackReason()),"resource init did not retain software composition");
+#endif
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
         for(int session=0;session<3;++session) {
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             Require(cached==TVPGetRenderManager()->GetRenderMethod("AlphaBlend_d"),"method lifetime changed");
+            {
+                auto pixels=Image(9,7,4,2);auto texture=Create(TVPGetRenderManager(),9,7,TVPTextureFormat::RGBA,pixels);
+                std::vector<uint8_t> region;int pitch=0;
+                Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
+                for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
+            }
             Equivalence(); Synchronization(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
