@@ -181,6 +181,29 @@ static void Equivalence() {
         Compare(sd.get(),gd.get(),0,"overlap/flip");
     }
 }
+static void OffsetUpdates() {
+    auto* sw=TVPGetSoftwareRenderManager();auto* gpu=TVPGetRenderManager();
+    const tTVPRect rectangles[]={tTVPRect(2,1,6,4),tTVPRect(-2,-1,2,2),tTVPRect(7,5,11,8),
+        tTVPRect(9,7,13,10),tTVPRect(-5,-4,-1,-1),tTVPRect(2,2,2,5),tTVPRect(1,1,5,1)};
+    for(auto format:{TVPTextureFormat::RGBA,TVPTextureFormat::Gray}) for(auto r:rectangles) for(bool pinned:{false,true}) {
+        int bpp=format==TVPTextureFormat::Gray?1:4;
+        auto image=Image(9,7,bpp,2),frame=Image(4,3,bpp,5);
+        auto expected=Create(sw,9,7,format,image),actual=Create(gpu,9,7,format,image);
+        if(pinned) actual->GetPersistentCPUData(true);
+        expected->Update(frame.data(),format,4*bpp,r);actual->Update(frame.data(),format,4*bpp,r);
+        auto reference=image;
+        for(int y=0;y<r.get_height();++y) for(int x=0;x<r.get_width();++x) {
+            int dx=x+r.left,dy=y+r.top;
+            if(dx>=0 && dy>=0 && dx<9 && dy<7)
+                std::memcpy(reference.data()+(dy*9+dx)*bpp,frame.data()+(y*4+x)*bpp,bpp);
+        }
+        for(int y=0;y<7;++y) {
+            Require(!std::memcmp(expected->GetScanLineForRead(y),reference.data()+y*9*bpp,9*bpp),"software update did not clip/place frame correctly");
+            Require(!std::memcmp(actual->GetScanLineForRead(y),reference.data()+y*9*bpp,9*bpp),"GPU offset update did not clip/place frame correctly");
+        }
+        ++comparisons;
+    }
+}
 static void Synchronization() {
     auto* gpu=TVPGetRenderManager(); auto image=Image(9,7,4,2);
     auto t=Create(gpu,9,7,TVPTextureFormat::RGBA,image);
@@ -343,7 +366,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); Synchronization(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); OffsetUpdates(); Synchronization(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
