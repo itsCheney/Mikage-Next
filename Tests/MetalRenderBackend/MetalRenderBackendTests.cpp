@@ -106,7 +106,7 @@ void LayerTests(iTVPRenderBackend& gpu)
                     cpu.LayerDrawRect(cs, -1.25f, 0.5f, 6.75f, 3.25f, 0.8f, 0.2f, 0.1f, 0.9f);
                 } else {
                     gpu.LayerDrawRect(gs, 0, 0, 7, 5);
-                    cpu.LayerDrawRect(cs, 0, 0, 7, 5);
+                    cpu.LayerDrawRect(cs, 0, 0, 7, 5, 0, 0, 1, 1);
                 }
                 std::cout << "Layer " << method << " opacity " << opa << " crop " << crop << '\n';
                 Compare(Read(gpu, gt), Read(cpu, ct), 1);
