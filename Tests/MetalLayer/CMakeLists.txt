@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.20)
+project(MetalLayerTests LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp")
+file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
+add_executable(metal-layer-tests MetalLayerTests.cpp TestPlatform.cpp ${TJS_SOURCES}
+    "${CORE}/core/render/ComplexRect.cpp"
+    "${CORE}/core/render/RenderManager.cpp"
+    "${CORE}/core/render/MetalLayerRenderManager.cpp"
+    "${CORE}/core/render/gl/tvpgl.cpp"
+    "${CORE}/core/render/gl/blend_function.cpp"
+    "${CORE}/core/media/image/BitmapInfomation.cpp")
+foreach(dir archive main media/font media/image media/movie media/sound msg render script utils utils/math)
+    target_include_directories(metal-layer-tests PRIVATE "${CORE}/core/${dir}")
+endforeach()
+target_include_directories(metal-layer-tests PRIVATE "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins")
+target_compile_definitions(metal-layer-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)
+if(WIN32)
+    target_compile_definitions(metal-layer-tests PRIVATE _KRKRSDL3_WINDOWS=1)
+elseif(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 17)
+    find_package(SDL3 CONFIG REQUIRED)
+    target_sources(metal-layer-tests PRIVATE "${CORE}/core/render/backend/MetalRenderBackend.mm")
+    set_source_files_properties("${CORE}/core/render/backend/MetalRenderBackend.mm" PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_compile_definitions(metal-layer-tests PRIVATE _KRKRSDL3_MACOS=1 TEST_NATIVE_METAL=1)
+    target_link_libraries(metal-layer-tests PRIVATE SDL3::SDL3 "-framework Foundation" "-framework Metal" "-framework QuartzCore")
+else()
+    target_compile_definitions(metal-layer-tests PRIVATE _KRKRSDL3_LINUX=1)
+endif()
+enable_testing()
+add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
+set_tests_properties(metal-layer-tests PROPERTIES SKIP_RETURN_CODE 77)
+if(APPLE)
+    set_tests_properties(metal-layer-tests PROPERTIES ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()

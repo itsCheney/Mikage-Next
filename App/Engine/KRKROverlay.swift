@@ -11,6 +11,11 @@ struct KRKRPerformanceSnapshot {
     var drawableWidth: Int32 = 0
     var drawableHeight: Int32 = 0
     var renderer = "Metal"
+    var gpuLayerComposition = false
+    var gpuLayerOperations: UInt64 = 0
+    var layerCPUFallbacks: UInt64 = 0
+    var layerUploadedBytes: UInt64 = 0
+    var layerReadbackBytes: UInt64 = 0
     var residentMemoryBytes: UInt64 = 0
     var elapsedSeconds = 0
 }
@@ -236,6 +241,11 @@ private struct KRKROverlayView: View {
                 Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
             }
             Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
+            Text("图层合成 · \(stats.gpuLayerComposition ? "GPU Metal" : "软件")")
+            if stats.gpuLayerComposition {
+                Text("算子 \(stats.gpuLayerOperations) · CPU 回退 \(stats.layerCPUFallbacks)")
+                Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
+            }
             Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
             Text("本次游玩 \(duration(stats.elapsedSeconds))")
         }
