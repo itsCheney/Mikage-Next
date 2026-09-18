@@ -190,6 +190,13 @@ static void Synchronization() {
     auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x10203040);
     Operation(gpu,fill,t.get(),tTVPRect(1,1,4,4),nullptr,tTVPRect());
     Require(t->GetPoint(1,1)==0x10203040 && t->GetPoint(0,0)==first,"GPU write cache invalidation failed");
+    {
+        Texture loaded(gpu->CreateTexture2D(image.data(),9*4,9,7,TVPTextureFormat::RGBA));
+        auto* raw=static_cast<uint32_t*>(loaded->GetPersistentCPUData(false));
+        Require(!loaded->IsStatic(),"raw export remained readonly and would relocate on first write");
+        loaded->SetPoint(0,0,0x33445566);
+        Require(raw==loaded->GetPersistentCPUData(true) && raw[0]==0x33445566,"loaded image raw pointer lifetime changed");
+    }
     auto* row=static_cast<uint32_t*>(t->GetScanLineForWrite(0)); row[0]=0xaabbccdd;
     auto output=Create(gpu,9,7,TVPTextureFormat::RGBA,image);
     auto* copy=gpu->GetRenderMethod("Copy");
@@ -349,6 +356,11 @@ int main(int argc,char** argv) {
         auto survivor=Create(TVPGetRenderManager(),2,2,TVPTextureFormat::RGBA,Image(2,2,4,1));
         uint32_t pixel=survivor->GetPoint(0,0); TVPUnbindMetalLayerRenderManager();backend.reset();
         Require(survivor->IsCPUResident() && survivor->GetPoint(0,0)==pixel,"texture outlived backend unsafely");
+        uint64_t memory=0;
+        Require(TVPGetRenderManager()->GetTextureStat(survivor.get(),memory) && memory==16,"detached texture incompatible with software stats");
+        auto* fill=TVPGetRenderManager()->GetRenderMethod("FillARGB");fill->SetParameterColor4B(0,0x98765432);
+        Operation(TVPGetRenderManager(),fill,survivor.get(),tTVPRect(0,0,2,2),nullptr,tTVPRect());
+        Require(survivor->GetPoint(0,0)==0x98765432,"detached texture incompatible with software writes");
 #ifdef TEST_NATIVE_METAL
         SDL_DestroyWindow(window); SDL_Quit();
         std::cout<<"PASS native Metal vs actual software RenderManager: ";
