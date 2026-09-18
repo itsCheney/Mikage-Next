@@ -299,7 +299,7 @@ static void Presentation(iTVPRenderBackend* backend) {
 }
 #endif
 
-int main() {
+int main(int argc,char** argv) {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
         std::unique_ptr<iTVPRenderBackend> backend;
@@ -318,6 +318,14 @@ int main() {
         } unavailable;
         Require(!TVPBindMetalLayerRenderManager(&unavailable) && TVPIsSoftwareRenderManager() && std::strlen(TVPMetalLayerFallbackReason()),"resource init did not retain software composition");
 #endif
+        if(argc>1 && std::string(argv[1])=="--performance") {
+            Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
+            CompositionWorkload(); GlyphWorkload(); TVPUnbindMetalLayerRenderManager(); backend.reset();
+#ifdef TEST_NATIVE_METAL
+            SDL_DestroyWindow(window);SDL_Quit();
+#endif
+            return 0;
+        }
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
         for(int session=0;session<3;++session) {
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
