@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, codex/metal-render-backend, codex/metal-layer-composition]
+    branches: [main, master, beta]
   pull_request:
 permissions:
   contents: read
