@@ -168,7 +168,7 @@ static void Equivalence() {
     }
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
     auto image=Image(17,13,4,3);
-    for(auto sourceRect:{tTVPRect(1,1,12,10),tTVPRect(12,1,1,10),tTVPRect(1,10,12,1)}) {
+    for(auto sourceRect:{tTVPRect(1,1,12,10),tTVPRect(12,1,1,10),tTVPRect(1,10,12,1),tTVPRect(11,0,0,9)}) {
         auto ss=Create(sw,17,13,TVPTextureFormat::RGBA,image),sd=Create(sw,17,13,TVPTextureFormat::RGBA,image),gd=Create(gpu,17,13,TVPTextureFormat::RGBA,image);
         auto* copy=gpu->GetRenderMethod("Copy");
         Operation(sw,copy,sd.get(),tTVPRect(3,2,14,11),ss.get(),sourceRect);
@@ -261,6 +261,39 @@ static void CompositionWorkload() {
     std::cout<<"composition CPU wall ms: software="<<cpu<<" GPU encoding="<<gpuCPU<<" (120 operations)\n";
 }
 
+static void GlyphWorkload() {
+    auto* sw=TVPGetSoftwareRenderManager();auto* gpu=TVPGetRenderManager();
+    auto glyph=Image(16,16,1,2),image=Image(320,180,4,4);
+    auto ss=Create(sw,16,16,TVPTextureFormat::Gray,glyph),gs=Create(gpu,16,16,TVPTextureFormat::Gray,glyph);
+    auto sd=Create(sw,320,180,TVPTextureFormat::RGBA,image),gd=Create(gpu,320,180,TVPTextureFormat::RGBA,image);
+    auto* method=gpu->GetRenderMethod("ApplyColorMap_d");method->SetParameterOpa(0,191);method->SetParameterColor4B(1,0x91eab532);
+    auto workload=[&](iTVPRenderManager* manager,iTVPTexture2D* target,iTVPTexture2D* source) {
+        auto start=std::chrono::steady_clock::now();
+        for(int i=0;i<320;++i) { int x=(i%19)*16,y=((i/19)%10)*16; Operation(manager,method,target,tTVPRect(x,y,x+16,y+16),source,tTVPRect(0,0,16,16)); }
+        return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+    };
+    double cpu=workload(sw,sd.get(),ss.get());auto before=TVPGetMetalLayerRenderStats();
+    double gpuCPU=workload(gpu,gd.get(),gs.get());auto after=TVPGetMetalLayerRenderStats();
+    Require(after.gpuOperations-before.gpuOperations==320 && after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes,"glyph workload used CPU/readbacks");
+    Compare(sd.get(),gd.get(),1,"glyph workload");
+    std::cout<<"glyph CPU wall ms: software="<<cpu<<" GPU encoding="<<gpuCPU<<" (320 glyphs)\n";
+}
+#ifdef TEST_NATIVE_METAL
+static void Presentation(iTVPRenderBackend* backend) {
+    auto* gpu=TVPGetRenderManager(); Texture t(gpu->CreateTexture2D(nullptr,0,4,4,TVPTextureFormat::RGBA));
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x00204080);
+    Operation(gpu,fill,t.get(),tTVPRect(0,0,4,4),nullptr,tTVPRect());
+    auto before=TVPGetMetalLayerRenderStats();void* handle=t->GetTextureHandle();
+    Require(handle && backend->GetTargetTexture(handle)==handle,"GPU presentation alias failed");
+    backend->BeginFrame(128,128);backend->DrawWindowTexture(handle,0,0,128,128);backend->EndFrame();
+    Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes,"presentation read CPU pixels");
+    std::vector<uint8_t> screenshot;int width=0,height=0,pitch=0;
+    Require(backend->CaptureFrame(screenshot,width,height,pitch),"GPU screenshot failed");
+    size_t center=size_t(height/2)*pitch+(width/2)*4;
+    Require(screenshot[center]==0x80 && screenshot[center+1]==0x40 && screenshot[center+2]==0x20 && screenshot[center+3]==255,"screenshot did not preserve visible RGB");
+}
+#endif
+
 int main() {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
@@ -278,7 +311,11 @@ int main() {
         for(int session=0;session<3;++session) {
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             Require(cached==TVPGetRenderManager()->GetRenderMethod("AlphaBlend_d"),"method lifetime changed");
-            Equivalence(); Synchronization(); Compatibility(); CompositionWorkload(); iTVPTexture2D::RecycleProcess();
+            Equivalence(); Synchronization(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+#ifdef TEST_NATIVE_METAL
+            Presentation(backend.get());
+#endif
+            iTVPTexture2D::RecycleProcess();
             Require(TVPGetMetalLayerRenderStats().gpuResidentBytes==0,"session GPU texture leak");
             TVPUnbindMetalLayerRenderManager(); Require(TVPIsSoftwareRenderManager(),"software manager not restored");
         }
