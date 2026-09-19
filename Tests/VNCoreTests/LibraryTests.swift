@@ -209,4 +209,64 @@ final class LibraryTests: XCTestCase {
         try Data("broken".utf8).write(to: repository.libraryURL)
         XCTAssertThrowsError(try repository.load())
     }
+
+    func testMutateRereadsSoConcurrentScanCannotLoseHistory() throws {
+        try repository.ensureStructure()
+        let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+        try script(in: gameFolder)
+        let first = try repository.scan().active[0]
+
+        // A second game appears and is picked up by a scan that overlaps the
+        // history write. Rebuilding from a stale snapshot would drop one of the
+        // two changes; both must survive.
+        let second = repository.engineRoot(for: .kirikiri).appendingPathComponent("Later")
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+        try script(in: second)
+
+        let scanner = LibraryRepository(documentsRoot: documents, metadataRoot: metadata)
+        let finished = expectation(description: "scan")
+        DispatchQueue.global().async {
+            _ = try? scanner.scan()
+            finished.fulfill()
+        }
+        try repository.mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == first.id }) else { return }
+            records[index].playTime += 30
+            records[index].launchCount += 1
+        }
+        wait(for: [finished], timeout: 5)
+
+        let reloaded = try repository.load()
+        let updated = try XCTUnwrap(reloaded.first { $0.id == first.id })
+        XCTAssertEqual(updated.playTime, 30)
+        XCTAssertEqual(updated.launchCount, 1)
+        XCTAssertTrue(reloaded.contains { $0.folderName == "Later" })
+    }
+
+    func testHistoryFieldsSurviveRescanAndLegacyLibraryDecodes() throws {
+        try repository.ensureStructure()
+        let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+        try script(in: gameFolder)
+        var record = try repository.scan().active[0]
+        record.playTime = 90
+        record.launchCount = 3
+        try repository.save([record])
+        let rescanned = try repository.scan().active[0]
+        XCTAssertEqual(rescanned.playTime, 90)
+        XCTAssertEqual(rescanned.launchCount, 3)
+
+        // A library written before launchCount existed must still load.
+        var document = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: repository.libraryURL))
+                as? [String: Any]
+        )
+        var games = try XCTUnwrap(document["games"] as? [[String: Any]])
+        games[0].removeValue(forKey: "launchCount")
+        document["games"] = games
+        try JSONSerialization.data(withJSONObject: document).write(to: repository.libraryURL)
+        XCTAssertEqual(try repository.load().first?.launchCount, 0)
+        XCTAssertEqual(try repository.load().first?.playTime, 90)
+    }
 }

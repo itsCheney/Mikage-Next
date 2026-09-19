@@ -299,6 +299,6 @@ private struct KRKROverlayView: View {
     }
 
     private func duration(_ seconds: Int) -> String {
-        String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+        TimeInterval(seconds).playTimeClock
     }
 }

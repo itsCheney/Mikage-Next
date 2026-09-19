@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var showLogExport = false
     @State private var confirmClearLogs = false
     @State private var diagnosticError: String?
+    /// Mirrors `settings.idleOpacity` while dragging; committed on release.
+    @State private var idleOpacity: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -60,9 +62,18 @@ struct SettingsView: View {
 
                     HStack {
                         Label("闲置透明度", systemImage: "circle.lefthalf.filled")
-                        Slider(value: $model.settings.idleOpacity, in: 0.1...1)
-                            .accessibilityLabel("闲置透明度")
-                        Text("\(Int(model.settings.idleOpacity * 100))%")
+                        // Bound to local state: committing every intermediate
+                        // value would re-encode and write the whole preference
+                        // file on each drag callback.
+                        Slider(
+                            value: $idleOpacity,
+                            in: 0.1...1,
+                            onEditingChanged: { editing in
+                                if !editing { model.settings.idleOpacity = idleOpacity }
+                            }
+                        )
+                        .accessibilityLabel("闲置透明度")
+                        Text("\(Int(idleOpacity * 100))%")
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                             .frame(width: 38, alignment: .trailing)
@@ -152,6 +163,7 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("设置")
+            .onAppear { idleOpacity = model.settings.idleOpacity }
         }
         .alert("Mikage", isPresented: $showInfo) {
             Button("好", role: .cancel) { }

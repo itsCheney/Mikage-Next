@@ -93,8 +93,45 @@ public struct LibraryRepository: Sendable {
         try encoder.encode(Document(games: records)).write(to: libraryURL, options: .atomic)
     }
 
+    /// Serializes read-modify-write access to `library-v2.json`.
+    ///
+    /// Every mutating operation runs under this lock, so a caller that reads the
+    /// file, edits records and saves cannot interleave with a concurrent scan
+    /// and lose the other's write. The lock is keyed on the metadata root, which
+    /// means separate repository instances over the same directory — the app's
+    /// MainActor value and the detached copies it hands to background tasks —
+    /// still exclude each other.
+    private static let locks = NSMapTable<NSString, NSRecursiveLock>.strongToStrongObjects()
+    private static let locksGuard = NSLock()
+
+    private var fileLock: NSRecursiveLock {
+        let key = metadataRoot.standardizedFileURL.path as NSString
+        Self.locksGuard.lock()
+        defer { Self.locksGuard.unlock() }
+        if let existing = Self.locks.object(forKey: key) { return existing }
+        let created = NSRecursiveLock()
+        Self.locks.setObject(created, forKey: key)
+        return created
+    }
+
+    /// Reads the current records, applies `transform` and writes the result.
+    /// Prefer this over `load` + `save` from callers that hold stale state.
+    @discardableResult
+    public func mutate<T>(_ transform: (inout [GameRecord]) throws -> T) throws -> T {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
+        var records = try load()
+        let result = try transform(&records)
+        try save(records)
+        return result
+    }
+
     @discardableResult
     public func scan() throws -> LibrarySnapshot {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
         try ensureStructure()
         let previous = try load()
         var existingByKey: [String: GameRecord] = [:]
@@ -158,6 +195,9 @@ public struct LibraryRepository: Sendable {
     }
 
     public func relink(_ record: GameRecord, to source: URL) throws {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
         var records = try load()
         guard records.contains(where: { $0.id == record.id }) else {
             throw LibraryError.recordNotFound
@@ -192,9 +232,9 @@ public struct LibraryRepository: Sendable {
     }
 
     public func forget(_ record: GameRecord) throws {
-        var records = try load()
-        records.removeAll { $0.id == record.id }
-        try save(records)
+        try mutate { records in
+            records.removeAll { $0.id == record.id }
+        }
         if let name = record.customCoverName {
             try? FileManager.default.removeItem(
                 at: try GameScanner.containedURL(name, in: coversURL)
@@ -228,15 +268,18 @@ public struct LibraryRepository: Sendable {
     }
 
     public func setCustomCover(for id: UUID, jpegData: Data) throws -> LibrarySnapshot {
-        var records = try load()
-        guard let index = records.firstIndex(where: { $0.id == id }) else {
-            throw LibraryError.recordNotFound
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == id }) else {
+                throw LibraryError.recordNotFound
+            }
+            try ensureStructure()
+            let name = "\(id.uuidString).jpg"
+            try jpegData.write(to: coversURL.appendingPathComponent(name), options: .atomic)
+            records[index].customCoverName = name
         }
-        try ensureStructure()
-        let name = "\(id.uuidString).jpg"
-        try jpegData.write(to: coversURL.appendingPathComponent(name), options: .atomic)
-        records[index].customCoverName = name
-        try save(records)
         return try scan()
     }
 
@@ -283,6 +326,7 @@ public struct LibraryRepository: Sendable {
             addedAt: metadata.addedAt,
             lastPlayedAt: metadata.lastPlayedAt,
             playTime: metadata.playTime,
+            launchCount: metadata.launchCount,
             detectedCoverPath: scanned.detectedCoverPath,
             customCoverName: metadata.customCoverName,
             availability: scanned.availability
@@ -301,6 +345,9 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
     public var addedAt: Date
     public var lastPlayedAt: Date?
     public var playTime: TimeInterval
+    /// Completed launches. Absent in libraries written before this field
+    /// existed, so it decodes as zero rather than failing the whole document.
+    public var launchCount: Int
     public var detectedCoverPath: String?
     public var customCoverName: String?
     public var availability: GameAvailability
@@ -316,6 +363,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         addedAt: Date = Date(),
         lastPlayedAt: Date? = nil,
         playTime: TimeInterval = 0,
+        launchCount: Int = 0,
         detectedCoverPath: String? = nil,
         customCoverName: String? = nil,
         availability: GameAvailability = .unsupported
@@ -330,9 +378,30 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         self.addedAt = addedAt
         self.lastPlayedAt = lastPlayedAt
         self.playTime = playTime
+        self.launchCount = launchCount
         self.detectedCoverPath = detectedCoverPath
         self.customCoverName = customCoverName
         self.availability = availability
+    }
+
+    /// Hand-written so that fields added after a library was written decode to
+    /// their default instead of failing the whole document.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        engine = try container.decode(EngineID.self, forKey: .engine)
+        folderName = try container.decode(String.self, forKey: .folderName)
+        launchTargetKind = try container.decodeIfPresent(LaunchTargetKind.self, forKey: .launchTargetKind)
+        launchTarget = try container.decodeIfPresent(String.self, forKey: .launchTarget)
+        byteCount = try container.decode(Int64.self, forKey: .byteCount)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        lastPlayedAt = try container.decodeIfPresent(Date.self, forKey: .lastPlayedAt)
+        playTime = try container.decode(TimeInterval.self, forKey: .playTime)
+        launchCount = try container.decodeIfPresent(Int.self, forKey: .launchCount) ?? 0
+        detectedCoverPath = try container.decodeIfPresent(String.self, forKey: .detectedCoverPath)
+        customCoverName = try container.decodeIfPresent(String.self, forKey: .customCoverName)
+        availability = try container.decode(GameAvailability.self, forKey: .availability)
     }
 }
 

@@ -410,7 +410,7 @@ struct MissingGamesView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
-                                    Text("累计游玩 \(formattedPlayTime(game.playTime))")
+                                    Text("累计游玩 \(game.playTime.playTimeClock)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Text("最近游玩 \(model.recency(game))")
@@ -480,10 +480,6 @@ struct MissingGamesView: View {
         }
     }
 
-    private func formattedPlayTime(_ interval: TimeInterval) -> String {
-        let seconds = max(0, Int(interval))
-        return String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
-    }
 }
 
 struct GameDetailView: View {
@@ -508,6 +504,19 @@ struct GameDetailView: View {
                 LabeledContent("状态", value: model.availabilityText(current))
                 LabeledContent("文件大小", value: AppModel.size(current.byteCount))
                 LabeledContent("最近游玩", value: model.recency(current))
+                LabeledContent("累计游玩") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(current.playTime.playTimeClock)
+                            .monospacedDigit()
+                        if current.playTime >= 60 {
+                            Text(current.playTime.playTimeSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .accessibilityLabel("累计游玩 \(current.playTime.playTimeSummary)")
+                LabeledContent("启动次数", value: "\(current.launchCount) 次")
                 PhotosPicker(selection: $photo, matching: .images) {
                     Label("更换封面", systemImage: "photo")
                 }

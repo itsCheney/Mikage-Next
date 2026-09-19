@@ -13,6 +13,29 @@ struct PlayerSettings: Codable {
     var performance = false
     var listLayout = false
     var sort = LibrarySort.storageDefault
+
+    init() {}
+
+    /// Hand-written because the synthesized decoder ignores property defaults
+    /// and fails on any missing key. Each field falls back independently, so a
+    /// preference added in a later version — or one stored value we no longer
+    /// recognize — cannot discard the rest of the file.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = PlayerSettings()
+        func value<T: Decodable>(_ key: CodingKeys, _ default: T) -> T {
+            (try? container.decodeIfPresent(T.self, forKey: key)).flatMap { $0 } ?? `default`
+        }
+        appearance = value(.appearance, fallback.appearance)
+        renderer = value(.renderer, fallback.renderer)
+        background = value(.background, fallback.background)
+        floatingButton = value(.floatingButton, fallback.floatingButton)
+        idleOpacity = value(.idleOpacity, fallback.idleOpacity)
+        threeFingerMenu = value(.threeFingerMenu, fallback.threeFingerMenu)
+        performance = value(.performance, fallback.performance)
+        listLayout = value(.listLayout, fallback.listLayout)
+        sort = value(.sort, fallback.sort)
+    }
 }
 
 /// A preference stored by raw value and shown by display name.

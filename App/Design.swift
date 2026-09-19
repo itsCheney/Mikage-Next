@@ -11,6 +11,23 @@ struct AppBackground: View {
     }
 }
 
+extension TimeInterval {
+    /// `H:MM:SS` elapsed time. Negative and non-finite values read as zero.
+    var playTimeClock: String {
+        guard isFinite, self > 0 else { return "0:00:00" }
+        let total = Int(self.rounded())
+        return String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
+    }
+
+    /// Short form for summaries: "3 小时 12 分" / "12 分" / "不到 1 分钟".
+    var playTimeSummary: String {
+        guard isFinite, self >= 60 else { return "不到 1 分钟" }
+        let minutes = Int(self) / 60
+        let hours = minutes / 60
+        return hours > 0 ? "\(hours) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+    }
+}
+
 extension View {
     @ViewBuilder
     func nativeGlassButtonStyle(prominent: Bool = false) -> some View {
