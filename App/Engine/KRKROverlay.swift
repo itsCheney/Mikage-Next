@@ -10,7 +10,7 @@ struct KRKRPerformanceSnapshot {
     var presentationWaitTimeMilliseconds = -1.0
     var drawableWidth: Int32 = 0
     var drawableHeight: Int32 = 0
-    var renderer = "Metal"
+    var renderer = RendererPreference.storageDefault.displayName
     var gpuLayerComposition = false
     var gpuLayerOperations: UInt64 = 0
     var layerCPUFallbacks: UInt64 = 0

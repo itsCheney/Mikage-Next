@@ -1,14 +1,15 @@
 # Metal rendering
 
-The application now offers three explicit rendering choices:
+The application offers two explicit rendering choices:
 
 | Setting | Runtime argument | Work performed |
 | --- | --- | --- |
 | Metal (default) | `-render=metal` | Native Metal presentation, offscreen targets, Emote meshes and D3DLayer composition |
 | 软件合成 · Metal | `-render=software-metal` | Existing software composition with an explicitly selected SDL Metal presenter |
-| OpenGL ES | `-render=opengl` | Existing KRKR OpenGL ES backend |
 
-Saved `Metal 原生` preferences migrate to the new native Metal option. A native
+The runtime's OpenGL ES backend still exists and can be reported after a
+fallback, but it is no longer selectable: saved `OpenGL ES` and `Metal 原生`
+preferences both migrate to native Metal. A native
 Metal initialization failure tears down its view and recreates the window for
 software rendering with SDL Metal. If that presenter is unavailable, SDL's
 platform default is attempted. Logs and the performance HUD report the actual

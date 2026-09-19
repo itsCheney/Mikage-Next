@@ -11,11 +11,12 @@ struct PlayerView: View {
     @State private var engineStarted = false
     @State private var engineStarting = false
     @State private var engineStopping = false
+    @State private var backdrop: UIImage?
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            backdropLayer
             PlayerHostAttachment { controller in
                 startEngine(in: controller)
             }
@@ -30,6 +31,7 @@ struct PlayerView: View {
         }
         .ignoresSafeArea()
         .statusBarHidden()
+        .task { await loadBackdrop() }
         .onDisappear {
             AppDiagnostics.shared.event("player", "view.disappeared")
             model.krkrSession.requestStop()
@@ -43,6 +45,35 @@ struct PlayerView: View {
                 elapsed += 1
             }
         }
+    }
+
+    /// Fills the letterbox during the launch/exit transitions, before and after
+    /// the engine window covers this view. Falls back to black when the game has
+    /// no cover, when the file cannot be decoded, or when the user chose black.
+    @ViewBuilder
+    private var backdropLayer: some View {
+        Color.black.ignoresSafeArea()
+        if let backdrop {
+            Image(uiImage: backdrop)
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .overlay(.black.opacity(0.45))
+                .accessibilityHidden(true)
+                .transition(.opacity)
+        }
+    }
+
+    private func loadBackdrop() async {
+        guard model.settings.background == .cover,
+              let url = model.coverURL(game) else { return }
+        // Decoding a full-size cover blocks; keep it off the main thread while
+        // the engine is starting up.
+        let image = await Task.detached(priority: .userInitiated) {
+            UIImage(contentsOfFile: url.path)
+        }.value
+        guard let image, !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.25)) { backdrop = image }
     }
 
     private func startEngine(in controller: UIViewController) {

@@ -16,9 +16,9 @@ struct SettingsView: View {
             Form {
                 Section("外观") {
                     Picker("外观", selection: $model.settings.appearance) {
-                        Text("跟随系统").tag("跟随系统")
-                        Text("浅色").tag("浅色")
-                        Text("深色").tag("深色")
+                        ForEach(Appearance.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     }
                     .pickerStyle(.segmented)
 
@@ -31,9 +31,9 @@ struct SettingsView: View {
 
                 Section {
                     Picker(selection: $model.settings.renderer) {
-                        Text("Metal").tag("Metal")
-                        Text("软件合成 · Metal").tag("软件合成 · Metal")
-                        Text("OpenGL ES").tag("OpenGL ES")
+                        ForEach(RendererPreference.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     } label: {
                         Label("渲染方式", systemImage: "cpu")
                     }
@@ -41,13 +41,14 @@ struct SettingsView: View {
                 } header: {
                     Text("图形")
                 } footer: {
-                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal 或 OpenGL ES。")
+                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal。")
                 }
 
                 Section("游戏内") {
                     Picker(selection: $model.settings.background) {
-                        Text("游戏封面").tag("游戏封面")
-                        Text("纯黑").tag("纯黑")
+                        ForEach(PlayerBackground.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     } label: {
                         Label("背景填充", systemImage: "photo.fill")
                     }
@@ -127,7 +128,7 @@ struct SettingsView: View {
                 }
 
                 Section("更多") {
-                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
+                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer.displayName)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
                         Label("问题反馈", systemImage: "envelope.fill")
                     }
 

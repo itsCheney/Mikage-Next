@@ -213,8 +213,8 @@ struct LibraryView: View {
     private var sortMenu: some View {
         Menu {
             Picker("排序方式", selection: $model.settings.sort) {
-                ForEach(["最近游玩", "添加时间", "名称", "大小"], id: \.self) {
-                    Text($0)
+                ForEach(LibrarySort.allCases, id: \.self) {
+                    Text($0.displayName).tag($0)
                 }
             }
         } label: {

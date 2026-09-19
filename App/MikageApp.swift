@@ -9,25 +9,9 @@ struct MikageApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .preferredColorScheme(
-                    model.settings.appearance == "跟随系统"
-                        ? nil
-                        : model.settings.appearance == "浅色" ? .light : .dark
-                )
+                .preferredColorScheme(model.settings.appearance.colorScheme)
         }
     }
-}
-
-struct PlayerSettings: Codable {
-    var appearance = "深色"
-    var renderer = "Metal"
-    var background = "游戏封面"
-    var floatingButton = true
-    var idleOpacity = 0.38
-    var threeFingerMenu = true
-    var performance = false
-    var listLayout = false
-    var sort = "最近游玩"
 }
 
 struct PendingGameImport: Identifiable {
@@ -42,9 +26,9 @@ final class AppModel: ObservableObject {
     @Published var missingGames: [GameRecord] = []
     @Published var settings: PlayerSettings {
         didSet {
-            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer, "appearance": settings.appearance, "performance": String(settings.performance)])
-            if let data = try? JSONEncoder().encode(settings) {
-                UserDefaults.standard.set(data, forKey: "settings.v1")
+            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer.rawValue, "appearance": settings.appearance.rawValue, "performance": String(settings.performance)])
+            if let data = Self.encoded(settings) {
+                UserDefaults.standard.set(data, forKey: Self.settingsKey)
             }
         }
     }
@@ -64,15 +48,26 @@ final class AppModel: ObservableObject {
     let repository: LibraryRepository
     let krkrSession = NativeKRKRSession()
 
+    private static let settingsKey = "settings.v1"
+
+    /// Sorted keys keep the encoded form stable so the normalizing rewrite in
+    /// `init` only fires when a value actually changed.
+    private static func encoded(_ settings: PlayerSettings) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return try? encoder.encode(settings)
+    }
+
     init() {
-        var loadedSettings = UserDefaults.standard.data(forKey: "settings.v1")
+        let stored = UserDefaults.standard.data(forKey: Self.settingsKey)
+        let loadedSettings = stored
             .flatMap { try? JSONDecoder().decode(PlayerSettings.self, from: $0) }
             ?? PlayerSettings()
-        if loadedSettings.renderer == "Metal 原生" {
-            loadedSettings.renderer = "Metal"
-            if let data = try? JSONEncoder().encode(loadedSettings) {
-                UserDefaults.standard.set(data, forKey: "settings.v1")
-            }
+        // Decoding accepts display text persisted by earlier versions; rewrite
+        // the file once so the stored form is always the stable raw values.
+        let normalized = Self.encoded(loadedSettings)
+        if let normalized, normalized != stored {
+            UserDefaults.standard.set(normalized, forKey: Self.settingsKey)
         }
 
         settings = loadedSettings
@@ -109,13 +104,13 @@ final class AppModel: ObservableObject {
             .filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
             .sorted {
                 switch settings.sort {
-                case "名称":
+                case .title:
                     return $0.title.localizedStandardCompare($1.title) == .orderedAscending
-                case "大小":
+                case .size:
                     return $0.byteCount > $1.byteCount
-                case "添加时间":
+                case .dateAdded:
                     return $0.addedAt > $1.addedAt
-                default:
+                case .recentlyPlayed:
                     return ($0.lastPlayedAt ?? .distantPast) > ($1.lastPlayedAt ?? .distantPast)
                 }
             }
@@ -174,17 +169,11 @@ final class AppModel: ObservableObject {
         }
         let directory = try repository.directory(for: game)
         let entryPoint = try repository.entryPoint(for: game)
-        let renderer: String
-        switch settings.renderer {
-        case "OpenGL ES": renderer = "opengl"
-        case "软件合成 · Metal": renderer = "software-metal"
-        default: renderer = "metal"
-        }
         return KRKRLaunchConfiguration(
             gameDirectory: directory,
             entryPoint: entryPoint,
             targetKind: game.launchTargetKind ?? .directory,
-            renderer: renderer,
+            renderer: settings.renderer,
             floatingButton: settings.floatingButton,
             idleOpacity: settings.idleOpacity,
             threeFingerMenu: settings.threeFingerMenu,

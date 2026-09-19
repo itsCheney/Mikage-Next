@@ -22,7 +22,7 @@ struct KRKRLaunchConfiguration {
     let gameDirectory: URL
     let entryPoint: URL
     let targetKind: LaunchTargetKind
-    let renderer: String
+    let renderer: RendererPreference
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
@@ -90,7 +90,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var isForeground = true
     private var requestedForeground = true
     private var elapsedSeconds = 0
-    private var rendererLabel = "Metal"
+    private var rendererLabel = RendererPreference.storageDefault.displayName
     private var performanceEnabled = false
     private var displayTicks = 0
     private var lastStepResult = "none"
@@ -150,7 +150,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         AppDiagnostics.shared.beginGame(["folder": configuration.gameDirectory.lastPathComponent,
                                          "entryPoint": configuration.entryPoint.lastPathComponent,
                                          "targetKind": String(describing: configuration.targetKind),
-                                         "requestedRenderer": configuration.renderer,
+                                         "requestedRenderer": configuration.renderer.rawValue,
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu)])
@@ -185,7 +185,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         let started = await KRKRMainRunLoop.perform {
             AppDiagnostics.shared.event("bridge", "start.enteredFromRunLoop")
             return runtimePath.withCString { gamePath in
-                configuration.renderer.withCString { renderer in
+                configuration.renderer.rawValue.withCString { renderer in
                     MikageKRKRStart(
                         gamePath,
                         renderer,
@@ -222,11 +222,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
         }
 
-        switch configuration.renderer {
-        case "opengl": rendererLabel = "OpenGL ES"
-        case "software-metal": rendererLabel = "软件合成 · Metal"
-        default: rendererLabel = "Metal"
-        }
+        rendererLabel = configuration.renderer.displayName
         performanceEnabled = configuration.performance
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
@@ -343,7 +339,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             }
         }
         var stats = MikageKRKRStats()
-        if MikageKRKRGetStats(&stats), rendererName(from: &stats) == "Metal" {
+        // Native Metal composites offscreen, so a UIKit hierarchy snapshot
+        // would capture an empty GPU view rather than the game.
+        if MikageKRKRGetStats(&stats),
+           rendererName(from: &stats) == RendererPreference.metal.displayName {
             AppDiagnostics.shared.event("session", "screenshot.native.failed")
             return nil
         }
@@ -577,21 +576,28 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         )
     }
 
-    private func rendererName(from stats: inout MikageKRKRStats) -> String {
-        let rawName = withUnsafePointer(to: &stats.renderer) { pointer in
+    /// Backend actually selected by the runtime, which can differ from the
+    /// requested preference after a fallback. Empty when not yet reported.
+    private func runtimeRenderer(from stats: inout MikageKRKRStats) -> String {
+        withUnsafePointer(to: &stats.renderer) { pointer in
             pointer.withMemoryRebound(to: CChar.self, capacity: 32) {
                 String(cString: $0)
             }
-        }
-        switch rawName.lowercased() {
-        case "metal":
-            return "Metal"
+        }.lowercased()
+    }
+
+    private func rendererName(from stats: inout MikageKRKRStats) -> String {
+        let rawName = runtimeRenderer(from: &stats)
+        switch rawName {
+        case RendererPreference.metal.rawValue:
+            return RendererPreference.metal.displayName
         case "software/metal":
-            return "软件合成 · Metal"
-        case "software/opengles2":
-            return "软件合成 · OpenGL ES"
+            return RendererPreference.softwareMetal.displayName
+        // Backends the runtime can still select, with no user preference.
         case "opengl":
             return "OpenGL ES"
+        case "software/opengles2":
+            return "软件合成 · OpenGL ES"
         case "vulkan":
             return "Vulkan"
         case "":
