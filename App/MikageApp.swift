@@ -219,7 +219,8 @@ final class AppModel: ObservableObject {
             idleOpacity: settings.idleOpacity,
             threeFingerMenu: settings.threeFingerMenu,
             performance: settings.performance,
-            gameTitle: game.title
+            gameTitle: game.title,
+            skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)
         )
     }
 

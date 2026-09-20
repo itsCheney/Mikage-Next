@@ -28,6 +28,8 @@ struct KRKRLaunchConfiguration {
     let threeFingerMenu: Bool
     let performance: Bool
     let gameTitle: String
+    /// Newline-separated movie file names to skip, or nil to skip none.
+    let skippedMovies: String?
 }
 
 enum KRKRSessionState: Equatable {
@@ -135,6 +137,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
               FileManager.default.fileExists(atPath: configuration.entryPoint.path) else {
             throw KRKRSessionError.invalidGameDirectory
         }
+        // Set before the runtime starts; it is re-applied per session.
+        if let list = configuration.skippedMovies {
+            list.withCString { MikageKRKRSetSkippedMovies($0) }
+        } else {
+            MikageKRKRSetSkippedMovies(nil)
+        }
+
         let rawTarget = configuration.entryPoint.standardizedFileURL
         let root = configuration.gameDirectory.standardizedFileURL.resolvingSymlinksInPath()
         let resolvedTarget = rawTarget.resolvingSymlinksInPath()

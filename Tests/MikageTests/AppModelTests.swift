@@ -152,6 +152,20 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(configuration.gameTitle, "Example")
     }
 
+    func testPatchVideoSkipListIsOffByDefaultAndOptIn() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        XCTAssertFalse(model.settings.skipPatchVideos)
+        XCTAssertNil(try model.launchConfiguration(for: game).skippedMovies)
+
+        model.settings.skipPatchVideos = true
+        let list = try XCTUnwrap(try model.launchConfiguration(for: game).skippedMovies)
+        XCTAssertTrue(list.split(separator: "\n").contains("signature.wmv"))
+    }
+
     func testSettingsPersistRawValuesAndReloadAcrossInstances() throws {
         let model = makeModel()
         model.settings.renderer = .softwareMetal

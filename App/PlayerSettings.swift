@@ -13,6 +13,10 @@ struct PlayerSettings: Codable {
     var performance = false
     var listLayout = false
     var sort = LibrarySort.storageDefault
+    /// Skips the built-in list of localization-patch videos. Off by default:
+    /// those credits are the patch authors' own work, so not showing them is
+    /// the user's choice to make.
+    var skipPatchVideos = false
 
     init() {}
 
@@ -35,6 +39,7 @@ struct PlayerSettings: Codable {
         performance = value(.performance, fallback.performance)
         listLayout = value(.listLayout, fallback.listLayout)
         sort = value(.sort, fallback.sort)
+        skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
     }
 }
 

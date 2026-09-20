@@ -86,6 +86,11 @@ struct SettingsView: View {
                     Toggle(isOn: $model.settings.performance) {
                         Label("性能分析", systemImage: "gauge.with.dots.needle.33percent")
                     }
+
+                    Toggle(isOn: $model.settings.skipPatchVideos) {
+                        Label("跳过汉化组署名视频", systemImage: "forward.end.fill")
+                    }
+                    .accessibilityIdentifier("skip-patch-videos-toggle")
                 }
 
                 Section("文件与传输") {
