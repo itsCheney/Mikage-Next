@@ -67,11 +67,13 @@ struct PlayerView: View {
     private func loadBackdrop() async {
         guard model.settings.background == .cover,
               let url = model.coverURL(game) else { return }
-        // Decoding a full-size cover blocks; keep it off the main thread while
-        // the engine is starting up.
-        let image = await Task.detached(priority: .userInitiated) {
-            UIImage(contentsOfFile: url.path)
-        }.value
+        // Decoded off the main thread and downsampled to the screen, so a large
+        // cover cannot stall the launch or hold a full-size bitmap.
+        let image = await CoverCache.shared.image(
+            for: url,
+            size: UIScreen.main.bounds.size,
+            scale: UIScreen.main.scale
+        )
         guard let image, !Task.isCancelled else { return }
         withAnimation(.easeOut(duration: 0.25)) { backdrop = image }
     }

@@ -536,7 +536,7 @@ struct GameDetailView: View {
                     do {
                         guard let data = try await item?.loadTransferable(type: Data.self),
                               let image = UIImage(data: data) else { return }
-                        model.updateCover(game, image: image)
+                        await model.updateCover(game, image: image)
                     } catch {
                         model.alert = error.localizedDescription
                     }

@@ -236,6 +236,26 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(session.startedConfigurations.isEmpty)
     }
 
+    func testUpdateCoverStoresTheImageAndKeepsTheRecordInPlace() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        settle { await model.updateCover(game, image: image) }
+
+        XCTAssertNil(model.alert)
+        XCTAssertEqual(model.games.count, 1)
+        let updated = try XCTUnwrap(model.games.first)
+        XCTAssertEqual(updated.id, game.id)
+        XCTAssertEqual(updated.customCoverName, "\(game.id.uuidString).jpg")
+        XCTAssertNotNil(model.coverURL(updated))
+    }
+
     func testSortPreferenceOrdersTheFilteredList() throws {
         try addGame(named: "Beta")
         try addGame(named: "Alpha")

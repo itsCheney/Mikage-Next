@@ -151,11 +151,34 @@ public struct LibraryRepository: Sendable {
             }
 
             for child in children {
-                let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                let values = try child.resourceValues(forKeys: [
+                    .isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey
+                ])
                 guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
                 let recordKey = key(engine: engine, folderName: child.lastPathComponent)
-                var scanned = try GameScanner.inspectGame(at: child, engine: engine)
-                if let old = existingByKey.removeValue(forKey: recordKey) {
+                let old = existingByKey.removeValue(forKey: recordKey)
+                let modifiedAt = values.contentModificationDate
+
+                // Adding, removing or replacing a file updates its parent's
+                // modification date, so an unchanged date means this folder's
+                // direct contents are unchanged. Nested writes do not touch it,
+                // so this is a heuristic: it can keep a stale total until the
+                // next visible change, which is preferable to walking tens of
+                // thousands of files on every foreground scan. A launch always
+                // creates savedata/, so play does refresh it.
+                var reusableSize: Int64?
+                if let old, let modifiedAt, let measuredAt = old.sizeMeasuredAt,
+                   measuredAt == modifiedAt, old.availability != .missing {
+                    reusableSize = old.byteCount
+                }
+
+                var scanned = try GameScanner.inspectGame(
+                    at: child,
+                    engine: engine,
+                    reusableSize: reusableSize
+                )
+                scanned.sizeMeasuredAt = modifiedAt
+                if let old {
                     scanned = merging(scanned: scanned, metadata: old)
                 }
                 active.append(scanned)
@@ -267,10 +290,13 @@ public struct LibraryRepository: Sendable {
         return detectedURL
     }
 
-    public func setCustomCover(for id: UUID, jpegData: Data) throws -> LibrarySnapshot {
-        let lock = fileLock
-        lock.lock()
-        defer { lock.unlock() }
+    /// Writes the cover and returns only the updated record.
+    ///
+    /// Deliberately does not rescan: a cover change cannot alter launch targets
+    /// or folder contents, and a full scan re-stats every game directory. Batch
+    /// callers can write many covers and refresh once at the end.
+    @discardableResult
+    public func setCustomCover(for id: UUID, jpegData: Data) throws -> GameRecord {
         try mutate { records in
             guard let index = records.firstIndex(where: { $0.id == id }) else {
                 throw LibraryError.recordNotFound
@@ -279,8 +305,8 @@ public struct LibraryRepository: Sendable {
             let name = "\(id.uuidString).jpg"
             try jpegData.write(to: coversURL.appendingPathComponent(name), options: .atomic)
             records[index].customCoverName = name
+            return records[index]
         }
-        return try scan()
     }
 
     private func containsFolder(named name: String, in root: URL) throws -> Bool {
@@ -327,6 +353,8 @@ public struct LibraryRepository: Sendable {
             lastPlayedAt: metadata.lastPlayedAt,
             playTime: metadata.playTime,
             launchCount: metadata.launchCount,
+            // Measured by this scan, not inherited: it pairs with byteCount.
+            sizeMeasuredAt: scanned.sizeMeasuredAt,
             detectedCoverPath: scanned.detectedCoverPath,
             customCoverName: metadata.customCoverName,
             availability: scanned.availability
@@ -348,6 +376,10 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
     /// Completed launches. Absent in libraries written before this field
     /// existed, so it decodes as zero rather than failing the whole document.
     public var launchCount: Int
+    /// Modification date of the game folder when `byteCount` was measured.
+    /// A scan reuses the stored size while this still matches, which avoids
+    /// walking large game trees on every return to the foreground.
+    public var sizeMeasuredAt: Date?
     public var detectedCoverPath: String?
     public var customCoverName: String?
     public var availability: GameAvailability
@@ -364,6 +396,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         lastPlayedAt: Date? = nil,
         playTime: TimeInterval = 0,
         launchCount: Int = 0,
+        sizeMeasuredAt: Date? = nil,
         detectedCoverPath: String? = nil,
         customCoverName: String? = nil,
         availability: GameAvailability = .unsupported
@@ -379,6 +412,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         self.lastPlayedAt = lastPlayedAt
         self.playTime = playTime
         self.launchCount = launchCount
+        self.sizeMeasuredAt = sizeMeasuredAt
         self.detectedCoverPath = detectedCoverPath
         self.customCoverName = customCoverName
         self.availability = availability
@@ -399,6 +433,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         lastPlayedAt = try container.decodeIfPresent(Date.self, forKey: .lastPlayedAt)
         playTime = try container.decode(TimeInterval.self, forKey: .playTime)
         launchCount = try container.decodeIfPresent(Int.self, forKey: .launchCount) ?? 0
+        sizeMeasuredAt = try container.decodeIfPresent(Date.self, forKey: .sizeMeasuredAt)
         detectedCoverPath = try container.decodeIfPresent(String.self, forKey: .detectedCoverPath)
         customCoverName = try container.decodeIfPresent(String.self, forKey: .customCoverName)
         availability = try container.decode(GameAvailability.self, forKey: .availability)
@@ -453,7 +488,14 @@ public enum GameScanner {
     private static let preferredCoverNames = ["cover", "folder", "poster", "thumbnail", "icon"]
     private static let coverExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "webp"]
 
-    public static func inspectGame(at directory: URL, engine: EngineID) throws -> GameRecord {
+    /// - Parameter reusableSize: a previously measured size to adopt instead of
+    ///   walking the tree again. Callers pass this only when they have
+    ///   established the directory has not changed; see `scan`.
+    public static func inspectGame(
+        at directory: URL,
+        engine: EngineID,
+        reusableSize: Int64? = nil
+    ) throws -> GameRecord {
         let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard values.isDirectory == true else { throw LibraryError.noGame }
         guard values.isSymbolicLink != true else { throw LibraryError.symbolicLink }
@@ -474,7 +516,7 @@ public enum GameScanner {
             folderName: directory.lastPathComponent,
             launchTargetKind: launch?.kind,
             launchTarget: launch?.relativePath,
-            byteCount: try byteCount(in: directory),
+            byteCount: try reusableSize ?? byteCount(in: directory),
             detectedCoverPath: try detectedCover(in: directory),
             availability: availability
         )

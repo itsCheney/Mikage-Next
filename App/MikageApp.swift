@@ -373,11 +373,25 @@ final class AppModel: ObservableObject {
         repository.coverURL(for: game)
     }
 
-    func updateCover(_ game: GameRecord, image: UIImage) {
+    /// Encodes and writes off the main thread: a picked photo can be several
+    /// thousand pixels on a side, and JPEG encoding it on the MainActor freezes
+    /// the library while the user waits.
+    func updateCover(_ game: GameRecord, image: UIImage) async {
         AppDiagnostics.shared.event("library", "cover.update", ["folder": game.folderName])
-        guard libraryReadable, let data = image.jpegData(compressionQuality: 0.85) else { return }
+        guard libraryReadable else { return }
         do {
-            apply(try repository.setCustomCover(for: game.id, jpegData: data))
+            let repository = self.repository
+            let id = game.id
+            let updated = try await Task.detached(priority: .userInitiated) {
+                guard let data = image.jpegData(compressionQuality: 0.85) else {
+                    throw LibraryError.noGame
+                }
+                return try repository.setCustomCover(for: id, jpegData: data)
+            }.value
+            CoverCache.shared.invalidateAll()
+            if let index = games.firstIndex(where: { $0.id == id }) {
+                games[index] = updated
+            }
         } catch {
             alert = error.localizedDescription
         }

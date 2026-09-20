@@ -210,6 +210,61 @@ final class LibraryTests: XCTestCase {
         XCTAssertThrowsError(try repository.load())
     }
 
+    func testScanReusesRecordedSizeUntilTheFolderChanges() throws {
+        try repository.ensureStructure()
+        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try script(in: folder)
+
+        let first = try repository.scan().active[0]
+        XCTAssertGreaterThan(first.byteCount, 0)
+        XCTAssertNotNil(first.sizeMeasuredAt)
+
+        // Rescanning an untouched folder keeps the recorded size and stamp.
+        let unchanged = try repository.scan().active[0]
+        XCTAssertEqual(unchanged.byteCount, first.byteCount)
+        XCTAssertEqual(unchanged.sizeMeasuredAt, first.sizeMeasuredAt)
+
+        // A new file in the game folder bumps its modification date, so the
+        // size must be measured again.
+        try Data(repeating: 0x41, count: 4096).write(to: folder.appendingPathComponent("extra.dat"))
+        let grown = try repository.scan().active[0]
+        XCTAssertEqual(grown.byteCount, first.byteCount + 4096)
+        XCTAssertNotEqual(grown.sizeMeasuredAt, first.sizeMeasuredAt)
+    }
+
+    func testSetCustomCoverUpdatesOneRecordWithoutRescanning() throws {
+        try repository.ensureStructure()
+        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try script(in: folder)
+        let game = try repository.scan().active[0]
+
+        // A stale record in the file would be rewritten by a rescan; it must
+        // survive, proving the cover write does not scan.
+        var missing = GameRecord(title: "Gone", engine: .kirikiri, folderName: "Gone")
+        missing.availability = .missing
+        try repository.save(try repository.load() + [missing])
+
+        let updated = try repository.setCustomCover(for: game.id, jpegData: Data("jpg".utf8))
+
+        XCTAssertEqual(updated.id, game.id)
+        XCTAssertEqual(updated.customCoverName, "\(game.id.uuidString).jpg")
+        let stored = try repository.load()
+        XCTAssertEqual(stored.count, 2)
+        XCTAssertTrue(stored.contains { $0.folderName == "Gone" })
+        XCTAssertNotNil(repository.coverURL(for: updated))
+    }
+
+    func testSetCustomCoverRejectsAnUnknownRecord() throws {
+        try repository.ensureStructure()
+        XCTAssertThrowsError(
+            try repository.setCustomCover(for: UUID(), jpegData: Data("jpg".utf8))
+        ) {
+            XCTAssertEqual($0 as? LibraryError, .recordNotFound)
+        }
+    }
+
     func testMutateRereadsSoConcurrentScanCannotLoseHistory() throws {
         try repository.ensureStructure()
         let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
