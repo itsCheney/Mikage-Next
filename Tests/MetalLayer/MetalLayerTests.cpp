@@ -339,6 +339,64 @@ static void OverwriteSkipsReadback() {
     }
     ++comparisons;
 }
+// Readback totals only become actionable when attributed, so each caller must
+// land in its own bucket and the buckets must sum to the total.
+static void ReadbackAttribution() {
+    auto* gpu=TVPGetRenderManager(); auto image=Image(16,12,4,13);
+    auto stats=[]{ return TVPGetMetalLayerRenderStats(); };
+    auto bytes=[&](TVPLayerReadbackSource s){ return stats().readbackBytesBySource[static_cast<int>(s)]; };
+    auto count=[&](TVPLayerReadbackSource s){ return stats().readbackCountBySource[static_cast<int>(s)]; };
+    const size_t surface=size_t(16)*12*4;
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x01020304);
+
+    // Explicit read lock, e.g. hit testing.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=count(TVPLayerReadbackSource::Lock), beforeBytes=bytes(TVPLayerReadbackSource::Lock);
+        t->LockCPURead(); t->UnlockCPU();
+        Require(count(TVPLayerReadbackSource::Lock)==before+1,"lock readback not attributed");
+        Require(bytes(TVPLayerReadbackSource::Lock)==beforeBytes+surface,"lock readback bytes wrong");
+    }
+    // Raw persistent pointer handed to a script or plugin.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=count(TVPLayerReadbackSource::Persistent);
+        t->GetPersistentCPUData(false);
+        Require(count(TVPLayerReadbackSource::Persistent)==before+1,"persistent readback not attributed");
+    }
+    // Software fallback for an operator the GPU path cannot take.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=count(TVPLayerReadbackSource::Fallback);
+        auto* gray=gpu->GetRenderMethod("DoGrayScale");
+        Operation(gpu,gray,t.get(),tTVPRect(0,0,16,12),t.get(),tTVPRect(0,0,16,12));
+        Require(count(TVPLayerReadbackSource::Fallback)>before,"fallback readback not attributed");
+    }
+    // Scanline access after the GPU took ownership.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=count(TVPLayerReadbackSource::Pixels);
+        t->GetScanLineForRead(0);
+        Require(count(TVPLayerReadbackSource::Pixels)==before+1,"pixel readback not attributed");
+    }
+    // The overwrite path must not appear in any bucket.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=stats().readbackBytes;
+        t->GetPersistentCPUDataForOverwrite();
+        Require(stats().readbackBytes==before,"overwrite path attributed a readback");
+    }
+    auto final=stats();
+    uint64_t sum=0;
+    for(int i=0;i<static_cast<int>(TVPLayerReadbackSource::Count);++i) sum+=final.readbackBytesBySource[i];
+    Require(sum==final.readbackBytes,"attributed readback bytes do not sum to the total");
+    ++comparisons;
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -459,7 +517,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

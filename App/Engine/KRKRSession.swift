@@ -542,6 +542,14 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerGPUResidentBytes": String(diagnosticStats.layerGPUResidentBytes),
                     "layerCPUCacheBytes": String(diagnosticStats.layerCPUCacheBytes),
                     "layerPinnedCPUTextures": String(diagnosticStats.layerPinnedCPUTextures),
+                    // Readback attribution as "source:bytes/count", packed into one
+                    // field so the heartbeat stays readable as it grows.
+                    "layerReadbackBySource": [
+                        "lock:\(diagnosticStats.layerReadbackLockBytes)/\(diagnosticStats.layerReadbackLockCount)",
+                        "fallback:\(diagnosticStats.layerReadbackFallbackBytes)/\(diagnosticStats.layerReadbackFallbackCount)",
+                        "persistent:\(diagnosticStats.layerReadbackPersistentBytes)/\(diagnosticStats.layerReadbackPersistentCount)",
+                        "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)"
+                    ].joined(separator: ","),
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
