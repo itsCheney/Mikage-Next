@@ -307,6 +307,38 @@ static void DirtyRegionUploads() {
     Require(t->GetPoint(2,20)==0x0a0b0c0d,"lease write lost by narrowed release");
     ++comparisons;
 }
+// A full-surface writer used to pay a blocking GPU readback for pixels it was
+// about to overwrite completely. Such a writer must not read back at all, and
+// must still end up with the GPU holding exactly what it wrote.
+static void OverwriteSkipsReadback() {
+    auto* gpu=TVPGetRenderManager(); auto image=Image(32,24,4,11);
+    auto t=Create(gpu,32,24,TVPTextureFormat::RGBA,image);
+    // Put the texture in GPU authority so a preserving write would have to read.
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x01020304);
+    Operation(gpu,fill,t.get(),tTVPRect(0,0,32,24),nullptr,tTVPRect());
+
+    auto before=TVPGetMetalLayerRenderStats();
+    auto* raw=static_cast<uint32_t*>(t->GetPersistentCPUDataForOverwrite());
+    Require(raw!=nullptr,"overwrite accessor returned no buffer");
+    Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes,"overwrite path performed a GPU readback");
+    for(int i=0;i<32*24;++i) raw[i]=0x0a0b0c0d+i;
+    const tTVPRect all(0,0,32,24);
+    t->ReleasePersistentCPUData(&all);
+    t->GetTextureHandle();
+
+    // Drop the CPU cache so the verification below has to come from the GPU,
+    // proving the upload landed rather than reading back what we just wrote.
+    t->InvalidateCPUCache();
+    auto beforeVerify=TVPGetMetalLayerRenderStats();
+    t->GetScanLineForRead(0);
+    Require(TVPGetMetalLayerRenderStats().readbackBytes>beforeVerify.readbackBytes,"verification did not re-read from the GPU");
+    for(int y=0;y<24;++y) {
+        const auto* row=static_cast<const uint32_t*>(t->GetScanLineForRead(y));
+        for(int x=0;x<32;++x)
+            Require(row[x]==uint32_t(0x0a0b0c0d+y*32+x),"overwritten pixels did not reach the GPU");
+    }
+    ++comparisons;
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -427,7 +459,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
