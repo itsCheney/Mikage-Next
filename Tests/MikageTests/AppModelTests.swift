@@ -149,6 +149,7 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(configuration.renderer, .softwareMetal)
         XCTAssertEqual(configuration.renderer.rawValue, "software-metal")
+        XCTAssertTrue(configuration.respectSilentMode)
         XCTAssertEqual(configuration.gameTitle, "Example")
     }
 
@@ -169,6 +170,7 @@ final class AppModelTests: XCTestCase {
     func testSettingsPersistRawValuesAndReloadAcrossInstances() throws {
         let model = makeModel()
         model.settings.renderer = .softwareMetal
+        model.settings.respectSilentMode = false
         model.settings.sort = .title
 
         let data = try XCTUnwrap(defaults.data(forKey: "settings.v1"))
@@ -176,10 +178,12 @@ final class AppModelTests: XCTestCase {
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
         XCTAssertEqual(json["renderer"] as? String, "software-metal")
+        XCTAssertEqual(json["respectSilentMode"] as? Bool, false)
         XCTAssertEqual(json["sort"] as? String, "title")
 
         let reloaded = makeModel()
         XCTAssertEqual(reloaded.settings.renderer, .softwareMetal)
+        XCTAssertFalse(reloaded.settings.respectSilentMode)
         XCTAssertEqual(reloaded.settings.sort, .title)
     }
 
@@ -214,6 +218,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(model.settings.performance)
         XCTAssertEqual(model.settings.renderer, .metal)
         XCTAssertEqual(model.settings.idleOpacity, PlayerSettings().idleOpacity)
+        XCTAssertTrue(model.settings.respectSilentMode)
     }
 
     func testRefreshRecoversFromAnUnreadableLibraryOnceRepaired() throws {

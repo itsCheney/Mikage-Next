@@ -46,6 +46,17 @@ struct SettingsView: View {
                     Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal。")
                 }
 
+                Section {
+                    Toggle(isOn: $model.settings.respectSilentMode) {
+                        Label("遵循 iOS 静音模式规则", systemImage: "speaker.slash.fill")
+                    }
+                    .accessibilityIdentifier("respect-ios-silent-mode-toggle")
+                } header: {
+                    Text("声音")
+                } footer: {
+                    Text("开启后，iPhone 处于静音模式时游戏音频会静音；关闭后将忽略静音模式继续播放。修改将在下次启动游戏时生效。")
+                }
+
                 Section("游戏内") {
                     Picker(selection: $model.settings.background) {
                         ForEach(PlayerBackground.allCases, id: \.self) {

@@ -10,6 +10,9 @@ struct PlayerSettings: Codable {
     var floatingButton = true
     var idleOpacity = 0.38
     var threeFingerMenu = true
+    /// When enabled, game audio uses iOS ambient semantics and is silenced by
+    /// the device Ring/Silent state. Enabled by default for native iOS behavior.
+    var respectSilentMode = true
     var performance = false
     var listLayout = false
     var sort = LibrarySort.storageDefault
@@ -36,6 +39,7 @@ struct PlayerSettings: Codable {
         floatingButton = value(.floatingButton, fallback.floatingButton)
         idleOpacity = value(.idleOpacity, fallback.idleOpacity)
         threeFingerMenu = value(.threeFingerMenu, fallback.threeFingerMenu)
+        respectSilentMode = value(.respectSilentMode, fallback.respectSilentMode)
         performance = value(.performance, fallback.performance)
         listLayout = value(.listLayout, fallback.listLayout)
         sort = value(.sort, fallback.sort)

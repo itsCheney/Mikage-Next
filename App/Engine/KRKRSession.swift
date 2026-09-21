@@ -26,6 +26,7 @@ struct KRKRLaunchConfiguration {
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
+    let respectSilentMode: Bool
     let performance: Bool
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
@@ -162,7 +163,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "requestedRenderer": configuration.renderer.rawValue,
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
-                                         "threeFingerMenu": String(configuration.threeFingerMenu)])
+                                         "threeFingerMenu": String(configuration.threeFingerMenu),
+                                         "respectSilentMode": String(configuration.respectSilentMode)])
         displayTicks = 0
         lastStepResult = "none"
         AppDiagnostics.shared.windows("launch.hostWindow")
@@ -200,6 +202,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                         renderer,
                         scenePointer,
                         configuration.threeFingerMenu,
+                        configuration.respectSilentMode,
                         mikageKRKRMenuCallback,
                         mikageKRKRCompletionCallback,
                         context
