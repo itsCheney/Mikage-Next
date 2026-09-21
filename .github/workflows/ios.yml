@@ -23,8 +23,14 @@ jobs:
           swift --version
           XCODE_CACHE_KEY="$(xcodebuild -version | shasum -a 256 | awk '{print $1}')"
           echo "XCODE_CACHE_KEY=${XCODE_CACHE_KEY}" >> "$GITHUB_ENV"
+          if [[ -n "${VCPKG_ROOT:-}" && -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]] || \
+             [[ -n "${VCPKG_INSTALLATION_ROOT:-}" && -f "${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
+            echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=false" >> "$GITHUB_ENV"
+          else
+            echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=true" >> "$GITHUB_ENV"
+          fi
       - name: Install project generator
-        run: brew install xcodegen sdl3
+        run: brew install xcodegen sdl3 ccache
       - name: Build and test native Metal backend
         run: |
           cmake -S Tests/MetalRenderBackend -B build/metal-render-tests \
@@ -52,11 +58,45 @@ jobs:
           python3 scripts/check-krkr-session-exit.py
       - name: Test library import and persistence
         run: swift test
-      - name: Cache KRKR dependencies
+      # `build-krkr-ios.sh` falls back to this checkout only when the runner
+      # does not already provide VCPKG_ROOT. Caching it avoids the fetch and
+      # bootstrap work on such images without retaining vcpkg build trees.
+      - name: Cache vcpkg bootstrap
+        if: env.KRKR_NEEDS_VCPKG_BOOTSTRAP == 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/vcpkg-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+          key: krkr-vcpkg-tool-v1-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+      # vcpkg verifies package ABIs before restoring an archive, so this
+      # cache may safely fall back across manifest changes. It avoids
+      # rebuilding unchanged packages (especially FFmpeg) when only one
+      # dependency input changes.
+      - name: Cache KRKR vcpkg binary packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: krkr-vcpkg-archives-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake', 'Engine/KRKRRuntime/Source/CMakePresets.json') }}
+          restore-keys: |
+            krkr-vcpkg-archives-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      # Installed trees are not ABI-addressed like archives. Keep them on an
+      # exact key that follows the Xcode toolchain and every manifest,
+      # overlay port, and iOS triplet that can change their ABI.
+      - name: Cache KRKR installed dependencies
         uses: actions/cache@v4
         with:
           path: build/krkr-vcpkg-installed
-          key: krkr-vcpkg-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+          key: krkr-vcpkg-installed-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake', 'Engine/KRKRRuntime/Source/CMakePresets.json') }}
+      # The XCFramework cache is intentionally exact: it is only safe to
+      # reuse when every runtime input is unchanged.  Preserve compiler
+      # results separately so a small runtime change does not force all of
+      # the device and simulator translation units to rebuild on a clean VM.
+      - name: Cache KRKR compilation results
+        uses: actions/cache@v4
+        with:
+          path: build/krkr-ccache
+          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          restore-keys: |
+            krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
       - name: Restore KRKR runtime framework
         id: cache-krkr-runtime
         uses: actions/cache/restore@v4
