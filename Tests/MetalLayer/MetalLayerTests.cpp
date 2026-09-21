@@ -246,6 +246,67 @@ static void Synchronization() {
     actual->GetTextureHandle();
     Require(actual->GetPoint(0,0)==expected->GetPoint(0,0),"fallback upload cache failed");
 }
+// A pinned texture used to re-read and re-upload its whole surface on every
+// GPU use, so a persistent raw pointer cost a full round trip per frame even
+// when nothing changed. Uploads must now be driven by actual damage.
+static void DirtyRegionUploads() {
+    auto* gpu=TVPGetRenderManager(); auto image=Image(64,48,4,7);
+    auto t=Create(gpu,64,48,TVPTextureFormat::RGBA,image);
+    const size_t surface=size_t(64)*48*4;
+
+    // Pinning alone must not make a clean texture re-upload.
+    auto* pointer=static_cast<uint32_t*>(t->GetPersistentCPUData(true));
+    t->ReleasePersistentCPUData(nullptr);
+    t->GetTextureHandle();
+    auto settled=TVPGetMetalLayerRenderStats();
+    t->GetTextureHandle(); t->GetTextureHandle();
+    auto after=TVPGetMetalLayerRenderStats();
+    Require(after.uploadedBytes==settled.uploadedBytes,"pinned texture re-uploaded without any CPU write");
+    Require(after.readbackBytes==settled.readbackBytes,"pinned texture re-read without any CPU write");
+
+    // A described write uploads only that region, not the whole surface.
+    pointer=static_cast<uint32_t*>(t->GetPersistentCPUData(true));
+    pointer[4*64+5]=0x11223344;
+    const tTVPRect written(5,4,6,5);
+    t->ReleasePersistentCPUData(&written);
+    auto beforeSmall=TVPGetMetalLayerRenderStats();
+    t->GetTextureHandle();
+    auto small=TVPGetMetalLayerRenderStats().uploadedBytes-beforeSmall.uploadedBytes;
+    Require(small>0 && small<surface,"described single-pixel write did not narrow the upload");
+    Require(t->GetPoint(5,4)==0x11223344,"narrowed upload lost the written pixel");
+
+    // An undescribed lease must stay conservative and re-upload everything.
+    pointer=static_cast<uint32_t*>(t->GetPersistentCPUData(true));
+    pointer[0]=0x55667788;
+    t->ReleasePersistentCPUData(nullptr);
+    auto beforeFull=TVPGetMetalLayerRenderStats();
+    t->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes-beforeFull.uploadedBytes==surface,"undescribed write did not upload the full surface");
+    Require(t->GetPoint(0,0)==0x55667788,"full upload lost the written pixel");
+
+    // Partial Update on a pinned texture reports its own rect.
+    auto frame=Image(8,6,4,3);
+    t->Update(frame.data(),TVPTextureFormat::RGBA,8*4,tTVPRect(10,10,18,16));
+    auto beforePartial=TVPGetMetalLayerRenderStats();
+    t->GetTextureHandle();
+    auto partial=TVPGetMetalLayerRenderStats().uploadedBytes-beforePartial.uploadedBytes;
+    Require(partial>0 && partial<surface,"partial update on a pinned texture uploaded the whole surface");
+    Require(t->GetPoint(10,10)==*reinterpret_cast<const uint32_t*>(frame.data()),"partial upload lost frame pixels");
+
+    // Damage pending before a lease opens must survive a narrowed release;
+    // otherwise a write far from the lease's own region is silently dropped.
+    auto marker=Image(4,4,4,9);
+    t->Update(marker.data(),TVPTextureFormat::RGBA,4*4,tTVPRect(40,30,44,34));
+    pointer=static_cast<uint32_t*>(t->GetPersistentCPUData(true));
+    pointer[20*64+2]=0x0a0b0c0d;
+    const tTVPRect leaseWrote(2,20,3,21);
+    t->ReleasePersistentCPUData(&leaseWrote);
+    t->GetTextureHandle();
+    t->InvalidateCPUCache();
+    Require(t->GetPoint(40,30)==*reinterpret_cast<const uint32_t*>(marker.data()),"pre-lease damage dropped by narrowed release");
+    Require(t->GetPoint(2,20)==0x0a0b0c0d,"lease write lost by narrowed release");
+    ++comparisons;
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -366,7 +427,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); OffsetUpdates(); Synchronization(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
