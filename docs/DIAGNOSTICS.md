@@ -16,6 +16,7 @@
 - UIKit 横屏/恢复方向请求、系统拒绝和等待超时；scene、窗口 bounds、安全区域、key/hidden/alpha/root controller。
 - App/scene 前后台、音频中断/route change、内存告警和 thermal 状态。
 - 每秒 DisplayLink tick、step result、runtime FPS、帧间隔、drawable、实际 renderer、resident memory及窗口清单，独立于性能 HUD。
+- Metal Layer heartbeat 额外记录 GPU→CPU readback 来源、software fallback 首次回读的 target/source/reference 角色，以及 GPU 路径拒绝原因（如 targetCPUResident、unsupportedMethod、multipleInputs、triangles/perspective 等），用于区分兼容性回退和可优化的数据搬运。
 - 浮层安装、菜单开关、移除；KRKR 原有日志/异常标题与 SDL 已产生的日志。保留 SDL 原输出回调，不替换 TJS 脚本日志处理器。
 
 统一记录 UTC/Unix 毫秒时间、单调运行时长、写入序号、线程、构建提交、进程运行编号和游戏会话编号。它用于定位宿主窗口切换与 runtime 事件的先后关系，不声称检查了每次未返回错误的绘制结果，也不替代系统崩溃采集。不采集屏幕像素、每次触摸、搜索内容或游戏/存档文件。
