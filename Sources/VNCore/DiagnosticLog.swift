@@ -22,6 +22,9 @@ public final class DiagnosticLog: @unchecked Sendable {
     private var failure: String?
     private let runID = UUID().uuidString
     private let startedAt = ProcessInfo.processInfo.systemUptime
+    /// Maximum fields retained per record. Generous enough for the diagnostic
+    /// heartbeats (dozens of counters); per-record size is bounded separately.
+    static let fieldLimit = 128
 
     public init(directory: URL, maxBytes: Int = 2 * 1024 * 1024, fileCount: Int = 4) {
         self.directory = directory
@@ -70,9 +73,22 @@ public final class DiagnosticLog: @unchecked Sendable {
         let threadDetail = Self.clipped(String(describing: Thread.current), to: 256)
         let event = Self.clipped(event, to: 4096)
         let source = Self.clipped(source, to: 128)
+        // Dictionary iteration order is unspecified, so truncating fields without
+        // sorting first drops a different, arbitrary subset on every call. Callers
+        // that emit more than the limit (heartbeats carry dozens of counters) then
+        // produce records whose fields cannot be compared across time. Sort by key
+        // so any truncation is at least deterministic, and say what was dropped
+        // instead of losing it silently. Oversized records stay bounded by the
+        // maxBytes checks below, not by this limit.
         var fieldSnapshot: [String: String] = [:]
-        for (key, value) in fields.prefix(16) {
+        let ordered = fields.sorted { $0.key < $1.key }
+        for (key, value) in ordered.prefix(Self.fieldLimit) {
             fieldSnapshot[Self.clipped(key, to: 128)] = Self.clipped(value, to: 1024)
+        }
+        if ordered.count > Self.fieldLimit {
+            let omitted = ordered.dropFirst(Self.fieldLimit).map(\.key)
+            fieldSnapshot["fieldsOmitted"] = String(omitted.count)
+            fieldSnapshot["fieldsOmittedKeys"] = Self.clipped(omitted.joined(separator: ","), to: 1024)
         }
         let fieldsToWrite = fieldSnapshot
         queue.async {

@@ -108,6 +108,58 @@ final class DiagnosticLogTests: XCTestCase {
         try log.setEnabled(false)
     }
 
+    func testHeartbeatSizedRecordKeepsEveryField() throws {
+        // Heartbeats carry dozens of counters. Dropping an arbitrary subset makes
+        // a counter appear in some records and not others, so the same metric
+        // cannot be compared over time.
+        let log = DiagnosticLog(directory: root.appendingPathComponent("Logs"))
+        try log.setEnabled(true)
+        var fields: [String: String] = [:]
+        for index in 0..<43 { fields["counter\(index)"] = String(index) }
+        for _ in 0..<20 { log.record("session", "heartbeat", fields: fields) }
+        let output = try log.export(to: root.appendingPathComponent("Exports"))
+        let beats = try records(output).filter { ($0["event"] as? String) == "heartbeat" }
+        XCTAssertEqual(beats.count, 20)
+        for row in beats {
+            let written = try XCTUnwrap(row["fields"] as? [String: String])
+            XCTAssertNil(written["fieldsOmitted"])
+            for index in 0..<43 {
+                XCTAssertEqual(written["counter\(index)"], String(index),
+                               "counter\(index) missing from a heartbeat")
+            }
+        }
+        try log.setEnabled(false)
+    }
+
+    func testFieldTruncationIsDeterministicAndReported() throws {
+        // Past the limit, truncation must be stable across records and must say
+        // what it dropped rather than losing fields silently.
+        let log = DiagnosticLog(directory: root.appendingPathComponent("Logs"))
+        try log.setEnabled(true)
+        let total = DiagnosticLog.fieldLimit + 15
+        var fields: [String: String] = [:]
+        for index in 0..<total { fields[String(format: "k%04d", index)] = String(index) }
+        for _ in 0..<8 { log.record("session", "wide", fields: fields) }
+        let output = try log.export(to: root.appendingPathComponent("Exports"))
+        let rows = try records(output).filter { ($0["event"] as? String) == "wide" }
+        XCTAssertEqual(rows.count, 8)
+        var seen: Set<String>?
+        for row in rows {
+            let written = try XCTUnwrap(row["fields"] as? [String: String])
+            // Two bookkeeping fields accompany the retained ones.
+            XCTAssertEqual(written["fieldsOmitted"], "15")
+            XCTAssertNotNil(written["fieldsOmittedKeys"])
+            let kept = Set(written.keys.filter { $0.hasPrefix("k") })
+            XCTAssertEqual(kept.count, DiagnosticLog.fieldLimit)
+            // Sorted order means the lowest keys survive, every time.
+            XCTAssertTrue(kept.contains("k0000"))
+            XCTAssertFalse(kept.contains(String(format: "k%04d", total - 1)))
+            if let first = seen { XCTAssertEqual(kept, first, "truncation differed between records") }
+            seen = kept
+        }
+        try log.setEnabled(false)
+    }
+
     func testEnableReportsUnwritableDirectory() throws {
         let file = root.appendingPathComponent("not-a-directory")
         try Data("file".utf8).write(to: file)
