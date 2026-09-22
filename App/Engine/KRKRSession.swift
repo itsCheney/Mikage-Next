@@ -588,7 +588,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "meshCalls:\(diagnosticStats.emoteMeshBuildCalls)",
                     "meshNS:\(diagnosticStats.emoteMeshBuildTimeNS)",
                     "meshVertices:\(diagnosticStats.emoteMeshVerticesBuilt)",
-                    "deformedVertices:\(diagnosticStats.emoteDeformedVerticesBuilt)"
+                    "deformedVertices:\(diagnosticStats.emoteDeformedVerticesBuilt)",
+                    "gpuDraws:\(diagnosticStats.emoteGPUDeformDraws)",
+                    "gpuVertices:\(diagnosticStats.emoteGPUDeformVertices)"
                 ].joined(separator: ",")
 
                 let meshProfile: String = [
