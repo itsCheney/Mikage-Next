@@ -17,6 +17,17 @@
 #include <vector>
 using krkrsdl3::iTVPRenderBackend;
 using Texture=std::unique_ptr<iTVPTexture2D>;
+
+#ifdef TEST_NATIVE_METAL
+// This standalone parity binary links the Metal backend directly rather than
+// the engine compositor. Profiling hooks are runtime-only and are no-ops here.
+namespace krkrsdl3 {
+void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
+void TVPRecordMetalSubmit() {}
+void TVPRecordMetalSyncWait(uint64_t) {}
+void TVPRecordMetalQueueWait(uint64_t) {}
+}
+#endif
 static void Require(bool condition,const char* message) { if(!condition) throw std::runtime_error(message); }
 static tTVPRect Rect(const TVPLayerRect& r) { return tTVPRect(r.left,r.top,r.right,r.bottom); }
 #ifndef TEST_NATIVE_METAL
