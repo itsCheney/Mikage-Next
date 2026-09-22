@@ -234,8 +234,16 @@ static void Synchronization() {
     auto* gpu=TVPGetRenderManager(); auto image=Image(9,7,4,2);
     auto t=Create(gpu,9,7,TVPTextureFormat::RGBA,image);
     auto before=TVPGetMetalLayerRenderStats();
-    auto first=t->GetPoint(0,0);t->GetPoint(1,0);t->GetScanLineForRead(0);
-    Require(TVPGetMetalLayerRenderStats().readbackBytes-before.readbackBytes==image.size(),"repeated read cache failed");
+    auto first=t->GetPoint(0,0); t->GetPoint(1,0);
+    auto afterPoints=TVPGetMetalLayerRenderStats();
+    const int pointIndex=static_cast<int>(TVPLayerReadbackSource::Point);
+    Require(afterPoints.readbackBytes-before.readbackBytes==8 &&
+            afterPoints.readbackCountBySource[pointIndex]-before.readbackCountBySource[pointIndex]==2 &&
+            afterPoints.readbackBytesBySource[pointIndex]-before.readbackBytesBySource[pointIndex]==8,
+            "GPU point reads did not stay 1x1");
+    t->GetScanLineForRead(0);
+    Require(TVPGetMetalLayerRenderStats().readbackBytes-before.readbackBytes==image.size()+8,
+            "scanline verification did not perform one full read after point samples");
     auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x10203040);
     Operation(gpu,fill,t.get(),tTVPRect(1,1,4,4),nullptr,tTVPRect());
     Require(t->GetPoint(1,1)==0x10203040 && t->GetPoint(0,0)==first,"GPU write cache invalidation failed");
@@ -375,6 +383,15 @@ static void ReadbackAttribution() {
     const size_t surface=size_t(16)*12*4;
     auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x01020304);
 
+    // Single-pixel GPU query: hit testing must not populate the full CPU cache.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+        auto before=count(TVPLayerReadbackSource::Point), beforeBytes=bytes(TVPLayerReadbackSource::Point);
+        Require(t->GetPoint(3,4)==0x01020304,"point readback returned the wrong pixel");
+        Require(count(TVPLayerReadbackSource::Point)==before+1,"point readback not attributed");
+        Require(bytes(TVPLayerReadbackSource::Point)==beforeBytes+4,"point readback bytes wrong");
+    }
     // Explicit read lock, e.g. hit testing.
     {
         auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);

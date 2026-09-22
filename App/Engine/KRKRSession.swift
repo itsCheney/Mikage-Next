@@ -533,7 +533,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "lock:\(diagnosticStats.layerReadbackLockBytes)/\(diagnosticStats.layerReadbackLockCount)",
                     "fallback:\(diagnosticStats.layerReadbackFallbackBytes)/\(diagnosticStats.layerReadbackFallbackCount)",
                     "persistent:\(diagnosticStats.layerReadbackPersistentBytes)/\(diagnosticStats.layerReadbackPersistentCount)",
-                    "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)"
+                    "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)",
+                    "point:\(diagnosticStats.layerReadbackPointBytes)/\(diagnosticStats.layerReadbackPointCount)"
                 ].joined(separator: ",")
 
                 let layerFallbackReadbackByRole: String = [
