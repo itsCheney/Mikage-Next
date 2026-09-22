@@ -169,6 +169,30 @@ void MeshTests(iTVPRenderBackend& gpu)
     gpu.SetMask(nullptr);
     gpu.DestroyTexture(src); gpu.DestroyTarget(mask); gpu.DestroyTarget(target);
 }
+void DirectLayerCopyTests(iTVPRenderBackend& gpu)
+{
+    void* source = gpu.CreateTarget(7, 5);
+    void* destination = gpu.CreateLayerTexture(7, 5, TVPLayerTextureFormat::RGBA8);
+    Require(source && destination, "direct Layer copy resources");
+    auto pixels = Pattern(32, 123);
+    gpu.UpdateTargetTexture(source, pixels.data(), 7, 5, 32);
+    Require(gpu.CopyTargetToLayerTexture(source, destination), "target->Layer GPU copy");
+    std::vector<uint8_t> actual;
+    int pitch = 0;
+    Require(gpu.ReadLayerTexture(destination, actual, pitch) && pitch == 28,
+            "direct Layer copy readback");
+    std::vector<uint8_t> expected(7 * 5 * 4);
+    for (int y = 0; y < 5; ++y)
+        std::memcpy(expected.data() + y * 28, pixels.data() + y * 32, 28);
+    Compare(actual, expected, 0);
+
+    void* wrong = gpu.CreateLayerTexture(6, 5, TVPLayerTextureFormat::RGBA8);
+    Require(wrong && !gpu.CopyTargetToLayerTexture(source, wrong),
+            "mismatched target->Layer copy must reject");
+    gpu.DestroyLayerTexture(wrong);
+    gpu.DestroyLayerTexture(destination);
+    gpu.DestroyTarget(source);
+}
 void CaptureTests(iTVPRenderBackend& gpu)
 {
     void* texture = gpu.CreateWindowTexture(1, 2);
@@ -210,6 +234,7 @@ int main()
             if (session == 0) {
                 LayerTests(*gpu);
                 MeshTests(*gpu);
+                DirectLayerCopyTests(*gpu);
             }
             CaptureTests(*gpu);
         }
