@@ -1,4 +1,4 @@
 [submodule "Engine/KRKRRuntime/Source"]
 	path = Engine/KRKRRuntime/Source
 	url = https://github.com/itsCheney/krkrsdl3_build.git
-	branch = mikage-beta
+	branch = readback_fix_experimental
