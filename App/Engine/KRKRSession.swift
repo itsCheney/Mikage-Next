@@ -536,6 +536,29 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)"
                 ].joined(separator: ",")
 
+                let layerFallbackReadbackByRole: String = [
+                    "target:\(diagnosticStats.layerFallbackTargetReadbackBytes)/\(diagnosticStats.layerFallbackTargetReadbackCount)",
+                    "source:\(diagnosticStats.layerFallbackSourceReadbackBytes)/\(diagnosticStats.layerFallbackSourceReadbackCount)",
+                    "reference:\(diagnosticStats.layerFallbackReferenceReadbackBytes)/\(diagnosticStats.layerFallbackReferenceReadbackCount)"
+                ].joined(separator: ",")
+
+                let layerGPURejects: String = [
+                    "targetUnavailable:\(diagnosticStats.layerGPURejectTargetUnavailable)",
+                    "targetCPUResident:\(diagnosticStats.layerGPURejectTargetCPUResident)",
+                    "multipleInputs:\(diagnosticStats.layerGPURejectMultipleInputs)",
+                    "unsupportedMethod:\(diagnosticStats.layerGPURejectUnsupportedMethod)",
+                    "unsupportedStretch:\(diagnosticStats.layerGPURejectUnsupportedStretch)",
+                    "invalidOpacity:\(diagnosticStats.layerGPURejectInvalidOpacity)",
+                    "sourceUnavailable:\(diagnosticStats.layerGPURejectSourceUnavailable)",
+                    "sourceFormat:\(diagnosticStats.layerGPURejectSourceFormat)",
+                    "invalidGeometry:\(diagnosticStats.layerGPURejectInvalidGeometry)",
+                    "unsupportedKind:\(diagnosticStats.layerGPURejectUnsupportedKind)",
+                    "alphaTables:\(diagnosticStats.layerGPURejectAlphaTables)",
+                    "backendFailure:\(diagnosticStats.layerGPURejectBackendFailure)",
+                    "triangles:\(diagnosticStats.layerGPURejectTriangles)",
+                    "perspective:\(diagnosticStats.layerGPURejectPerspective)"
+                ].joined(separator: ",")
+
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
@@ -553,6 +576,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerCPUCacheBytes": String(diagnosticStats.layerCPUCacheBytes),
                     "layerPinnedCPUTextures": String(diagnosticStats.layerPinnedCPUTextures),
                     "layerReadbackBySource": layerReadbackBySource,
+                    "layerFallbackReadbackByRole": layerFallbackReadbackByRole,
+                    "layerGPURejects": layerGPURejects,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
