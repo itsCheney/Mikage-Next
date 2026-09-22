@@ -593,6 +593,17 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "gpuVertices:\(diagnosticStats.emoteGPUDeformVertices)"
                 ].joined(separator: ",")
 
+                let emoteCadenceProfile: String = [
+                    "steps:\(diagnosticStats.emoteRenderSteps)",
+                    "draws:\(diagnosticStats.emotePlayerDraws)",
+                    "players:\(diagnosticStats.emoteDistinctPlayerDraws)",
+                    "repeats:\(diagnosticStats.emoteRepeatedPlayerDraws)",
+                    "targets:\(diagnosticStats.emoteDistinctTargets)",
+                    "maxDrawsStep:\(diagnosticStats.emoteMaxDrawsPerStep)",
+                    "maxPlayersStep:\(diagnosticStats.emoteMaxPlayersPerStep)",
+                    "maxDrawsPlayerStep:\(diagnosticStats.emoteMaxDrawsPerPlayerStep)"
+                ].joined(separator: ",")
+
                 let meshProfile: String = [
                     "draws:\(diagnosticStats.meshDrawCalls)",
                     "vertices:\(diagnosticStats.meshVertices)",
@@ -611,6 +622,17 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "queueWaitNS:\(diagnosticStats.metalQueueWaitTimeNS)"
                 ].joined(separator: ",")
 
+                let metalRingProfile: String = [
+                    "bytes:\(diagnosticStats.metalRingBytes)",
+                    "suballocs:\(diagnosticStats.metalRingSuballocs)",
+                    "suballocNS:\(diagnosticStats.metalRingSuballocTimeNS)",
+                    "wraps:\(diagnosticStats.metalRingWraps)",
+                    "stallNS:\(diagnosticStats.metalRingStallTimeNS)",
+                    "highWater:\(diagnosticStats.metalRingHighWaterBytes)",
+                    "fallbacks:\(diagnosticStats.metalRingFallbackAllocations)",
+                    "fallbackBytes:\(diagnosticStats.metalRingFallbackBytes)"
+                ].joined(separator: ",")
+
                 let stepProfile: String = [
                     "eventNS:\(diagnosticStats.stepEventTimeNS)",
                     "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
@@ -627,8 +649,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "emoteCaptureCalls": String(diagnosticStats.emoteCaptureCalls),
                     "emoteProfile": emoteProfile,
                     "emotePrepareDetail": emotePrepareDetail,
+                    "emoteCadenceProfile": emoteCadenceProfile,
                     "meshProfile": meshProfile,
                     "metalProfile": metalProfile,
+                    "metalRingProfile": metalRingProfile,
                     "stepProfile": stepProfile,
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "actualRenderer": rendererName(from: &diagnosticStats)
@@ -664,8 +688,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "emoteCaptureGPUBytes": String(diagnosticStats.emoteCaptureGPUBytes),
                     "emoteProfile": emoteProfile,
                     "emotePrepareDetail": emotePrepareDetail,
+                    "emoteCadenceProfile": emoteCadenceProfile,
                     "meshProfile": meshProfile,
                     "metalProfile": metalProfile,
+                    "metalRingProfile": metalRingProfile,
                     "stepProfile": stepProfile,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
