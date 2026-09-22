@@ -597,6 +597,23 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
                 ].joined(separator: ",")
 
+                AppDiagnostics.shared.event("session", "heartbeat.profile", [
+                    "displayTicks": String(displayTicks),
+                    "fps": String(diagnosticStats.framesPerSecond),
+                    "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),
+                    "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
+                    "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds),
+                    "gpuSubmissionTimeMS": String(diagnosticStats.gpuSubmissionTimeMilliseconds),
+                    "presentationWaitTimeMS": String(diagnosticStats.presentationWaitTimeMilliseconds),
+                    "emoteCaptureCalls": String(diagnosticStats.emoteCaptureCalls),
+                    "emoteProfile": emoteProfile,
+                    "meshProfile": meshProfile,
+                    "metalProfile": metalProfile,
+                    "stepProfile": stepProfile,
+                    "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
+                    "actualRenderer": rendererName(from: &diagnosticStats)
+                ])
+
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
