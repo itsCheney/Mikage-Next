@@ -19,7 +19,10 @@ namespace krkrsdl3 {
 void TVPRegisterRenderBackend(const TVPRenderBackendDesc&) {}
 void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
 void TVPRecordEmoteGPUDeform(uint64_t) {}
-void TVPRecordMetalSubmit() {}
+// Observable so tests can assert submission cadence: GPU-only work must not
+// force command-buffer submits (see SubmissionCadenceTests).
+int g_metalSubmits = 0;
+void TVPRecordMetalSubmit() { ++g_metalSubmits; }
 void TVPRecordMetalSyncWait(uint64_t) {}
 void TVPRecordMetalQueueWait(uint64_t) {}
 void TVPRecordMetalRingSuballoc(uint64_t, uint64_t, uint64_t) {}
@@ -222,6 +225,45 @@ void CaptureTests(iTVPRenderBackend& gpu)
     gpu.DestroyWindowTexture(texture);
     Require(!gpu.CaptureFrame(pixels, w, h, pitch), "destroyed screenshot source must not remain retained");
 }
+// GPU-to-GPU work (target->Layer blits, Layer compute operations) consumes no
+// host-visible staging memory. It previously counted against the 16 MB staging
+// budget, so full-surface Emote captures (~8.5 MB each) forced a submit every
+// other capture and serialized the CPU against the inFlight semaphore.
+void SubmissionCadenceTests(iTVPRenderBackend& gpu)
+{
+    const int width = 512, height = 512; // 1 MiB per surface
+    void* source = gpu.CreateTarget(width, height);
+    void* destination = gpu.CreateLayerTexture(width, height, TVPLayerTextureFormat::RGBA8);
+    Require(source && destination, "cadence test resources");
+
+    // Prime the source once, then measure only the GPU-to-GPU copies.
+    std::vector<uint8_t> seed(size_t(width) * height * 4, 0x40);
+    gpu.UpdateTargetTexture(source, seed.data(), width, height, width * 4);
+
+    const int before = krkrsdl3::g_metalSubmits;
+    const int copies = 32; // 32 MiB of pixels: twice the old 16 MB byte budget
+    for (int i = 0; i < copies; ++i)
+        Require(gpu.CopyTargetToLayerTexture(source, destination), "cadence GPU copy");
+    const int forced = krkrsdl3::g_metalSubmits - before;
+
+    // Old behavior: >= 2 submits (32 MiB / 16 MB). Fixed: none, because no
+    // host-visible bytes were staged and the op budget is far from reached.
+    if (forced != 0) {
+        std::cerr << "GPU-only copies forced " << forced << " submit(s)" << '\n';
+        throw std::runtime_error("GPU-to-GPU work must not consume the staging budget");
+    }
+
+    // Staging uploads must still bound the buffer: each upload stages ~1 MiB, so
+    // crossing 16 MB has to submit at least once.
+    const int beforeUploads = krkrsdl3::g_metalSubmits;
+    for (int i = 0; i < 24; ++i)
+        gpu.UpdateTargetTexture(source, seed.data(), width, height, width * 4);
+    Require(krkrsdl3::g_metalSubmits > beforeUploads,
+            "host-visible uploads must still trigger the staging budget");
+
+    gpu.DestroyLayerTexture(destination);
+    gpu.DestroyTarget(source);
+}
 #endif
 }
 
@@ -246,12 +288,13 @@ int main()
                 LayerTests(*gpu);
                 MeshTests(*gpu);
                 DirectLayerCopyTests(*gpu);
+                SubmissionCadenceTests(*gpu);
             }
             CaptureTests(*gpu);
         }
         SDL_DestroyWindow(window);
         SDL_Quit();
-        std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask and capture tests\n";
+        std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask, capture and submission cadence tests\n";
 #else
         std::cout << "PASS: software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
 #endif
