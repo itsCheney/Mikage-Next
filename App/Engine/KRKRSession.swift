@@ -559,6 +559,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "perspective:\(diagnosticStats.layerGPURejectPerspective)"
                 ].joined(separator: ",")
 
+                let layerMultipleInputMethods = withUnsafePointer(to: &diagnosticStats.layerMultipleInputMethods) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                }
+                let layerUnsupportedMethods = withUnsafePointer(to: &diagnosticStats.layerUnsupportedMethods) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                }
+
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
@@ -578,6 +585,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerReadbackBySource": layerReadbackBySource,
                     "layerFallbackReadbackByRole": layerFallbackReadbackByRole,
                     "layerGPURejects": layerGPURejects,
+                    "layerMultipleInputMethods": layerMultipleInputMethods,
+                    "layerUnsupportedMethods": layerUnsupportedMethods,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
