@@ -574,6 +574,23 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "capture:\(diagnosticStats.emoteCaptureProfileCalls)/\(diagnosticStats.emoteCaptureTimeNS)"
                 ].joined(separator: ",")
 
+                let emotePrepareDetail: String = [
+                    "transformNS:\(diagnosticStats.emotePrepareTransformTimeNS)",
+                    "motionNS:\(diagnosticStats.emotePrepareMotionProgressTimeNS)",
+                    "snapshotNS:\(diagnosticStats.emotePrepareSnapshotTimeNS)",
+                    "nodeCalls:\(diagnosticStats.emoteNodeProgressCalls)",
+                    "nodeNS:\(diagnosticStats.emoteNodeProgressTimeNS)",
+                    "subCreates:\(diagnosticStats.emoteSubmotionCreates)",
+                    "subNS:\(diagnosticStats.emoteSubmotionRebuildTimeNS)",
+                    "shapeCalls:\(diagnosticStats.emoteShapeBuildCalls)",
+                    "shapeNS:\(diagnosticStats.emoteShapeBuildTimeNS)",
+                    "shapeVertices:\(diagnosticStats.emoteShapeVertices)",
+                    "meshCalls:\(diagnosticStats.emoteMeshBuildCalls)",
+                    "meshNS:\(diagnosticStats.emoteMeshBuildTimeNS)",
+                    "meshVertices:\(diagnosticStats.emoteMeshVerticesBuilt)",
+                    "deformedVertices:\(diagnosticStats.emoteDeformedVerticesBuilt)"
+                ].joined(separator: ",")
+
                 let meshProfile: String = [
                     "draws:\(diagnosticStats.meshDrawCalls)",
                     "vertices:\(diagnosticStats.meshVertices)",
@@ -607,6 +624,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "presentationWaitTimeMS": String(diagnosticStats.presentationWaitTimeMilliseconds),
                     "emoteCaptureCalls": String(diagnosticStats.emoteCaptureCalls),
                     "emoteProfile": emoteProfile,
+                    "emotePrepareDetail": emotePrepareDetail,
                     "meshProfile": meshProfile,
                     "metalProfile": metalProfile,
                     "stepProfile": stepProfile,
@@ -643,6 +661,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "emoteCaptureGPUCopies": String(diagnosticStats.emoteCaptureGPUCopies),
                     "emoteCaptureGPUBytes": String(diagnosticStats.emoteCaptureGPUBytes),
                     "emoteProfile": emoteProfile,
+                    "emotePrepareDetail": emotePrepareDetail,
                     "meshProfile": meshProfile,
                     "metalProfile": metalProfile,
                     "stepProfile": stepProfile,
