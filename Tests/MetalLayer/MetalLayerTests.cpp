@@ -103,6 +103,28 @@ public:
         sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
         sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(source?&input:nullptr,source?1:0));return true;
     }
+    bool OperateLayerRectDualSource(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,
+                                    void* source1,const TVPLayerRect& src1,
+                                    void* source2,const TVPLayerRect& src2) override {
+        if(op.kind!=TVPLayerOperationKind::ConstAlphaSD || !target || !source1 || !source2) return false;
+        auto* sw=TVPGetSoftwareRenderManager();
+        const char* name=(op.flags&TVP_LAYER_DEST_ALPHA) ? "ConstAlphaBlend_SD_d" : "ConstAlphaBlend_SD";
+        auto* method=sw->GetRenderMethod(name);
+        method->SetParameterOpa(method->EnumParameterID("opacity"),op.opacity);
+        auto& t=*resources.at(target);
+        auto& a=*resources.at(source1);
+        auto& b=*resources.at(source2);
+        std::vector<uint8_t> snapA,snapB;
+        const void* pa=a.pixels.data(); const void* pb=b.pixels.data();
+        if(source1==target) { snapA=a.pixels; pa=snapA.data(); }
+        if(source2==target) { snapB=b.pixels; pb=snapB.data(); }
+        Texture tv(sw->CreateTexture2D(t.pixels.data(),t.w*t.bpp,t.w,t.h,TVPTextureFormat::RGBA));
+        Texture av(sw->CreateTexture2D(pa,a.w*a.bpp,a.w,a.h,TVPTextureFormat::RGBA));
+        Texture bv(sw->CreateTexture2D(pb,b.w*b.bpp,b.w,b.h,TVPTextureFormat::RGBA));
+        std::pair<iTVPTexture2D*,tTVPRect> inputs[]={{av.get(),Rect(src1)},{bv.get(),Rect(src2)}};
+        sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(inputs));
+        return true;
+    }
 };
 #endif
 static std::vector<uint8_t> Image(int w,int h,int bpp,int seed) {
@@ -401,6 +423,63 @@ static void ReadbackAttribution() {
     Require(sum==final.readbackBytes,"attributed readback bytes do not sum to the total");
     ++comparisons;
 }
+static void DualSourceTransitions() {
+    auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
+    const char* methods[]={"ConstAlphaBlend_SD","ConstAlphaBlend_SD_d"};
+    for(auto* name:methods) for(int opacity:{0,1,63,127,128,191,254,255}) {
+        auto* method=gpu->GetRenderMethod(name);
+        Require(method==sw->GetRenderMethod(name),"dual-source canonical method pointer changed");
+        method->SetParameterOpa(method->EnumParameterID("opacity"),opacity);
+        TVPLayerOperation op;
+        Require(method->DescribeGpuOperation(op) && op.kind==TVPLayerOperationKind::ConstAlphaSD,
+                "dual-source semantic descriptor missing");
+
+        auto first=Image(17,13,4,2),second=Image(17,13,4,5),initial=Image(17,13,4,7);
+        tTVPRect dr(3,2,14,11),sr1(1,1,12,10),sr2(2,2,13,11);
+
+        // Independent sources -> independent target.
+        {
+            auto s1=Create(sw,17,13,TVPTextureFormat::RGBA,first);
+            auto s2=Create(sw,17,13,TVPTextureFormat::RGBA,second);
+            auto expected=Create(sw,17,13,TVPTextureFormat::RGBA,initial);
+            std::pair<iTVPTexture2D*,tTVPRect> si[]={{s1.get(),sr1},{s2.get(),sr2}};
+            sw->OperateRect(method,expected.get(),nullptr,dr,tRenderTexRectArray(si));
+
+            auto g1=Create(gpu,17,13,TVPTextureFormat::RGBA,first);
+            auto g2=Create(gpu,17,13,TVPTextureFormat::RGBA,second);
+            auto actual=Create(gpu,17,13,TVPTextureFormat::RGBA,initial);
+            std::pair<iTVPTexture2D*,tTVPRect> gi[]={{g1.get(),sr1},{g2.get(),sr2}};
+            auto before=TVPGetMetalLayerRenderStats();
+            gpu->OperateRect(method,actual.get(),nullptr,dr,tRenderTexRectArray(gi));
+            auto after=TVPGetMetalLayerRenderStats();
+            Require(after.gpuOperations==before.gpuOperations+1 &&
+                    after.cpuFallbacks==before.cpuFallbacks &&
+                    after.readbackBytes==before.readbackBytes,
+                    "dual-source transition fell back/read back");
+            Compare(expected.get(),actual.get(),0,name);
+        }
+
+        // Common KRKR pattern: second input aliases the output target.
+        {
+            auto s1=Create(sw,17,13,TVPTextureFormat::RGBA,first);
+            auto expected=Create(sw,17,13,TVPTextureFormat::RGBA,second);
+            std::pair<iTVPTexture2D*,tTVPRect> si[]={{s1.get(),sr1},{expected.get(),sr2}};
+            sw->OperateRect(method,expected.get(),expected.get(),dr,tRenderTexRectArray(si));
+
+            auto g1=Create(gpu,17,13,TVPTextureFormat::RGBA,first);
+            auto actual=Create(gpu,17,13,TVPTextureFormat::RGBA,second);
+            std::pair<iTVPTexture2D*,tTVPRect> gi[]={{g1.get(),sr1},{actual.get(),sr2}};
+            auto before=TVPGetMetalLayerRenderStats();
+            gpu->OperateRect(method,actual.get(),actual.get(),dr,tRenderTexRectArray(gi));
+            auto after=TVPGetMetalLayerRenderStats();
+            Require(after.gpuOperations==before.gpuOperations+1 &&
+                    after.cpuFallbacks==before.cpuFallbacks &&
+                    after.readbackBytes==before.readbackBytes,
+                    "aliased dual-source transition fell back/read back");
+            Compare(expected.get(),actual.get(),0,(std::string(name)+" alias").c_str());
+        }
+    }
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -521,7 +600,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
