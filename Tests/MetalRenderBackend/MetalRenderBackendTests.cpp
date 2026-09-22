@@ -18,6 +18,7 @@ using krkrsdl3::iTVPRenderBackend;
 namespace krkrsdl3 {
 void TVPRegisterRenderBackend(const TVPRenderBackendDesc&) {}
 void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
+void TVPRecordEmoteGPUDeform(uint64_t) {}
 void TVPRecordMetalSubmit() {}
 void TVPRecordMetalSyncWait(uint64_t) {}
 void TVPRecordMetalQueueWait(uint64_t) {}
