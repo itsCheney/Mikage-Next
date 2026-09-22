@@ -23,6 +23,7 @@ using Texture=std::unique_ptr<iTVPTexture2D>;
 // the engine compositor. Profiling hooks are runtime-only and are no-ops here.
 namespace krkrsdl3 {
 void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
+void TVPRecordEmoteGPUDeform(uint64_t) {}
 void TVPRecordMetalSubmit() {}
 void TVPRecordMetalSyncWait(uint64_t) {}
 void TVPRecordMetalQueueWait(uint64_t) {}
