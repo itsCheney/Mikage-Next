@@ -580,6 +580,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerCPUFallbacks": String(diagnosticStats.layerCPUFallbacks),
                     "layerUploadedBytes": String(diagnosticStats.layerUploadedBytes),
                     "layerReadbackBytes": String(diagnosticStats.layerReadbackBytes),
+                    "layerPointCacheHits": String(diagnosticStats.layerPointCacheHits),
+                    "layerPointCacheMisses": String(diagnosticStats.layerPointCacheMisses),
                     "layerGPUResidentBytes": String(diagnosticStats.layerGPUResidentBytes),
                     "layerCPUCacheBytes": String(diagnosticStats.layerCPUCacheBytes),
                     "layerPinnedCPUTextures": String(diagnosticStats.layerPinnedCPUTextures),
