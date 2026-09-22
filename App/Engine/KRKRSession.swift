@@ -567,6 +567,36 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
                 }
 
+                let emoteProfile: String = [
+                    "progress:\(diagnosticStats.emoteProgressCalls)/\(diagnosticStats.emoteProgressTimeNS)",
+                    "prepare:\(diagnosticStats.emotePrepareCalls)/\(diagnosticStats.emotePrepareTimeNS)",
+                    "draw:\(diagnosticStats.emoteDrawCalls)/\(diagnosticStats.emoteDrawTimeNS)",
+                    "capture:\(diagnosticStats.emoteCaptureProfileCalls)/\(diagnosticStats.emoteCaptureTimeNS)"
+                ].joined(separator: ",")
+
+                let meshProfile: String = [
+                    "draws:\(diagnosticStats.meshDrawCalls)",
+                    "vertices:\(diagnosticStats.meshVertices)",
+                    "indices:\(diagnosticStats.meshIndices)",
+                    "cpuNS:\(diagnosticStats.meshCPUTimeNS)",
+                    "validationNS:\(diagnosticStats.meshValidationTimeNS)",
+                    "allocs:\(diagnosticStats.meshBufferAllocations)",
+                    "bytes:\(diagnosticStats.meshBufferBytes)",
+                    "allocNS:\(diagnosticStats.meshBufferAllocationTimeNS)"
+                ].joined(separator: ",")
+
+                let metalProfile: String = [
+                    "submits:\(diagnosticStats.metalSubmits)",
+                    "syncWaits:\(diagnosticStats.metalSyncWaits)",
+                    "syncWaitNS:\(diagnosticStats.metalSyncWaitTimeNS)",
+                    "queueWaitNS:\(diagnosticStats.metalQueueWaitTimeNS)"
+                ].joined(separator: ",")
+
+                let stepProfile: String = [
+                    "eventNS:\(diagnosticStats.stepEventTimeNS)",
+                    "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
+                ].joined(separator: ",")
+
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
@@ -595,6 +625,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "emoteCaptureCPUBytes": String(diagnosticStats.emoteCaptureCPUBytes),
                     "emoteCaptureGPUCopies": String(diagnosticStats.emoteCaptureGPUCopies),
                     "emoteCaptureGPUBytes": String(diagnosticStats.emoteCaptureGPUBytes),
+                    "emoteProfile": emoteProfile,
+                    "meshProfile": meshProfile,
+                    "metalProfile": metalProfile,
+                    "stepProfile": stepProfile,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
