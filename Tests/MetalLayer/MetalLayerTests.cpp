@@ -459,8 +459,31 @@ static void DualSourceTransitions() {
             Compare(expected.get(),actual.get(),0,name);
         }
 
-        // Common KRKR pattern: second input aliases the output target.
+        // Common KRKR pattern: second input aliases the output target at
+        // the same coordinates. This is one-pixel-to-one-pixel and can be
+        // snapshotted without changing software semantics.
         {
+            auto s1=Create(sw,17,13,TVPTextureFormat::RGBA,first);
+            auto expected=Create(sw,17,13,TVPTextureFormat::RGBA,second);
+            std::pair<iTVPTexture2D*,tTVPRect> si[]={{s1.get(),sr1},{expected.get(),dr}};
+            sw->OperateRect(method,expected.get(),expected.get(),dr,tRenderTexRectArray(si));
+
+            auto g1=Create(gpu,17,13,TVPTextureFormat::RGBA,first);
+            auto actual=Create(gpu,17,13,TVPTextureFormat::RGBA,second);
+            std::pair<iTVPTexture2D*,tTVPRect> gi[]={{g1.get(),sr1},{actual.get(),dr}};
+            auto before=TVPGetMetalLayerRenderStats();
+            gpu->OperateRect(method,actual.get(),actual.get(),dr,tRenderTexRectArray(gi));
+            auto after=TVPGetMetalLayerRenderStats();
+            Require(after.gpuOperations==before.gpuOperations+1 &&
+                    after.cpuFallbacks==before.cpuFallbacks &&
+                    after.readbackBytes==before.readbackBytes,
+                    "same-rect aliased dual-source transition fell back/read back");
+            Compare(expected.get(),actual.get(),0,(std::string(name)+" alias").c_str());
+        }
+
+        // Offset overlap has order-dependent software semantics. It must stay
+        // on software rather than being silently changed by a GPU snapshot.
+        if(opacity==127) {
             auto s1=Create(sw,17,13,TVPTextureFormat::RGBA,first);
             auto expected=Create(sw,17,13,TVPTextureFormat::RGBA,second);
             std::pair<iTVPTexture2D*,tTVPRect> si[]={{s1.get(),sr1},{expected.get(),sr2}};
@@ -472,11 +495,9 @@ static void DualSourceTransitions() {
             auto before=TVPGetMetalLayerRenderStats();
             gpu->OperateRect(method,actual.get(),actual.get(),dr,tRenderTexRectArray(gi));
             auto after=TVPGetMetalLayerRenderStats();
-            Require(after.gpuOperations==before.gpuOperations+1 &&
-                    after.cpuFallbacks==before.cpuFallbacks &&
-                    after.readbackBytes==before.readbackBytes,
-                    "aliased dual-source transition fell back/read back");
-            Compare(expected.get(),actual.get(),0,(std::string(name)+" alias").c_str());
+            Require(after.cpuFallbacks==before.cpuFallbacks+1,
+                    "offset alias unexpectedly used GPU path");
+            Compare(expected.get(),actual.get(),0,(std::string(name)+" offset alias fallback").c_str());
         }
     }
 }
