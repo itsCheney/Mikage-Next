@@ -15,7 +15,13 @@ using krkrsdl3::iTVPRenderBackend;
 
 // The independent test executable does not link the engine/session. Only the
 // software *offscreen* renderer is used; SDL presenter calls are unexpected.
-namespace krkrsdl3 { void TVPRegisterRenderBackend(const TVPRenderBackendDesc&) {} }
+namespace krkrsdl3 {
+void TVPRegisterRenderBackend(const TVPRenderBackendDesc&) {}
+void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
+void TVPRecordMetalSubmit() {}
+void TVPRecordMetalSyncWait(uint64_t) {}
+void TVPRecordMetalQueueWait(uint64_t) {}
+}
 bool TVPSoftwareRenderBackendAvailable() { return true; }
 void TVPCreateTextureBackend(TVPSprite&) { throw std::runtime_error("unexpected software presenter"); }
 void TVPUpdateTextureBackend(TVPSprite*, uint8_t*, int, int, int) { throw std::runtime_error("unexpected software presenter"); }
