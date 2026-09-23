@@ -327,37 +327,6 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     func snapshot() -> UIImage? {
         guard let window = engineWindow, !window.bounds.isEmpty else { return nil }
-        var frame = MikageKRKRCapturedFrame()
-        if MikageKRKRCaptureFrame(&frame) {
-            defer { MikageKRKRFreeCapturedFrame(&frame) }
-            guard let pixels = frame.pixels else { return nil }
-            let data = Data(bytes: pixels, count: Int(frame.pitch) * Int(frame.height))
-            guard let provider = CGDataProvider(data: data as CFData),
-                  let image = CGImage(
-                    width: Int(frame.width), height: Int(frame.height),
-                    bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: Int(frame.pitch),
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue)
-                        .union(.byteOrder32Big),
-                    provider: provider, decode: nil, shouldInterpolate: false,
-                    intent: .defaultIntent
-                  ) else { return nil }
-            let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
-            return renderer.image { _ in
-                UIColor.black.setFill()
-                UIRectFill(window.bounds)
-                UIImage(cgImage: image).draw(in: window.bounds)
-                overlayCoordinator?.drawScreenshotOverlay(in: window)
-            }
-        }
-        var stats = MikageKRKRStats()
-        // Native Metal composites offscreen, so a UIKit hierarchy snapshot
-        // would capture an empty GPU view rather than the game.
-        if MikageKRKRGetStats(&stats),
-           rendererName(from: &stats) == RendererPreference.metal.displayName {
-            AppDiagnostics.shared.event("session", "screenshot.native.failed")
-            return nil
-        }
         let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
         return renderer.image { _ in
             window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
@@ -526,33 +495,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         if AppDiagnostics.shared.isEnabled {
             var diagnosticStats = MikageKRKRStats()
             if MikageKRKRGetStats(&diagnosticStats) {
-                // Keep this expression out of the large heartbeat dictionary literal.
-                // Swift's type checker can otherwise time out while inferring the whole
-                // [String: String] expression after these interpolated values are added.
-                let layerReadbackBySource: String = [
-                    "lock:\(diagnosticStats.layerReadbackLockBytes)/\(diagnosticStats.layerReadbackLockCount)",
-                    "fallback:\(diagnosticStats.layerReadbackFallbackBytes)/\(diagnosticStats.layerReadbackFallbackCount)",
-                    "persistent:\(diagnosticStats.layerReadbackPersistentBytes)/\(diagnosticStats.layerReadbackPersistentCount)",
-                    "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)"
-                ].joined(separator: ",")
-
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
                     "foreground": String(isForeground), "fps": String(diagnosticStats.framesPerSecond),
                     "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),
                     "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
                     "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds),
-                    "gpuSubmissionTimeMS": String(diagnosticStats.gpuSubmissionTimeMilliseconds),
-                    "presentationWaitTimeMS": String(diagnosticStats.presentationWaitTimeMilliseconds),
-                    "layerComposition": diagnosticStats.gpuLayerComposition != 0 ? "gpu-metal" : "software",
-                    "layerGPUOperations": String(diagnosticStats.gpuLayerOperations),
-                    "layerCPUFallbacks": String(diagnosticStats.layerCPUFallbacks),
-                    "layerUploadedBytes": String(diagnosticStats.layerUploadedBytes),
-                    "layerReadbackBytes": String(diagnosticStats.layerReadbackBytes),
-                    "layerGPUResidentBytes": String(diagnosticStats.layerGPUResidentBytes),
-                    "layerCPUCacheBytes": String(diagnosticStats.layerCPUCacheBytes),
-                    "layerPinnedCPUTextures": String(diagnosticStats.layerPinnedCPUTextures),
-                    "layerReadbackBySource": layerReadbackBySource,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
@@ -583,16 +531,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 frameTimeMilliseconds: raw.frameTimeMilliseconds,
                 cpuFrameTimeMilliseconds: raw.cpuFrameTimeMilliseconds,
                 maxCpuFrameTimeMilliseconds: raw.maxCpuFrameTimeMilliseconds,
-                gpuSubmissionTimeMilliseconds: raw.gpuSubmissionTimeMilliseconds,
-                presentationWaitTimeMilliseconds: raw.presentationWaitTimeMilliseconds,
                 drawableWidth: raw.drawableWidth,
                 drawableHeight: raw.drawableHeight,
                 renderer: rendererName(from: &raw),
-                gpuLayerComposition: raw.gpuLayerComposition != 0,
-                gpuLayerOperations: raw.gpuLayerOperations,
-                layerCPUFallbacks: raw.layerCPUFallbacks,
-                layerUploadedBytes: raw.layerUploadedBytes,
-                layerReadbackBytes: raw.layerReadbackBytes,
                 residentMemoryBytes: residentMemoryBytes(),
                 elapsedSeconds: elapsedSeconds
             )
@@ -612,13 +553,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private func rendererName(from stats: inout MikageKRKRStats) -> String {
         let rawName = runtimeRenderer(from: &stats)
         switch rawName {
-        case RendererPreference.metal.rawValue:
-            return RendererPreference.metal.displayName
+        case RendererPreference.opengl.rawValue:
+            return RendererPreference.opengl.displayName
+        case RendererPreference.software.rawValue:
+            return RendererPreference.software.displayName
         case "software/metal":
-            return RendererPreference.softwareMetal.displayName
-        // Backends the runtime can still select, with no user preference.
-        case "opengl":
-            return "OpenGL ES"
+            return "软件合成 · SDL Metal"
+        // SDL reports its actual presenter after the software backend name.
         case "software/opengles2":
             return "软件合成 · OpenGL ES"
         case "vulkan":

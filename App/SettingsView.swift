@@ -43,7 +43,7 @@ struct SettingsView: View {
                 } header: {
                     Text("图形")
                 } footer: {
-                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal。")
+                    Text("默认使用 OpenGL ES；游戏显示异常时可切换为软件合成。普通 KRKR 图层由 CPU 合成。")
                 }
 
                 Section {

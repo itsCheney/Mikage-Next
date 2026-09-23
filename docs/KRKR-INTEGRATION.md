@@ -4,8 +4,8 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 
 ## 固定版本
 
-- `itsCheney/krkrsdl3_build` fork submodule: `96aa196d40cf30f4e7313882fc4980d2835845ba` (`mikage`)
-- 嵌套的 `itsCheney/krkrsdl3` core fork submodule: `4a8a46b9eb859fe66cc867233384ed9c038c6410` (`mikage`)
+- `itsCheney/krkrsdl3_build` fork submodule: `467a0049e3e9c9a6dc7cabfbb1647224a322d6c4`
+- 嵌套的 `itsCheney/krkrsdl3` core fork submodule: `8aa41e7a8f894cd2f2c9d2a956915a3fafea4f77`
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 - 上游核心：https://github.com/krkrsdl3/krkrsdl3
 - 上游构建：https://github.com/krkrsdl3/krkrsdl3_build
@@ -20,12 +20,12 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 4. SDL window 绑定当前 `UIWindowScene`。游戏启动时自动请求横屏，结束后恢复系统方向策略。
 5. 游戏从 `Documents/krkr/<游戏文件夹>` 扫描，目录保持用户命名；隐藏 UUID 和历史位于 Application Support。目录和启动目标均经过 containment 与符号链接校验，默认存档保存在游戏目录的 `savedata/`。
 6. KRKR `TVPInvokeMenu`、三指手势和原生悬浮球统一回调 Swift 菜单。悬浮球使用 iOS 26 Liquid Glass，并支持安全区域内拖拽。
-7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 透明浮层直接覆盖 SDL window，底层 Metal 游戏画面保持可见。
+7. 菜单显示时游戏 frame loop 继续运行；SwiftUI 透明浮层直接覆盖 SDL window，底层游戏画面保持可见。
 8. 正常退出依次执行 Application.OnExit、插件/脚本 VM/窗口/纹理清理、render backend 销毁、SDL window/context/audio 清理，并重置触摸静态状态。
 9. 工程、scheme、target、IPA 与 artifact 名统一为 Mikage，Bundle Identifier 为 `moe.cheney233.mikage`。
 9. 目录启动目标在 Swift 与 Objective-C++ 边界统一补全结尾 `/`；桥接层捕获 `eTJS`、标准 C++ 和未知异常，将启动错误返回 Swift，避免异常越过 C API 导致 `SIGABRT`。
 9. 启动前由 Swift 等待 `UIWindowScene` 完成横屏 geometry update，再创建 SDL window；iOS 使用 high-pixel-density drawable 和真实像素 viewport。
-9. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，Metal 画面不再通过 `CALayer.render` 伪截图作为背景。
+9. 游戏菜单、性能 HUD 与悬浮按钮直接挂载到 SDL window，游戏画面不通过 `CALayer.render` 伪截图作为背景。
 9. 前后台切换会暂停 frame loop、Wave/Video 音频流、视频时钟和 `AVAudioSession`；回到前台按原播放状态恢复。
 9. TJS global、对象池、扩展类注册和一次性系统状态已改为可重入，CI 使用对象池压力脚本执行 10 次 A/B 交替启停。
 9. 图像缓存读写与 compact 使用同一递归锁，防止异步图片加载破坏缓存哈希链；触摸先映射到 drawable 像素，再由 KRKR 仅执行一次 letterbox 逆变换。
@@ -38,7 +38,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 ## 设计约束
 
 - 自动模式不能假设所有游戏共享一个键位；当前不会向真实游戏伪造“自动”按键。
-- iOS runtime 使用原生 Metal 或 SDL 系统 Metal renderer，不启用 Vulkan。KRKR 自身的 OpenGL ES backend 仍在 framework 内，但不再作为用户可选项；仅在 Metal 不可用时由 SDL 回退路径上报。
+- iOS runtime 当前使用 OpenGL ES 或软件合成，不启用 Vulkan。原生 Metal 实验仅保留在 `metal_dev` 分支。
 - framework 自带 `DroidSansFallback.ttf`，资源读取会在主 bundle 失败后回退到 framework bundle。
 - App 不附带游戏或商业素材。
 - 分发修改后的 KRKRSDL3 runtime 或商业游戏移植版前，必须遵守 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的声明和源码公开条件。

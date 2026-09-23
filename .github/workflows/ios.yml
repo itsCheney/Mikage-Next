@@ -31,24 +31,6 @@ jobs:
           fi
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
-      - name: Build and test native Metal backend
-        run: |
-          cmake -S Tests/MetalRenderBackend -B build/metal-render-tests \
-            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
-          cmake --build build/metal-render-tests --parallel
-          ctest --test-dir build/metal-render-tests --output-on-failure
-      - name: Compare Metal Layer with software RenderManager
-        run: |
-          cmake -S Tests/MetalLayer -B build/metal-layer-tests \
-            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
-          cmake --build build/metal-layer-tests --parallel
-          ctest --test-dir build/metal-layer-tests --output-on-failure --verbose
-      - name: Measure release Layer composition without validation
-        run: |
-          cmake -S Tests/MetalLayer -B build/metal-layer-release \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
-          cmake --build build/metal-layer-release --parallel
-          MTL_DEBUG_LAYER=0 build/metal-layer-release/metal-layer-tests --performance
       - name: Test TJS shutdown and reentrant finalizers
         run: |
           cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests

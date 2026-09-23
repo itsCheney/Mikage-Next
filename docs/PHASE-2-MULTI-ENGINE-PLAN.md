@@ -90,7 +90,7 @@ Ren’Py 官方支持生成 iPhone/iPad Xcode 工程，但官方文档也说明 
 ### 接入步骤
 
 1. 选定一个官方仍支持 iOS 的 Ren’Py 版本，保存完整许可证清单和构建工具链。
-2. 先做“固定版本、自制最小游戏”的独立 iOS 构建；验证 Python runtime、SDL/Metal、字体、音视频和触摸。
+2. 先做“固定版本、自制最小游戏”的独立 iOS 构建；验证 Python runtime、SDL 图形路径、字体、音视频和触摸。
 3. 研究 generated Xcode project 中 runtime 与 game payload 的边界，判断能否合法、稳定地改造成可复用 framework。
 4. 建立版本兼容策略：只启动明确支持的 Ren’Py 范围；版本不匹配时提示，不尝试用最新 runtime 强行加载。
 5. 禁止导入或执行平台原生二进制 Python 扩展，除非经过签名、许可和安全审核；iOS 不允许运行下载的未签名本机代码。

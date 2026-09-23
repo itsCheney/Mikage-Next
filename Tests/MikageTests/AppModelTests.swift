@@ -142,13 +142,13 @@ final class AppModelTests: XCTestCase {
         try addGame(named: "Example")
         let model = makeModel()
         settle { await model.refreshLibrary() }
-        model.settings.renderer = .softwareMetal
+        model.settings.renderer = .software
         let game = try XCTUnwrap(model.games.first)
 
         let configuration = try model.launchConfiguration(for: game)
 
-        XCTAssertEqual(configuration.renderer, .softwareMetal)
-        XCTAssertEqual(configuration.renderer.rawValue, "software-metal")
+        XCTAssertEqual(configuration.renderer, .software)
+        XCTAssertEqual(configuration.renderer.rawValue, "software")
         XCTAssertTrue(configuration.respectSilentMode)
         XCTAssertEqual(configuration.gameTitle, "Example")
     }
@@ -169,7 +169,7 @@ final class AppModelTests: XCTestCase {
 
     func testSettingsPersistRawValuesAndReloadAcrossInstances() throws {
         let model = makeModel()
-        model.settings.renderer = .softwareMetal
+        model.settings.renderer = .software
         model.settings.respectSilentMode = false
         model.settings.sort = .title
 
@@ -177,17 +177,17 @@ final class AppModelTests: XCTestCase {
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
-        XCTAssertEqual(json["renderer"] as? String, "software-metal")
+        XCTAssertEqual(json["renderer"] as? String, "software")
         XCTAssertEqual(json["respectSilentMode"] as? Bool, false)
         XCTAssertEqual(json["sort"] as? String, "title")
 
         let reloaded = makeModel()
-        XCTAssertEqual(reloaded.settings.renderer, .softwareMetal)
+        XCTAssertEqual(reloaded.settings.renderer, .software)
         XCTAssertFalse(reloaded.settings.respectSilentMode)
         XCTAssertEqual(reloaded.settings.sort, .title)
     }
 
-    func testLegacyDisplayTextAndUnknownValuesMigrate() throws {
+    func testLegacyDisplayTextMigrates() throws {
         let legacy: [String: Any] = [
             "renderer": "OpenGL ES", "appearance": "浅色",
             "sort": "名称", "background": "纯黑",
@@ -198,8 +198,7 @@ final class AppModelTests: XCTestCase {
 
         let model = makeModel()
 
-        // The OpenGL option no longer exists, so it falls back to the default.
-        XCTAssertEqual(model.settings.renderer, .metal)
+        XCTAssertEqual(model.settings.renderer, .opengl)
         XCTAssertEqual(model.settings.appearance, .light)
         XCTAssertEqual(model.settings.sort, .title)
         XCTAssertEqual(model.settings.background, .black)
@@ -209,6 +208,22 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.settings.floatingButton)
     }
 
+    func testNativeMetalPreferencesMigrateWithoutLosingOtherSettings() throws {
+        let cases: [(String, RendererPreference)] = [
+            ("metal", .opengl), ("software-metal", .software)
+        ]
+        for (stored, expected) in cases {
+            let legacy: [String: Any] = [
+                "renderer": stored, "skipPatchVideos": true, "respectSilentMode": false
+            ]
+            defaults.set(try JSONSerialization.data(withJSONObject: legacy), forKey: "settings.v1")
+            let model = makeModel()
+            XCTAssertEqual(model.settings.renderer, expected)
+            XCTAssertTrue(model.settings.skipPatchVideos)
+            XCTAssertFalse(model.settings.respectSilentMode)
+        }
+    }
+
     func testPartialSettingsFileKeepsDefaultsForAbsentKeys() throws {
         defaults.set(
             try JSONSerialization.data(withJSONObject: ["performance": true]),
@@ -216,7 +231,7 @@ final class AppModelTests: XCTestCase {
         )
         let model = makeModel()
         XCTAssertTrue(model.settings.performance)
-        XCTAssertEqual(model.settings.renderer, .metal)
+        XCTAssertEqual(model.settings.renderer, .opengl)
         XCTAssertEqual(model.settings.idleOpacity, PlayerSettings().idleOpacity)
         XCTAssertTrue(model.settings.respectSilentMode)
     }

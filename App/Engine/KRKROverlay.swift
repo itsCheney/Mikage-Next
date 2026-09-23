@@ -6,16 +6,9 @@ struct KRKRPerformanceSnapshot {
     var frameTimeMilliseconds = 0.0
     var cpuFrameTimeMilliseconds = 0.0
     var maxCpuFrameTimeMilliseconds = 0.0
-    var gpuSubmissionTimeMilliseconds = -1.0
-    var presentationWaitTimeMilliseconds = -1.0
     var drawableWidth: Int32 = 0
     var drawableHeight: Int32 = 0
     var renderer = RendererPreference.storageDefault.displayName
-    var gpuLayerComposition = false
-    var gpuLayerOperations: UInt64 = 0
-    var layerCPUFallbacks: UInt64 = 0
-    var layerUploadedBytes: UInt64 = 0
-    var layerReadbackBytes: UInt64 = 0
     var residentMemoryBytes: UInt64 = 0
     var elapsedSeconds = 0
 }
@@ -112,18 +105,6 @@ final class KRKROverlayCoordinator: NSObject {
 
     func update(_ performance: KRKRPerformanceSnapshot) {
         model.performance = performance
-    }
-
-    // Render only UIKit overlays over the native Metal screenshot. Drawing the
-    // full SDL hierarchy would cover the captured image with an empty GPU view.
-    func drawScreenshotOverlay(in window: UIWindow) {
-        let views = [hostingController?.view, floatingButton].compactMap { $0 }
-        guard let container = containerView else { return }
-        for view in container.subviews where views.contains(where: { $0 === view }) {
-            guard !view.isHidden, view.alpha > 0 else { continue }
-            let rect = view.convert(view.bounds, to: window)
-            view.drawHierarchy(in: rect, afterScreenUpdates: true)
-        }
     }
 
     func remove() {
@@ -223,18 +204,8 @@ private struct KRKROverlayView: View {
         return VStack(alignment: .leading, spacing: 2) {
             Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · 间隔 \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
             Text("主线程 \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · 峰值 \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
-            if stats.gpuSubmissionTimeMilliseconds >= 0 {
-                Text("GPU 提交 \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
-            }
-            if stats.presentationWaitTimeMilliseconds >= 0 {
-                Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
-            }
             Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
-            Text("图层合成 · \(stats.gpuLayerComposition ? "GPU Metal" : "软件")")
-            if stats.gpuLayerComposition {
-                Text("算子 \(stats.gpuLayerOperations) · CPU 回退 \(stats.layerCPUFallbacks)")
-                Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
-            }
+            Text("图层合成 · 软件")
             Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
             Text("本次游玩 \(duration(stats.elapsedSeconds))")
         }

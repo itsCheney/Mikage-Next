@@ -96,28 +96,29 @@ enum Appearance: String, StoredSetting {
     }
 }
 
-/// The raw value is the `-render=` argument handed to the KRKR runtime. The
-/// runtime still has an OpenGL ES backend and may report it after a fallback,
-/// but it is no longer offered as a preference: a stored `opengl` value is
-/// unrecognized and therefore migrates to the default.
+/// The raw value is the `-render=` argument handed to the KRKR runtime.
+/// Values from earlier native Metal builds migrate without dropping other
+/// persisted preferences.
 enum RendererPreference: String, StoredSetting {
-    case metal = "metal"
-    case softwareMetal = "software-metal"
+    case opengl = "opengl"
+    case software = "software"
 
     static let legacyValues: [String: Self] = [
-        "Metal": .metal,
-        // 0.1 development builds labelled the native backend "Metal 原生".
-        "Metal 原生": .metal,
-        "软件合成 · Metal": .softwareMetal
+        "metal": .opengl,
+        "Metal": .opengl,
+        "Metal 原生": .opengl,
+        "OpenGL ES": .opengl,
+        "software-metal": .software,
+        "软件合成 · Metal": .software
     ]
-    static let storageDefault: Self = .metal
+    static let storageDefault: Self = .opengl
 
     init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
 
     var displayName: String {
         switch self {
-        case .metal: return "Metal"
-        case .softwareMetal: return "软件合成 · Metal"
+        case .opengl: return "OpenGL ES"
+        case .software: return "软件合成"
         }
     }
 }

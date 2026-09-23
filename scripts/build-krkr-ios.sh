@@ -67,7 +67,6 @@ fi
 cmake --preset "iOS Device Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
-    -DUSE_RENDER_METAL=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_DEVICE_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
@@ -75,7 +74,6 @@ cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
 cmake --preset "iOS Simulator Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
-    -DUSE_RENDER_METAL=ON \
     -DVCPKG_INSTALLED_DIR="${VCPKG_SIMULATOR_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
