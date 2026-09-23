@@ -141,8 +141,8 @@ void LayerTests(iTVPRenderBackend& gpu)
     gpu.LayerSetBlend(iTVPRenderBackend::LBM_ALPHA, 1, nullptr);
     cpu.LayerSetBlend(iTVPRenderBackend::LBM_ALPHA, 1, nullptr);
     const auto snapshotBytes = krkrsdl3::g_layerRectSnapshotBytes;
-    gpu.LayerDrawRect(gs, 1, 1, 2, 2);
-    cpu.LayerDrawRect(cs, 1, 1, 2, 2);
+    gpu.LayerDrawRect(gs, 1, 1, 2, 2, 0, 0, 1, 1);
+    cpu.LayerDrawRect(cs, 1, 1, 2, 2, 0, 0, 1, 1);
     Require(krkrsdl3::g_layerRectSnapshotBytes - snapshotBytes <= 2 * 2 * 4,
             "clipped LayerDrawRect copied more than its affected rectangle");
     Compare(Read(gpu, gt), Read(cpu, ct), 1);
