@@ -7,6 +7,8 @@ without the game engine. On macOS it verifies:
 - all 11 Layer methods against the software backend at six opacity values,
   including clipped rectangles and reversed UVs (maximum byte error: 1);
 - mesh blend modes, color modulation and the 127/128 mask threshold;
+- consecutive same-target mesh draws sharing one render encoder;
+- clipped `LayerDrawRect` copying at most its affected pixels when a snapshot is needed;
 - attachment self-copy, on-demand screenshot color order and letterboxing;
 - destruction and recreation of the Metal view on the same SDL window.
 

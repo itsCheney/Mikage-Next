@@ -25,6 +25,11 @@ namespace krkrsdl3 {
 void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
 void TVPRecordEmoteGPUDeform(uint64_t) {}
 void TVPRecordMetalSubmit() {}
+void TVPRecordMetalRenderEncoder() {}
+void TVPRecordMetalComputeEncoder() {}
+void TVPRecordMetalBlitEncoder() {}
+void TVPRecordMetalLayerRectSnapshot(uint64_t) {}
+void TVPRecordMetalSurfaceUpload(uint64_t) {}
 void TVPRecordMetalSyncWait(uint64_t) {}
 void TVPRecordMetalQueueWait(uint64_t) {}
 void TVPRecordMetalRingSuballoc(uint64_t, uint64_t, uint64_t) {}

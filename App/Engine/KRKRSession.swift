@@ -96,6 +96,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var rendererLabel = RendererPreference.storageDefault.displayName
     private var performanceEnabled = false
     private var displayTicks = 0
+    private var previousCommandTicks = 0
+    private var previousCommandCounters: [String: UInt64] = [:]
     private var lastStepResult = "none"
     private var isStepping = false
 
@@ -166,6 +168,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
                                          "respectSilentMode": String(configuration.respectSilentMode)])
         displayTicks = 0
+        previousCommandTicks = 0
+        previousCommandCounters = [:]
         lastStepResult = "none"
         AppDiagnostics.shared.windows("launch.hostWindow")
         state = .preparingOrientation
@@ -633,6 +637,38 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "fallbackBytes:\(diagnosticStats.metalRingFallbackBytes)"
                 ].joined(separator: ",")
 
+                // Interval counts keep command-generation changes visible next
+                // to this heartbeat's frame time. The first sample establishes
+                // a baseline; divide by ticks for a per-step average.
+                let commandCounters: [(String, UInt64)] = [
+                    ("renderEncoders", diagnosticStats.metalRenderEncoders),
+                    ("computeEncoders", diagnosticStats.metalComputeEncoders),
+                    ("blitEncoders", diagnosticStats.metalBlitEncoders),
+                    ("drawCalls", diagnosticStats.meshDrawCalls),
+                    ("deformedDrawCalls", diagnosticStats.emoteGPUDeformDraws),
+                    ("maskClears", diagnosticStats.emoteMaskClears),
+                    ("maskDraws", diagnosticStats.emoteMaskDraws),
+                    ("uniqueMaskGroups", diagnosticStats.emoteUniqueMaskGroups),
+                    ("layerRectSnapshots", diagnosticStats.metalLayerRectSnapshots),
+                    ("layerRectSnapshotBytes", diagnosticStats.metalLayerRectSnapshotBytes),
+                    ("surfaceUploadBytes", diagnosticStats.metalSurfaceUploadBytes),
+                    ("ringBytes", diagnosticStats.metalRingBytes),
+                    ("commandBuffers", diagnosticStats.metalSubmits),
+                    ("emoteLayerGPUCopies", diagnosticStats.emoteLayerGPUCopies),
+                    ("emoteLayerGPUCopyBytes", diagnosticStats.emoteLayerGPUCopyBytes),
+                    ("emoteLayerCPUReadbacks", diagnosticStats.emoteLayerCPUReadbacks),
+                    ("emoteLayerCPUReadbackBytes", diagnosticStats.emoteLayerCPUReadbackBytes),
+                    ("emoteLayerCPUReadbackNS", diagnosticStats.emoteLayerCPUReadbackTimeNS)
+                ]
+                let commandIntervalProfile = (["ticks:\(displayTicks - previousCommandTicks)"] +
+                    commandCounters.map { entry in
+                        let (name, value) = entry
+                        let previous = previousCommandCounters[name] ?? value
+                        return "\(name):\(value >= previous ? value - previous : value)"
+                    }).joined(separator: ",")
+                previousCommandTicks = displayTicks
+                previousCommandCounters = Dictionary(uniqueKeysWithValues: commandCounters)
+
                 let stepProfile: String = [
                     "eventNS:\(diagnosticStats.stepEventTimeNS)",
                     "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
@@ -653,6 +689,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "meshProfile": meshProfile,
                     "metalProfile": metalProfile,
                     "metalRingProfile": metalRingProfile,
+                    "commandIntervalProfile": commandIntervalProfile,
                     "stepProfile": stepProfile,
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "actualRenderer": rendererName(from: &diagnosticStats)

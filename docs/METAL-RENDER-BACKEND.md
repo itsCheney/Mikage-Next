@@ -20,17 +20,21 @@ Objective-C++17. The SDL Metal view, command queue and pipeline objects are
 owned by the backend and released before the SDL window. The implementation
 uses private RGBA8 textures and GPU target aliases, with no permanent CPU
 pixel mirror. Upload staging is retained by submitted command buffers and is
-bounded by a 16 MiB submission budget and two submissions in flight (a single
+bounded by a 16 MiB submission budget and three submissions in flight (a single
 large upload can exceed the budget). CPU target readback is allocated only
 for `LockTarget` and freed at `UnlockTarget`.
 
 Layer methods use GPU compute with software byte formulas, including signed
-shift rounding and alpha preservation. A reusable GPU destination snapshot
-avoids sampling an attachment while writing it. This introduces GPU copy
-bandwidth and one scratch texture; memory/performance gains require measurement.
+shift rounding and alpha preservation. `LayerDrawRect` reads and writes its
+destination pixel in place on Tier-2 read/write texture devices when its source
+is separate. Other devices snapshot only the affected rectangle; source/target
+aliases retain a full source snapshot to preserve sampling semantics.
+Consecutive Emote mesh draws to the same target share a render encoder until a
+clear, target change, blit, compute operation or submission requires a boundary.
 Mesh blending follows the existing OpenGL Emote GPU path, which has its own
-blend conventions. Ordinary `tjsNativeLayer`/RenderManager processing remains
-on the CPU in this first version. Image and video decoding are unchanged.
+blend conventions. Ordinary Emote-to-Layer full overwrites use a GPU copy when
+the Layer renderer exposes an unpinned GPU target; incompatible or CPU-backed
+Layers retain the readback path. Image and video decoding are unchanged.
 
 The optional `CaptureFrame` backend method and C frame capture/free functions
 provide top-down straight-alpha RGBA8 screenshots. Metal replays the current
@@ -70,6 +74,14 @@ Low Power Mode. Startup/shader compilation and background time are excluded
 from gameplay cadence windows. The FPS metric counts runtime frame submissions,
 not script-level content changes. The optional timing methods return -1 on
 backends which cannot report the requested GPU/wait measurements.
+
+`heartbeat.profile.commandIntervalProfile` reports counts since the previous
+heartbeat, with `ticks` as its denominator for per-step averages. It includes
+render/compute/blit encoder counts, mesh and GPU-deformation draws, Emote mask
+clears/draws/unique source groups, `LayerDrawRect` snapshot bytes, transient
+uploads, command buffers, and ordinary Emote Layer GPU copies versus timed CPU
+readbacks. The first heartbeat establishes the counter baseline. A mask group
+identity counts source nodes, not unchanged pixels, and is not a cache key.
 
 TJS cleanup also drains inactive register references while globals are live,
 and keeps pooling disabled for shutdown-time finalizers. Per-VM GC now actually

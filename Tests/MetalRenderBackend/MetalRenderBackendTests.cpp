@@ -22,7 +22,14 @@ void TVPRecordEmoteGPUDeform(uint64_t) {}
 // Observable so tests can assert submission cadence: GPU-only work must not
 // force command-buffer submits (see SubmissionCadenceTests).
 int g_metalSubmits = 0;
+int g_renderEncoders = 0;
+uint64_t g_layerRectSnapshotBytes = 0;
 void TVPRecordMetalSubmit() { ++g_metalSubmits; }
+void TVPRecordMetalRenderEncoder() { ++g_renderEncoders; }
+void TVPRecordMetalComputeEncoder() {}
+void TVPRecordMetalBlitEncoder() {}
+void TVPRecordMetalLayerRectSnapshot(uint64_t bytes) { g_layerRectSnapshotBytes += bytes; }
+void TVPRecordMetalSurfaceUpload(uint64_t) {}
 void TVPRecordMetalSyncWait(uint64_t) {}
 void TVPRecordMetalQueueWait(uint64_t) {}
 void TVPRecordMetalRingSuballoc(uint64_t, uint64_t, uint64_t) {}
@@ -127,6 +134,18 @@ void LayerTests(iTVPRenderBackend& gpu)
             }
         }
     }
+    // A small non-aliased rectangle must never copy the full attachment on
+    // devices without Tier-2 read/write support (Tier-2 needs no snapshot).
+    gpu.UpdateTargetTexture(gt, dst.data(), 7, 5, 32);
+    cpu.UpdateTargetTexture(ct, dst.data(), 7, 5, 32);
+    gpu.LayerSetBlend(iTVPRenderBackend::LBM_ALPHA, 1, nullptr);
+    cpu.LayerSetBlend(iTVPRenderBackend::LBM_ALPHA, 1, nullptr);
+    const auto snapshotBytes = krkrsdl3::g_layerRectSnapshotBytes;
+    gpu.LayerDrawRect(gs, 1, 1, 2, 2);
+    cpu.LayerDrawRect(cs, 1, 1, 2, 2);
+    Require(krkrsdl3::g_layerRectSnapshotBytes - snapshotBytes <= 2 * 2 * 4,
+            "clipped LayerDrawRect copied more than its affected rectangle");
+    Compare(Read(gpu, gt), Read(cpu, ct), 1);
     // A copy of the same attachment must sample a snapshot, never a read/write hazard.
     gpu.UpdateTargetTexture(gt, dst.data(), 7, 5, 32);
     auto before = Read(gpu, gt);
@@ -182,6 +201,29 @@ void MeshTests(iTVPRenderBackend& gpu)
     }
     gpu.SetMask(nullptr);
     gpu.DestroyTexture(src); gpu.DestroyTarget(mask); gpu.DestroyTarget(target);
+}
+void MeshBatchTests(iTVPRenderBackend& gpu)
+{
+    void* target = gpu.CreateTarget(7, 5);
+    void* source = gpu.CreateTexture(1, 1);
+    Require(target && source, "mesh batch resources");
+    const uint8_t pixel[] = {255, 90, 30, 128};
+    const float vertices[] = {-1,-1,0,0, 1,-1,1,0, 1,1,1,1, -1,1,0,1};
+    const uint16_t indices[] = {0,1,2, 2,3,0};
+    gpu.UpdateTexture(source, pixel, 1, 1, 4);
+    gpu.SetTarget(target);
+    gpu.SetMask(nullptr);
+    gpu.SetBlendMode(0, nullptr);
+    gpu.ClearTarget(true);
+    const int before = krkrsdl3::g_renderEncoders;
+    for (int i = 0; i < 12; ++i)
+        gpu.DrawMesh(vertices, 4, indices, 6, source, 1.0f);
+    const auto pixels = Read(gpu, target); // Ends the active encoder before GPU readback.
+    Require(krkrsdl3::g_renderEncoders - before == 1,
+            "consecutive same-target Emote draws should share one render encoder");
+    Require(pixels[0] != 0 || pixels[1] != 0, "batched mesh draws produced no pixels");
+    gpu.DestroyTexture(source);
+    gpu.DestroyTarget(target);
 }
 void DirectLayerCopyTests(iTVPRenderBackend& gpu)
 {
@@ -287,6 +329,7 @@ int main()
             if (session == 0) {
                 LayerTests(*gpu);
                 MeshTests(*gpu);
+                MeshBatchTests(*gpu);
                 DirectLayerCopyTests(*gpu);
                 SubmissionCadenceTests(*gpu);
             }
