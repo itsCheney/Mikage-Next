@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, beta]
+    branches: [main, master, beta, codex/remove-native-metal]
   pull_request:
 permissions:
   contents: read
