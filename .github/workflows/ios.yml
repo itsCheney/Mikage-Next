@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, beta, readback_fix_experimental]
+    branches: [main, master, beta, metal_dev]
   pull_request:
 permissions:
   contents: read
