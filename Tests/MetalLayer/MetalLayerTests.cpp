@@ -309,6 +309,114 @@ static void Synchronization() {
 // A pinned texture used to re-read and re-upload its whole surface on every
 // GPU use, so a persistent raw pointer cost a full round trip per frame even
 // when nothing changed. Uploads must now be driven by actual damage.
+static void ExactHitTestCache() {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    auto image=Image(16,12,4,3), sourceImage=Image(16,12,4,5), coverage=Image(16,12,1,7);
+    auto count=[] { return TVPGetMetalLayerRenderStats().readbackCountBySource[
+        static_cast<int>(TVPLayerReadbackSource::Point)]; };
+    const tTVPRect full(0,0,16,12), corner(0,0,2,2);
+
+    // Unrelated damage must not flush stationary pixel/alpha queries. Include
+    // both GPU operators and CPU uploads, with half-open edge coordinates.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        const auto outside=t->GetPoint(2,2), inside=t->GetPoint(1,1);
+        auto before=count();
+        auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x41203040);
+        Operation(gpu,fill,t.get(),corner,nullptr,tTVPRect());
+        Require(t->GetPoint(2,2)==outside && t->GetPointAlpha(2,2)==(outside>>24),
+                "unrelated GPU damage changed cached pixel");
+        Require(count()==before,"unrelated GPU damage triggered point readback");
+        Require(t->GetPointAlpha(1,1)==0x41 && count()==before+1,
+                "intersecting GPU damage did not refresh alpha");
+        const uint32_t changed=inside^0xff000000u;
+        t->Update(&changed,TVPTextureFormat::RGBA,4,tTVPRect(1,1,2,2));
+        Require(t->GetPoint(2,2)==outside && count()==before+1,
+                "unrelated CPU upload triggered point readback");
+        Require(t->GetPointAlpha(1,1)==(changed>>24) && count()==before+2,
+                "CPU upload left stale alpha");
+        t->CommitGPUOverwrite();
+        Require(t->GetPointAlpha(2,2)==(outside>>24) && count()==before+3,
+                "full GPU overwrite must invalidate every alpha sample");
+    }
+
+    // Compare every preserved-alpha formula against production software, then
+    // read RGB too: an alpha cache hit must never return stale color bytes.
+    const char* preserving[]={"CopyColor","FillColor","AlphaBlend","AlphaBlend_HDA",
+        "ConstAlphaBlend_HDA","ApplyColorMap","ConstColorAlphaBlend"};
+    for(auto* name:preserving) for(int opacity:{0,127,255}) {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        auto expected=Create(sw,16,12,TVPTextureFormat::RGBA,image);
+        auto source=Create(gpu,16,12,TVPTextureFormat::RGBA,sourceImage);
+        auto sourceSW=Create(sw,16,12,TVPTextureFormat::RGBA,sourceImage);
+        auto mask=Create(gpu,16,12,TVPTextureFormat::Gray,coverage);
+        auto maskSW=Create(sw,16,12,TVPTextureFormat::Gray,coverage);
+        auto* method=gpu->GetRenderMethod(name);
+        method->SetParameterOpa(method->EnumParameterID("opacity"),opacity);
+        method->SetParameterColor4B(method->EnumParameterID("color"),0x239e5721);
+        TVPLayerOperation op; Require(method->DescribeGpuOperation(op),"missing test operation metadata");
+        bool fill=op.kind==TVPLayerOperationKind::FillColor || op.kind==TVPLayerOperationKind::FillBlend;
+        bool gray=op.kind==TVPLayerOperationKind::ColorMap;
+        auto alpha=t->GetPointAlpha(3,4); auto before=count();
+        // Simulate repeated recoloring/blending between pointer hit tests.
+        for(int i=0;i<20;++i) {
+            Operation(gpu,method,t.get(),full,fill?nullptr:gray?mask.get():source.get(),full);
+            Operation(sw,method,expected.get(),full,fill?nullptr:gray?maskSW.get():sourceSW.get(),full);
+            Require(t->GetPointAlpha(3,4)==alpha && alpha==expected->GetPointAlpha(3,4),
+                    "RGB-only operation changed hit-test alpha");
+        }
+        Require(count()==before,"RGB-only animation repeatedly read back hit-test alpha");
+        const auto actual=t->GetPoint(3,4), wanted=expected->GetPoint(3,4);
+        for(int c=0;c<4;++c)
+            Require(std::abs(int((actual>>(c*8))&255)-int((wanted>>(c*8))&255))<=1,
+                    "alpha cache leaked stale RGB");
+        Require(count()==before+1,"RGB query did not refresh after RGB-only animation");
+        auto* fillAlpha=gpu->GetRenderMethod("FillMask"); fillAlpha->SetParameterOpa(0,alpha^255);
+        Operation(gpu,fillAlpha,t.get(),full,nullptr,tTVPRect());
+        Require(t->GetPointAlpha(3,4)==(alpha^255) && count()==before+2,
+                "alpha-changing write reused an old alpha-only cache entry");
+    }
+
+    // Alpha-writing blend variants, copies and transitions must still query
+    // current pixels. The cache must not infer HDA from a method name alone.
+    for(auto* name:{"Copy","CopyMask","CopyOpaqueImage","AlphaBlend_d","AlphaBlend_a",
+                    "ConstAlphaBlend","ConstAlphaBlend_d","ConstAlphaBlend_a"}) {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        auto expected=Create(sw,16,12,TVPTextureFormat::RGBA,image);
+        auto source=Create(gpu,16,12,TVPTextureFormat::RGBA,sourceImage);
+        auto sourceSW=Create(sw,16,12,TVPTextureFormat::RGBA,sourceImage);
+        t->GetPointAlpha(3,4); auto before=count();
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,127);
+        Operation(gpu,method,t.get(),full,source.get(),full);
+        Operation(sw,method,expected.get(),full,sourceSW.get(),full);
+        Require(t->GetPointAlpha(3,4)==expected->GetPointAlpha(3,4) && count()==before+1,
+                "alpha-writing operation retained stale alpha");
+    }
+
+    // An existing CPU mirror can seed the sparse cache before GPU ownership;
+    // raw CPU writes must remain visible through the alpha accessor.
+    {
+        auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+        t->GetScanLineForRead(0);
+        const auto alpha=t->GetPointAlpha(3,4); auto before=count();
+        auto* fill=gpu->GetRenderMethod("FillColor"); fill->SetParameterColor4B(0,0x00ffffff);
+        Operation(gpu,fill,t.get(),full,nullptr,tTVPRect());
+        Require(t->GetPointAlpha(3,4)==alpha && count()==before,"CPU alpha cache was discarded by RGB write");
+        auto* row=static_cast<uint32_t*>(t->GetScanLineForWrite(4));
+        Require(t->GetPointAlpha(3,4)==alpha,"CPU write lease changed pixels before a write");
+        row[3]=0x29553311;
+        Operation(gpu,fill,t.get(),full,nullptr,tTVPRect());
+        Require(t->GetPointAlpha(3,4)==0x29,
+                "query before CPU pointer write survived upload with stale alpha");
+        auto* raw=static_cast<uint32_t*>(t->GetPersistentCPUData(true));
+        raw[4*16+3]=0x17553311;
+        Require(t->GetPointAlpha(3,4)==0x17,"raw CPU alpha write was hidden by cache");
+        raw[4*16+3]=0xe6553311;
+        Require(t->GetPointAlpha(3,4)==0xe6,"subsequent raw CPU write reused stale alpha");
+        Require(t->GetPointAlpha(-1,0)==0 && t->GetPointAlpha(16,0)==0,"alpha query bounds changed");
+    }
+    ++comparisons;
+}
 static void DirtyRegionUploads() {
     auto* gpu=TVPGetRenderManager(); auto image=Image(64,48,4,7);
     auto t=Create(gpu,64,48,TVPTextureFormat::RGBA,image);
@@ -674,7 +782,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
