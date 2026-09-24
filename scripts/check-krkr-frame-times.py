@@ -32,7 +32,9 @@ def main():
     globals_ = host[host.index("Uint64 statsWindowStarted ="):host.index("void resetStats()")]
     production = globals_ + function(host, "void resetStats()") + "\n" + function(host, "void recordFrame(")
     emote = (ROOT / "Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteplayerclass.cpp").read_text(encoding="utf-8")
-    production += "\n" + function(emote, "static void recordSlowEmoteOperation(")
+    emote_header = (ROOT / "Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteplayerclass.h").read_text(encoding="utf-8")
+    production += "\n" + function(emote_header, "struct EmoteResourceDiagnostics") + ";\n"
+    production += function(emote, "static void recordSlowEmoteOperation(")
     tests = r'''
 int main() {
     resetStats();
@@ -98,6 +100,13 @@ int main() {
     fakeNow += 1000000000;
     recordSlowEmoteOperation(true, fakeNow - 50000000);
     assert(logs.back().find("suppressed=0 suppressedPeakWallMS=0.000") != std::string::npos);
+    fakeNow += 1000000000;
+    EmoteResourceDiagnostics diagnostic{7, 5, 2, 3, 0, 1, 0, 0};
+    recordSlowEmoteOperation(true, fakeNow - 70000000, 60000000, 0, false,
+                             &diagnostic, 0x1234ULL, 2, false);
+    assert(logs.back().find("rootMS=0.000 cacheHit=0") != std::string::npos);
+    assert(logs.back().find("rootRequested=0 managerId=7 resourceId=0000000000001234 entries=2") != std::string::npos);
+    assert(logs.back().find("loads=5 cacheHits=2 cacheMisses=3 failures=0 unloads=1") != std::string::npos);
     std::cout << "PASS: cadence/work separation, peak-stage correlation, reset and bounded Emote stall logs\n";
 }
 '''
@@ -116,7 +125,7 @@ Uint64 SDL_GetTicksNS() { return fakeNow; }
 std::vector<std::string> logs;
 void MikageKRKRLogMessage(const char *, int, const char *message) { logs.emplace_back(message); }
 void TVPConsoleLog(const char *format, ...) {
-    char message[512];
+    char message[1024];
     va_list args;
     va_start(args, format);
     std::vsnprintf(message, sizeof(message), format, args);

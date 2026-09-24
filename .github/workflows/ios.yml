@@ -55,7 +55,13 @@ jobs:
           cmake --build build/tjs-shutdown-tests --parallel
           ctest --test-dir build/tjs-shutdown-tests --output-on-failure
           python3 scripts/check-krkr-frame-times.py
+          python3 scripts/check-krkr-emote-resource-cache.py
           python3 scripts/check-krkr-session-exit.py
+      - name: Test Emote metadata queries and script object decoding
+        run: |
+          cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-metadata-tests --parallel
+          ctest --test-dir build/emote-metadata-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
       # `build-krkr-ios.sh` falls back to this checkout only when the runner
