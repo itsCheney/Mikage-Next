@@ -51,6 +51,8 @@ def main():
         "void ResourceManager::unloadAllInternal(",
         "void ResourceManager::clearCache(",
         "emotefile* ResourceManager::GetPlayerByName(",
+        "void ResourceManager::setEmotePSBDecryptSeed(",
+        "void ResourceManager::setEmotePSBDecryptFunc(",
     ])
     prefix = r'''
 #include <algorithm>
@@ -67,10 +69,15 @@ def main():
 #include <string>
 #include <vector>
 #include "md5.h"
+#include "emoteresourcecache.h"
+using emoteplayer::EmoteSharedResourceCacheStats;
 using Uint64 = std::uint64_t;
 using tjs_int = int;
 using tjs_char = wchar_t;
-using tTJSVariantClosure = std::nullptr_t;
+struct tTJSVariantClosure {
+    void* Object = nullptr;
+    tTJSVariantClosure(std::nullptr_t = nullptr) {}
+};
 class iTJSDispatch2 {};
 #define TJS_N(value) L##value
 class ttstr : public std::wstring {
@@ -83,16 +90,27 @@ public:
 using tTJSString = ttstr;
 struct tTJSVariant {
     std::shared_ptr<int> object;
+    tTJSVariantClosure closure;
+    tTJSVariantClosure AsObjectClosure() const { return closure; }
 };
 Uint64 fakeNow = 1000000000ULL;
 Uint64 SDL_GetTicksNS() { return fakeNow; }
 std::vector<std::string> logs;
+EmoteSharedResourceCacheStats sharedStats;
+int sharedClears = 0;
+EmoteSharedResourceCacheStats GetSharedEmoteResourceCacheStats() { return sharedStats; }
+void ClearSharedEmoteResourceCache() {
+    ++sharedClears;
+    sharedStats.retainedBytes = sharedStats.entries = 0;
+    ++sharedStats.generation;
+}
 void TVPConsoleLog(const char *format, ...) {
     char message[1024];
     va_list args;
     va_start(args, format);
-    std::vsnprintf(message, sizeof(message), format, args);
+    const int written = std::vsnprintf(message, sizeof(message), format, args);
     va_end(args);
+    assert(written >= 0 && static_cast<std::size_t>(written) < sizeof(message));
     logs.emplace_back(message);
 }
 void TVPGetRandomBits128(void* output) {
@@ -106,7 +124,9 @@ ttstr TVPGetPlacedPath(const ttstr& input) {
     return input.StartsWith(L"./") ? input.SubString(2, input.size() - 2) : input;
 }
 int liveFiles = 0, fileLoads = 0, rootReads = 0, loadMode = 0;
+bool nextSharedHit = false;
 class emotefile {
+    bool sharedHit = false;
 public:
     emotefile() { ++liveFiles; }
     ~emotefile() { --liveFiles; }
@@ -117,12 +137,17 @@ public:
         fakeNow += 60000000;
         if (loadMode == 1) return false;
         if (loadMode == 2) throw std::runtime_error("decode failed");
+        sharedHit = nextSharedHit;
+        if (sharedHit) ++sharedStats.hits;
+        else ++sharedStats.misses;
         return true;
     }
+    bool WasSharedCacheHit() const { return sharedHit; }
+    bool BypassedSharedCacheForArchiveFilter() const { return false; }
     tTJSVariant root() {
         ++rootReads;
         fakeNow += 80000000;
-        return {std::make_shared<int>(rootReads)};
+        return {std::make_shared<int>(rootReads), {}};
     }
 };
 '''
@@ -152,6 +177,7 @@ int main() {
         assert(manager.GetPlayerByName(L"private/assets/hero.psb") != nullptr);
         manager.clearCache();
         assert(liveFiles == 1); // Existing live-resource contract remains intact.
+        assert(sharedClears == 1);
         fakeNow += 1000000000;
         manager.unload(L"lzfs://./private/assets/hero.psb");
         assert(liveFiles == 0 && resolutions == 5);
@@ -186,6 +212,38 @@ int main() {
         assert(liveFiles == 0);
     }
     assert(liveFiles == 0);
+    {
+        ResourceManager manager(nullptr, 0);
+        nextSharedHit = true;
+        fakeNow += 1000000000;
+        manager.ensureLoaded(L"shared.psb");
+        assert(logs.back().find("cacheHit=0") != std::string::npos);
+        assert(logs.back().find("sharedCacheHit=1") != std::string::npos);
+        const auto sharedHits = sharedStats.hits;
+        fakeNow += 1000000000;
+        manager.load(L"shared.psb"); // file remembers its prior hit, this call did not use shared cache
+        assert(logs.back().find("cacheHit=1") != std::string::npos);
+        assert(logs.back().find("sharedCacheHit=0") != std::string::npos);
+        assert(sharedStats.hits == sharedHits);
+        nextSharedHit = false;
+        const int clearsBefore = sharedClears;
+        ResourceManager::setEmotePSBDecryptSeed(123);
+        assert(sharedClears == clearsBefore + 1 && liveFiles == 1);
+        ResourceManager::setEmotePSBDecryptSeed(123);
+        assert(sharedClears == clearsBefore + 1);
+        tTJSVariant decrypt;
+        decrypt.closure.Object = &manager;
+        ResourceManager::setEmotePSBDecryptFunc(decrypt);
+        assert(sharedClears == clearsBefore + 2 && liveFiles == 1);
+        ResourceManager::setEmotePSBDecryptFunc(decrypt);
+        assert(sharedClears == clearsBefore + 3); // reinstall may change script state
+        fakeNow += 1000000000;
+        manager.ensureLoaded(L"custom.psb");
+        assert(logs.back().find("sharedCacheHit=0 customDecrypt=1") != std::string::npos);
+        ResourceManager::setEmotePSBDecryptFunc({});
+        ResourceManager::setEmotePSBDecryptSeed(0);
+    }
+    assert(liveFiles == 0);
     for (const auto& log : logs) {
         assert(log.find("private") == std::string::npos);
         assert(log.find("hero.psb") == std::string::npos);
@@ -212,6 +270,7 @@ int main() {
         unit.write_text(prefix + declarations + production + tests, encoding="utf-8")
         math = base / "core/utils/math"
         subprocess.run([cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(math),
+                        "-I", str(base / "plugins/emoteplayer"),
                         str(unit), "-x", "c++", str(math / "md5.c"), "-o", str(exe)], check=True)
         subprocess.run([str(exe)], check=True)
     return 0

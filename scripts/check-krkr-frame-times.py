@@ -33,7 +33,11 @@ def main():
     production = globals_ + function(host, "void resetStats()") + "\n" + function(host, "void recordFrame(")
     emote = (ROOT / "Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteplayerclass.cpp").read_text(encoding="utf-8")
     emote_header = (ROOT / "Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteplayerclass.h").read_text(encoding="utf-8")
+    shared_header = (ROOT / "Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteresourcecache.h").read_text(encoding="utf-8")
     production += "\n" + function(emote_header, "struct EmoteResourceDiagnostics") + ";\n"
+    production += function(shared_header, "struct EmoteSharedResourceCacheStats") + ";\n"
+    production += "EmoteSharedResourceCacheStats sharedStats;\n"
+    production += "EmoteSharedResourceCacheStats GetSharedEmoteResourceCacheStats() { return sharedStats; }\n"
     production += function(emote, "static void recordSlowEmoteOperation(")
     tests = r'''
 int main() {
@@ -107,6 +111,29 @@ int main() {
     assert(logs.back().find("rootMS=0.000 cacheHit=0") != std::string::npos);
     assert(logs.back().find("rootRequested=0 managerId=7 resourceId=0000000000001234 entries=2") != std::string::npos);
     assert(logs.back().find("loads=5 cacheHits=2 cacheMisses=3 failures=0 unloads=1") != std::string::npos);
+    sharedStats = {11, 13, 17, 4096, 2, 0};
+    fakeNow += 1000000000;
+    recordSlowEmoteOperation(true, fakeNow - 70000000, 60000000, 0, false,
+                             &diagnostic, 0x1234ULL, 2, false, true);
+    assert(logs.back().find("sharedCacheHit=1 customDecrypt=0 archiveFilter=0 sharedHits=11 sharedMisses=13") != std::string::npos);
+    assert(logs.back().find("sharedBytes=4096 sharedEntries=2 sharedEvictions=17") != std::string::npos);
+    fakeNow += 1000000000;
+    recordSlowEmoteOperation(true, fakeNow - 70000000, 0, 60000000, true,
+                             &diagnostic, 0x1234ULL, 2, true, true, true);
+    assert(logs.back().find("sharedCacheHit=0 customDecrypt=0") != std::string::npos);
+    fakeNow += 1000000000;
+    recordSlowEmoteOperation(true, fakeNow - 70000000, 60000000, 0, false,
+                             &diagnostic, 0x1234ULL, 2, false, false, false, true);
+    assert(logs.back().find("archiveFilter=1") != std::string::npos);
+    // Even maximum-width counters must fit the runtime's conservative 1 KiB
+    // test log buffer. TVPConsoleLog below asserts rather than truncates.
+    const auto maximum = std::numeric_limits<std::uint64_t>::max();
+    diagnostic = {maximum, maximum, maximum, maximum, maximum, maximum, maximum, maximum};
+    sharedStats = {maximum, maximum, maximum, static_cast<std::size_t>(maximum),
+                   static_cast<std::size_t>(maximum), maximum};
+    fakeNow += 1000000000;
+    recordSlowEmoteOperation(true, fakeNow - 70000000, 60000000, 0, false,
+                             &diagnostic, maximum, static_cast<std::size_t>(maximum), false, true);
     std::cout << "PASS: cadence/work separation, peak-stage correlation, reset and bounded Emote stall logs\n";
 }
 '''
@@ -114,6 +141,7 @@ int main() {
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -128,8 +156,9 @@ void TVPConsoleLog(const char *format, ...) {
     char message[1024];
     va_list args;
     va_start(args, format);
-    std::vsnprintf(message, sizeof(message), format, args);
+    const int written = std::vsnprintf(message, sizeof(message), format, args);
     va_end(args);
+    assert(written >= 0 && static_cast<std::size_t>(written) < sizeof(message));
     logs.emplace_back(message);
 }
 """
