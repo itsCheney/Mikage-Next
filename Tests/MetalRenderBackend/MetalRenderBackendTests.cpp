@@ -1,6 +1,6 @@
 #include "backend/SWRenderBackend.h"
-#ifdef TEST_NATIVE_METAL
 #include "backend/MetalRenderBackend.h"
+#ifdef TEST_NATIVE_METAL
 #include <SDL3/SDL.h>
 #endif
 
@@ -23,6 +23,7 @@ void TVPRecordEmoteGPUDeform(uint64_t) {}
 // force command-buffer submits (see SubmissionCadenceTests).
 int g_metalSubmits = 0;
 int g_renderEncoders = 0;
+int g_syncWaits = 0;
 uint64_t g_layerRectSnapshotBytes = 0;
 void TVPRecordMetalSubmit() { ++g_metalSubmits; }
 void TVPRecordMetalRenderEncoder() { ++g_renderEncoders; }
@@ -30,7 +31,7 @@ void TVPRecordMetalComputeEncoder() {}
 void TVPRecordMetalBlitEncoder() {}
 void TVPRecordMetalLayerRectSnapshot(uint64_t bytes) { g_layerRectSnapshotBytes += bytes; }
 void TVPRecordMetalSurfaceUpload(uint64_t) {}
-void TVPRecordMetalSyncWait(uint64_t) {}
+void TVPRecordMetalSyncWait(uint64_t) { ++g_syncWaits; }
 void TVPRecordMetalQueueWait(uint64_t) {}
 void TVPRecordMetalRingSuballoc(uint64_t, uint64_t, uint64_t) {}
 void TVPRecordMetalRingWrap() {}
@@ -50,6 +51,37 @@ namespace
 void Require(bool ok, const char* message)
 {
     if (!ok) throw std::runtime_error(message);
+}
+void DiagnosticAttributionTests()
+{
+    using krkrsdl3::metal_diagnostics::Workload;
+    Workload workload;
+    Require(std::strcmp(workload.Bucket(), "empty") == 0, "empty GPU workload attribution");
+    const uint32_t stages[] = {Workload::Mesh, Workload::Layer, Workload::Blit,
+                               Workload::Window, Workload::OtherRender};
+    const char* buckets[] = {"mesh_or_clear", "layer_compute", "blit", "window_render", "other_render"};
+    for (size_t i = 0; i < 5; ++i) {
+        workload.stages = stages[i];
+        Require(std::strcmp(workload.Bucket(), buckets[i]) == 0, "single-stage GPU attribution");
+        for (size_t j = i + 1; j < 5; ++j) {
+            workload.stages = stages[i] | stages[j];
+            Require(std::strcmp(workload.Bucket(), "mixed") == 0,
+                    "mixed GPU command buffers must not be attributed to one stage");
+        }
+    }
+    // Draw counts are workload context, never weights for dividing GPU time.
+    workload.stages = Workload::Mesh | Workload::Blit | Workload::Layer;
+    workload.deformDraws = 100000;
+    workload.blitEncoders = 1;
+    Require(std::strcmp(workload.Bucket(), "mixed") == 0, "unequal work still needs mixed attribution");
+    krkrsdl3::metal_diagnostics::Sampler sampler;
+    Require(!sampler.ShouldSample(false, 1), "disabled diagnostics must not sample");
+    Require(sampler.ShouldSample(true, 1), "first enabled command buffer is sampled");
+    Require(!sampler.ShouldSample(true, 1000000000ULL), "sample rate is bounded below one second");
+    Require(sampler.ShouldSample(true, 1000000001ULL), "sample becomes eligible at one second");
+    Require(!sampler.ShouldSample(false, 2000000001ULL), "disabled diagnostics stay silent");
+    Require(sampler.ShouldSample(true, 2000000001ULL), "re-enabled diagnostics can resume sampling");
+    Require(!sampler.ShouldSample(true, 2000000001ULL), "same timestamp cannot sample twice");
 }
 std::vector<uint8_t> Read(iTVPRenderBackend& backend, void* target)
 {
@@ -355,6 +387,7 @@ void CaptureTests(iTVPRenderBackend& gpu)
 // other capture and serialized the CPU against the inFlight semaphore.
 void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 {
+    const int waitsBefore = krkrsdl3::g_syncWaits;
     const int width = 512, height = 512; // 1 MiB per surface
     void* source = gpu.CreateTarget(width, height);
     void* destination = gpu.CreateLayerTexture(width, height, TVPLayerTextureFormat::RGBA8);
@@ -384,6 +417,8 @@ void SubmissionCadenceTests(iTVPRenderBackend& gpu)
         gpu.UpdateTargetTexture(source, seed.data(), width, height, width * 4);
     Require(krkrsdl3::g_metalSubmits > beforeUploads,
             "host-visible uploads must still trigger the staging budget");
+    Require(krkrsdl3::g_syncWaits == waitsBefore,
+            "GPU timing diagnostics must not add synchronous waits");
 
     gpu.DestroyLayerTexture(destination);
     gpu.DestroyTarget(source);
@@ -394,6 +429,7 @@ void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 int main()
 {
     try {
+        DiagnosticAttributionTests();
         krkrsdl3::SWRenderBackend software;
         TransferTests(software);
 #ifdef TEST_NATIVE_METAL
@@ -411,10 +447,12 @@ int main()
             if (session == 0) {
                 LayerTests(*gpu);
                 MeshTests(*gpu);
+                SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "1");
                 MeshBatchTests(*gpu);
                 ClearMeshOrderingTests(*gpu);
                 DirectLayerCopyTests(*gpu);
                 SubmissionCadenceTests(*gpu);
+                SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "0");
             }
             CaptureTests(*gpu);
         }
@@ -422,7 +460,7 @@ int main()
         SDL_Quit();
         std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask, capture and submission cadence tests\n";
 #else
-        std::cout << "PASS: software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
+        std::cout << "PASS: diagnostic attribution/sampling and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
 #endif
         return 0;
     } catch (const std::exception& error) {

@@ -30,6 +30,8 @@ The metadata-only synthetic PSB byte fixtures cover:
   matching the production Dictionary `PropGet(0, ...)` behavior.
 - New arrays and nested objects on each call, with mutation isolation between
   callers and subsequent queries.
+- Factory constructor overrides that prefill or invalidate arrays: the fast
+  append path must preserve the original indexed-write behavior in these cases.
 - All integer widths, zero/float/double, strings, booleans, void/null,
   resource placeholders, packed arrays, and trailing void array elements.
   A separate array assembled through the old `Array.add` API is the reference

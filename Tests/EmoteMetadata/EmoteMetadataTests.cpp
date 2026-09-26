@@ -220,6 +220,67 @@ void frameValueParity()
     }
 }
 
+class ArrayConstructorProbe : public tTJSDispatch {
+    tTJSVariant original;
+    bool invalidate;
+public:
+    ArrayConstructorProbe(tTJSVariant constructor, bool invalid)
+        : original(std::move(constructor)), invalidate(invalid) {}
+    tjs_error FuncCall(tjs_uint32 flags, const tjs_char* member, tjs_uint32* hint,
+                      tTJSVariant* result, tjs_int count, tTJSVariant** args,
+                      iTJSDispatch2* objthis) override {
+        const auto code = original.AsObjectClosureNoAddRef().FuncCall(
+            flags, member, hint, result, count, args, objthis);
+        if (TJS_FAILED(code)) return code;
+        if (invalidate) objthis->Invalidate(0, nullptr, nullptr, objthis);
+        else for (tjs_int i = 0; i < 4; ++i) {
+            tTJSVariant value(90 + i);
+            objthis->PropSetByNum(TJS_MEMBERENSURE | TJS_IGNOREPROP, i, &value, objthis);
+        }
+        return code;
+    }
+};
+void customizedArrayConstruction()
+{
+    iTJSDispatch2* type = nullptr;
+    auto* initial = TJSCreateArrayObject(&type);
+    initial->Release();
+    struct Restore {
+        iTJSDispatch2* type;
+        tTJSVariant constructor;
+        ~Restore() {
+            type->PropSet(TJS_MEMBERENSURE | TJS_IGNOREPROP, TJS_N("Array"), nullptr, &constructor, type);
+            type->Release();
+        }
+    } restore{type, {}};
+    require(TJS_SUCCEEDED(type->PropGet(TJS_IGNOREPROP, TJS_N("Array"), nullptr,
+                                      &restore.constructor, type)), "array constructor unavailable");
+    for (bool invalid : {false, true}) {
+        auto* probe = new ArrayConstructorProbe(restore.constructor, invalid);
+        tTJSVariant replacement(probe); probe->Release();
+        type->PropSet(TJS_MEMBERENSURE | TJS_IGNOREPROP, TJS_N("Array"), nullptr, &replacement, type);
+        for (const auto& root : {Node::list({Node::number(11), Node::number(22), Node::raw({PSB::Null})}),
+                                Node::raw(packed({11, 22}))}) {
+            Fixture fixture; auto stream = fixture.build(root); emoteplayer::emotefile file;
+            fixture.attach(file, stream);
+            auto result = file.root();
+            auto* array = result.AsObjectNoAddRef();
+            if (invalid) {
+                require(array->IsValid(0, nullptr, nullptr, array) == TJS_S_FALSE,
+                        "parser changed constructor invalidation behavior");
+                continue;
+            }
+            require(property(result, TJS_N("count")).AsInteger() == 4 &&
+                    item(result, 0).AsInteger() == 11 && item(result, 1).AsInteger() == 22 &&
+                    item(result, 3).AsInteger() == 93,
+                    "native append failed to preserve constructor-prefilled indexed writes");
+            require(root.kind == Node::List ? item(result, 2).Type() == tvtVoid :
+                                             item(result, 2).AsInteger() == 92,
+                    "parser changed constructor's untouched elements");
+        }
+    }
+}
+
 void subtreeIsolationAndCost(unsigned version)
 {
     const std::string label = u8"身体・ひねり😀";
@@ -278,6 +339,7 @@ int main()
         primitiveAndArrayParity();
         missingAndDuplicateCases();
         frameValueParity();
+        customizedArrayConstruction();
         for (unsigned version : {2u, 3u, 4u}) subtreeIsolationAndCost(version);
         std::cout << "PASS: production PSB reader, primitive/array parity, Unicode and duplicate labels, "
                      "missing metadata, nested mutation isolation and unrelated-subtree read exclusion\n";
