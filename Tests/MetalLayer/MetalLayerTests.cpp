@@ -2,6 +2,7 @@
 #include "RenderManager.h"
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
+#include "PointReadTrace.h"
 #include "gl/tvpgl.h"
 #ifdef TEST_NATIVE_METAL
 #include "backend/MetalRenderBackend.h"
@@ -17,6 +18,8 @@
 #include <vector>
 using krkrsdl3::iTVPRenderBackend;
 using Texture=std::unique_ptr<iTVPTexture2D>;
+extern bool TVPTestCaptureLogs;
+extern std::vector<std::string> TVPTestLogs;
 
 #ifdef TEST_NATIVE_METAL
 // This standalone parity binary links the Metal backend directly rather than
@@ -41,6 +44,7 @@ void TVPRecordMetalRingFallback(uint64_t) {}
 static void Require(bool condition,const char* message) { if(!condition) throw std::runtime_error(message); }
 static tTVPRect Rect(const TVPLayerRect& r) { return tTVPRect(r.left,r.top,r.right,r.bottom); }
 #ifndef TEST_NATIVE_METAL
+static std::vector<krkrsdl3::point_trace::Query> pointReadObservations;
 // A synchronous device double exercises production GPU texture/cache/session
 // logic on non-Apple hosts. It dispatches to actual software methods rather
 // than reproducing Metal math. Pixel equivalence is tested on native Metal CI.
@@ -83,6 +87,12 @@ public:
     bool ReadLayerTextureRegion(void* handle,const TVPLayerRect& rc,std::vector<uint8_t>& pixels,int& pitch) override {
         auto& r=*resources.at(handle);pitch=rc.Width()*r.bpp;pixels.resize(size_t(pitch)*rc.Height());
         for(int y=0;y<rc.Height();++y) std::memcpy(pixels.data()+y*pitch,r.pixels.data()+((y+rc.top)*r.w+rc.left)*r.bpp,pitch);
+        if(auto* query=krkrsdl3::point_trace::CurrentQuery()) {
+            // Simulated backend handoff only; no sleep or claimed GPU timing.
+            query->reported=true; query->lastSubmittedID=73; query->renderFrame=19;
+            query->wallNS=12000000; query->gpuWaitNS=11000000; query->finishedNS=123000000;
+            pointReadObservations.push_back(*query);
+        }
         return true;
     }
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
@@ -416,6 +426,78 @@ static void ExactHitTestCache() {
         Require(t->GetPointAlpha(-1,0)==0 && t->GetPointAlpha(16,0)==0,"alpha query bounds changed");
     }
     ++comparisons;
+}
+static void PointReadAttribution() {
+#ifndef TEST_NATIVE_METAL
+    namespace trace=krkrsdl3::point_trace;
+    struct Restore {
+        bool enabled=trace::Enabled();
+        ~Restore() { trace::SetEnabled(enabled); TVPTestCaptureLogs=false; }
+    } restore;
+    trace::SetEnabled(true); TVPTestCaptureLogs=true; TVPTestLogs.clear(); pointReadObservations.clear();
+    auto* gpu=TVPGetRenderManager(); auto image=Image(16,12,4,3);
+    auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+    int owner=0;
+    trace::TriggerScope trigger(trace::Trigger::InputRecheck);
+    trace::OriginScope origin(trace::Source::LayerHitTest,&owner);
+    const auto original=t->GetPoint(3,4);
+    Require(pointReadObservations.size()==1,"uncached read did not carry query context to backend");
+    auto first=pointReadObservations.back();
+    Require(first.queryID && first.textureID && first.version && first.origin.source==trace::Source::LayerHitTest &&
+            first.origin.trigger==trace::Trigger::InputRecheck && first.origin.owner==reinterpret_cast<uintptr_t>(&owner),
+            "point query lost source/trigger/identity");
+    Require(first.x==3 && first.y==4 && first.width==16 && first.height==12 && !first.alphaOnly &&
+            std::string(first.missReason)=="notCached","initial point query metadata wrong");
+    Require(TVPTestLogs.size()==2 && TVPTestLogs.front().find("lastSubmittedID=73 renderFrame=19")!=std::string::npos &&
+            TVPTestLogs.front().find("source=layer.hitTest trigger=inputRecheck")!=std::string::npos &&
+            TVPTestLogs.back().find("traceState=unavailable")!=std::string::npos,
+            "slow query detail/caller logs were not correlated");
+    t->GetPointAlpha(3,4);
+    Require(pointReadObservations.size()==1 && TVPTestLogs.size()==2,"cache hit emitted a new read trace");
+
+    auto* color=gpu->GetRenderMethod("FillColor"); color->SetParameterColor4B(0,0x00112233);
+    Operation(gpu,color,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+    Require(t->GetPointAlpha(3,4)==(original>>24) && pointReadObservations.size()==1,
+            "RGB-only mutation invalidated the alpha query");
+    t->GetPoint(3,4);
+    auto changed=pointReadObservations.back();
+    Require(changed.textureID==first.textureID && changed.queryID>first.queryID &&
+            changed.invalidation==trace::Invalidation::GPUOperation &&
+            std::string(changed.missReason)=="invalidated","RGB invalidation not attributed");
+
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x55112233);
+    Operation(gpu,fill,t.get(),tTVPRect(3,4,4,5),nullptr,tTVPRect());
+    Operation(gpu,fill,t.get(),tTVPRect(10,8,11,9),nullptr,tTVPRect());
+    Require(t->GetPointAlpha(3,4)==0x55,"tracing changed pixel result");
+    changed=pointReadObservations.back();
+    Require(changed.alphaOnly && changed.invalidatedVersion<changed.version &&
+            changed.lastWriteLeft==10 && changed.lastWriteTop==8 && changed.lastWriteRight==11 && changed.lastWriteBottom==9,
+            "later unrelated writes were confused with the invalidating write");
+
+    {
+        trace::WriterScope writer("emote.captureCanvas");
+        t->CommitGPUOverwrite();
+    }
+    t->GetPointAlpha(3,4);
+    changed=pointReadObservations.back();
+    Require(changed.invalidation==trace::Invalidation::GPUOverwrite &&
+            std::string(changed.writer)=="emote.captureCanvas","Emote overwrite writer lost after scope exit");
+
+    auto* row=static_cast<uint32_t*>(t->GetScanLineForWrite(4));
+    t->GetPointAlpha(3,4); // This sample precedes an unannounced pointer write.
+    row[3]=0x77112233;
+    Operation(gpu,color,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
+    Require(t->GetPointAlpha(3,4)==0x77,"CPU pointer write was hidden by diagnostic state");
+    Require(pointReadObservations.back().invalidation==trace::Invalidation::CPUUpload,
+            "CPU upload invalidation not attributed");
+    Require(trace::CurrentQuery()==nullptr,"completed read leaked a query into later operations");
+    trace::SetEnabled(false);
+    const auto observations=pointReadObservations.size(), logs=TVPTestLogs.size();
+    t->InvalidateCPUCache(); t->GetPointAlpha(3,4);
+    Require(pointReadObservations.size()==observations && TVPTestLogs.size()==logs,
+            "disabled diagnostics still traced backend reads");
+    ++comparisons;
+#endif
 }
 static void DirtyRegionUploads() {
     auto* gpu=TVPGetRenderManager(); auto image=Image(64,48,4,7);
@@ -782,7 +864,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

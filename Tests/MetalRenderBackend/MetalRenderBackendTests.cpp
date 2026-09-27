@@ -1,5 +1,6 @@
 #include "backend/SWRenderBackend.h"
 #include "backend/MetalRenderBackend.h"
+#include "PointReadTrace.h"
 #ifdef TEST_NATIVE_METAL
 #include <SDL3/SDL.h>
 #endif
@@ -82,6 +83,42 @@ void DiagnosticAttributionTests()
     Require(!sampler.ShouldSample(false, 2000000001ULL), "disabled diagnostics stay silent");
     Require(sampler.ShouldSample(true, 2000000001ULL), "re-enabled diagnostics can resume sampling");
     Require(!sampler.ShouldSample(true, 2000000001ULL), "same timestamp cannot sample twice");
+}
+void PointQueryScopeTests()
+{
+    namespace trace = krkrsdl3::point_trace;
+    trace::SetEnabled(true);
+    trace::Query outer;
+    {
+        trace::QueryScope outerScope(outer);
+        Require(trace::CurrentQuery() == &outer && outer.queryID != 0, "outer point query context");
+        trace::Query inner;
+        try {
+            trace::QueryScope innerScope(inner);
+            Require(trace::CurrentQuery() == &inner && inner.queryID != outer.queryID,
+                    "nested point query must have its own identity");
+            // Model metadata returned by a synchronous backend. It must remain
+            // on the caller's object after scope unwinding, never on its parent.
+            auto* current = trace::CurrentQuery();
+            current->reported = true;
+            current->lastSubmittedID = 123;
+            current->renderFrame = 45;
+            current->wallNS = 9000000;
+            current->gpuWaitNS = 8500000;
+            current->finishedNS = 10000000;
+            throw std::runtime_error("unwind query scope");
+        } catch (const std::runtime_error&) {}
+        Require(trace::CurrentQuery() == &outer && !outer.reported,
+                "point query unwind must restore the parent without leaking metadata");
+        Require(inner.reported && inner.lastSubmittedID == 123 && inner.renderFrame == 45 &&
+                    inner.wallNS == 9000000 && inner.gpuWaitNS == 8500000 && inner.finishedNS == 10000000,
+                "completed point metadata survives scope unwinding");
+        trace::SetEnabled(false);
+        Require(trace::CurrentQuery() == nullptr, "disabled tracing must hide an active query");
+        trace::SetEnabled(true);
+    }
+    Require(trace::CurrentQuery() == nullptr, "point query must not survive its stack scope");
+    trace::SetEnabled(false);
 }
 std::vector<uint8_t> Read(iTVPRenderBackend& backend, void* target)
 {
@@ -381,6 +418,47 @@ void CaptureTests(iTVPRenderBackend& gpu)
     gpu.DestroyWindowTexture(texture);
     Require(!gpu.CaptureFrame(pixels, w, h, pitch), "destroyed screenshot source must not remain retained");
 }
+void ScopedPointReadTests(iTVPRenderBackend& gpu)
+{
+    namespace trace = krkrsdl3::point_trace;
+    void* texture = gpu.CreateLayerTexture(7, 5, TVPLayerTextureFormat::RGBA8);
+    Require(texture != nullptr, "scoped point read texture");
+    const auto pixels = Pattern(32, 41);
+    Require(gpu.UpdateLayerTexture(texture, pixels.data(), 32, {0, 0, 7, 5}), "scoped point upload");
+    trace::SetEnabled(true);
+    trace::Query outer;
+    {
+        trace::QueryScope outerScope(outer);
+        trace::Query point;
+        point.x = 2; point.y = 3;
+        point.width = 7; point.height = 5;
+        {
+            trace::QueryScope pointScope(point);
+            const uint64_t queryID = point.queryID;
+            std::vector<uint8_t> actual;
+            int pitch = 0;
+            Require(gpu.ReadLayerTextureRegion(texture, {2, 3, 3, 4}, actual, pitch) &&
+                        pitch == 4 && actual.size() == 4, "scoped native point readback");
+            Require(std::memcmp(actual.data(), pixels.data() + 3 * 32 + 2 * 4, 4) == 0,
+                    "point diagnostics must preserve readback pixels");
+            Require(trace::CurrentQuery() == &point && point.queryID == queryID,
+                    "native readback must retain caller's query identity and scope");
+            if (point.reported) {
+                Require(point.lastSubmittedID != 0 && point.wallNS >= 8000000 &&
+                            point.gpuWaitNS <= point.wallNS && point.finishedNS != 0,
+                        "naturally slow native readback must return measured metadata");
+            } else {
+                Require(point.lastSubmittedID == 0 && point.wallNS == 0 &&
+                            point.gpuWaitNS == 0 && point.finishedNS == 0,
+                        "fast or rate-limited native reads must not mark caller details");
+            }
+        }
+        Require(trace::CurrentQuery() == &outer && !outer.reported,
+                "native point read must restore and leave outer query unchanged");
+    }
+    trace::SetEnabled(false);
+    gpu.DestroyLayerTexture(texture);
+}
 // GPU-to-GPU work (target->Layer blits, Layer compute operations) consumes no
 // host-visible staging memory. It previously counted against the 16 MB staging
 // budget, so full-surface Emote captures (~8.5 MB each) forced a submit every
@@ -430,6 +508,7 @@ int main()
 {
     try {
         DiagnosticAttributionTests();
+        PointQueryScopeTests();
         krkrsdl3::SWRenderBackend software;
         TransferTests(software);
 #ifdef TEST_NATIVE_METAL
@@ -451,6 +530,7 @@ int main()
                 MeshBatchTests(*gpu);
                 ClearMeshOrderingTests(*gpu);
                 DirectLayerCopyTests(*gpu);
+                ScopedPointReadTests(*gpu);
                 SubmissionCadenceTests(*gpu);
                 SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "0");
             }

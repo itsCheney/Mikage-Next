@@ -67,3 +67,9 @@ buffers or insert fences, counter barriers, submissions or waits.
 events include the requested region, dimensions, total CPU wall time and the
 existing synchronous GPU wait duration. CPU waits are never reported as GPU
 stage timings.
+
+Slow readbacks originating in a scoped Layer point query also include
+`pointQueryID`, matching the caller's `metal.pointRead` detail record. Only
+readbacks admitted by the existing slow-wait threshold and rate limit mark the
+caller query as reported; fast/suppressed reads do not trigger caller-stack
+capture. Unscoped readbacks and other wait kinds use `pointQueryID=0`.

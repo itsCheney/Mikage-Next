@@ -58,6 +58,7 @@ jobs:
           python3 scripts/check-krkr-emote-resource-cache.py
           python3 scripts/check-krkr-emote-shared-cache.py
           python3 scripts/check-krkr-session-exit.py
+          python3 scripts/check-krkr-point-read-trace.py
       - name: Test Emote metadata and shared resource loading
         run: |
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
@@ -68,6 +69,11 @@ jobs:
           cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tjs-native-factory-tests --parallel
           ctest --test-dir build/tjs-native-factory-tests --output-on-failure
+      - name: Test Release script stack attribution
+        run: |
+          cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tjs-stack-trace-tests --parallel
+          ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
       # `build-krkr-ios.sh` falls back to this checkout only when the runner

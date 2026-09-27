@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.20)
+project(TJSStackTraceTests LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+get_filename_component(RUNTIME "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source" REALPATH)
+set(CORE "${RUNTIME}/cpp")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(HOST_SCOPE "${CMAKE_CURRENT_BINARY_DIR}/ProductionTraceOwner.inc")
+add_custom_command(OUTPUT "${HOST_SCOPE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-host-scope.py"
+            --source "${RUNTIME}/host/MikageKRKRRuntime.mm" --output "${HOST_SCOPE}"
+    DEPENDS "${RUNTIME}/host/MikageKRKRRuntime.mm" "${CMAKE_CURRENT_LIST_DIR}/extract-host-scope.py"
+    VERBATIM)
+file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
+add_executable(tjs-stack-trace-tests StackTraceTests.cpp "${HOST_SCOPE}" ${TJS_SOURCES})
+target_include_directories(tjs-stack-trace-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/tjs2" "${CORE}/environ")
+target_compile_definitions(tjs-stack-trace-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)
+if(WIN32)
+    target_compile_definitions(tjs-stack-trace-tests PRIVATE _KRKRSDL3_WINDOWS=1)
+elseif(APPLE)
+    target_compile_definitions(tjs-stack-trace-tests PRIVATE _KRKRSDL3_MACOS=1)
+else()
+    target_compile_definitions(tjs-stack-trace-tests PRIVATE _KRKRSDL3_LINUX=1)
+endif()
+enable_testing()
+add_test(NAME tjs-stack-trace-tests COMMAND tjs-stack-trace-tests)

@@ -8,7 +8,20 @@
 #include "TVPMsg.h"
 #include <chrono>
 #include <stdexcept>
-void TVPConsoleLog(const tjs_char*,...) {}
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+#include <vector>
+bool TVPTestCaptureLogs = false;
+std::vector<std::string> TVPTestLogs;
+void TVPConsoleLog(const tjs_char* format,...) {
+    if(!TVPTestCaptureLogs) return;
+    char line[2048];
+    va_list args; va_start(args,format);
+    std::vsnprintf(line,sizeof(line),format,args);
+    va_end(args);
+    TVPTestLogs.emplace_back(line);
+}
 tjs_uint64 TVPGetRoughTickCount() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
