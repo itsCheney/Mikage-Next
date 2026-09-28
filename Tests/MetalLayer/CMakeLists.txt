@@ -3,8 +3,19 @@ project(MetalLayerTests LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(BITMAP_SOURCE "${CORE}/core/render/LayerBitmap.cpp")
+set(GENERATED_OVERWRITE "${CMAKE_CURRENT_BINARY_DIR}/ProductionBitmapOverwrite.inc")
+add_custom_command(OUTPUT "${GENERATED_OVERWRITE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
+            --source "${BITMAP_SOURCE}" --layer-source "${CORE}/core/script/tjsNativeLayer.cpp"
+            --output "${GENERATED_OVERWRITE}"
+    DEPENDS "${BITMAP_SOURCE}" "${CORE}/core/script/tjsNativeLayer.cpp"
+            "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
+    VERBATIM)
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
-add_executable(metal-layer-tests MetalLayerTests.cpp TestPlatform.cpp ${TJS_SOURCES}
+add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TestPlatform.cpp
+    "${GENERATED_OVERWRITE}" ${TJS_SOURCES}
     "${CORE}/core/render/ComplexRect.cpp"
     "${CORE}/core/render/RenderManager.cpp"
     "${CORE}/core/render/MetalLayerRenderManager.cpp"
@@ -14,7 +25,8 @@ add_executable(metal-layer-tests MetalLayerTests.cpp TestPlatform.cpp ${TJS_SOUR
 foreach(dir archive main media/font media/image media/movie media/sound msg render script utils utils/math)
     target_include_directories(metal-layer-tests PRIVATE "${CORE}/core/${dir}")
 endforeach()
-target_include_directories(metal-layer-tests PRIVATE "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins")
+target_include_directories(metal-layer-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+    "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins")
 target_compile_definitions(metal-layer-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)
 if(WIN32)
     target_compile_definitions(metal-layer-tests PRIVATE _KRKRSDL3_WINDOWS=1)

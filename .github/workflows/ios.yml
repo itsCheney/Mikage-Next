@@ -74,6 +74,11 @@ jobs:
           cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tjs-stack-trace-tests --parallel
           ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
+      - name: Test layer input and pointer presentation lifecycle
+        run: |
+          cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/layer-input-tests --parallel
+          ctest --test-dir build/layer-input-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
       # `build-krkr-ios.sh` falls back to this checkout only when the runner

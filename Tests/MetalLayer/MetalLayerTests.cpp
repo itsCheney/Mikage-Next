@@ -20,6 +20,7 @@ using krkrsdl3::iTVPRenderBackend;
 using Texture=std::unique_ptr<iTVPTexture2D>;
 extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
+void BitmapOverwriteTests(iTVPRenderBackend* backend);
 
 #ifdef TEST_NATIVE_METAL
 // This standalone parity binary links the Metal backend directly rather than
@@ -83,6 +84,14 @@ public:
     }
     bool ReadLayerTexture(void* handle,std::vector<uint8_t>& pixels,int& pitch) override {
         auto& r=*resources.at(handle);pixels=r.pixels;pitch=r.w*r.bpp;return true;
+    }
+    bool CopyTargetToLayerTexture(void* source,void* destination) override {
+        auto s=resources.find(source), d=resources.find(destination);
+        if(s==resources.end() || d==resources.end() || source==destination) return false;
+        const auto& src=*s->second; auto& dst=*d->second;
+        if(src.bpp!=4 || dst.bpp!=4 || src.w!=dst.w || src.h!=dst.h) return false;
+        dst.pixels=src.pixels;
+        return true;
     }
     bool ReadLayerTextureRegion(void* handle,const TVPLayerRect& rc,std::vector<uint8_t>& pixels,int& pitch) override {
         auto& r=*resources.at(handle);pitch=rc.Width()*r.bpp;pixels.resize(size_t(pitch)*rc.Height());
@@ -864,7 +873,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
