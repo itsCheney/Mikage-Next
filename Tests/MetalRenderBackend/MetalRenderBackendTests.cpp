@@ -1,5 +1,6 @@
 #include "backend/SWRenderBackend.h"
 #include "backend/MetalRenderBackend.h"
+#include "backend/MetalStageDiagnostics.h"
 #include "PointReadTrace.h"
 #ifdef TEST_NATIVE_METAL
 #include <SDL3/SDL.h>
@@ -83,6 +84,90 @@ void DiagnosticAttributionTests()
     Require(!sampler.ShouldSample(false, 2000000001ULL), "disabled diagnostics stay silent");
     Require(sampler.ShouldSample(true, 2000000001ULL), "re-enabled diagnostics can resume sampling");
     Require(!sampler.ShouldSample(true, 2000000001ULL), "same timestamp cannot sample twice");
+}
+void StageTimingTests()
+{
+    namespace timing = krkrsdl3::metal_diagnostics::stage_timing;
+    timing::Plan plan;
+    Require(plan.ReserveRender(timing::RenderKind::Mesh) == 0, "mesh stage indices");
+    Require(plan.ReserveRender(timing::RenderKind::Window) == 4, "window stage indices");
+    Require(plan.ReserveRender(timing::RenderKind::Other) == 8, "other render stage indices");
+    Require(plan.ReserveEncoder(timing::Stage::LayerCompute) == 12, "compute stage indices");
+    Require(plan.ReserveEncoder(timing::Stage::Blit) == 14, "blit stage indices");
+    Require(plan.sampleCount == 16, "render passes reserve vertex and fragment intervals atomically");
+    // Large absolute clocks, small differences, and a non-nanosecond GPU clock.
+    const timing::ClockCalibration clock{1000000000000000000ULL, 1000,
+                                         1000000001000000000ULL, 1001000};
+    Require(clock.Valid() && clock.NanosecondsPerTick() == 1000.0, "GPU clock calibration slope");
+    const uint64_t timestamps[] = {1100, 1300, 1200, 1500, 1400, 1600, 1500, 1900,
+                                   2000, 2000, 2500, 2800, 3000, 4000, 3900, 4200};
+    auto summary = timing::Resolve(plan, timestamps, 16, clock);
+    Require(summary.calibrationValid && summary.valid == 8 && summary.invalid == 0, "complete stage samples");
+    const double expected[] = {0.2, 0.3, 0.2, 0.4, 0.0, 0.3, 1.0, 0.3};
+    for (size_t i = 0; i < timing::StageCount; ++i) {
+        Require(summary.stages[i].valid == 1 && summary.stages[i].invalid == 0, "stage classification");
+        Require(std::abs(summary.stages[i].Milliseconds() - expected[i]) < 1e-9, "calibrated stage duration");
+    }
+    // Vertex/fragment and adjacent encoders can overlap; do not serialize,
+    // clip, or reweight measured intervals to make a fictitious frame budget.
+    timing::Plan overlap;
+    overlap.ReserveEncoder(timing::Stage::LayerCompute);
+    overlap.ReserveEncoder(timing::Stage::LayerCompute);
+    const uint64_t overlapping[] = {1000, 1001000, 1000, 1001000};
+    auto overlappingResult = timing::Resolve(overlap, overlapping, 4, clock);
+    Require(overlappingResult.stages[6].Milliseconds() == 2000.0 && overlappingResult.valid == 2,
+            "overlapping intervals retain their independent durations");
+
+    summary = timing::Resolve(plan, timestamps, 15, clock);
+    Require(summary.valid == 7 && summary.invalid == 1 && summary.stages[7].Milliseconds() == -1.0,
+            "truncated results invalidate an incomplete interval, not report zero");
+    summary = timing::Resolve(plan, nullptr, 16, clock);
+    Require(summary.valid == 0 && summary.invalid == 8, "missing counter data");
+    summary = timing::Resolve(timing::Plan{}, nullptr, 0, clock);
+    Require(summary.valid == 0 && summary.invalid == 0 && summary.stages[0].Milliseconds() == -1.0,
+            "absent stages are not measured zero durations");
+
+    timing::Plan one;
+    one.ReserveEncoder(timing::Stage::Blit);
+    const uint64_t bad[][2] = {{0, 1200}, {1100, 0}, {1200, 1100}, {999, 1200},
+                               {1100, 1001001}, {UINT64_MAX, UINT64_MAX}, {1100, UINT64_MAX}};
+    for (const auto& pair : bad) {
+        auto invalid = timing::Resolve(one, pair, 2, clock);
+        Require(invalid.valid == 0 && invalid.invalid == 1 && invalid.stages[7].Milliseconds() == -1.0,
+                "zero, reversed, out-of-range and error timestamps are unavailable");
+    }
+    const uint64_t customError[] = {1100, 1234};
+    Require(timing::Resolve(one, customError, 2, clock, 1234).invalid == 1, "driver error sentinel");
+    for (const auto& invalidClock : {timing::ClockCalibration{},
+                                     timing::ClockCalibration{2, 1000, 1, 2000},
+                                     timing::ClockCalibration{1, 2000, 2, 1000},
+                                     timing::ClockCalibration{1, 1000, 2, 1000}}) {
+        auto invalid = timing::Resolve(plan, timestamps, 16, invalidClock);
+        Require(!invalid.calibrationValid && invalid.valid == 0 && invalid.invalid == 8,
+                "missing, reversed and zero-length calibration must fail closed");
+    }
+
+    timing::Plan bounded;
+    for (uint32_t i = 0; i < timing::MaxSamples / 2 - 1; ++i)
+        Require(bounded.ReserveEncoder(timing::Stage::Blit) == i * 2, "bounded sample reservations");
+    Require(bounded.ReserveRender(timing::RenderKind::Mesh) == timing::NoSample &&
+                bounded.sampleCount == timing::MaxSamples - 2 && bounded.droppedPasses == 1,
+            "insufficient space must not partially reserve a render pass");
+    Require(bounded.ReserveEncoder(timing::Stage::LayerCompute) == timing::MaxSamples - 2,
+            "remaining pair can still measure a compute pass");
+    Require(bounded.ReserveEncoder(timing::Stage::Blit) == timing::NoSample && bounded.droppedPasses == 2,
+            "sample limit is bounded without another command buffer");
+    bounded.Rollback(timing::MaxSamples - 2);
+    Require(bounded.sampleCount == timing::MaxSamples - 2 && bounded.failedPasses == 1,
+            "failed sampled encoder returns its reserved pair");
+    timing::Plan failedRender;
+    failedRender.ReserveRender(timing::RenderKind::Mesh);
+    failedRender.Rollback(0);
+    Require(failedRender.sampleCount == 0 && failedRender.failedPasses == 1 &&
+                failedRender.ReserveRender(timing::RenderKind::Window) == 0 &&
+                failedRender.stages[0] == timing::Stage::WindowVertex &&
+                failedRender.stages[1] == timing::Stage::WindowFragment,
+            "render fallback rolls back both stages before indices are reused");
 }
 void PointQueryScopeTests()
 {
@@ -508,6 +593,7 @@ int main()
 {
     try {
         DiagnosticAttributionTests();
+        StageTimingTests();
         PointQueryScopeTests();
         krkrsdl3::SWRenderBackend software;
         TransferTests(software);
@@ -540,7 +626,7 @@ int main()
         SDL_Quit();
         std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask, capture and submission cadence tests\n";
 #else
-        std::cout << "PASS: diagnostic attribution/sampling and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
+        std::cout << "PASS: diagnostic attribution/sampling/stage timing and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
 #endif
         return 0;
     } catch (const std::exception& error) {
