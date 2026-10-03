@@ -47,6 +47,17 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle(isOn: $model.settings.experimentalEmote) {
+                        Label("Emote 候选动画模式", systemImage: "sparkles")
+                    }
+                    .accessibilityIdentifier("experimental-emote-toggle")
+                } header: {
+                    Text("动画")
+                } footer: {
+                    Text("启用新的 Emote 动画播放方式，用于对比动作流畅度。默认关闭；修改在下次启动游戏时生效。若动作或表情异常，可关闭后重新进入游戏。")
+                }
+
+                Section {
                     Toggle(isOn: $model.settings.respectSilentMode) {
                         Label("遵循 iOS 静音模式规则", systemImage: "speaker.slash.fill")
                     }

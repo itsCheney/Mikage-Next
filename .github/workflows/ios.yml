@@ -64,6 +64,11 @@ jobs:
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-metadata-tests --parallel
           ctest --test-dir build/emote-metadata-tests --output-on-failure
+      - name: Test Emote animation integration
+        run: |
+          cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-animation-tests --parallel
+          ctest --test-dir build/emote-animation-tests --output-on-failure
       - name: Test native Array and Dictionary construction
         run: |
           cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release
