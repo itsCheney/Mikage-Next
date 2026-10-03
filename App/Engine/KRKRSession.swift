@@ -669,6 +669,53 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 previousCommandTicks = displayTicks
                 previousCommandCounters = Dictionary(uniqueKeysWithValues: commandCounters)
 
+                // This separate sampler resets only the triangle interval.
+                // Performance HUD/GetStats calls leave its counters intact.
+                var triangleProfile = MikageKRKRLayerTriangleProfile()
+                if MikageKRKRTakeLayerTriangleProfile(&triangleProfile) {
+                    let triangleMethods = withUnsafePointer(to: &triangleProfile.methods) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    let triangleTargetSizes = withUnsafePointer(to: &triangleProfile.targetSizes) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    let triangleSources = withUnsafePointer(to: &triangleProfile.sources) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
+                    }
+                    let triangleStretchModes = withUnsafePointer(to: &triangleProfile.stretchModes) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    AppDiagnostics.shared.event("session", "layerTriangleProfile", [
+                        "displayTicks": String(displayTicks),
+                        "intervalMS": String(Double(triangleProfile.intervalNS) / 1_000_000),
+                        "calls": String(triangleProfile.calls),
+                        "triangles": String(triangleProfile.triangleCount),
+                        "clipPixels": String(triangleProfile.clipPixels),
+                        "maxClipPixels": String(triangleProfile.maxClipPixels),
+                        "maxTargetPixels": String(triangleProfile.maxTargetPixels),
+                        "fullSurfaceCalls": String(triangleProfile.fullSurfaceCalls),
+                        "target1920x1080Calls": String(triangleProfile.target1920x1080Calls),
+                        "targetReadbackBytes": String(triangleProfile.targetReadbackBytes),
+                        "sourceReadbackBytes": String(triangleProfile.sourceReadbackBytes),
+                        "referenceReadbackBytes": String(triangleProfile.referenceReadbackBytes),
+                        "cpuTimeMS": String(Double(triangleProfile.cpuTimeNS) / 1_000_000),
+                        "maxCpuTimeMS": String(Double(triangleProfile.maxCpuTimeNS) / 1_000_000),
+                        "softwareTimeMS": String(Double(triangleProfile.softwareTimeNS) / 1_000_000),
+                        "maxSoftwareTimeMS": String(Double(triangleProfile.maxSoftwareTimeNS) / 1_000_000),
+                        "count2Calls": String(triangleProfile.count2Calls),
+                        "singleInputCalls": String(triangleProfile.singleInputCalls),
+                        "referenceCalls": String(triangleProfile.referenceCalls),
+                        "sourceTargetAliasCalls": String(triangleProfile.sourceTargetAliasCalls),
+                        "triangleMethods": triangleMethods,
+                        "triangleTargetSizes": triangleTargetSizes,
+                        "triangleSources": triangleSources,
+                        "triangleStretchModes": triangleStretchModes,
+                        "fps": String(diagnosticStats.framesPerSecond),
+                        "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
+                        "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds)
+                    ])
+                }
+
                 let stepProfile: String = [
                     "eventNS:\(diagnosticStats.stepEventTimeNS)",
                     "iterateNS:\(diagnosticStats.stepIterateTimeNS)"

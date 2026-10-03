@@ -49,6 +49,15 @@ facade in place of the script/window machinery. Coverage includes:
 The full iOS framework build remains necessary to validate plugin and script
 class integration. Test checks remain active in Release builds.
 
+`TriangleProfileTests.cpp` exercises the production triangle fallback and the
+extracted production C diagnostic bridge. It verifies interval resets (including
+maxima and histograms), HUD reads leaving samples intact, enabled/disabled
+capture, nested source tags and exception unwind, visible clip areas and full-HD
+targets, actual readbacks versus CPU cache hits, target/source/reference aliases,
+bounded size histograms, NUL-terminated bridge summaries and unchanged fallback
+pixels. No triangle GPU renderer is enabled; Linux timings are device-double wall
+times and do not measure native Metal readback performance.
+
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release
 cmake --build build/metal-layer-tests --parallel

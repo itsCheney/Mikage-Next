@@ -22,6 +22,7 @@ extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
 void BitmapOverwriteTests(iTVPRenderBackend* backend);
 void UnivTransShaderTests();
+void TriangleProfileTests();
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
 
 #ifdef TEST_NATIVE_METAL
@@ -1157,7 +1158,11 @@ int main(int argc,char** argv) {
         }
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
         for(int session=0;session<3;++session) {
+            TVPSetMetalLayerTriangleDiagnostics(true);
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
+            const auto newTriangleInterval=TVPTakeMetalLayerTriangleProfile();
+            Require(newTriangleInterval.stats.calls==0 && newTriangleInterval.stats.maxCpuTimeNS==0 &&
+                    newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");
             Require(cached==TVPGetRenderManager()->GetRenderMethod("AlphaBlend_d"),"method lifetime changed");
             {
                 auto pixels=Image(9,7,4,2);auto texture=Create(TVPGetRenderManager(),9,7,TVPTextureFormat::RGBA,pixels);
@@ -1165,13 +1170,14 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
             iTVPTexture2D::RecycleProcess();
             Require(TVPGetMetalLayerRenderStats().gpuResidentBytes==0,"session GPU texture leak");
             TVPUnbindMetalLayerRenderManager(); Require(TVPIsSoftwareRenderManager(),"software manager not restored");
+            Require(TVPTakeMetalLayerTriangleProfile().stats.calls==0,"triangle sampler retained an unbound Layer session");
         }
         // Deliberately retained texture is detached safely when its session ends.
         Require(TVPBindMetalLayerRenderManager(backend.get()),"rebind failed");

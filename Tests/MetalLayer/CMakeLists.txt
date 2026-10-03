@@ -21,7 +21,16 @@ add_custom_command(OUTPUT "${GENERATED_UNIV_MATH}"
             --source "${UNIV_SHADER_SOURCE}" --output "${GENERATED_UNIV_MATH}"
     DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
     VERBATIM)
-add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TestPlatform.cpp
+set(TRIANGLE_BRIDGE_SOURCE "${CORE}/../host/MikageKRKRRuntime.mm")
+set(GENERATED_TRIANGLE_BRIDGE "${CMAKE_CURRENT_BINARY_DIR}/ProductionTriangleProfileBridge.inc")
+add_custom_command(OUTPUT "${GENERATED_TRIANGLE_BRIDGE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-triangle-profile.py"
+            --source "${TRIANGLE_BRIDGE_SOURCE}" --output "${GENERATED_TRIANGLE_BRIDGE}"
+    DEPENDS "${TRIANGLE_BRIDGE_SOURCE}" "${CORE}/../host/MikageKRKRRuntime.h"
+            "${CMAKE_CURRENT_LIST_DIR}/extract-triangle-profile.py"
+    VERBATIM)
+add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
+    "${GENERATED_TRIANGLE_BRIDGE}"
     UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" ${TJS_SOURCES}
     "${CORE}/core/render/ComplexRect.cpp"
     "${CORE}/core/render/RenderManager.cpp"

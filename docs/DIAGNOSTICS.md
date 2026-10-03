@@ -24,6 +24,21 @@
 
 开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
 
+### Layer affine / triangles 诊断（M1）
+
+`session.layerTriangleProfile` 随每秒心跳输出一次，包括没有 triangle 调用的零值区间；不在每次 operation 写日志。它统计 KRKR Layer `OperateTriangles` 的软件 fallback，和 Emote `DrawDeformedMesh` 的网格 triangles 分开。
+
+- `calls`、`triangles`：本区间 fallback 调用数和 triangle 总数。`intervalMS` 是实际采样间隔；调用率为 `calls * 1000 / intervalMS`，主线程卡顿时不能假定间隔恰好一秒。首条覆盖 Layer session 建立/诊断开启至首次采样。
+- `triangleMethods`、`triangleSources`：RenderMethod 分布及 `AffineCopy`、`AffinePile`、`AffineBlend`、`OperateAffine` 来源。共享 method 对象的别名统一使用首次注册名（如 `AlphaBlend_HDA` 归入 `AlphaBlend`，`PerspectiveAlphaBlend_a` 归入 `AlphaBlend_a`）。直接调用 bitmap/render manager 的路径记为 `unknown`，不是脚本堆栈定位。两个 affine 重载都传递来源，不改 RenderManager API。
+- `clipPixels`、`maxClipPixels`：clip 与 target 相交后的面积之和/最大值，不是实际 triangle 覆盖像素。`fullSurfaceCalls` 表示 clip 覆盖整个 target，不代表 triangle 画满了 target。`triangleTargetSizes`、`maxTargetPixels`、`target1920x1080Calls` 表示 target 尺寸分布。
+- `targetReadbackBytes`、`sourceReadbackBytes`、`referenceReadbackBytes`：该区间 triangle fallback 实际引起的 GPU→CPU 回读。CPU cache 命中为零；同一纹理别名只计首次强制回读的角色（target → reference → sources），不重复计算。后续 CPU→GPU 上传仍看心跳的累计 `layerUploadedBytes` 差值。
+- `cpuTimeMS`、`maxCpuTimeMS`：整个 fallback 的主线程墙钟时间，包含回读同步等待、CPU views 和软件绘制。`softwareTimeMS`、`maxSoftwareTimeMS` 仅测软件 `OperateTriangles`，已包含在前者内，不能相加。
+- `count2Calls`、`singleInputCalls`、`referenceCalls`、`sourceTargetAliasCalls`、`triangleStretchModes`：后续 Metal 支持范围需要的调用形态。stretch 值沿用 `tTVPBBStretchType`（0 nearest、1 fast linear、2 linear 等）。各字段分别统计，不代表这些条件同时成立。
+
+方法、尺寸、stretch 分布每个区间最多保留 32 个键，输出前八项，其余合并到 `otherCalls`；方法名超过 40 UTF-8 字节时截短并加 `~`。所有计数和最大值在采样后重置，普通 HUD/`GetStats` 读取不消费它们。关闭完整诊断时停止额外计时/采样并清空未输出区间；新 Layer session 也从零开始。
+
+使用同一游戏、角色、场景和 Metal 后端，依次记录约 10 秒静止、10–20 秒小幅头部动作、10–20 秒大幅身体动作，再导出完整日志并说明阶段时间（可同时录屏）。比较 triangle 调用率、回读突增、`maxCpuTimeMS` 与同时间的 FPS/帧时间；先确认相关性，再决定是否实现原生 Metal affine triangle path。M1 不改变渲染路径。
+
 统一记录 UTC/Unix 毫秒时间、单调运行时长、写入序号、线程、构建提交、进程运行编号和游戏会话编号。它用于定位宿主窗口切换与 runtime 事件的先后关系，不声称检查了每次未返回错误的绘制结果，也不替代系统崩溃采集。不采集屏幕像素、每次触摸、搜索内容或游戏/存档文件。
 
 ## 存储与隐私
