@@ -21,6 +21,13 @@ or synchronous wait. Invalid rule format/geometry, unsupported input count and
 an unavailable triple-source operation retain software fallback (unavailability
 is injected into the portable device double).
 
+Universal-transition software fallbacks also cover clipped RGBA targets with
+independent source/rule origins, pinned CPU caches, and unavailable triple-source
+operations. A guarded software target detects right/bottom overruns. Empty target
+intersections must leave GPU pixels resident without readback, upload, or a CPU
+fallback operation. All three variants exercise both switch and full-table blend
+paths.
+
 On Linux these routing/cache tests use the device double; only the scalar shader
 math is executed directly. Native shader compilation and GPU results require a
 Mac with Metal. Complete acceptance still needs the same game/transition on an

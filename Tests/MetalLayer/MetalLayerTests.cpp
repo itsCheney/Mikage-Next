@@ -971,6 +971,79 @@ static void UnivTransFallbacks(iTVPRenderBackend* backend) {
 #endif
     }
 }
+static void UnivTransClippedFallbacks(iTVPRenderBackend* backend) {
+    auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
+    constexpr int swidth=33,sheight=21,w=9,h=7;
+    auto first=Image(swidth,sheight,4,2),second=Image(swidth,sheight,4,5);
+    auto rules=Image(swidth,sheight,1,3),initial=Image(w,h,4,7);
+    auto ss1=Create(sw,swidth,sheight,TVPTextureFormat::RGBA,first);
+    auto ss2=Create(sw,swidth,sheight,TVPTextureFormat::RGBA,second);
+    auto sr=Create(sw,swidth,sheight,TVPTextureFormat::Gray,rules);
+    auto gs1=Create(gpu,swidth,sheight,TVPTextureFormat::RGBA,first);
+    auto gs2=Create(gpu,swidth,sheight,TVPTextureFormat::RGBA,second);
+    auto gr=Create(gpu,swidth,sheight,TVPTextureFormat::Gray,rules);
+    unsigned cases=0;
+    for(auto* name:{"UnivTransBlend","UnivTransBlend_d","UnivTransBlend_a"})
+    for(int vague:{64,512}) for(int failure:{0,1,2}) {
+#ifdef TEST_NATIVE_METAL
+        (void)backend;
+        if(failure==2) continue; // Pipeline rejection is injected by the double.
+#else
+        auto* device=dynamic_cast<DeviceDouble*>(backend); Require(device,"expected device double");
+        device->rejectTripleSource=failure==2;
+#endif
+        auto* method=gpu->GetRenderMethod(name); UnivTransSetParameters(method,127,vague);
+        for(auto dr:{tTVPRect(7,5,12,9),tTVPRect(-2,1,5,6),tTVPRect(1,-2,8,4),
+                     tTVPRect(-1,-1,12,10),tTVPRect(3,2,4,3),tTVPRect(12,9,16,12),
+                     tTVPRect(-9,-8,-2,-3)}) {
+            // Guarded software storage makes an overrun a deterministic failure
+            // without corrupting the heap in the right/bottom clipping case.
+            // Negative-origin cases exercise pinned GPU caches instead.
+            if(failure==0 && (dr.left<0 || dr.top<0)) continue;
+            int dw=dr.get_width(),dh=dr.get_height();
+            tTVPRect r1(1,1,1+dw,1+dh),r2(3,2,3+dw,2+dh),rr(6,1,6+dw,1+dh);
+            auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            std::vector<uint8_t> guarded(initial.size()+w*8*4,0xa5);
+            std::copy(initial.begin(),initial.end(),guarded.begin());
+            Texture actual;
+            if(failure==0) actual.reset(sw->CreateTexture2D(guarded.data(),w*4,w,h,TVPTextureFormat::RGBA));
+            else {
+                actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+                // Invalidate CPU pixels before fallback; an empty intersection
+                // must leave these GPU contents resident without a readback.
+                Operation(gpu,gpu->GetRenderMethod("Copy"),actual.get(),tTVPRect(0,0,w,h),
+                          actual.get(),tTVPRect(0,0,w,h));
+                if(failure==1) actual->GetPersistentCPUData(false);
+            }
+            Operation(gpu,gpu->GetRenderMethod("Copy"),gs1.get(),tTVPRect(0,0,swidth,sheight),
+                      gs1.get(),tTVPRect(0,0,swidth,sheight));
+            UnivTransReference(method,expected.get(),dr,ss1.get(),r1,ss2.get(),r2,sr.get(),rr);
+            std::pair<iTVPTexture2D*,tTVPRect> inputs[]={{gs1.get(),r1},{gs2.get(),r2},{gr.get(),rr}};
+            auto before=TVPGetMetalLayerRenderStats();
+            gpu->OperateRect(method,actual.get(),nullptr,dr,tRenderTexRectArray(inputs));
+            auto after=TVPGetMetalLayerRenderStats();
+            bool empty=dr.right<=0 || dr.bottom<=0 || dr.left>=w || dr.top>=h;
+            Require(after.gpuOperations==before.gpuOperations &&
+                    after.cpuFallbacks==before.cpuFallbacks+(empty?0:1),"clipped UnivTrans fallback count incorrect");
+            if(empty) Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                              "empty UnivTrans fallback transferred pixels");
+            Require(std::all_of(guarded.begin()+initial.size(),guarded.end(),[](uint8_t b){return b==0xa5;}),
+                    "UnivTrans fallback wrote beyond the target surface");
+            Compare(expected.get(),actual.get(),0,"UnivTrans clipped fallback"); ++cases;
+            // Reusing the GPU handle uploads only the visible output region.
+            actual->GetTextureHandle();
+            const uint64_t upload=failure==0 || empty ? 0 :
+                uint64_t(std::min(w,dr.right)-std::max(0,dr.left))*
+                (std::min(h,dr.bottom)-std::max(0,dr.top))*4;
+            Require(TVPGetMetalLayerRenderStats().uploadedBytes==after.uploadedBytes+upload,
+                    "UnivTrans fallback uploaded outside the visible output region");
+        }
+#ifndef TEST_NATIVE_METAL
+        device->rejectTripleSource=false;
+#endif
+    }
+    std::cout<<"PASS UnivTrans clipped/empty software fallbacks: "<<cases<<" exact surface comparisons\n";
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -1092,7 +1165,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
