@@ -21,20 +21,24 @@ using Texture=std::unique_ptr<iTVPTexture2D>;
 extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
 void BitmapOverwriteTests(iTVPRenderBackend* backend);
+void UnivTransShaderTests();
+uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
 
 #ifdef TEST_NATIVE_METAL
 // This standalone parity binary links the Metal backend directly rather than
-// the engine compositor. Profiling hooks are runtime-only and are no-ops here.
+// the engine compositor. Count submissions/waits/blits for transition assertions;
+// the remaining runtime profiling hooks are no-ops.
+static uint64_t testMetalSubmits=0,testMetalWaits=0,testMetalBlits=0;
 namespace krkrsdl3 {
 void TVPRecordMeshDraw(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t) {}
 void TVPRecordEmoteGPUDeform(uint64_t) {}
-void TVPRecordMetalSubmit() {}
+void TVPRecordMetalSubmit() { ++testMetalSubmits; }
 void TVPRecordMetalRenderEncoder() {}
 void TVPRecordMetalComputeEncoder() {}
-void TVPRecordMetalBlitEncoder() {}
+void TVPRecordMetalBlitEncoder() { ++testMetalBlits; }
 void TVPRecordMetalLayerRectSnapshot(uint64_t) {}
 void TVPRecordMetalSurfaceUpload(uint64_t) {}
-void TVPRecordMetalSyncWait(uint64_t) {}
+void TVPRecordMetalSyncWait(uint64_t) { ++testMetalWaits; }
 void TVPRecordMetalQueueWait(uint64_t) {}
 void TVPRecordMetalRingSuballoc(uint64_t, uint64_t, uint64_t) {}
 void TVPRecordMetalRingWrap() {}
@@ -53,6 +57,7 @@ class DeviceDouble : public iTVPRenderBackend {
     struct Resource { std::vector<uint8_t> pixels; int w,h,bpp; };
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
 public:
+    bool rejectTripleSource=false;
     const char* GetName() const override { return "test-device"; }
     void BeginFrame(int,int) override {} void EndFrame() override {}
     void* CreateWindowTexture(int,int) override { return nullptr; }
@@ -163,6 +168,29 @@ public:
         Texture bv(sw->CreateTexture2D(pb,b.w*b.bpp,b.w,b.h,TVPTextureFormat::RGBA));
         std::pair<iTVPTexture2D*,tTVPRect> inputs[]={{av.get(),Rect(src1)},{bv.get(),Rect(src2)}};
         sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(inputs));
+        return true;
+    }
+    bool OperateLayerRectTripleSource(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,
+                                      void* source1,const TVPLayerRect& src1,
+                                      void* source2,const TVPLayerRect& src2,
+                                      void* rule,const TVPLayerRect& ruleRect) override {
+        if(rejectTripleSource || op.kind!=TVPLayerOperationKind::UnivTrans ||
+           !target || !source1 || !source2 || !rule) return false;
+        auto& t=*resources.at(target); auto& a=*resources.at(source1);
+        auto& b=*resources.at(source2); auto& r=*resources.at(rule);
+        if(t.bpp!=4 || a.bpp!=4 || b.bpp!=4 || r.bpp!=1) return false;
+        // Take independent snapshots before writing, including offset overlaps.
+        auto first=a.pixels,second=b.pixels;
+        for(int y=std::max(0,dst.top);y<std::min(t.h,dst.bottom);++y)
+        for(int x=std::max(0,dst.left);x<std::min(t.w,dst.right);++x) {
+            int dx=x-dst.left,dy=y-dst.top;
+            uint32_t s1,s2;
+            std::memcpy(&s1,first.data()+((src1.top+dy)*a.w+src1.left+dx)*4,4);
+            std::memcpy(&s2,second.data()+((src2.top+dy)*b.w+src2.left+dx)*4,4);
+            uint8_t weight=r.pixels[(ruleRect.top+dy)*r.w+ruleRect.left+dx];
+            uint32_t out=TVPTestUnivTransPixel(s1,s2,weight,op);
+            std::memcpy(t.pixels.data()+(y*t.w+x)*4,&out,4);
+        }
         return true;
     }
 };
@@ -753,6 +781,196 @@ static void DualSourceTransitions() {
         }
     }
 }
+static void UnivTransSetParameters(iTVPRenderMethod* method,int phase,int vague) {
+    method->SetParameterInt(method->EnumParameterID("vague"),vague);
+    method->SetParameterInt(method->EnumParameterID("phase"),phase);
+}
+static void UnivTransReference(iTVPRenderMethod* method,iTVPTexture2D* target,
+                               const tTVPRect& dst,iTVPTexture2D* s1,tTVPRect src1,
+                               iTVPTexture2D* s2,tTVPRect src2,iTVPTexture2D* rule,tTVPRect rr) {
+    // The software three-input primitive expects pre-clipped rectangles. Apply
+    // the target clip and translate ALL source origins for the independent oracle.
+    tTVPRect clip(std::max(0,dst.left),std::max(0,dst.top),
+                  std::min(int(target->GetWidth()),dst.right),std::min(int(target->GetHeight()),dst.bottom));
+    if(clip.get_width()<=0 || clip.get_height()<=0) return;
+    for(auto* r:{&src1,&src2,&rr}) {
+        r->left+=clip.left-dst.left; r->top+=clip.top-dst.top;
+        r->right=r->left+clip.get_width(); r->bottom=r->top+clip.get_height();
+    }
+    std::pair<iTVPTexture2D*,tTVPRect> inputs[]={{s1,src1},{s2,src2},{rule,rr}};
+    TVPGetSoftwareRenderManager()->OperateRect(method,target,nullptr,clip,tRenderTexRectArray(inputs));
+}
+static void UnivTransGPU(iTVPRenderMethod* method,iTVPTexture2D* target,const tTVPRect& dst,
+                         iTVPTexture2D* s1,const tTVPRect& src1,iTVPTexture2D* s2,const tTVPRect& src2,
+                         iTVPTexture2D* rule,const tTVPRect& rr,bool snapshot=false) {
+    // Upload initial data before measuring. A resident operation must perform
+    // no further upload or readback, even when either RGBA source aliases output.
+    for(auto* t:{target,s1,s2,rule}) t->GetTextureHandle();
+    auto before=TVPGetMetalLayerRenderStats();
+#ifdef TEST_NATIVE_METAL
+    auto submits=testMetalSubmits,waits=testMetalWaits,blits=testMetalBlits;
+#else
+    (void)snapshot;
+#endif
+    std::pair<iTVPTexture2D*,tTVPRect> inputs[]={{s1,src1},{s2,src2},{rule,rr}};
+    TVPGetRenderManager()->OperateRect(method,target,nullptr,dst,tRenderTexRectArray(inputs));
+    auto after=TVPGetMetalLayerRenderStats();
+    Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks,
+            "UnivTrans did not stay on GPU");
+    Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+            "resident UnivTrans performed a CPU transfer");
+    Require(after.gpuRejectCountByReason[static_cast<int>(TVPLayerGPURejectReason::MultipleInputs)]==
+            before.gpuRejectCountByReason[static_cast<int>(TVPLayerGPURejectReason::MultipleInputs)],
+            "UnivTrans rejected three inputs");
+#ifdef TEST_NATIVE_METAL
+    Require(testMetalSubmits==submits && testMetalWaits==waits,"UnivTrans submitted or waited synchronously");
+    if(snapshot) Require(testMetalBlits>blits,"aliased UnivTrans did not snapshot on GPU");
+#endif
+}
+static void UnivTransTransitions() {
+    auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
+    constexpr int w=33,h=21;
+    auto first=Image(w,h,4,2),second=Image(w,h,4,5),initial=Image(w,h,4,7);
+    uint32_t random=0x118ac731;
+    for(size_t i=0;i<first.size();++i) {
+        random=random*1664525u+1013904223u;
+        if(i%4!=3) { first[i]=uint8_t(random>>24); second[i]=uint8_t(random>>16); }
+    }
+    std::vector<uint8_t> rules(w*h);
+    for(size_t i=0;i<rules.size();++i) rules[i]=uint8_t(i); // full 0..255 coverage
+    const char* names[]={"UnivTransBlend","UnivTransBlend_d","UnivTransBlend_a"};
+    unsigned cases=0;
+    for(auto* name:names) {
+        auto* method=gpu->GetRenderMethod(name);
+        Require(method==sw->GetRenderMethod(name),"UnivTrans canonical method pointer changed");
+        auto ss1=Create(sw,w,h,TVPTextureFormat::RGBA,first),ss2=Create(sw,w,h,TVPTextureFormat::RGBA,second);
+        auto sr=Create(sw,w,h,TVPTextureFormat::Gray,rules);
+        auto gs1=Create(gpu,w,h,TVPTextureFormat::RGBA,first),gs2=Create(gpu,w,h,TVPTextureFormat::RGBA,second);
+        auto gr=Create(gpu,w,h,TVPTextureFormat::Gray,rules);
+        for(int vague:{0,1,16,64,255,511,512,1024}) for(int phase:{0,1,63,127,255,256,255+vague}) {
+            UnivTransSetParameters(method,phase,vague);
+            TVPLayerOperation op;
+            const uint32_t flags=std::string(name)=="UnivTransBlend_d" ? TVP_LAYER_DEST_ALPHA :
+                std::string(name)=="UnivTransBlend_a" ? TVP_LAYER_DEST_PREMULTIPLIED : 0;
+            Require(method->DescribeGpuOperation(op) && op.kind==TVPLayerOperationKind::UnivTrans &&
+                    op.phase==phase && op.vague==vague && op.flags==flags,"UnivTrans semantic parameters stale");
+            auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            auto actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+            tTVPRect rect(0,0,w,h);
+            UnivTransReference(method,expected.get(),rect,ss1.get(),rect,ss2.get(),rect,sr.get(),rect);
+            UnivTransGPU(method,actual.get(),rect,gs1.get(),rect,gs2.get(),rect,gr.get(),rect);
+            Compare(expected.get(),actual.get(),0,name); ++cases;
+        }
+        // Non-zero, independent source/rule origins; odd sizes, 1x1, every
+        // clipping edge and an empty target intersection.
+        for(int vague:{64,512}) for(auto dr:{tTVPRect(3,2,24,19),tTVPRect(-2,-1,17,14),
+                                            tTVPRect(25,15,40,26),tTVPRect(4,6,5,7),tTVPRect(-9,-8,-2,-3)}) {
+            UnivTransSetParameters(method,127,vague);
+            int dw=dr.get_width(),dh=dr.get_height();
+            tTVPRect r1(1,1,1+dw,1+dh),r2(3,2,3+dw,2+dh),rr(6,1,6+dw,1+dh);
+            auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            auto actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+            UnivTransReference(method,expected.get(),dr,ss1.get(),r1,ss2.get(),r2,sr.get(),rr);
+            UnivTransGPU(method,actual.get(),dr,gs1.get(),r1,gs2.get(),r2,gr.get(),rr);
+            Compare(expected.get(),actual.get(),0,"UnivTrans clip/origins"); ++cases;
+        }
+        // Both target aliases and source1==source2. References use immutable
+        // input copies so offset overlaps exercise snapshot-before-write semantics.
+        for(int vague:{64,512}) for(int alias:{1,2,3,4}) for(bool offset:{false,true}) {
+            UnivTransSetParameters(method,127,vague);
+            tTVPRect dr(4,4,17,13),r1=offset?tTVPRect(2,3,15,12):dr,
+                r2=offset?tTVPRect(5,5,18,14):dr,rr(7,1,20,10);
+            auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            auto actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+            auto snap1=Create(sw,w,h,TVPTextureFormat::RGBA,(alias==1 || alias==3)?initial:first);
+            auto snap2=Create(sw,w,h,TVPTextureFormat::RGBA,(alias==2 || alias==3)?initial:(alias==4?first:second));
+            UnivTransReference(method,expected.get(),dr,snap1.get(),r1,snap2.get(),r2,sr.get(),rr);
+            UnivTransGPU(method,actual.get(),dr,(alias==1 || alias==3)?actual.get():gs1.get(),r1,
+                (alias==2 || alias==3)?actual.get():(alias==4?gs1.get():gs2.get()),r2,gr.get(),rr,alias!=4);
+            Compare(expected.get(),actual.get(),0,"UnivTrans alias"); ++cases;
+        }
+        // Reuse alias snapshots without readback/submission between dispatches.
+        auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+        auto actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+        tTVPRect dr(4,4,17,13),rr(7,1,20,10);
+        for(int phase:{63,127,191}) {
+            UnivTransSetParameters(method,phase,64);
+            std::vector<uint8_t> snapshot(size_t(w)*h*4);
+            for(int y=0;y<h;++y) std::memcpy(snapshot.data()+y*w*4,expected->GetScanLineForRead(y),w*4);
+            auto prior=Create(sw,w,h,TVPTextureFormat::RGBA,snapshot);
+            UnivTransReference(method,expected.get(),dr,prior.get(),dr,ss2.get(),dr,sr.get(),rr);
+            UnivTransGPU(method,actual.get(),dr,actual.get(),dr,gs2.get(),dr,gr.get(),rr,true);
+        }
+        Compare(expected.get(),actual.get(),0,"UnivTrans batched snapshots"); ++cases;
+
+        // Snapshot reallocation and clipped destination offsets in one batch.
+        expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+        actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+        for(auto clipped:{tTVPRect(-2,-1,13,10),tTVPRect(25,15,36,24)}) {
+            UnivTransSetParameters(method,127,512);
+            int dw=clipped.get_width(),dh=clipped.get_height();
+            tTVPRect r1(1,2,1+dw,2+dh),r2(3,4,3+dw,4+dh),ruleRect(6,3,6+dw,3+dh);
+            std::vector<uint8_t> snapshot(size_t(w)*h*4);
+            for(int y=0;y<h;++y) std::memcpy(snapshot.data()+y*w*4,expected->GetScanLineForRead(y),w*4);
+            auto prior=Create(sw,w,h,TVPTextureFormat::RGBA,snapshot);
+            UnivTransReference(method,expected.get(),clipped,prior.get(),r1,prior.get(),r2,sr.get(),ruleRect);
+            UnivTransGPU(method,actual.get(),clipped,actual.get(),r1,actual.get(),r2,gr.get(),ruleRect,true);
+        }
+        Compare(expected.get(),actual.get(),0,"UnivTrans clipped/batched alias resize"); ++cases;
+    }
+    std::cout<<"PASS UnivTrans three-source routing/geometry/alias: "<<cases<<" exact surface comparisons\n";
+}
+static void UnivTransFallbacks(iTVPRenderBackend* backend) {
+    auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
+    auto* method=gpu->GetRenderMethod("UnivTransBlend_d"); UnivTransSetParameters(method,127,64);
+    auto first=Image(9,7,4,2),second=Image(9,7,4,5),initial=Image(9,7,4,7),rules=Image(9,7,1,3);
+    tTVPRect rect(0,0,9,7);
+#ifdef TEST_NATIVE_METAL
+    (void)backend;
+#endif
+    auto ss1=Create(sw,9,7,TVPTextureFormat::RGBA,first),ss2=Create(sw,9,7,TVPTextureFormat::RGBA,second);
+    auto gs1=Create(gpu,9,7,TVPTextureFormat::RGBA,first),gs2=Create(gpu,9,7,TVPTextureFormat::RGBA,second);
+    for(int failure:{0,1,2,3}) {
+#ifdef TEST_NATIVE_METAL
+        // Missing pipeline is injected in the device double; native creation
+        // failure is handled by the optional backend API's false result.
+        if(failure==2) continue;
+#else
+        auto* device=dynamic_cast<DeviceDouble*>(backend); Require(device,"expected device double");
+        device->rejectTripleSource=failure==2;
+#endif
+        bool badFormat=failure==0;
+        auto format=badFormat?TVPTextureFormat::RGBA:TVPTextureFormat::Gray;
+        auto data=badFormat?Image(9,7,4,3):rules;
+        auto sr=Create(sw,9,7,format,data),gr=Create(gpu,9,7,format,data);
+        auto expected=Create(sw,9,7,TVPTextureFormat::RGBA,initial),actual=Create(gpu,9,7,TVPTextureFormat::RGBA,initial);
+        // The rule's declared right edge is wrong, but its actual allocation
+        // still covers the software primitive's 9 pixels; fallback is safe.
+        tTVPRect rr=failure==1?tTVPRect(0,0,8,7):rect;
+        std::pair<iTVPTexture2D*,tTVPRect> si[]={{ss1.get(),rect},{ss2.get(),rect},{sr.get(),rr},{sr.get(),rect}};
+        std::pair<iTVPTexture2D*,tTVPRect> gi[]={{gs1.get(),rect},{gs2.get(),rect},{gr.get(),rr},{gr.get(),rect}};
+        for(auto* t:{actual.get(),gs1.get(),gs2.get(),gr.get()}) t->GetTextureHandle();
+        // Make target CPU cache stale, so fallback must recover GPU pixels.
+        Operation(gpu,gpu->GetRenderMethod("Copy"),actual.get(),rect,gs1.get(),rect);
+        expected=Create(sw,9,7,TVPTextureFormat::RGBA,first);
+        size_t count=failure==3?4:3;
+        sw->OperateRect(method,expected.get(),nullptr,rect,tRenderTexRectArray(si,count));
+        auto before=TVPGetMetalLayerRenderStats();
+        gpu->OperateRect(method,actual.get(),nullptr,rect,tRenderTexRectArray(gi,count));
+        auto after=TVPGetMetalLayerRenderStats();
+        auto reason=failure==0?TVPLayerGPURejectReason::SourceFormat:failure==1?TVPLayerGPURejectReason::InvalidGeometry:
+            failure==2?TVPLayerGPURejectReason::BackendFailure:TVPLayerGPURejectReason::MultipleInputs;
+        Require(after.cpuFallbacks==before.cpuFallbacks+1 && after.gpuOperations==before.gpuOperations &&
+                after.gpuRejectCountByReason[int(reason)]==before.gpuRejectCountByReason[int(reason)]+1,
+                "UnivTrans failure not safely attributed to software");
+        Compare(expected.get(),actual.get(),0,"UnivTrans fallback");
+        // The failed path must leave a valid GPU upload for later operations.
+        actual->GetTextureHandle();
+#ifndef TEST_NATIVE_METAL
+        device->rejectTripleSource=false;
+#endif
+    }
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -839,6 +1057,7 @@ static void Presentation(iTVPRenderBackend* backend) {
 int main(int argc,char** argv) {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
+        UnivTransShaderTests();
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
         Require(SDL_Init(SDL_INIT_VIDEO),"SDL video init failed");
@@ -873,7 +1092,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

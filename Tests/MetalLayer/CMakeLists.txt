@@ -14,8 +14,15 @@ add_custom_command(OUTPUT "${GENERATED_OVERWRITE}"
             "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
     VERBATIM)
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
+set(UNIV_SHADER_SOURCE "${CORE}/core/render/backend/MetalLayerShaders.h")
+set(GENERATED_UNIV_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionUnivTransMath.inc")
+add_custom_command(OUTPUT "${GENERATED_UNIV_MATH}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
+            --source "${UNIV_SHADER_SOURCE}" --output "${GENERATED_UNIV_MATH}"
+    DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
+    VERBATIM)
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TestPlatform.cpp
-    "${GENERATED_OVERWRITE}" ${TJS_SOURCES}
+    UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" ${TJS_SOURCES}
     "${CORE}/core/render/ComplexRect.cpp"
     "${CORE}/core/render/RenderManager.cpp"
     "${CORE}/core/render/MetalLayerRenderManager.cpp"
