@@ -36,7 +36,9 @@ void Fill(iTVPTexture2D* t,uint32_t color) {
 }
 void Triangle(iTVPTexture2D* t,iTVPTexture2D* s,const tTVPRect& clip,
               const char* name="Copy",iTVPTexture2D* reference=nullptr) {
-    const tTVPPointD points[]={{1,1},{5,1},{1,4},{5,1},{1,4},{5,4}};
+    // Fractional source rectangles deliberately remain unsupported by the
+    // first GPU affine path, so these exercise actual fallback attribution.
+    const tTVPPointD points[]={{1,1},{5.25,1},{1,4},{5.25,1},{1,4},{5.25,4}};
     auto* mgr=TVPGetRenderManager(); auto* method=mgr->GetRenderMethod(name);
     method->SetParameterOpa(0,127);
     std::pair<iTVPTexture2D*,const tTVPPointD*> input(s,points);
@@ -175,6 +177,21 @@ void TriangleProfileTests() {
     TVPSetMetalLayerTriangleDiagnostics(false);
     TVPSetMetalLayerTriangleDiagnostics(true);
     Require(Take().calls==0,"diagnostic disable/re-enable retained an old interval");
+    // Copy does not consume a separate GPU reference, even when it has no CPU cache.
+    const tTVPPointD supported[]={{1,1},{5,1},{1,4},{5,1},{1,4},{5,4}};
+    std::pair<iTVPTexture2D*,const tTVPPointD*> input(s.get(),supported);
+    Fill(t.get(),0xff112233); Fill(s.get(),0xff8090a0); Fill(r.get(),0xff445566);
+    const auto gpuBefore=TVPGetMetalLayerRenderStats();
+    mgr->OperateTriangles(mgr->GetRenderMethod("Copy"),2,t.get(),r.get(),tTVPRect(0,0,8,6),supported,tRenderTexQuadArray(&input,1));
+    const auto gpuAfter=TVPGetMetalLayerRenderStats();
+    auto success=Take();
+    Require(success.calls==0 && success.gpuCalls==1 && success.gpuPixels==12 &&
+            success.referenceReadbackBytes==0 && gpuAfter.readbackBytes==gpuBefore.readbackBytes &&
+            gpuAfter.uploadedBytes==gpuBefore.uploadedBytes,"GPU triangle bridge/reference counters incorrect");
+    auto reset=Take(); Require(reset.gpuCalls==0 && reset.gpuPixels==0,"bridge GPU interval did not reset");
     TVPSetMetalLayerTriangleDiagnostics(false);
+    mgr->OperateTriangles(mgr->GetRenderMethod("Copy"),2,t.get(),r.get(),tTVPRect(0,0,8,6),supported,tRenderTexQuadArray(&input,1));
+    Require(TVPGetMetalLayerRenderStats().gpuOperations==gpuAfter.gpuOperations+1 &&
+            TVPTakeMetalLayerTriangleProfile().stats.gpuCalls==0,"disabled diagnostics changed GPU triangle routing");
     std::cout<<"PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms\n";
 }

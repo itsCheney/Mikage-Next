@@ -10,6 +10,8 @@
 #endif
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include "ProductionAffineMath.inc"
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -52,8 +54,9 @@ static tTVPRect Rect(const TVPLayerRect& r) { return tTVPRect(r.left,r.top,r.rig
 #ifndef TEST_NATIVE_METAL
 static std::vector<krkrsdl3::point_trace::Query> pointReadObservations;
 // A synchronous device double exercises production GPU texture/cache/session
-// logic on non-Apple hosts. It dispatches to actual software methods rather
-// than reproducing Metal math. Pixel equivalence is tested on native Metal CI.
+// logic on non-Apple hosts. Rects dispatch to actual software methods; affine
+// coordinates/bytes and UnivTrans use helpers extracted from production MSL.
+// Full shader execution and texture ordering are checked on native Metal CI.
 class DeviceDouble : public iTVPRenderBackend {
     struct Resource { std::vector<uint8_t> pixels; int w,h,bpp; };
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
@@ -148,6 +151,35 @@ public:
         }
         sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
         sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(source?&input:nullptr,source?1:0));return true;
+    }
+    bool OperateLayerAffine(const TVPLayerOperation& op,void* target,const TVPLayerAffineCopy& map,void* source,int sampling) override {
+        if(op.kind!=TVPLayerOperationKind::Copy || op.flags || !target || !source || sampling<0 || sampling>1) return false;
+        auto& t=*resources.at(target); auto& s=*resources.at(source);
+        // Snapshot independent of destination: the production backend blits on alias.
+        const auto pixels=s.pixels;
+        const auto& rc=map.sourceCrop; const auto& clip=map.clip;
+        auto coordinate=[&](int row,int x,int y) {
+            float h[3],l[3];
+            for(int i=0;i<3;++i) { h[i]=float(map.inverse[row*3+i]); l[i]=float(map.inverse[row*3+i]-double(h[i])); }
+            return affine_shader::affineCoordinate(h[0],l[0],h[1],l[1],h[2],l[2],float(x)+0.5f,float(y)+0.5f);
+        };
+        const int w=rc.Width(),h=rc.Height();
+        for(int y=clip.top;y<clip.bottom;++y) for(int x=clip.left;x<clip.right;++x) {
+            float sx=coordinate(0,x-clip.left,y-clip.top),sy=coordinate(1,x-clip.left,y-clip.top);
+            uint8_t* out=t.pixels.data()+(y*t.w+x)*4;
+            std::memset(out,0,4);
+            if(sx<0.5f || sx>=w-0.5f || sy<0.5f || sy>=h-0.5f) continue;
+            auto pixel=[&](int px,int py,int c) {return int(pixels[((py+rc.top)*s.w+px+rc.left)*4+c]);};
+            if(sampling==0) {
+                for(int c=0;c<4;++c) out[c]=pixel(std::clamp(int(sx+0.5f),0,w-1),std::clamp(int(sy+0.5f),0,h-1),c);
+            } else {
+                int ax=std::clamp(int(sx),0,std::max(0,w-2)),ay=std::clamp(int(sy),0,std::max(0,h-2));
+                int bx=std::min(ax+1,w-1),by=std::min(ay+1,h-1);
+                float fx=w==1?0:sx-ax,fy=h==1?0:sy-ay;
+                for(int c=0;c<4;++c) out[c]=affine_shader::affineBilinearByte(fx,fy,pixel(ax,ay,c),pixel(bx,ay,c),pixel(ax,by,c),pixel(bx,by,c));
+            }
+        }
+        return true;
     }
     bool OperateLayerRectDualSource(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,
                                     void* source1,const TVPLayerRect& src1,
@@ -1045,6 +1077,118 @@ static void UnivTransClippedFallbacks(iTVPRenderBackend* backend) {
     }
     std::cout<<"PASS UnivTrans clipped/empty software fallbacks: "<<cases<<" exact surface comparisons\n";
 }
+static void AffineCopyTriangles() {
+    auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
+    auto* copy=gpu->GetRenderMethod("Copy");
+    const int w=31,h=23;
+    // Pixel-center matrix coordinates, fractional translation, scale, rotation,
+    // shear, combined transforms, and clockwise/counterclockwise winding.
+    const double matrices[][6]={
+        {1,0,0,1,0,0},{1,0,0,1,3,2},{1,0,0,1,2.3,-1.7},
+        {1.7,0,0,0.6,1,2},{0.8,0.6,-0.6,0.8,10,1},
+        {0.6,-0.8,0.8,0.6,2,16},{1,0.25,0.35,1,2,1},
+        {-0.8,0.6,0.6,0.8,19,1},{0,-1,1,0,2,20},
+        {0.53,0.27,-0.42,1.33,12.2,-2.4}};
+    const tTVPRect clips[]={tTVPRect(0,0,w,h),tTVPRect(3,2,24,19),tTVPRect(27,20,31,23)};
+    const tTVPRect rects[]={tTVPRect(0,0,17,13),tTVPRect(3,2,14,10)};
+    int cases=0;
+    for(const auto& m:matrices) for(const auto& clip:clips) for(const auto& sr:rects)
+    for(int sampling=0;sampling<3;++sampling) for(int alias=0;alias<2;++alias) {
+        auto initial=Image(w,h,4,5),source=Image(w,h,4,2);
+        auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial),actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+        auto ss=Create(sw,w,h,TVPTextureFormat::RGBA,source),gs=Create(gpu,w,h,TVPTextureFormat::RGBA,source);
+        tTVPPointD sp[]={{double(sr.left),double(sr.top)},{double(sr.right),double(sr.top)},
+                        {double(sr.left),double(sr.bottom)},{double(sr.right),double(sr.top)},
+                        {double(sr.left),double(sr.bottom)},{double(sr.right),double(sr.bottom)}};
+        auto transform=[&](double x,double y) { return tTVPPointD{m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]}; };
+        tTVPPointD dp[6]; dp[0]=transform(-0.5,-0.5);dp[1]=transform(sr.get_width()-0.5,-0.5);
+        dp[2]=transform(-0.5,sr.get_height()-0.5);dp[3]=dp[1];dp[4]=dp[2];
+        dp[5]={dp[1].x-dp[0].x+dp[2].x,dp[1].y-dp[0].y+dp[2].y};
+        std::pair<iTVPTexture2D*,const tTVPPointD*> si(alias?expected.get():ss.get(),sp),gi(alias?actual.get():gs.get(),sp);
+        // Warm handles before accounting; successful operations must stay resident.
+        actual->GetTextureHandle(); gs->GetTextureHandle();
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),sampling);
+        sw->OperateTriangles(copy,2,expected.get(),expected.get(),clip,dp,tRenderTexQuadArray(&si,1));
+        const auto before=TVPGetMetalLayerRenderStats();
+        gpu->OperateTriangles(copy,2,actual.get(),actual.get(),clip,dp,tRenderTexQuadArray(&gi,1));
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks,
+                "supported affine Copy did not stay on GPU");
+        Require(after.uploadedBytes==before.uploadedBytes && after.readbackBytes==before.readbackBytes,
+                "GPU affine Copy transferred CPU pixels");
+        // Software rectangular self-copy is overlap-sensitive; compare against
+        // its pre-operation snapshot to define the safe alias behavior.
+        if(alias && (m[1]==0 && m[2]==0)) {
+            expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            auto snapshot=Create(sw,w,h,TVPTextureFormat::RGBA,initial);
+            si.first=snapshot.get();
+            sw->OperateTriangles(copy,2,expected.get(),expected.get(),clip,dp,tRenderTexQuadArray(&si,1));
+        }
+        Compare(expected.get(),actual.get(),0,"Copy affine triangle"); ++cases;
+    }
+    for(const auto& size:std::vector<std::pair<int,int>>{{1,1},{1,7},{7,1}}) {
+        const int a=size.first,b=size.second;
+        auto image=Image(a,b,4,3),initial=Image(w,h,4,5);
+        auto ss=Create(sw,a,b,TVPTextureFormat::RGBA,image),gs=Create(gpu,a,b,TVPTextureFormat::RGBA,image);
+        tTVPPointD sp[]={{0,0},{double(a),0},{0,double(b)},{double(a),0},{0,double(b)},{double(a),double(b)}};
+        tTVPPointD dp[]={{2,3},{12,4},{3,16},{12,4},{3,16},{13,17}};
+        for(int sampling=0;sampling<3;++sampling) {
+            auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,initial),actual=Create(gpu,w,h,TVPTextureFormat::RGBA,initial);
+            std::pair<iTVPTexture2D*,const tTVPPointD*> si(ss.get(),sp),gi(gs.get(),sp);
+            gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),sampling);
+            auto before=TVPGetMetalLayerRenderStats();
+            sw->OperateTriangles(copy,2,expected.get(),nullptr,tTVPRect(0,0,w,h),dp,tRenderTexQuadArray(&si,1));
+            gpu->OperateTriangles(copy,2,actual.get(),nullptr,tTVPRect(0,0,w,h),dp,tRenderTexQuadArray(&gi,1));
+            Require(TVPGetMetalLayerRenderStats().cpuFallbacks==before.cpuFallbacks,"single-dimension affine fell back");
+            Compare(expected.get(),actual.get(),0,"single-dimension affine"); ++cases;
+        }
+    }
+    // Unsupported methods/samplers and mirrored scanline geometry must still
+    // use software. Fractional source rectangles remain covered by profile tests.
+    for(int failure=0;failure<3;++failure) {
+        auto image=Image(w,h,4,3);
+        auto expected=Create(sw,w,h,TVPTextureFormat::RGBA,image),actual=Create(gpu,w,h,TVPTextureFormat::RGBA,image);
+        auto ss=Create(sw,w,h,TVPTextureFormat::RGBA,image),gs=Create(gpu,w,h,TVPTextureFormat::RGBA,image);
+        tTVPPointD sp[]={{1,1},{14,1},{1,10},{14,1},{1,10},{14,10}};
+        tTVPPointD dp[]={{2,2},{19,2},{2,14},{19,2},{2,14},{19,14}};
+        if(failure==2) {dp[0].x=dp[2].x=dp[4].x=19;dp[1].x=dp[3].x=dp[5].x=2;}
+        auto* method=gpu->GetRenderMethod(failure==0?"AlphaBlend":"Copy"); method->SetParameterOpa(0,127);
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),failure==1?3:1);
+        std::pair<iTVPTexture2D*,const tTVPPointD*> si(ss.get(),sp),gi(gs.get(),sp);
+        const auto before=TVPGetMetalLayerRenderStats();
+        sw->OperateTriangles(method,2,expected.get(),nullptr,tTVPRect(0,0,w,h),dp,tRenderTexQuadArray(&si,1));
+        gpu->OperateTriangles(method,2,actual.get(),nullptr,tTVPRect(0,0,w,h),dp,tRenderTexQuadArray(&gi,1));
+        Require(TVPGetMetalLayerRenderStats().cpuFallbacks==before.cpuFallbacks+1,"unsupported affine did not fall back");
+        Compare(expected.get(),actual.get(),0,"unsupported affine fallback");
+    }
+    // A warmed full-HD burst must not gain one submit/wait per operation.
+    auto image=Image(1920,1080,4,2);
+    auto target=Create(gpu,1920,1080,TVPTextureFormat::RGBA,image),source=Create(gpu,1920,1080,TVPTextureFormat::RGBA,image);
+    target->GetTextureHandle();source->GetTextureHandle();
+    tTVPPointD sp[]={{0,0},{1920,0},{0,1080},{1920,0},{0,1080},{1920,1080}};
+    tTVPPointD dp[]={{1,0},{1920,30},{-30,1080},{1920,30},{-30,1080},{1889,1110}};
+    std::pair<iTVPTexture2D*,const tTVPPointD*> input(source.get(),sp);
+    gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),1);
+    TVPTakeMetalLayerTriangleProfile();
+    const auto before=TVPGetMetalLayerRenderStats();
+#ifdef TEST_NATIVE_METAL
+    const auto submits=testMetalSubmits,waits=testMetalWaits;
+#endif
+    for(int i=0;i<24;++i) gpu->OperateTriangles(copy,2,target.get(),target.get(),tTVPRect(0,0,1920,1080),dp,tRenderTexQuadArray(&input,1));
+    const auto after=TVPGetMetalLayerRenderStats();
+    Require(after.gpuOperations==before.gpuOperations+24 && after.cpuFallbacks==before.cpuFallbacks &&
+            after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+            "full-HD triangle burst transferred CPU pixels or fell back");
+    const auto profile=TVPTakeMetalLayerTriangleProfile();
+    Require(profile.stats.gpuCalls==24 && profile.stats.gpuPixels==24ULL*1920*1080 && profile.stats.calls==0,
+            "successful triangle interval counters did not reach sampler");
+    Require(TVPTakeMetalLayerTriangleProfile().stats.gpuCalls==0,"triangle GPU interval did not reset");
+#ifdef TEST_NATIVE_METAL
+    Require(testMetalSubmits-submits<=1 && testMetalWaits==waits,"triangle burst submitted/waited per operation");
+#endif
+    gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+    std::cout<<"PASS Copy affine triangle: "<<cases<<" exact comparisons and full-HD resident burst\n";
+}
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -1170,7 +1314,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

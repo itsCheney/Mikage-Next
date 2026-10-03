@@ -690,6 +690,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                         "intervalMS": String(Double(triangleProfile.intervalNS) / 1_000_000),
                         "calls": String(triangleProfile.calls),
                         "triangles": String(triangleProfile.triangleCount),
+                        "gpuCalls": String(triangleProfile.gpuCalls),
+                        "gpuPixels": String(triangleProfile.gpuPixels),
                         "clipPixels": String(triangleProfile.clipPixels),
                         "maxClipPixels": String(triangleProfile.maxClipPixels),
                         "maxTargetPixels": String(triangleProfile.maxTargetPixels),
