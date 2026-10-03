@@ -10,7 +10,7 @@ Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 2
 
 ## GitHub Actions 编译
 
-推送至 main，或在 Actions → iOS build → Run workflow 手动运行。
+推送至 main 或 emote_dev，或在 Actions → iOS build → Run workflow 手动运行。
 
 1. macOS 26 runner 运行 VNCore 扫描、路径隔离、导入与持久化测试。
 2. 初始化固定的 KRKRSDL3 fork 递归子模块，并准备 vcpkg 依赖。
@@ -55,3 +55,7 @@ KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`start
 - docs/PHASE-2-MULTI-ENGINE-PLAN.md：KRKR 真机验收通过后的 ONScripter、Ren’Py、Artemis 多引擎计划。
 
 KRKRSDL3 的修改通过仓库固定的 fork 递归子模块提供。分发修改后的 runtime 或商业游戏移植版前，请阅读 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的再分发与源码公开条件。
+
+`emote_dev` 的候选动画接入和额外许可声明见
+[Emote 首轮实现记录](docs/EMOTE-AETHER-INTEGRATION-STATUS.md)。默认仍使用 legacy 动画，
+节点曲线语义与 iPhone 验收完成后再切换默认实现。
