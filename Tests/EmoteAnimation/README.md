@@ -27,6 +27,12 @@ dispatch, ordinary/D3D units, explicit pause/seek, main-motion completion,
 blink-state snapshots, and the production D3D clone flow. The legacy route is
 also exercised.
 
+The host-mode target extracts the actual App host setter/startup hint code and
+production Emote constructor. SDL hint storage is a fixture; it verifies the
+default/enable/disable session sequence, override priority, no mid-session mode
+change and failure propagation. XCTest in `Tests/MikageTests` covers App setting
+persistence/migration and launch snapshots on the iOS simulator.
+
 A deterministic synthetic trajectory can be exported for comparison:
 
 ```sh

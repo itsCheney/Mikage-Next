@@ -3,9 +3,9 @@
 日期：2026-10-03。三个仓库均使用 `emote_dev`；参考仓库位于忽略的
 `third_party/AetherKrkr`，固定为 `fa0f8af9614865aebcb839abd32bc181643d1e4a`。
 
-已形成的子模块提交：core `c9a5938`，build fork `bf06a77`。提交目前保留在本地，
-尚未推送或触发远端 CI；需要远端构建时按 core → build → app 的顺序发布提交，
-保证递归 checkout 能取得固定的子模块版本。
+当前子模块提交：core `c9a5938`，build fork `7dc68c9`。三个仓库的 `emote_dev`
+作为同步发布分支，按 core → build → app 的顺序推送，保证递归 checkout 能取得
+固定的子模块版本。当前版本另加入 App 设置开关及下次启动生效的宿主接口。
 
 ## 已实现
 
@@ -31,14 +31,19 @@
 
 ## 如何选择候选模式
 
-默认仍是 `legacy`。创建 player 之前设置 SDL hint 或进程环境变量：
+App 中使用 **设置 → 动画 → Emote 候选动画模式**。默认关闭；开启后保存偏好，
+下次启动游戏使用候选模式。关闭后下次启动恢复 legacy，正在运行的游戏不切换。
+宿主每次启动显式覆盖 SDL hint，因此不会残留上一局模式，也不受调试环境变量
+覆盖。启动诊断记录实际选择的模式。
+
+不经过 App 宿主的独立 runtime 可在创建 player 前使用 SDL hint 或环境变量：
 
 ```text
 MIKAGE_EMOTE_ANIMATION_MODE=integrated
 ```
 
-Xcode 调试时可通过 Scheme 的 Environment Variables 设置。环境/hint 在 player
-构造时读取；既有实例不会随环境值改变而切换。做 A/B 对比时重新启动游戏会话。
+环境/hint 在 player 构造时读取；既有实例不会随环境值改变而切换。
+App 中做 A/B 对比时通过开关选择后重新启动游戏会话。
 诊断沿用应用的诊断开关（宿主设置 `MIKAGE_METAL_DIAGNOSTICS`）。
 
 该开关控制动画行为；新代码仍编译入实验 runtime，不能通过关闭开关免除其许可
@@ -54,6 +59,9 @@ Xcode 调试时可通过 Scheme 的 Environment Variables 设置。环境/hint �
 新增测试说明见 [EmoteAnimation](../Tests/EmoteAnimation/README.md)。Release 下通过
 59 项生产核心检查、32 项生产适配器/TJS 检查，以及 60/42 Hz 合成轨迹在 61 个
 共同时间点的对照。测试不等同于整个 Windows/iOS runtime 构建。
+新增开关另通过 14 项生产宿主接口/模式选择检查，覆盖默认、开启、关闭、下一局
+生效、现有实例隔离及 hint 设置失败；App 偏好持久化、旧配置迁移、启动快照的
+XCTest 已加入模拟器 CI，当前 Windows 环境不能执行 UIKit 测试。
 既有 PSB 解析/加载、资源缓存、帧统计、会话退出、TJS shutdown、原生工厂、脚本栈
 和 LayerInput 回归也作为此次接入检查。
 

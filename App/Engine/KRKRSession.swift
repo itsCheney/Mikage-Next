@@ -27,6 +27,7 @@ struct KRKRLaunchConfiguration {
     let idleOpacity: Double
     let threeFingerMenu: Bool
     let respectSilentMode: Bool
+    let experimentalEmote: Bool
     let performance: Bool
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
@@ -163,6 +164,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "entryPoint": configuration.entryPoint.lastPathComponent,
                                          "targetKind": String(describing: configuration.targetKind),
                                          "requestedRenderer": configuration.renderer.rawValue,
+                                         "emoteAnimationMode": configuration.experimentalEmote ? "integrated" : "legacy",
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -201,7 +203,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             AppDiagnostics.shared.event("bridge", "start.enteredFromRunLoop")
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
-                    MikageKRKRStart(
+                    MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
+                    return MikageKRKRStart(
                         gamePath,
                         renderer,
                         scenePointer,

@@ -45,3 +45,13 @@ endif()
 add_test(NAME emote-integration-tests COMMAND emote-integration-tests)
 add_test(NAME emote-animation-trajectories COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_LIST_DIR}/check-trajectories.py" --executable "$<TARGET_FILE:emote-animation-tests>")
+set(HOST_MODE_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/ProductionHostMode.inc"
+    "${CMAKE_CURRENT_BINARY_DIR}/ProductionModeConstructor.inc")
+add_custom_command(OUTPUT ${HOST_MODE_GENERATED}
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-host-mode.py"
+        --core "${CORE}" --output "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS extract-host-mode.py "${CORE}/../host/MikageKRKRRuntime.mm"
+        "${CORE}/plugins/emoteplayer/emoterunner.cpp" VERBATIM)
+add_executable(emote-host-mode-tests HostEmoteModeTests.cpp ${HOST_MODE_GENERATED})
+target_include_directories(emote-host-mode-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/../host")
+add_test(NAME emote-host-mode-tests COMMAND emote-host-mode-tests)

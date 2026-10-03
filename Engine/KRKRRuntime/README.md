@@ -4,7 +4,7 @@ Mikage Next builds KRKRSDL3 as an embeddable iOS dynamic framework instead of us
 
 Pinned inputs:
 
-- `krkrsdl3_build` fork submodule: `bf06a776b4fe89ebb2dc06f7620140f6c5aff73f` (`itsCheney/krkrsdl3_build`, branch `emote_dev`)
+- `krkrsdl3_build` fork submodule: `7dc68c9c5f0abb5290cbe9409a918dc93b6fd97c` (`itsCheney/krkrsdl3_build`, branch `emote_dev`)
 - nested `krkrsdl3` core submodule: `c9a59389420d54ab2fabaa99e374d0b1c1830af5` (`itsCheney/krkrsdl3`, branch `emote_dev`)
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 
