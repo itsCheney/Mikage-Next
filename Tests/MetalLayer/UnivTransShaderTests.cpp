@@ -68,3 +68,47 @@ void UnivTransShaderTests() {
     }
     std::cout<<"PASS production UnivTrans MSL integer helpers vs tvpgl: "<<pixels<<" exact pixels\n";
 }
+
+void LayerBlendShaderTests() {
+    struct Variant { TVPLayerOperationKind kind; uint32_t flags;
+        decltype(TVPAlphaBlend) full; decltype(TVPAlphaBlend_o) opacity; };
+    Variant variants[]={
+        {TVPLayerOperationKind::AdditiveAlpha,TVP_LAYER_HOLD_ALPHA,TVPAdditiveAlphaBlend_HDA,TVPAdditiveAlphaBlend_HDA_o},
+        {TVPLayerOperationKind::AdditiveAlpha,TVP_LAYER_DEST_PREMULTIPLIED,TVPAdditiveAlphaBlend_a,TVPAdditiveAlphaBlend_ao},
+        {TVPLayerOperationKind::PsMul,TVP_LAYER_HOLD_ALPHA,TVPPsMulBlend_HDA,TVPPsMulBlend_HDA_o},
+        {TVPLayerOperationKind::PsOverlay,TVP_LAYER_HOLD_ALPHA,TVPPsOverlayBlend_HDA,TVPPsOverlayBlend_HDA_o},
+        {TVPLayerOperationKind::PsHardLight,TVP_LAYER_HOLD_ALPHA,TVPPsHardLightBlend_HDA,TVPPsHardLightBlend_HDA_o},
+        {TVPLayerOperationKind::PsMul,0,TVPPsMulBlend,TVPPsMulBlend_o},
+        {TVPLayerOperationKind::PsOverlay,0,TVPPsOverlayBlend,TVPPsOverlayBlend_o},
+        {TVPLayerOperationKind::PsHardLight,0,TVPPsHardLightBlend,TVPPsHardLightBlend_o}};
+    uint32_t random=0x287bd162u;
+    auto next=[&]() { random=random*1664525u+1013904223u; return random; };
+    const uint32_t edges[]={0,1,63,127,128,191,254,255};
+    uint64_t count=0;
+    for(const auto& variant:variants) for(int opa:{0,1,63,127,128,191,254,255})
+    for(auto da:edges) for(auto sa:edges) {
+        std::array<uint32_t,256> d,s,expected;
+        for(unsigned i=0;i<256;++i) {
+            d[i]=(next()&0xffffffu)|(da<<24); s[i]=(next()&0xffffffu)|(sa<<24);
+            if(i<64) { d[i]=edges[i/8]*0x010101u|(da<<24); s[i]=edges[i%8]*0x010101u|(sa<<24); }
+        }
+        expected=d;
+        if(opa==255) variant.full(expected.data(),s.data(),256);
+        else variant.opacity(expected.data(),s.data(),256,opa);
+        for(unsigned i=0;i<256;++i) {
+            uint32_t actual=variant.kind==TVPLayerOperationKind::AdditiveAlpha
+                ? univ_shader::layerPremulPixel(d[i],s[i],opa,variant.flags)
+                : univ_shader::layerPsPixel(d[i],s[i],int(variant.kind),opa,variant.flags);
+            if(actual!=expected[i]) {
+                std::cerr<<"Layer MSL mismatch kind="<<int(variant.kind)<<" flags="<<variant.flags
+                         <<" opa="<<opa<<" d="<<d[i]<<" s="<<s[i]<<" expected="<<expected[i]<<" actual="<<actual<<'\n';
+                throw std::runtime_error("Layer blend shader integer parity failed");
+            }
+            uint32_t converted=d[i]; TVPConvertAlphaToAdditiveAlpha(&converted,1);
+            if(univ_shader::layerAlphaToPremulPixel(d[i])!=converted)
+                throw std::runtime_error("Alpha conversion shader integer parity failed");
+            ++count;
+        }
+    }
+    std::cout<<"PASS production additive/PS/conversion MSL vs tvpgl: "<<count<<" exact pixels\n";
+}

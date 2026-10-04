@@ -68,6 +68,23 @@ uint64_t HistogramCalls(const char* histogram) {
 }
 
 void TriangleProfileTests() {
+    namespace work=krkrsdl3::layer_work;
+    work::SetEnabled(true);
+    work::Record(true,17,1920,1080,8,3,0,false,"bridge.test");
+    work::RecordAMVFrame(4096);
+    MikageKRKRLayerWorkProfile workProfile;
+    std::memset(&workProfile,0xa5,sizeof(workProfile));
+    Require(!MikageKRKRTakeLayerWorkProfile(nullptr),"work bridge accepted a null output");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge did not sample");
+    Require(std::memchr(workProfile.stages,0,sizeof(workProfile.stages)) &&
+            std::memchr(workProfile.transfers,0,sizeof(workProfile.transfers)),"work bridge strings not terminated");
+    Require(workProfile.amvDecodedFrames==1 && workProfile.amvDecodedBytes==4096 &&
+            std::strstr(workProfile.transfers,"bridge.test@17"),"work bridge dropped decoded/transfer data");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && !workProfile.transfers[0] && !workProfile.amvDecodedFrames,
+            "work bridge did not reset its interval");
+    running=false; Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled outside session"); running=true;
+    diagnosticCallback.store(nullptr); Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled with recording off");
+    diagnosticCallback.store(TestLog); work::SetEnabled(false);
     static_assert(!std::is_copy_constructible<trace::SourceScope>::value);
     auto t=Create(),s=Create(),r=Create();
     auto* mgr=TVPGetRenderManager();

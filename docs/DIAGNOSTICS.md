@@ -24,6 +24,19 @@
 
 开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
 
+### 图层传输与主线程阶段诊断
+
+每次诊断心跳另输出 `session.layerWorkProfile`；HUD 和 `GetStats` 不消费计数。
+`intervalMS` 是实际采样间隔，首条包含本次 Layer 会话开始至首次采样的工作。
+
+- `stages` 使用 `名称:调用数/墙钟纳秒/最大单次纳秒`，包括 `resourceLoad`、`amvDecode`、`script`、`gc`、`compact`、`software`。阶段只统计开启诊断/绑定 Layer 会话的引擎线程（宿主主线程），避免混入后台加载工作；同类递归只统计最外层调用；不同阶段可以嵌套，且包含同步等待，**不能相加成 CPU 时间**。`software` 覆盖整个软件回退，包含准备 CPU views 和回读。资源加载包括图像、脚本存储和 Emote/AMV 加载；缓存命中也会计时。
+- `transfers` 使用 `upload或read:来源@纹理ID(宽x高,lease=0或1)=次数/逻辑字节/墙钟纳秒/GPU等待纳秒`。只统计实际普通 Layer 上传和同步回读，不包含缓存命中、GPU→GPU 复制或异步 alpha tile。来源涵盖具体回退算子、LayerEx 插件、视频/AMV 帧、像素 API 和直接 CPU 位图操作；没有更高层标记时使用 API 类别。
+- `lease=1` 表示上传时仍有 CPU 写访问未结束。内置插件完成一次操作后结束作用域访问；脚本原始写指针保留保守同步策略。合并多次 CPU 写入后上传的区域用 `mixed` 标记不同来源；租约上传优先标记原始写指针来源。
+- 每段最多记录 64 个纹理/来源/方向/租约组合，输出字节最多的八项，其余按方向合并到 `other`，保留全部次数、字节和时间。纹理 ID 只供当前运行关联；维度记录传输发生时的整张纹理尺寸，字节数可能只是局部更新。
+- `amvDecodedFrames`、`amvDecodedBytes` 是区间内实际解码成功的 AMV 帧数及 RGBA payload 总量，不是当前 resident memory。AMV 保持现有全帧解码行为；用这两个字段及 `resourceLoad/amvDecode` 判断打开资源时的卡顿和内存峰值。
+
+关闭诊断会清空这些计数，结束旧录制期间的阶段不带入新录制；新 Layer 会话也从零开始。比较传输率时使用实际 `intervalMS`，并将启动、设置、鉴赏、剧情和退出确认分别对照。
+
 ### Layer affine / triangles 诊断
 
 `session.layerTriangleProfile` 随每秒心跳输出一次，包括没有 triangle 调用的零值区间；不在每次 operation 写日志。它分别统计 KRKR Layer `OperateTriangles` 的 GPU 成功路径和软件 fallback，和 Emote `DrawDeformedMesh` 的网格 triangles 分开。

@@ -21,12 +21,14 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 using krkrsdl3::iTVPRenderBackend;
 using Texture=std::unique_ptr<iTVPTexture2D>;
 extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
 void BitmapOverwriteTests(iTVPRenderBackend* backend);
 void UnivTransShaderTests();
+void LayerBlendShaderTests();
 void TriangleProfileTests();
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
 
@@ -165,6 +167,11 @@ public:
             case TVPLayerOperationKind::FillMask: name="FillMask"; break;
             case TVPLayerOperationKind::FillBlend: name="ConstColorAlphaBlend"; break;
             case TVPLayerOperationKind::RemoveConstOpacity: name="RemoveConstOpacity"; break;
+            case TVPLayerOperationKind::AdditiveAlpha: name="AdditiveAlphaBlend"; break;
+            case TVPLayerOperationKind::PsMul: name="PsMulBlend"; break;
+            case TVPLayerOperationKind::PsOverlay: name="PsOverlayBlend"; break;
+            case TVPLayerOperationKind::PsHardLight: name="PsHardLightBlend"; break;
+            case TVPLayerOperationKind::AlphaToAdditiveAlpha: name="AlphaToAdditiveAlpha"; break;
             default:
                 name=op.kind==TVPLayerOperationKind::Alpha ? "AlphaBlend" : op.kind==TVPLayerOperationKind::ConstAlpha ? "ConstAlphaBlend" : "ApplyColorMap";
                 break;
@@ -356,8 +363,9 @@ static void Equivalence() {
     const char* methods[]={"Copy","CopyColor","CopyMask","CopyOpaqueImage","FillARGB","FillColor","FillMask",
         "AlphaBlend","AlphaBlend_HDA","AlphaBlend_d","AlphaBlend_a","ConstAlphaBlend","ConstAlphaBlend_HDA","ConstAlphaBlend_d","ConstAlphaBlend_a",
         "ApplyColorMap","ApplyColorMap_d","ApplyColorMap_a","ConstColorAlphaBlend","ConstColorAlphaBlend_d","ConstColorAlphaBlend_a",
-        "RemoveConstOpacity"};
-    for(auto* name:methods) for(int opacity:{0,1,63,127,254,255}) {
+        "RemoveConstOpacity","AdditiveAlphaBlend","AdditiveAlphaBlend_HDA","AdditiveAlphaBlend_a",
+        "PsMulBlend","PsMulBlend_HDA","PsOverlayBlend","PsOverlayBlend_HDA","PsHardLightBlend","PsHardLightBlend_HDA"};
+    for(auto* name:methods) for(int opacity:{0,1,63,127,128,254,255}) {
         auto* method=sw->GetRenderMethod(name); Require(method==gpu->GetRenderMethod(name),"canonical method pointer changed");
         method->SetParameterOpa(method->EnumParameterID("opacity"),opacity);
         method->SetParameterColor4B(method->EnumParameterID("color"),0x9139a7e2);
@@ -785,6 +793,174 @@ static void OverwriteSkipsReadback() {
             Require(row[x]==uint32_t(0x0a0b0c0d+y*32+x),"overwritten pixels did not reach the GPU");
     }
     ++comparisons;
+}
+
+static void ScopedNativePixels() {
+    auto* gpu=TVPGetRenderManager(); auto image=Image(32,24,4,18);
+    auto texture=Create(gpu,32,24,TVPTextureFormat::RGBA,image);
+    const auto initial=TVPGetMetalLayerRenderStats();
+    {
+        tTVPScopedTexturePixels read; read.Acquire(texture.get(),false,"test.native.read");
+        Require(texture->IsIndependent(),"temporary read invented image sharing");
+        Require(!texture->IsCPUResident(),"native read permanently pinned texture");
+        Require(*static_cast<uint32_t*>(read.Data())==*reinterpret_cast<uint32_t*>(image.data()),"native read changed pixels");
+    }
+    {
+        tTVPScopedTexturePixels write; write.Acquire(texture.get(),true,"test.native.write");
+        Require(texture->IsCPUResident(),"active native writer allowed GPU mutation");
+        SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
+        Require(!TVPIsEmoteAsyncAlphaTexture(texture.get()),"async alpha sampled a live native writer");
+        Require(!texture->GetTextureHandleForOverwrite(),"GPU overwrite raced native writer");
+        static_cast<uint32_t*>(write.Data())[3*32+4]=0x70123456;
+        write.Written(tTVPRect(4,3,5,4));
+    }
+    Require(!texture->IsCPUResident(),"completed native write kept CPU authority");
+    Require(TVPIsEmoteAsyncAlphaTexture(texture.get()),"completed native write disabled future async alpha");
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
+    auto before=TVPGetMetalLayerRenderStats(); texture->GetTextureHandle();
+    auto after=TVPGetMetalLayerRenderStats();
+    Require(after.uploadedBytes-before.uploadedBytes==4,"native ROI write uploaded entire texture");
+    texture->GetTextureHandle(); texture->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes==after.uploadedBytes,"completed native write re-uploaded unchanged pixels");
+    Require(after.pinnedCPUTextures==initial.pinnedCPUTextures,"native access permanently pinned a texture");
+    texture->InvalidateCPUCache(); Require(texture->GetPoint(4,3)==0x70123456,"native upload lost pixels");
+    // Closing native access must leave a pre-existing raw script lease alive.
+    auto* raw=static_cast<uint32_t*>(texture->GetPersistentCPUData(true));
+    {
+        tTVPScopedTexturePixels write; write.Acquire(texture.get(),true);
+        static_cast<uint32_t*>(write.Data())[0]=0x11223344; write.Written(tTVPRect(0,0,1,1));
+    }
+    texture->GetTextureHandle(); before=TVPGetMetalLayerRenderStats();
+    raw[1]=0x8899aabb; texture->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes-before.uploadedBytes==32*24*4,"native write revoked raw script lease");
+    Require(texture->GetPoint(1,0)==0x8899aabb,"raw script pointer no longer synchronized");
+    // Exception unwind commits the original texture even after owner replacement.
+    auto old=Create(gpu,32,24,TVPTextureFormat::RGBA,image);
+    auto* retained=old.release(); retained->AddRef();
+    try {
+        tTVPScopedTexturePixels write; write.Acquire(retained,true);
+        static_cast<uint32_t*>(write.Data())[2]=0x99887766;
+        write.Written(tTVPRect(2,0,3,1)); retained->Release();
+        throw std::runtime_error("test unwind");
+    } catch(const std::runtime_error&) {}
+    retained->GetTextureHandle(); retained->InvalidateCPUCache();
+    Require(retained->GetPoint(2,0)==0x99887766,"unwind lost original texture write");
+    retained->Release(); iTVPTexture2D::RecycleProcess();
+}
+
+static void WorkDiagnostics() {
+    namespace work=krkrsdl3::layer_work;
+    work::SetEnabled(true);
+    auto image=Image(8,8,4,5); auto* gpu=TVPGetRenderManager();
+    {
+        work::SourceScope source("test.upload");
+        auto t=Create(gpu,8,8,TVPTextureFormat::RGBA,image);
+        {
+            tTVPScopedTexturePixels write; write.Acquire(t.get(),true,"test.native");
+            static_cast<uint32_t*>(write.Data())[0]=0x12345678;
+            write.Written(tTVPRect(0,0,1,1));
+        }
+        t->GetTextureHandle(); t->GetTextureHandle();
+    }
+    auto first=work::Take();
+    Require(first.transfers.find("test.upload")!=std::string::npos && first.transfers.find("test.native")!=std::string::npos,
+            "production transfer lost caller attribution");
+    Require(first.transfers.find("lease=1")==std::string::npos,"native write left a lease outstanding");
+    Require(work::Take().transfers.empty(),"diagnostic interval did not reset");
+    {
+        work::StageScope outer(work::Stage::Script), inner(work::Stage::Script);
+        work::StageScope load(work::Stage::ResourceLoad);
+        work::RecordAMVFrame(1234);
+    }
+    auto stages=work::Take();
+    Require(stages.stages.find("script:1/")!=std::string::npos,"nested stage scopes double counted calls");
+    Require(stages.decodedFrames==1 && stages.decodedBytes==1234,"AMV decoded payload not recorded");
+    std::thread worker([] { work::StageScope load(work::Stage::ResourceLoad); }); worker.join();
+    Require(work::Take().stages.find("resourceLoad:0/")!=std::string::npos,"worker time was billed to main-thread stages");
+    for(unsigned i=0;i<100;++i) work::Record(i%2,i,2,3,24,5,2);
+    auto bounded=work::Take();
+    uint64_t calls=0, bytes=0;
+    size_t pos=0;
+    while((pos=bounded.transfers.find('=',pos))!=std::string::npos) {
+        // Skip the lease flag inside the dimensions, then read the record tuple.
+        if(pos>0 && bounded.transfers.substr(pos-5,5)=="lease") { ++pos; continue; }
+        unsigned long long c,b; if(std::sscanf(bounded.transfers.c_str()+pos+1,"%llu/%llu",&c,&b)==2) { calls+=c; bytes+=b; }
+        ++pos;
+    }
+    Require(calls==100 && bytes==2400,"bounded diagnostic summary dropped overflow bytes");
+    {
+        work::StageScope old(work::Stage::GC);
+        work::SetEnabled(false); work::SetEnabled(true);
+    }
+    Require(work::Take().stages.find("gc:0/")!=std::string::npos,"recording toggle retained an old stage");
+    work::SetEnabled(false); work::Record(true,1,1,1,4); work::RecordAMVFrame(4);
+    auto disabled=work::Take();
+    Require(disabled.transfers.empty() && !disabled.decodedFrames,"disabled recording retained work diagnostics");
+}
+
+static void AlphaConversionReference() {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    auto* method=gpu->GetRenderMethod("AlphaToAdditiveAlpha");
+    auto image=Image(17,13,4,33),destination=Image(17,13,4,9);
+    for(bool alias:{false,true}) {
+        auto gs=Create(gpu,17,13,TVPTextureFormat::RGBA,image),ss=Create(sw,17,13,TVPTextureFormat::RGBA,image);
+        auto gd=Create(gpu,17,13,TVPTextureFormat::RGBA,destination),sd=Create(sw,17,13,TVPTextureFormat::RGBA,destination);
+        auto* gt=alias ? gs.get() : gd.get(); auto* st=alias ? ss.get() : sd.get();
+        tTVPRect rect(2,1,15,12); auto before=TVPGetMetalLayerRenderStats();
+        sw->OperateRect(method,st,ss.get(),rect,tRenderTexRectArray());
+        gpu->OperateRect(method,gt,gs.get(),rect,tRenderTexRectArray());
+        auto after=TVPGetMetalLayerRenderStats();
+        Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks,"alpha conversion fell back");
+        Require(after.readbackBytes==before.readbackBytes,"alpha conversion read back pixels");
+        Compare(st,gt,0,"alpha conversion reference/COW");
+    }
+}
+
+static void ExtendedBlendGeometry() {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    for(auto name:{"AdditiveAlphaBlend","AdditiveAlphaBlend_a","PsMulBlend","PsOverlayBlend","PsHardLightBlend"})
+    for(int opacity:{0,128,255}) {
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,opacity);
+        auto image=Image(7,5,4,42),destination=Image(11,9,4,12);
+        for(int sampling:{0,1,2}) {
+            gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),sampling);
+            sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
+            auto gs=Create(gpu,7,5,TVPTextureFormat::RGBA,image),ss=Create(sw,7,5,TVPTextureFormat::RGBA,image);
+            for(auto rect:{tTVPRect(-2,-1,9,8),tTVPRect(2,1,13,11),tTVPRect(4,4,5,5)}) {
+                auto gd=Create(gpu,11,9,TVPTextureFormat::RGBA,destination),sd=Create(sw,11,9,TVPTextureFormat::RGBA,destination);
+                auto before=TVPGetMetalLayerRenderStats();
+                Operation(sw,method,sd.get(),rect,ss.get(),tTVPRect(0,0,7,5));
+                Operation(gpu,method,gd.get(),rect,gs.get(),tTVPRect(0,0,7,5));
+                auto after=TVPGetMetalLayerRenderStats();
+                Require(after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes,
+                        "extended clipped/scaled blend fell back or read pixels");
+                Compare(sd.get(),gd.get(),sampling ? 2 : 0,"extended blend clip/scale");
+            }
+        }
+        for(bool offset:{false,true}) {
+            auto gd=Create(gpu,11,9,TVPTextureFormat::RGBA,destination),sd=Create(sw,11,9,TVPTextureFormat::RGBA,destination);
+            tTVPRect dst(2,1,10,8),src=offset ? tTVPRect(0,0,8,7) : dst;
+            auto before=TVPGetMetalLayerRenderStats();
+            Operation(sw,method,sd.get(),dst,sd.get(),src);
+            Operation(gpu,method,gd.get(),dst,gd.get(),src);
+            Require(TVPGetMetalLayerRenderStats().cpuFallbacks-before.cpuFallbacks==uint64_t(offset),
+                    "self-blend alias routing changed software ordering");
+            Compare(sd.get(),gd.get(),0,"extended self-blend");
+        }
+    }
+    gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+    sw->SetParameterInt(sw->EnumParameterID("StretchType"),0);
+    for(auto name:{"AdditiveAlphaBlend","PsMulBlend","PsOverlayBlend","PsHardLightBlend","AdditiveAlphaBlend_a"}) {
+        auto image=Image(7,5,4,81);
+        auto gd=Create(gpu,7,5,TVPTextureFormat::RGBA,image),gs=Create(gpu,7,5,TVPTextureFormat::RGBA,image);
+        const auto alpha=gd->GetPointAlpha(2,1); auto before=TVPGetMetalLayerRenderStats();
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,128);
+        Operation(gpu,method,gd.get(),tTVPRect(0,0,7,5),gs.get(),tTVPRect(0,0,7,5));
+        const auto result=gd->GetPointAlpha(2,1); auto after=TVPGetMetalLayerRenderStats();
+        if(std::strcmp(name,"AdditiveAlphaBlend_a")) {
+            Require(result==alpha && after.readbackBytes==before.readbackBytes,"HDA blend invalidated preserved alpha cache");
+        } else Require(after.readbackBytes==before.readbackBytes+4,"premultiplied blend retained stale alpha cache");
+    }
 }
 // Readback totals only become actionable when attributed, so each caller must
 // land in its own bucket and the buckets must sum to the total.
@@ -1403,6 +1579,7 @@ int main(int argc,char** argv) {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
         UnivTransShaderTests();
+        LayerBlendShaderTests();
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
         Require(SDL_Init(SDL_INIT_VIDEO),"SDL video init failed");
@@ -1444,7 +1621,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); ExtendedBlendGeometry(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

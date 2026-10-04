@@ -768,6 +768,24 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "boundsNS:\(diagnosticStats.emoteCaptureBoundsNS)"
                 ].joined(separator: ",")
 
+                var workProfile = MikageKRKRLayerWorkProfile()
+                if MikageKRKRTakeLayerWorkProfile(&workProfile) {
+                    let stages = withUnsafePointer(to: &workProfile.stages) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                    }
+                    let transfers = withUnsafePointer(to: &workProfile.transfers) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 2048) { String(cString: $0) }
+                    }
+                    AppDiagnostics.shared.event("session", "layerWorkProfile", [
+                        "intervalMS": String(Double(workProfile.intervalNS) / 1_000_000),
+                        "displayTicks": String(displayTicks),
+                        "stages": stages,
+                        "transfers": transfers,
+                        "amvDecodedFrames": String(workProfile.amvDecodedFrames),
+                        "amvDecodedBytes": String(workProfile.amvDecodedBytes)
+                    ])
+                }
+
                 AppDiagnostics.shared.event("session", "heartbeat.profile", [
                     "emotePerformanceProfile": emotePerformanceProfile,
                     "displayTicks": String(displayTicks),

@@ -49,6 +49,15 @@ facade in place of the script/window machinery. Coverage includes:
 The full iOS framework build remains necessary to validate plugin and script
 class integration. Test checks remain active in Release builds.
 
+Additive-alpha, Photoshop multiply/overlay/hard-light and straight-to-premultiplied
+conversion compile the production MSL scalar helpers as C++ and compare
+1,048,576 exact pixels with tvpgl, including channel/alpha/opacity boundaries.
+Overlay and hard-light use the production `/255` table formula. Routing tests
+cover canonical/HDA aliases, reference-based conversion after COW, native pixel
+access without permanent pinning, ROI-only uploads, raw script pointer coexistence,
+exception unwind, and diagnostic interval/reset/overflow and C bridge behavior.
+Native Metal shader compilation and device rendering still require Apple CI.
+
 `TriangleProfileTests.cpp` exercises the production triangle fallback and the
 extracted production C diagnostic bridge. It verifies interval resets (including
 maxima and histograms), HUD reads leaving samples intact, enabled/disabled

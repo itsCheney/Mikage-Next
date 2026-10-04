@@ -24,6 +24,7 @@ class TestLayerCopy {
 public:
     tTVPNativeBaseBitmap* MainImage;
     bool ImageModified=false;
+    iTVPTexture2D* GetMainImageTextureForCPUAccess(bool);
     bool CopyMainImageFromGPUTarget(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int);
     bool CopyMainImageFromGPUTargetRegion(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int,const tTVPRect&);
     bool CopyMainImageFromCPU(const void*,tjs_int,tjs_int,tjs_int);
@@ -78,6 +79,23 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     constexpr int width=7,height=5;
     const auto oldPixels=Pixels(width,height,0x20406080u);
     const auto newPixels=Pixels(width,height,0xf0b09070u);
+    // Native guards keep the original allocation alive without forcing COW
+    // for a same-image read/write alias; real bitmap sharing still requires COW.
+    for(bool shared:{false,true}) {
+        TestBitmap bitmap(Create(oldPixels,width,height)); TestLayerCopy layer{&bitmap};
+        auto* original=bitmap.GetTexture(); TextureRef snapshot;
+        if(shared) { original->AddRef(); snapshot.reset(original); }
+        tTVPScopedTexturePixels read,write;
+        read.Acquire(layer.GetMainImageTextureForCPUAccess(false),false);
+        auto* target=layer.GetMainImageTextureForCPUAccess(true);
+        Require((target==original)!=shared,"native access changed bitmap COW semantics");
+        write.Acquire(target,true);
+        auto* data=static_cast<uint32_t*>(write.Data()); data[0]=0x12345678;
+        write.Written(tTVPRect(0,0,1,1)); write.Reset(); read.Reset();
+        auto expected=oldPixels; expected[0]=0x12345678;
+        target->GetTextureHandle(); Equal(target,expected);
+        if(shared) Equal(snapshot.get(),oldPixels);
+    }
     TextureRef source(Create(newPixels,width,height));
     void* sourceHandle=source->GetTextureHandle();
     Require(sourceHandle,"overwrite source has no GPU handle");
