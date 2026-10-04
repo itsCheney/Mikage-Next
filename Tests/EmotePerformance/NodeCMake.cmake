@@ -42,3 +42,8 @@ foreach(dir archive main media/font media/image media/movie media/sound utils ut
 endforeach()
 target_compile_definitions(emote-player-compile PRIVATE ${EMOTE_NODE_DEFINITIONS})
 target_compile_features(emote-player-compile PRIVATE cxx_std_17)
+add_library(emote-input-compile OBJECT "${NODE_CORE}/core/render/LayerManager.cpp")
+get_target_property(EMOTE_PLAYER_INCLUDES emote-player-compile INCLUDE_DIRECTORIES)
+target_include_directories(emote-input-compile PRIVATE ${EMOTE_PLAYER_INCLUDES})
+target_compile_definitions(emote-input-compile PRIVATE ${EMOTE_NODE_DEFINITIONS})
+target_compile_features(emote-input-compile PRIVATE cxx_std_17)

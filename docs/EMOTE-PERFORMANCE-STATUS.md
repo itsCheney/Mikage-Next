@@ -79,7 +79,7 @@ entire production runner/geometry/animation; capture/bounds/alpha tests compile
 production headers. LayerInput extracts production dispatch, preflight and mask
 hit bodies. MetalLayer compiles the production texture manager and extracts both
 native Layer/bitmap ROI paths, checking COW, CPU leases and unaffected pixels.
-The full production player/adaptor translation unit is also compiled, to catch
+The full production player/adaptor and input-manager translation units are also compiled, to catch
 integration/header errors that standalone cache tests cannot detect.
 
 Existing animation, adapter/TJS, trajectory, host-mode, PSB/shared-resource,

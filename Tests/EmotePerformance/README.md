@@ -3,7 +3,7 @@
 These portable C++17 tests compile production cache, bounds and alpha-tile
 headers. The node suite compiles the entire production runner, animation and
 geometry code; only PSB fixtures, SDL hints and GPU encoding are test hosts.
-The production player/adaptor translation unit is compiled as an object target
+The production player/adaptor and input-manager translation units are compiled as object targets
 to verify complete integration types and dependencies.
 
 ```sh
