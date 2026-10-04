@@ -70,6 +70,10 @@ Cold/new-position input normally waits about one display frame. Resize, absent
 drawables or GPU backlog can delay it further, as approved; missing alpha never
 means transparent. A static tile may reuse its exact bytes with a fresh display
 ticket. Idle input does not trigger continuous full-screen readback.
+The iOS simulator SDK does not expose drawable-presented acknowledgements.
+Its host explicitly disables bit 4 and the App disables that toggle; it uses
+ordinary input. Device/macOS keep the actual presentation callback. GPU
+completion is never substituted for display confirmation.
 
 ## Local validation and measured limits
 

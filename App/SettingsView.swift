@@ -74,6 +74,9 @@ struct SettingsView: View {
                     Toggle("局部图层更新", isOn: $model.settings.emoteLocalUpdate)
                     Toggle("局部画布复制", isOn: $model.settings.emoteRegionCopy)
                     Toggle("异步点击检测", isOn: $model.settings.emoteAsyncAlpha)
+#if targetEnvironment(simulator)
+                        .disabled(true)
+#endif
                     Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
                     Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
                         .disabled(!model.settings.emoteNodeCache)

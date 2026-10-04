@@ -68,8 +68,13 @@ int main() {
         for (unsigned bit = 0; bit < 7; ++bit) {
             MikageKRKRSetEmotePerformanceOptions(1u << bit);
             require(applyEmoteAnimationModeForStart(), "performance flag applies at next launch");
-            for (unsigned index = 0; index < 7; ++index)
-                require(emoteplayer::performanceEnabled(options[index]) == (index == bit), "performance bits remain independent");
+            for (unsigned index = 0; index < 7; ++index) {
+                bool enabled = index == bit;
+#if TARGET_OS_SIMULATOR
+                if (index == 4) enabled = false;
+#endif
+                require(emoteplayer::performanceEnabled(options[index]) == enabled, "performance bits respect platform capabilities");
+            }
         }
         MikageKRKRSetEmotePerformanceOptions(0xffffffffu);
         require(applyEmoteAnimationModeForStart() && emotePerformanceOptions.load() == 127u, "unsupported performance bits are masked");
