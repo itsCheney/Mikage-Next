@@ -3,6 +3,7 @@
 #include "tjsDictionary.h"
 #include "psbfile/PSBData.h"
 #include "emoteplayer/emoteresourcecache.h"
+#include "../../Engine/KRKRRuntime/Source/cpp/core/render/LayerWorkDiagnostics.h"
 #include <zlib.h>
 #include <chrono>
 #include <iostream>
