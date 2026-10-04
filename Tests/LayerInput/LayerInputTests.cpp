@@ -97,7 +97,15 @@ struct tTJSNI_BaseLayer {
     const TestRect& GetRect() const { return Rect; }
     tTVPHitType GetHitType() const { return HitType; }
     int GetHitThreshold() const { return HitThreshold; }
-    int GetImageLeft() const { return ImageLeft; } int GetImageTop() const { return ImageTop; }
+    // Production getters throw "Not drawable layer type" without a MainImage.
+    int GetImageLeft() const {
+        if(!MainImage) throw std::runtime_error("Not drawable layer type");
+        return ImageLeft;
+    }
+    int GetImageTop() const {
+        if(!MainImage) throw std::runtime_error("Not drawable layer type");
+        return ImageTop;
+    }
     void Update() { ++updates; }
     bool _HitTestNoVisibleCheck(int,int);
     iTJSDispatch2* GetOwnerNoAddRef() { return Owner; }
@@ -625,6 +633,23 @@ static void asyncInputChain() {
         ticket->presented.store(true); f.manager.ProcessPendingAlphaInput();
         require(f.primary.downs==1 && f.primary.eventX==25 && newImage.texture.syncReads==0,
                 "resize/texture epoch did not bind the first composed frame's mapping");
+    }
+    {
+        // Title-screen containers can be visible without a MainImage. They must
+        // stay as non-hit candidates instead of aborting presentation capture
+        // with the production "Not drawable layer type" exception.
+        Fixture f; TestImage image; f.primary.MainImage=&image;
+        f.other.manager=&f.manager; f.manager.nodes={&f.primary,&f.other};
+        currentFrameSerial=55;
+        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
+        try { composeAlpha(f.manager,55); }
+        catch(const std::exception& error) {
+            throw std::runtime_error(std::string("image-less candidate aborted presentation capture: ")+error.what());
+        }
+        f.manager.ProcessPendingAlphaInput();
+        require(f.primary.downs==1 && image.texture.syncReads==0,
+                "image-less candidate broke deferred dispatch or forced a sync read");
+        require(f.other.downs==0,"image-less candidate received pointer input");
     }
     {
         Fixture f; TestImage image; f.primary.MainImage=&image;
