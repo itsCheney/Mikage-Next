@@ -146,3 +146,61 @@ Window offsets are seconds after `game.begin`; select matching scenes yourself.
 Slow point-read logs are rate limited. GPU stage intervals overlap and must not
 be added into a fictitious frame budget. Hardware measurements are the remaining
 acceptance step; no default performance option is enabled by this report.
+
+## Sustained load and heat (device log, 2026-10-04)
+
+Source: `Mikage-diagnostics-CC09DDD4-…jsonl`, iPhone, 110 s session with the
+animated scene running from 33 s to 108 s. The device reported nominal until
+57.6 s, fair from 57.6 s and serious from 82.6 s — roughly 25 s and 50 s after
+the scene starts, with no user input driving it.
+
+Load while the scene animates (cumulative counters over the ~75 s window):
+
+| Term | Measured | Source |
+| --- | ---: | --- |
+| Canvas-to-Layer copies | 6,044 × 1920×1080 RGBA = **50.1 GB** | `fullCopies`, `regionCopies` = 0 |
+| Copy bandwidth | 250–1,030 MB/s, ~670 MB/s average | `emoteCaptureGPUBytes` deltas |
+| Motion + node evaluation | 14.6 s + 13.7 s ≈ **38% of one core** | `motionNS`, `nodeNS` |
+| Emote GPU draws | 240,468 draws, 99.9 M vertices, 542 M indices | `emotePrepareDetail`, `meshProfile` |
+| Mesh ring traffic | 1.70 GB | `metalRingProfile.bytes` |
+| Layer composition | 453,735 GPU operations, 99 MB resident | `layerGPUOperations` |
+| Script step iteration | 38.7 s over the whole session | `stepProfile.iterateNS` |
+
+Worst windows (92–99 s) run at 21–36 fps with 24–44 ms CPU frame time; the
+dropped frames and the heat share the same cause, sustained per-frame work
+rather than a stall.
+
+**Why every copy is full-screen.** `copyCanvasToLayer` may crop only when the
+capture cache proves the destination rectangle, and `submittedCPUBounds` returns
+unknown as soon as one drawn node uses GPU deformation
+(`emotegeometrybounds.h:18`). This log matches that exactly: `knownBounds` = 0,
+`unknownBounds` = 6,867, `regionCopies` = 0, and `updatePixels` equals
+`fullPixels`. The interval-arithmetic candidate reports unknown for all 6,867
+draws as well, so bit 5 spends 318 ms of CPU per session on a result production
+is not allowed to consume. Most Metal Emote icons deform on the GPU, so this is
+the common case, not an edge case.
+
+Reducing the sustained load therefore means one of:
+
+1. **Crop the canvas-to-Layer copy.** The largest term by far, and the only one
+   that scales with the emote's on-screen area instead of the canvas. It needs a
+   raster bound that is safe under Metal fast-math, either by proving a margin
+   over the interval arithmetic or by validating the interval against the native
+   vertex path on device. Until then the region path stays unused by design.
+2. **Draw straight into the Layer texture.** `EmotePlayer::drawToTarget` already
+   renders to a backend target without a readback, and the D3D-adaptor path uses
+   its own canvas for blending and self-clear semantics. Making the plain Layer
+   path composite in place would remove the copy entirely rather than shrink it;
+   the cost is re-establishing mask/multi-player blending without the canvas.
+3. **A thermal-aware frame budget.** All of the terms above are per-frame, so
+   holding the cadence down once `thermalState` reaches fair/serious divides
+   them directly. This trades motion smoothness for heat and is the only lever
+   that needs no new correctness argument.
+4. **Stop paying for the bounds experiment** when it is not being evaluated: bit
+   5 currently costs 318 ms per session and yields no pixels.
+
+The async-alpha guard and the compact trim on this branch address load-time
+spikes (15–108 ms file load, 23–80 ms TJS tree build, and the reload storm after
+a routine `System.doCompact()`), not this sustained per-frame load. Both are
+worth keeping, and neither is expected to move the thermal timeline above.
+
