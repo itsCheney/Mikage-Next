@@ -28,6 +28,7 @@ struct KRKRLaunchConfiguration {
     let threeFingerMenu: Bool
     let respectSilentMode: Bool
     let experimentalEmote: Bool
+    var emotePerformanceOptions: UInt32 = 0
     let performance: Bool
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
@@ -165,6 +166,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "targetKind": String(describing: configuration.targetKind),
                                          "requestedRenderer": configuration.renderer.rawValue,
                                          "emoteAnimationMode": configuration.experimentalEmote ? "integrated" : "legacy",
+                                         "emotePerformanceOptions": String(configuration.emotePerformanceOptions),
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -204,6 +206,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
                     MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
+                    MikageKRKRSetEmotePerformanceOptions(configuration.emotePerformanceOptions)
                     return MikageKRKRStart(
                         gamePath,
                         renderer,
@@ -659,6 +662,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     ("commandBuffers", diagnosticStats.metalSubmits),
                     ("emoteLayerGPUCopies", diagnosticStats.emoteLayerGPUCopies),
                     ("emoteLayerGPUCopyBytes", diagnosticStats.emoteLayerGPUCopyBytes),
+                    ("emoteCaptureGPUCopies", diagnosticStats.emoteCaptureGPUCopies),
+                    ("emoteCaptureGPUBytes", diagnosticStats.emoteCaptureGPUBytes),
+                    ("emoteCaptureCPUFallbacks", diagnosticStats.emoteCaptureCPUFallbacks),
+                    ("emoteCaptureCPUBytes", diagnosticStats.emoteCaptureCPUBytes),
+                    ("emoteCaptureSkipped", diagnosticStats.emoteCaptureSkipped),
                     ("emoteLayerCPUReadbacks", diagnosticStats.emoteLayerCPUReadbacks),
                     ("emoteLayerCPUReadbackBytes", diagnosticStats.emoteLayerCPUReadbackBytes),
                     ("emoteLayerCPUReadbackNS", diagnosticStats.emoteLayerCPUReadbackTimeNS)
@@ -726,7 +734,42 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
                 ].joined(separator: ",")
 
+                let emotePerformanceProfile = [
+                    "nodeHits:\(diagnosticStats.emoteNodeCacheHits)",
+                    "nodeMisses:\(diagnosticStats.emoteNodeCacheMisses)",
+                    "shapeHits:\(diagnosticStats.emoteShapeCacheHits)",
+                    "meshHits:\(diagnosticStats.emoteMeshCacheHits)",
+                    "drawListRebuilds:\(diagnosticStats.emoteDrawListRebuilds)",
+                    "captureSkipped:\(diagnosticStats.emoteCaptureSkipped)",
+                    "regionPixels:\(diagnosticStats.emoteCaptureRegionPixels)",
+                    "fullPixels:\(diagnosticStats.emoteCaptureFullPixels)",
+                    "knownBounds:\(diagnosticStats.emoteCaptureKnownBounds)",
+                    "unknownBounds:\(diagnosticStats.emoteCaptureUnknownBounds)",
+                    "cowFallbacks:\(diagnosticStats.emoteCaptureCOWFallbacks)",
+                    "alphaRequests:\(diagnosticStats.emoteAlphaRequests)",
+                    "alphaHits:\(diagnosticStats.emoteAlphaCacheHits)",
+                    "pendingEvents:\(diagnosticStats.emoteAlphaPendingEvents)",
+                    "alphaBytes:\(diagnosticStats.emoteAlphaReadBytes)",
+                    "alphaFailures:\(diagnosticStats.emoteAlphaFailures)",
+                    "uiSyncReads:\(diagnosticStats.emoteUISyncReads)",
+                    "uiSyncWaitNS:\(diagnosticStats.emoteUISyncWaitNS)",
+                    "experimentalBoundsKnown:\(diagnosticStats.emoteCaptureExperimentalBoundsKnown)",
+                    "experimentalBoundsUnknown:\(diagnosticStats.emoteCaptureExperimentalBoundsUnknown)",
+                    "experimentalBoundsPixels:\(diagnosticStats.emoteCaptureExperimentalBoundsPixels)",
+                    "experimentalBoundsNS:\(diagnosticStats.emoteCaptureExperimentalBoundsNS)",
+                    "updatePixels:\(diagnosticStats.emoteCaptureUpdatePixels)",
+                    "updateFullPixels:\(diagnosticStats.emoteCaptureUpdateFullPixels)",
+                    "localPoseHits:\(diagnosticStats.emoteLocalPoseCacheHits)",
+                    "localPoseMisses:\(diagnosticStats.emoteLocalPoseCacheMisses)",
+                    "captureRequests:\(diagnosticStats.emoteCaptureRequests)",
+                    "fullCopies:\(diagnosticStats.emoteCaptureFullCopies)",
+                    "regionCopies:\(diagnosticStats.emoteCaptureRegionCopies)",
+                    "regionFallbacks:\(diagnosticStats.emoteCaptureRegionFallbacks)",
+                    "boundsNS:\(diagnosticStats.emoteCaptureBoundsNS)"
+                ].joined(separator: ",")
+
                 AppDiagnostics.shared.event("session", "heartbeat.profile", [
+                    "emotePerformanceProfile": emotePerformanceProfile,
                     "displayTicks": String(displayTicks),
                     "fps": String(diagnosticStats.framesPerSecond),
                     "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),

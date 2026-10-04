@@ -22,7 +22,9 @@ if start.index('applyEmoteAnimationModeForStart()') >= start.index('SDL_AppInit(
     raise RuntimeError('Emote mode must be applied before startup executes game scripts')
 args.output.mkdir(parents=True, exist_ok=True)
 declaration = next(line for line in host.splitlines() if 'std::atomic<bool> experimentalEmote{' in line)
-(args.output / 'ProductionHostMode.inc').write_text(declaration + '\n' +
+performance_declaration = next(line for line in host.splitlines() if 'std::atomic<uint32_t> emotePerformanceOptions{' in line)
+(args.output / 'ProductionHostMode.inc').write_text(declaration + '\n' + performance_declaration + '\n' +
     block(host, 'extern "C" void MikageKRKRSetExperimentalEmote(') + '\n' +
+    block(host, 'extern "C" void MikageKRKRSetEmotePerformanceOptions(') + '\n' +
     block(host, 'static bool applyEmoteAnimationModeForStart()') + '\n', encoding='utf-8')
 (args.output / 'ProductionModeConstructor.inc').write_text(block(runner, 'emoteengine::emoteengine()') + '\n', encoding='utf-8')

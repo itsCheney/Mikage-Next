@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, beta, metal_dev]
+    branches: [main, master, beta, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -69,6 +69,11 @@ jobs:
           cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-animation-tests --parallel
           ctest --test-dir build/emote-animation-tests --output-on-failure
+      - name: Test Emote performance state and production node evaluation
+        run: |
+          cmake -S Tests/EmotePerformance -B build/emote-performance-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-performance-tests --parallel
+          ctest --test-dir build/emote-performance-tests --output-on-failure --verbose
       - name: Test native Array and Dictionary construction
         run: |
           cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release

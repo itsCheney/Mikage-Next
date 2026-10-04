@@ -7,6 +7,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(EXTRACTED
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionManagerMembers.inc"
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionWindowMembers.inc"
+    "${CMAKE_CURRENT_BINARY_DIR}/ProductionInputHitTest.inc"
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionInputMethods.inc")
 add_custom_command(OUTPUT ${EXTRACTED}
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-production.py"
@@ -15,8 +16,10 @@ add_custom_command(OUTPUT ${EXTRACTED}
             "${CORE}/core/render/LayerManager.cpp" "${CORE}/core/render/LayerManager.h"
             "${CORE}/core/render/DrawDevice.cpp" "${CORE}/core/main/TVPWindow.h"
             "${CORE}/plugins/DrawDeviceD3D/DrawDeviceD3D.cpp"
+            "${CORE}/core/script/tjsNativeLayer.cpp"
     VERBATIM)
 add_executable(layer-input-tests LayerInputTests.cpp ${EXTRACTED})
 target_include_directories(layer-input-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/core/render")
+target_include_directories(layer-input-tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../EmotePerformance/NodeStubs")
 enable_testing()
 add_test(NAME layer-input-tests COMMAND layer-input-tests)

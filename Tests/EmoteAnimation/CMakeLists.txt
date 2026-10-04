@@ -53,5 +53,6 @@ add_custom_command(OUTPUT ${HOST_MODE_GENERATED}
     DEPENDS extract-host-mode.py "${CORE}/../host/MikageKRKRRuntime.mm"
         "${CORE}/plugins/emoteplayer/emoterunner.cpp" VERBATIM)
 add_executable(emote-host-mode-tests HostEmoteModeTests.cpp ${HOST_MODE_GENERATED})
-target_include_directories(emote-host-mode-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/../host")
+target_include_directories(emote-host-mode-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/../host"
+    "${CORE}/plugins/emoteplayer" "${CMAKE_CURRENT_LIST_DIR}/../EmotePerformance/NodeStubs")
 add_test(NAME emote-host-mode-tests COMMAND emote-host-mode-tests)

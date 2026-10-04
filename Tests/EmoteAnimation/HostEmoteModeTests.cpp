@@ -5,18 +5,22 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <cstdio>
+#include "emoteperformance.h"
 
 enum SDL_HintPriority { SDL_HINT_DEFAULT, SDL_HINT_NORMAL, SDL_HINT_OVERRIDE };
 static std::string hint, message;
 static SDL_HintPriority lastPriority = SDL_HINT_DEFAULT;
 static bool hintFails = false;
 bool SDL_SetHintWithPriority(const char* name, const char* value, SDL_HintPriority priority) {
-    if (std::strcmp(name, "MIKAGE_EMOTE_ANIMATION_MODE")) throw std::runtime_error("wrong hint");
     if (hintFails) return false;
-    hint = value; lastPriority = priority; return true;
+    SDL_SetHint(name, value);
+    if (!std::strcmp(name, "MIKAGE_EMOTE_ANIMATION_MODE")) hint = value;
+    lastPriority = priority; return true;
 }
-const char* SDL_GetHint(const char*) { return hint.empty() ? nullptr : hint.c_str(); }
-void MikageKRKRLogMessage(const char*, int32_t, const char* value) { message = value; }
+void MikageKRKRLogMessage(const char*, int32_t, const char* value) {
+    if (std::strncmp(value,"animation.",10) == 0) message = value;
+}
 #include "ProductionHostMode.inc"
 namespace emoteplayer {
 class emoteengine {
@@ -56,6 +60,24 @@ int main() {
         require(second.integratedAnimation(), "prior player is unaffected by later launch");
         hint.clear();
         require(applyEmoteAnimationModeForStart() && hint == "legacy", "SDL reset is followed by explicit reapplication");
+        const char* options[] = {"MIKAGE_EMOTE_NODE_CACHE", "MIKAGE_EMOTE_CAPTURE_CACHE",
+            "MIKAGE_EMOTE_LOCAL_UPDATE", "MIKAGE_EMOTE_REGION_COPY", "MIKAGE_EMOTE_ASYNC_ALPHA",
+            "MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS", "MIKAGE_EMOTE_LOCAL_POSE_CACHE"};
+        for (auto* option : options)
+            require(std::strcmp(SDL_GetHint(option), "0") == 0, "performance options default off");
+        for (unsigned bit = 0; bit < 7; ++bit) {
+            MikageKRKRSetEmotePerformanceOptions(1u << bit);
+            require(applyEmoteAnimationModeForStart(), "performance flag applies at next launch");
+            for (unsigned index = 0; index < 7; ++index)
+                require(emoteplayer::performanceEnabled(options[index]) == (index == bit), "performance bits remain independent");
+        }
+        MikageKRKRSetEmotePerformanceOptions(0xffffffffu);
+        require(applyEmoteAnimationModeForStart() && emotePerformanceOptions.load() == 127u, "unsupported performance bits are masked");
+        emoteplayer::performanceCounters().nodeCacheHits.store(99);
+        MikageKRKRSetEmotePerformanceOptions(0);
+        require(applyEmoteAnimationModeForStart() && emoteplayer::performanceStats().nodeCacheHits == 0, "per-session performance counters reset");
+        for (auto* option : options)
+            require(!emoteplayer::performanceEnabled(option), "new session clears stale experimental flags");
         hintFails = true;
         require(!applyEmoteAnimationModeForStart(), "hint failure is reported rather than silently selecting wrong mode");
         std::cout << "Passed " << checks << " production host-mode checks.\n";

@@ -3,6 +3,9 @@
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
 #include "PointReadTrace.h"
+#include "AsyncAlphaTileCache.h"
+#include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
+#include <SDL3/SDL.h>
 #include "gl/tvpgl.h"
 #ifdef TEST_NATIVE_METAL
 #include "backend/MetalRenderBackend.h"
@@ -62,6 +65,30 @@ class DeviceDouble : public iTVPRenderBackend {
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
 public:
     bool rejectTripleSource=false;
+    uint64_t asyncRequests=0, syncRegionReads=0, alphaSerial=1;
+    uint64_t simulatedReadWaitNS=0;
+    uint64_t GetLastReadbackWaitNanoseconds() const override { return simulatedReadWaitNS; }
+    std::shared_ptr<krkrsdl3::AsyncLayerPresentation> alphaPresentation=
+        std::make_shared<krkrsdl3::AsyncLayerPresentation>(alphaSerial);
+    std::vector<std::shared_ptr<krkrsdl3::AsyncLayerReadback>> alphaReads;
+    std::shared_ptr<krkrsdl3::AsyncLayerPresentation> GetCurrentLayerPresentation() const override { return alphaPresentation; }
+    void NextAlphaFrame() { alphaPresentation=std::make_shared<krkrsdl3::AsyncLayerPresentation>(++alphaSerial); }
+    void CompleteAlphaReads(bool presented) {
+        for(auto& read:alphaReads) read->completed.store(true);
+        alphaPresentation->presented.store(presented);
+        alphaReads.clear();
+    }
+    bool RequestLayerTextureRegionRead(void* handle,const TVPLayerRect& region,
+                                      const std::shared_ptr<krkrsdl3::AsyncLayerReadback>& read) override {
+        auto& texture=*resources.at(handle);
+        if(texture.bpp!=4 || region.left<0 || region.top<0 || region.right>texture.w || region.bottom>texture.h) return false;
+        read->region=region;
+        if(!read->presentation) read->presentation=alphaPresentation;
+        read->pitch=region.Width()*4; read->rgba.resize(size_t(read->pitch)*region.Height());
+        for(int y=0;y<region.Height();++y) std::memcpy(read->rgba.data()+size_t(y)*read->pitch,
+            texture.pixels.data()+(size_t(y+region.top)*texture.w+region.left)*4,read->pitch);
+        alphaReads.push_back(read); ++asyncRequests; return true;
+    }
     const char* GetName() const override { return "test-device"; }
     void BeginFrame(int,int) override {} void EndFrame() override {}
     void* CreateWindowTexture(int,int) override { return nullptr; }
@@ -92,6 +119,7 @@ public:
         return true;
     }
     bool ReadLayerTexture(void* handle,std::vector<uint8_t>& pixels,int& pitch) override {
+        simulatedReadWaitNS=9000000;
         auto& r=*resources.at(handle);pixels=r.pixels;pitch=r.w*r.bpp;return true;
     }
     bool CopyTargetToLayerTexture(void* source,void* destination) override {
@@ -102,7 +130,19 @@ public:
         dst.pixels=src.pixels;
         return true;
     }
+    bool CopyTargetToLayerTextureRegion(void* source,void* destination,const TVPLayerRect& region) override {
+        auto s=resources.find(source), d=resources.find(destination);
+        if(s==resources.end() || d==resources.end() || source==destination) return false;
+        auto& src=*s->second; auto& dst=*d->second;
+        if(src.bpp!=4 || dst.bpp!=4 || src.w!=dst.w || src.h!=dst.h ||
+            region.left<0 || region.top<0 || region.right>dst.w || region.bottom>dst.h) return false;
+        for(int y=region.top;y<region.bottom;++y) std::memcpy(dst.pixels.data()+(size_t(y)*dst.w+region.left)*4,
+            src.pixels.data()+(size_t(y)*src.w+region.left)*4,size_t(region.Width())*4);
+        return true;
+    }
     bool ReadLayerTextureRegion(void* handle,const TVPLayerRect& rc,std::vector<uint8_t>& pixels,int& pitch) override {
+        simulatedReadWaitNS=9000000;
+        ++syncRegionReads;
         auto& r=*resources.at(handle);pitch=rc.Width()*r.bpp;pixels.resize(size_t(pitch)*rc.Height());
         for(int y=0;y<rc.Height();++y) std::memcpy(pixels.data()+y*pitch,r.pixels.data()+((y+rc.top)*r.w+rc.left)*r.bpp,pitch);
         if(auto* query=krkrsdl3::point_trace::CurrentQuery()) {
@@ -255,6 +295,62 @@ static void Operation(iTVPRenderManager* manager,iTVPRenderMethod* method,iTVPTe
     std::pair<iTVPTexture2D*,tTVPRect> input(src,sr);
     manager->OperateRect(method,dst,nullptr,dr,tRenderTexRectArray(src?&input:nullptr,src?1:0));
 }
+#ifndef TEST_NATIVE_METAL
+static void AsyncLayerAlpha(DeviceDouble& backend) {
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
+    backend.NextAlphaFrame();
+    auto pixels=Image(64,64,4,71);
+    auto texture=Create(TVPGetRenderManager(),64,64,TVPTextureFormat::RGBA,pixels);
+    std::shared_ptr<krkrsdl3::AsyncAlphaTile> tile;
+    Require(TVPRequestEmoteAsyncAlpha(texture.get(),37,45,tile) && tile,"production Layer refused eligible alpha demand");
+    const auto requests=backend.asyncRequests, waits=backend.syncRegionReads;
+    texture->GetTextureHandle(); texture->GetTextureHandleForRegionWrite();
+    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
+    Require(backend.asyncRequests==requests,"ordinary handle/region-write query published a displayed alpha frame");
+    TVPBeginEmoteAlphaPresentation();
+    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
+    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
+    TVPEndEmoteAlphaPresentation();
+    Require(backend.asyncRequests==requests+1 && backend.syncRegionReads==waits,
+            "window alpha snapshot duplicated requests or used synchronous reads");
+    backend.CompleteAlphaReads(false);
+    Require(!tile->Latest(),"production Layer published GPU-completed but unpresented alpha");
+    backend.alphaPresentation->presented.store(true);
+    uint8_t alpha=0; std::shared_ptr<krkrsdl3::AsyncAlphaTileSnapshot> sample;
+    Require(tile->Sample(37,45,alpha,sample) && alpha==pixels[(45*64+37)*4+3],"production Layer alpha tile changed pixels");
+    uint64_t identity=0,version=0,afterID=0,afterVersion=0;
+    Require(texture->GetContentKey(identity,version),"production Layer lacks content identity");
+    texture->GetPointAlpha(1,1); const auto cachedReads=backend.syncRegionReads;
+    texture->CommitGPURegionWrite(tTVPRect(32,32,64,64));
+    texture->GetContentKey(afterID,afterVersion);
+    Require(afterID==identity && afterVersion>version,"region transaction did not advance content version");
+    texture->GetPointAlpha(1,1);
+    Require(backend.syncRegionReads==cachedReads,"region write invalidated unrelated exact alpha cache");
+    // Script pixel reads still use the current texture, independently of the
+    // UI snapshot and even after a presented old version is held by an event.
+    texture->GetPointAlpha(37,45);
+    Require(backend.syncRegionReads==cachedReads+1,"explicit script pixel query borrowed stale UI alpha");
+    TVPStopEmoteAsyncAlphaDemand(texture.get()); backend.NextAlphaFrame();
+    TVPBeginEmoteAlphaPresentation(); TVPEncodeEmoteAsyncAlphaForPresentation(texture.get()); TVPEndEmoteAlphaPresentation();
+    Require(backend.asyncRequests==requests+1,"idle Layer continued GPU alpha prefetch");
+    // A missing tile can be encoded later from an intrusive-ref-held source
+    // epoch, keeping F's display ticket even though the current frame is F+1.
+    auto frozenPixels=Image(64,64,4,93);
+    auto frozen=Create(TVPGetRenderManager(),64,64,TVPTextureFormat::RGBA,frozenPixels);
+    std::shared_ptr<krkrsdl3::AsyncAlphaTile> frozenTile;
+    Require(TVPRequestEmoteAsyncAlpha(frozen.get(),11,12,frozenTile),"frozen alpha demand failed");
+    auto chosen=backend.alphaPresentation; chosen->presented.store(true);
+    frozen->GetTextureHandle(); frozen->AddRef();
+    std::shared_ptr<iTVPTexture2D> epoch(frozen.get(),[](iTVPTexture2D* t){t->Release();});
+    backend.NextAlphaFrame();
+    TVPEncodeFrozenEmoteAsyncAlpha(epoch.get(),chosen);
+    backend.CompleteAlphaReads(false);
+    auto frozenSample=frozenTile->AtFrame(chosen->frameSerial);
+    Require(frozenSample && frozenSample->alpha[size_t(12)*32+11]==frozenPixels[(12*64+11)*4+3],
+            "supplemented production Layer read changed alpha or used the later frame ticket");
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
+}
+#endif
 static void Equivalence() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     const char* methods[]={"Copy","CopyColor","CopyMask","CopyOpaqueImage","FillARGB","FillColor","FillMask",
@@ -567,6 +663,37 @@ static void PointReadAttribution() {
     Require(pointReadObservations.size()==observations && TVPTestLogs.size()==logs,
             "disabled diagnostics still traced backend reads");
     ++comparisons;
+#endif
+}
+static void UIPointWaitCounters() {
+#ifndef TEST_NATIVE_METAL
+    namespace trace=krkrsdl3::point_trace;
+    struct Restore { bool enabled=trace::Enabled(); ~Restore() { trace::SetEnabled(enabled); } } restore;
+    trace::SetEnabled(true);
+    auto* gpu=TVPGetRenderManager(); auto image=Image(16,12,4,3);
+    auto texture=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
+    const auto before=emoteplayer::performanceStats();
+    {
+        trace::TriggerScope trigger(trace::Trigger::PointerDown,false);
+        trace::OriginScope source(trace::Source::LayerHitTest,texture.get());
+        texture->GetPointAlpha(0,0); texture->GetPointAlpha(0,0);
+    }
+    const auto after=emoteplayer::performanceStats();
+    Require(after.uiSyncReads==before.uiSyncReads+1 && after.uiSyncWaitNS==before.uiSyncWaitNS+9000000,
+            "UI counter measures one simulated GPU wait, excluding point cache hits");
+    {
+        trace::TriggerScope trigger(trace::Trigger::ScriptHitTest,false);
+        trace::OriginScope source(trace::Source::LayerHitTest,texture.get());
+        texture->GetPointAlpha(1,0);
+    }
+    {
+        trace::TriggerScope trigger(trace::Trigger::PointerDown,false);
+        trace::OriginScope source(trace::Source::LayerMask,texture.get());
+        texture->GetPointAlpha(2,0);
+    }
+    const auto script=emoteplayer::performanceStats();
+    Require(script.uiSyncReads==after.uiSyncReads && script.uiSyncWaitNS==after.uiSyncWaitNS,
+            "explicit script hit/pixel queries are not billed to built-in UI waits");
 #endif
 }
 static void DirtyRegionUploads() {
@@ -1308,13 +1435,16 @@ int main(int argc,char** argv) {
             Require(newTriangleInterval.stats.calls==0 && newTriangleInterval.stats.maxCpuTimeNS==0 &&
                     newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");
             Require(cached==TVPGetRenderManager()->GetRenderMethod("AlphaBlend_d"),"method lifetime changed");
+#ifndef TEST_NATIVE_METAL
+            AsyncLayerAlpha(*static_cast<DeviceDouble*>(backend.get()));
+#endif
             {
                 auto pixels=Image(9,7,4,2);auto texture=Create(TVPGetRenderManager(),9,7,TVPTextureFormat::RGBA,pixels);
                 std::vector<uint8_t> region;int pitch=0;
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

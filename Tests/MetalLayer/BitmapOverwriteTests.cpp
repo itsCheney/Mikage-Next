@@ -25,6 +25,7 @@ public:
     tTVPNativeBaseBitmap* MainImage;
     bool ImageModified=false;
     bool CopyMainImageFromGPUTarget(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int);
+    bool CopyMainImageFromGPUTargetRegion(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int,const tTVPRect&);
     bool CopyMainImageFromCPU(const void*,tjs_int,tjs_int,tjs_int);
 };
 
@@ -80,6 +81,49 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     TextureRef source(Create(newPixels,width,height));
     void* sourceHandle=source->GetTextureHandle();
     Require(sourceHandle,"overwrite source has no GPU handle");
+
+    // Compile the production ROI transaction too: no preservation blit/read,
+    // unchanged pixels outside the region, and no COW behind shared snapshots.
+    const tTVPRect roi(2,1,5,4);
+    {
+        auto expected=oldPixels;
+        for(int y=roi.top;y<roi.bottom;++y) for(int x=roi.left;x<roi.right;++x)
+            expected[size_t(y)*width+x]=newPixels[size_t(y)*width+x];
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        auto* original=bitmap.GetTexture();
+        original->GetTextureHandle(); // Flush pending source CPU writes.
+        const auto before=TVPGetMetalLayerRenderStats();
+        TestLayerCopy layer{&bitmap};
+        Require(layer.CopyMainImageFromGPUTargetRegion(backend,sourceHandle,width,height,roi),
+                "exclusive Layer ROI copy rejected");
+        Require(layer.ImageModified && bitmap.GetTexture()==original,"ROI copy changed identity or missed modified flag");
+        NoPreservationWork(before);
+        Equal(original,expected);
+    }
+    for(int rejection=0;rejection<5;++rejection) {
+        TestBitmap bitmap(Create(oldPixels,width,height,rejection==1));
+        auto* original=bitmap.GetTexture(); TextureRef snapshot;
+        if(rejection==0) { original->AddRef(); snapshot.reset(original); }
+        if(rejection==2) original->GetPersistentCPUData(false);
+        if(rejection==3) original->GetPersistentCPUData(true);
+        if(rejection==4) original->LockCPURead();
+        TestLayerCopy layer{&bitmap};
+        Require(!layer.CopyMainImageFromGPUTargetRegion(backend,sourceHandle,width,height,roi),
+                "shared/static/leased ROI copy did preservation work instead of declining");
+        Require(!layer.ImageModified && bitmap.GetTexture()==original,"failed ROI copy mutated Layer state");
+        Equal(original,oldPixels);
+        if(rejection==4) original->UnlockCPU();
+        if(rejection==3) original->ReleasePersistentCPUData(nullptr);
+    }
+    {
+        TestBitmap bitmap(Create(oldPixels,width,height)); TestLayerCopy layer{&bitmap};
+        for(const auto& bad:{tTVPRect(-1,0,2,2),tTVPRect(0,0,width+1,2),tTVPRect(2,2,2,3)})
+            Require(!layer.CopyMainImageFromGPUTargetRegion(backend,sourceHandle,width,height,bad),"invalid ROI accepted");
+        Require(!layer.CopyMainImageFromGPUTargetRegion(backend,sourceHandle,width+1,height,roi),"ROI source size mismatch accepted");
+        Require(!layer.CopyMainImageFromGPUTargetRegion(backend,nullptr,width,height,roi),"null ROI source accepted");
+        Require(!layer.ImageModified,"rejected ROI attempts marked Layer modified");
+        Equal(bitmap.GetTexture(),oldPixels);
+    }
 
     // Exclusive mutable destination keeps its identity. Even an old CPU cache
     // must become stale after the copy, with no preserve-copy or upload first.

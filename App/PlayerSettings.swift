@@ -22,6 +22,21 @@ struct PlayerSettings: Codable {
     var skipPatchVideos = false
     /// Captured at game launch; existing Emote players keep their current mode.
     var experimentalEmote = false
+    var emoteNodeCache = false
+    var emoteCaptureCache = false
+    var emoteLocalUpdate = false
+    var emoteRegionCopy = false
+    var emoteAsyncAlpha = false
+    var emoteExperimentalBounds = false
+    var emoteLocalPoseCache = false
+
+    /// Bit order is the public runtime performance-options contract.
+    var emotePerformanceOptions: UInt32 {
+        [emoteNodeCache, emoteCaptureCache, emoteLocalUpdate, emoteRegionCopy,
+         emoteAsyncAlpha, emoteExperimentalBounds, emoteLocalPoseCache].enumerated().reduce(0) {
+            $0 | ($1.element ? UInt32(1) << UInt32($1.offset) : 0)
+        }
+    }
 
     init() {}
 
@@ -47,6 +62,13 @@ struct PlayerSettings: Codable {
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
         experimentalEmote = value(.experimentalEmote, fallback.experimentalEmote)
+        emoteNodeCache = value(.emoteNodeCache, fallback.emoteNodeCache)
+        emoteCaptureCache = value(.emoteCaptureCache, fallback.emoteCaptureCache)
+        emoteLocalUpdate = value(.emoteLocalUpdate, fallback.emoteLocalUpdate)
+        emoteRegionCopy = value(.emoteRegionCopy, fallback.emoteRegionCopy)
+        emoteAsyncAlpha = value(.emoteAsyncAlpha, fallback.emoteAsyncAlpha)
+        emoteExperimentalBounds = value(.emoteExperimentalBounds, fallback.emoteExperimentalBounds)
+        emoteLocalPoseCache = value(.emoteLocalPoseCache, fallback.emoteLocalPoseCache)
     }
 }
 

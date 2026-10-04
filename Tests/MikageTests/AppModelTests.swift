@@ -208,6 +208,39 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(reloaded.settings.experimentalEmote)
     }
 
+    func testEmotePerformanceOptionsPersistAndAreCapturedAtLaunch() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+        XCTAssertEqual(model.settings.emotePerformanceOptions, 0)
+        let baseline = try model.launchConfiguration(for: game)
+        model.settings.emoteNodeCache = true
+        model.settings.emoteAsyncAlpha = true
+        let enabled = try model.launchConfiguration(for: game)
+        XCTAssertEqual(enabled.emotePerformanceOptions, 17)
+        XCTAssertEqual(baseline.emotePerformanceOptions, 0)
+        XCTAssertEqual(makeModel().settings.emotePerformanceOptions, 17)
+        model.settings.emoteCaptureCache = true
+        model.settings.emoteLocalUpdate = true
+        model.settings.emoteRegionCopy = true
+        model.settings.emoteExperimentalBounds = true
+        XCTAssertEqual(model.settings.emotePerformanceOptions, 63)
+        model.settings.emoteLocalPoseCache = true
+        XCTAssertEqual(model.settings.emotePerformanceOptions, 127)
+        XCTAssertEqual(enabled.emotePerformanceOptions, 17)
+    }
+
+    func testMissingAndMalformedEmotePerformancePreferencesFallBackIndependently() throws {
+        let old = try JSONDecoder().decode(PlayerSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(old.emotePerformanceOptions, 0)
+        let mixed = try JSONDecoder().decode(PlayerSettings.self,
+            from: Data("{\"emoteNodeCache\":\"bad\",\"emoteCaptureCache\":true,\"emoteAsyncAlpha\":true}".utf8))
+        XCTAssertEqual(mixed.emotePerformanceOptions, 18)
+        let restored = try JSONDecoder().decode(PlayerSettings.self, from: JSONEncoder().encode(mixed))
+        XCTAssertEqual(restored.emotePerformanceOptions, 18)
+    }
+
     func testLegacyDisplayTextAndUnknownValuesMigrate() throws {
         let legacy: [String: Any] = [
             "renderer": "OpenGL ES", "appearance": "浅色",

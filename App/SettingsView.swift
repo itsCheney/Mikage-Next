@@ -68,6 +68,21 @@ struct SettingsView: View {
                     Text("开启后，iPhone 处于静音模式时游戏音频会静音；关闭后将忽略静音模式继续播放。修改将在下次启动游戏时生效。")
                 }
 
+                Section {
+                    Toggle("复用未变化的动画节点", isOn: $model.settings.emoteNodeCache)
+                    Toggle("跳过重复画布更新", isOn: $model.settings.emoteCaptureCache)
+                    Toggle("局部图层更新", isOn: $model.settings.emoteLocalUpdate)
+                    Toggle("局部画布复制", isOn: $model.settings.emoteRegionCopy)
+                    Toggle("异步点击检测", isOn: $model.settings.emoteAsyncAlpha)
+                    Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
+                    Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
+                        .disabled(!model.settings.emoteNodeCache)
+                } header: {
+                    Text("Emote 性能实验")
+                } footer: {
+                    Text("各项可独立开启对比，默认关闭，下次启动游戏时生效。异步点击保持透明区域判定，通常延迟约一帧；画面未就绪时会继续等待。")
+                }
+
                 Section("游戏内") {
                     Picker(selection: $model.settings.background) {
                         ForEach(PlayerBackground.allCases, id: \.self) {

@@ -24,6 +24,7 @@ source = args.source.read_text(encoding="utf-8")
 signatures = [
     "bool tTVPNativeBaseBitmap::AssignTexture(",
     "bool tTVPNativeBaseBitmap::CopyFromGPUTarget(",
+    "bool tTVPNativeBaseBitmap::CopyFromGPUTargetRegion(",
     "tjs_uint tTVPNativeBaseBitmap::GetWidth() const",
     "tjs_uint tTVPNativeBaseBitmap::GetHeight() const",
     "void tTVPNativeBaseBitmap::Independ()",
@@ -35,6 +36,7 @@ signatures = [
 layer_source = args.layer_source.read_text(encoding="utf-8")
 layer_signatures = [
     "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTarget(",
+    "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTargetRegion(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromCPU(",
 ]
 args.output.write_text(

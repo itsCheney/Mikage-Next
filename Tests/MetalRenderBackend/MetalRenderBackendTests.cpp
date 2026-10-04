@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <chrono>
 
 using krkrsdl3::iTVPRenderBackend;
 
@@ -485,6 +486,82 @@ void DirectLayerCopyTests(iTVPRenderBackend& gpu)
     gpu.DestroyLayerTexture(destination);
     gpu.DestroyTarget(source);
 }
+void RegionCopyTests(iTVPRenderBackend& gpu)
+{
+    constexpr int width = 16, height = 16;
+    void* source = gpu.CreateTarget(width, height);
+    void* destination = gpu.CreateLayerTexture(width, height, TVPLayerTextureFormat::RGBA8);
+    Require(source && destination, "region copy resources");
+    std::vector<uint8_t> pattern(size_t(width) * height * 4);
+    for (size_t i = 0; i < pattern.size(); ++i) pattern[i] = uint8_t((i * 47 + 13) & 255);
+    std::vector<uint8_t> old(size_t(width) * height * 4, 0x5a);
+    gpu.UpdateTargetTexture(source, pattern.data(), width, height, width * 4);
+    Require(gpu.UpdateLayerTexture(destination, old.data(), width * 4, {0,0,width,height}), "region seed");
+    const TVPLayerRect region{3,4,11,13};
+    const int submits = krkrsdl3::g_metalSubmits, waits = krkrsdl3::g_syncWaits;
+    Require(gpu.CopyTargetToLayerTextureRegion(source, destination, region), "region copy encoded");
+    Require(krkrsdl3::g_metalSubmits == submits && krkrsdl3::g_syncWaits == waits,
+            "region copy must not submit or synchronously wait");
+    Require(!gpu.CopyTargetToLayerTextureRegion(source, destination, {-1,0,1,1}), "negative region rejected");
+    Require(!gpu.CopyTargetToLayerTextureRegion(source, destination, {0,0,width+1,height}), "oversized region rejected");
+    std::vector<uint8_t> actual; int pitch = 0;
+    Require(gpu.ReadLayerTexture(destination, actual, pitch), "region verification read");
+    for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x)
+        for (int c = 0; c < 4; ++c) {
+            const bool inside = x >= region.left && x < region.right && y >= region.top && y < region.bottom;
+            const uint8_t expected = inside ? pattern[(y * width + x) * 4 + c] : 0x5a;
+            Require(actual[size_t(y) * pitch + x * 4 + c] == expected, "ROI preserves every outside pixel");
+        }
+    gpu.DestroyLayerTexture(destination); gpu.DestroyTarget(source);
+}
+void AsyncLayerReadTests(iTVPRenderBackend& gpu)
+{
+    constexpr int width = 16, height = 16;
+    void* texture = gpu.CreateLayerTexture(width, height, TVPLayerTextureFormat::RGBA8);
+    Require(texture != nullptr, "async read texture");
+    std::vector<uint8_t> pixels(size_t(width) * height * 4, 0);
+    for (int i = 0; i < 256; ++i) pixels[size_t(i) * 4 + 3] = static_cast<uint8_t>(i);
+    Require(gpu.UpdateLayerTexture(texture, pixels.data(), width * 4, {0,0,width,height}), "async alpha seed");
+    const int submits = krkrsdl3::g_metalSubmits, waits = krkrsdl3::g_syncWaits;
+    auto request = std::make_shared<krkrsdl3::AsyncLayerReadback>();
+    Require(gpu.RequestLayerTextureRegionRead(texture, {0,0,width,height}, request), "async read encoded");
+    Require(!request->Ready(), "encoded read cannot publish before GPU completion and display");
+    Require(request->presentation == gpu.GetCurrentLayerPresentation(), "composition shares frame ticket");
+    Require(krkrsdl3::g_metalSubmits == submits && krkrsdl3::g_syncWaits == waits,
+            "async reads add no submits or synchronous waits");
+    std::vector<std::shared_ptr<krkrsdl3::AsyncLayerReadback>> held{request};
+    for (int i = 1; i < 64; ++i) {
+        auto point = std::make_shared<krkrsdl3::AsyncLayerReadback>();
+        Require(gpu.RequestLayerTextureRegionRead(texture, {0,0,1,1}, point), "bounded read reservation");
+        held.push_back(std::move(point));
+    }
+    auto overflow = std::make_shared<krkrsdl3::AsyncLayerReadback>();
+    Require(!gpu.RequestLayerTextureRegionRead(texture, {0,0,1,1}, overflow), "read budget declines without waiting");
+    gpu.BeginFrame(width, height); gpu.EndFrame();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!request->completed.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+        SDL_Delay(1);
+    Require(request->completed.load(std::memory_order_acquire) && !request->failed.load(), "async GPU copy completed");
+    Require(request->pitch == width * 4 && request->rgba == pixels, "all 256 alpha bytes read exactly");
+    Require(request->presentation->failed.load() && !request->Ready(), "hidden frame must not count as displayed");
+    Require(krkrsdl3::g_syncWaits == waits, "async completion never uses verification GPU wait");
+    Require(!gpu.RequestLayerTextureRegionRead(texture, {0,0,1,1}, overflow), "completed unconsumed reads retain budget");
+    const auto oldTicket = request->presentation;
+    request->ReleaseStorage();
+    Require(!request->allocationLease && request->rgba.empty(), "consumer explicitly releases read storage");
+    held.clear(); request.reset();
+    // Other read callbacks may still own their final lease after the first one
+    // completes. Retry allocation without blocking the renderer or waiting GPU.
+    bool reserved = false;
+    while (!reserved && std::chrono::steady_clock::now() < deadline) {
+        reserved = gpu.RequestLayerTextureRegionRead(texture, {0,0,1,1}, overflow);
+        if (!reserved) SDL_Delay(1);
+    }
+    Require(reserved, "consumed request budget becomes reusable");
+    Require(overflow->presentation->frameSerial > oldTicket->frameSerial, "next display frame gets a fresh ticket");
+    gpu.BeginFrame(width,height); gpu.EndFrame();
+    gpu.DestroyLayerTexture(texture);
+}
 void CaptureTests(iTVPRenderBackend& gpu)
 {
     void* texture = gpu.CreateWindowTexture(1, 2);
@@ -616,6 +693,8 @@ int main()
                 MeshBatchTests(*gpu);
                 ClearMeshOrderingTests(*gpu);
                 DirectLayerCopyTests(*gpu);
+                RegionCopyTests(*gpu);
+                AsyncLayerReadTests(*gpu);
                 ScopedPointReadTests(*gpu);
                 SubmissionCadenceTests(*gpu);
                 SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "0");
