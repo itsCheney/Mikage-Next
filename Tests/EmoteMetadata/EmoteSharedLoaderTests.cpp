@@ -321,6 +321,79 @@ void dynamicArchiveFilterBypass()
             "archive filters require storage to reopen on every file load");
     require(marker(cached) == "mark-A", "filtered file modified an active snapshot");
 }
+// TrimTo is the memory-compact path. A small standalone cache makes the LRU
+// order and the accounting observable without depending on the shared budget.
+void trimToHonorsLruOrder()
+{
+    emoteplayer::EmoteResourceCache<int, int> cache(100);
+    auto make = [](int value) { return std::make_shared<const int>(value); };
+    require(cache.Insert(1, make(1), 40) && cache.Insert(2, make(2), 40) && cache.Insert(3, make(3), 40),
+            "trim setup insert failed");
+    // Three 40-byte entries in a 100-byte budget: the third insert evicts key 1.
+    require(cache.GetStats().entries == 2 && cache.GetStats().evictions == 1,
+            "insert-time LRU eviction changed");
+    require(cache.Find(2) && *cache.Find(2) == 2, "trim setup lookup failed");
+    const auto generation = cache.Generation();
+    require(cache.TrimTo(1000) == 0 && cache.GetStats().entries == 2,
+            "trim above the retained bytes evicted entries");
+    require(cache.TrimTo(40) == 1, "trim did not stop at the keep target");
+    const auto stats = cache.GetStats();
+    require(stats.entries == 1 && stats.retainedBytes == 40 && stats.evictions == 2,
+            "trim accounting is wrong");
+    require(stats.generation == generation, "trim invalidated in-flight decodes");
+    require(!cache.Find(3) && cache.Find(2) && *cache.Find(2) == 2, "trim evicted the most recent entry");
+    require(cache.TrimTo(0) == 1 && cache.GetStats().entries == 0 && cache.GetStats().retainedBytes == 0,
+            "trim to zero did not drain the cache");
+}
+// The shared hook must shed least-recently-used entries instead of clearing.
+// Games call System.doCompact() routinely (e.g. before an OP movie), so a full
+// clear turns the next load of a still-hot resource into a full re-read. The
+// fixtures are padded past a quarter of the 64MB budget so the trim is
+// observable end to end through the production load path.
+void compactTrimEvictsLeastRecentlyUsed()
+{
+    resetFixture();
+    Fixture fixture;
+    auto padded = fixture.buildFullFile(sampleRoot());
+    padded.resize(padded.size() + 6u * 1024 * 1024, 0);
+    for (const auto* name : {"game.xp3>a.psb", "game.xp3>b.psb", "game.xp3>c.psb", "game.xp3>d.psb"})
+        loaderFiles[name] = padded;
+    {
+        emoteplayer::emotefile a, b, c, d;
+        require(a.load(TJS_N("game.xp3>a.psb")) && b.load(TJS_N("game.xp3>b.psb")) &&
+                c.load(TJS_N("game.xp3>c.psb")) && d.load(TJS_N("game.xp3>d.psb")),
+                "padded fixture load failed");
+        const auto before = emoteplayer::GetSharedEmoteResourceCacheStats();
+        require(before.entries == 4 && before.evictions == 0 && before.retainedBytes > 4u * 1024 * 1024,
+                "padded fixtures did not populate the shared cache");
+        emoteplayer::TrimSharedEmoteResourceCache("testCompact");
+        const auto after = emoteplayer::GetSharedEmoteResourceCacheStats();
+        require(after.evictions > before.evictions && after.entries < before.entries &&
+                after.retainedBytes < before.retainedBytes,
+                "compact trim retained every entry");
+        require(after.generation == before.generation,
+                "compact trim invalidated in-flight decodes");
+        // The most recently loaded resource is still hot; the oldest must be
+        // re-read from storage.
+        emoteplayer::emotefile newest;
+        require(newest.load(TJS_N("game.xp3>d.psb")) && newest.WasSharedCacheHit() &&
+                marker(newest) == "mark-A",
+                "compact trim evicted the most recent resource");
+        require(loaderOpens["game.xp3>d.psb"] == 1, "hot resource was reopened after a trim");
+        emoteplayer::emotefile oldest;
+        require(oldest.load(TJS_N("game.xp3>a.psb")) && !oldest.WasSharedCacheHit(),
+                "least recently used resource survived a trim");
+        require(loaderOpens["game.xp3>a.psb"] == 2, "trim did not release the evicted resource");
+        // Live players keep their snapshot after eviction, like a plain clear.
+        require(marker(a) == "mark-A" && marker(b) == "mark-A" && marker(c) == "mark-A",
+                "trim broke an active player snapshot");
+    }
+    emoteplayer::ClearSharedEmoteResourceCache();
+    emoteplayer::TrimSharedEmoteResourceCache("testCompactEmpty");
+    require(emoteplayer::GetSharedEmoteResourceCacheStats().entries == 0,
+            "trim on an empty cache repopulated entries");
+    require(loaderLiveTrees == 0 && loaderLiveStreams == 0, "trim test leaked streams or runtime trees");
+}
 }
 
 int main()
@@ -336,9 +409,11 @@ int main()
         looseFileChangesAreVisible();
         archiveInvalidation();
         dynamicArchiveFilterBypass();
+        trimToHonorsLruOrder();
+        compactTrimEvictsLeastRecentlyUsed();
         resetFixture();
         std::cout << "PASS: production Emote load/cache integration, full PSB tables, raw/LZ4/MDF cold-warm loads, "
-                     "independent trees/cursors, read-only data, seed/custom-decrypt isolation, reset and lifetime\n";
+                     "independent trees/cursors, read-only data, seed/custom-decrypt isolation, compact trim, reset and lifetime\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n'; return 1;

@@ -21,7 +21,10 @@ parser.add_argument("--output", required=True, type=Path)
 args = parser.parse_args()
 source = args.source.read_text(encoding="utf-8")
 signatures = [
+    "static bool ReadNulTerminatedBlock(",
     "tTJSVariant emotefile::root()",
+    "void emotefile::EnsureTJSNameTable(",
+    "void emotefile::EnsureTJSStringTable(",
     "tTJSVariant emotefile::readVariableFrameList(",
     "tTJSVariant emotefile::readAllObjs(",
     "uint32_t emotefile::readListInfo(",

@@ -25,9 +25,16 @@ public:
     PSB::PSBHeader _header{};
     std::vector<uint32_t> stringsOffset;
     std::vector<std::string> namesCache;
+    bool _fullTreeMaterialization = false;
+    bool _tjsNameTableReady = false;
+    bool _tjsStringTableReady = false;
+    std::vector<std::string> namesCacheTJS;
+    std::vector<std::string> stringsCacheTJS;
     tTJSVariant root();
     tTJSVariant readVariableFrameList(const ttstr& name);
     tTJSVariant readAllObjs(const ttstr& key, tjs_uint32 offset);
+    void EnsureTJSNameTable();
+    void EnsureTJSStringTable();
     uint32_t readListInfo(std::vector<uint32_t>* target);
     void refreshListInfo(std::vector<uint32_t>* offsets, std::vector<uint32_t>* names);
     bool parseObject(std::map<std::string, uint32_t>& output, uint32_t offset);
@@ -206,6 +213,40 @@ void primitiveAndArrayParity()
             "packed arrays must preserve existing signed int32 conversion");
 }
 
+void arrayEntryWidthsStayBounded()
+{
+    // The array reader loads each entry with one bulk read. Wider entries than
+    // the 32-bit target must keep their low four bytes while the stream still
+    // advances by the whole entry.
+    Bytes wide;
+    integer(wide, 2, 4);
+    wide.push_back(PSB::ArrayN8);
+    integer(wide, 0x1122334455667788ull, 8);
+    integer(wide, 0xFFFFFFFFDEADBEEFull, 8);
+    TrackingStream wideStream(std::move(wide));
+    std::vector<tjs_uint32> wideValues;
+    require(PSB::parsePSBArray(&wideValues, 4, &wideStream), "eight-byte array entries were rejected");
+    require(wideValues == std::vector<tjs_uint32>({0x55667788u, 0xDEADBEEFu}),
+            "wide array entries must keep their low 32 bits");
+
+    // A corrupt length byte decodes to an entry far wider than any real type.
+    // The reader must neither read past its scratch buffer nor stall, and the
+    // following entry must still be found.
+    constexpr tjs_uint32 corruptLength = 0xFF - static_cast<tjs_uint32>(PSB::NumberN8);
+    Bytes corrupt;
+    integer(corrupt, 2, 1);
+    corrupt.push_back(0xFF);
+    for (tjs_uint32 i = 0; i < 2 * corruptLength; ++i) corrupt.push_back(static_cast<uint8_t>(i));
+    TrackingStream corruptStream(std::move(corrupt));
+    std::vector<tjs_uint32> corruptValues;
+    require(PSB::parsePSBArray(&corruptValues, 1, &corruptStream), "corrupt array entry was rejected");
+    require(corruptValues.size() == 2, "corrupt array entry count changed");
+    require(corruptStream.GetPosition() == 2 + 2 * corruptLength,
+            "corrupt entry length did not advance the stream by the full entry");
+    require(corruptStream.reads > 2 + 2 * 8,
+            "corrupt entry length was read into a fixed buffer instead of being consumed");
+}
+
 void frameValueParity()
 {
     // Existing scripts may retain fields/types beyond the usual frame schema.
@@ -281,6 +322,48 @@ void customizedArrayConstruction()
     }
 }
 
+void fullRootBenchmark(unsigned version)
+{
+    // Real files reuse a small name/string vocabulary across many occurrences;
+    // reproduce that so table caching and bulk reads are measurable.
+    const std::vector<std::string> labels = {u8"身体", u8"左腕", u8"右腕", u8"頭", u8"口",
+                                             u8"目",   u8"眉",   u8"髪",   u8"服", u8"背景"};
+    std::vector<Node> nodes;
+    nodes.reserve(4000);
+    for (int i = 0; i < 4000; ++i)
+    {
+        nodes.push_back(Node::object({
+            {"label", Node::text(labels[i % labels.size()])},
+            {"src", Node::text(labels[(i * 3 + 1) % labels.size()])},
+            {"time", Node::number(i)},
+            {"x", Node::number(i * 2)},
+            {"y", Node::number(-i)},
+            {"opa", Node::number(255)},
+        }));
+    }
+    Fixture fixture;
+    auto stream = fixture.build(Node::list(std::move(nodes)), version);
+    emoteplayer::emotefile file;
+    fixture.attach(file, stream);
+    auto milliseconds = [](auto duration) { return std::chrono::duration<double, std::milli>(duration).count(); };
+    stream.resetReads();
+    const auto firstStart = std::chrono::steady_clock::now();
+    auto first = file.root();
+    const auto firstTime = std::chrono::steady_clock::now() - firstStart;
+    require(first.Type() == tvtObject, "benchmark root is not an array");
+    const size_t firstBytes = stream.readBytes, firstReads = stream.reads;
+    stream.resetReads();
+    const auto secondStart = std::chrono::steady_clock::now();
+    auto second = file.root();
+    const auto secondTime = std::chrono::steady_clock::now() - secondStart;
+    require(second.Type() == tvtObject, "benchmark second root is not an array");
+    require(first.AsObjectNoAddRef() != second.AsObjectNoAddRef(),
+            "benchmark calls shared a mutable root");
+    std::cout << "benchmark v" << version << ": first root " << firstBytes << " bytes / " << firstReads
+              << " reads / " << milliseconds(firstTime) << " ms; second root " << stream.readBytes
+              << " bytes / " << stream.reads << " reads / " << milliseconds(secondTime) << " ms\n";
+}
+
 void subtreeIsolationAndCost(unsigned version)
 {
     const std::string label = u8"身体・ひねり😀";
@@ -337,10 +420,12 @@ int main()
     try {
         tTJS vm;
         primitiveAndArrayParity();
+        arrayEntryWidthsStayBounded();
         missingAndDuplicateCases();
         frameValueParity();
         customizedArrayConstruction();
         for (unsigned version : {2u, 3u, 4u}) subtreeIsolationAndCost(version);
+        fullRootBenchmark(3);
         std::cout << "PASS: production PSB reader, primitive/array parity, Unicode and duplicate labels, "
                      "missing metadata, nested mutation isolation and unrelated-subtree read exclusion\n";
         return 0;
