@@ -35,15 +35,22 @@ def main():
 #include <stdexcept>
 #include <string>
 bool systemAlive, pluginsAlive, vmAlive, backendAlive, emoteCacheRetained;
-int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears;
-const int TVP_COMPACT_LEVEL_MAX=2;
+int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears, emoteCacheTrims;
+const int TVP_COMPACT_LEVEL_MINIMIZE=15;
+const int TVP_COMPACT_LEVEL_MAX=100;
 bool TVPProjectDirSelected=true, TVPSystemControlAlive=true;
 struct Loader { ~Loader() { assert(systemAlive && pluginsAlive); ++stoppedLoaders; } };
 struct Control {};
 Control* TVPSystemControl=nullptr;
 struct tTVPApplication { Loader* image_load_thread_=nullptr; ~tTVPApplication(); void OnExit(); };
+struct tTVPCompactEventCallbackIntf {
+    virtual void OnCompact(int) = 0;
+    virtual ~tTVPCompactEventCallbackIntf() = default;
+};
+void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf*, bool=false) {}
 namespace emoteplayer {
-void ClearSharedEmoteResourceCache() { emoteCacheRetained=false; ++emoteCacheClears; }
+void ClearSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheClears; }
+void TrimSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheTrims; }
 }
 void TVPInvalidateMovieSession() {} void TVPFinalizeVideoOverlaySession() {}
 void* TVPGetScriptEngine() { return vmAlive ? reinterpret_cast<void*>(1) : nullptr; }
@@ -92,6 +99,8 @@ struct tTVPArchiveCache {
 '''
     production = function(CORE / "core/main/TVPApplication.cpp", "void tTVPApplication::OnExit()")
     production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "tTVPApplication::~tTVPApplication()")
+    production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "struct tTVPClearEmoteResourceCacheCallback") + ";"
+    production += "\nstatic tTVPClearEmoteResourceCacheCallback TVPClearEmoteResourceCacheCallback;"
     production += "\n" + function(CORE / "core/main/TVPWindow.cpp", "void TVPWindow::RequestUserClose()")
     archive = function(CORE / "core/archive/TVPStorage.cpp", "    tTVPArchive* Get(ttstr name)")
     production += "\n" + archive.replace("tTVPArchive* Get(", "tTVPArchive* tTVPArchiveCache::Get(", 1)
@@ -106,6 +115,17 @@ int main() {
     }
     assert(saves==50 && stoppedLoaders==50);
     assert(emoteCacheClears==100);
+    // Games call System.doCompact() routinely, so a compact must shed entries
+    // without discarding the whole decoded-resource cache.
+    const int trimsBefore=emoteCacheTrims, clearsBefore=emoteCacheClears;
+    emoteCacheRetained=true;
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MINIMIZE-1);
+    assert(emoteCacheTrims==trimsBefore && emoteCacheRetained);
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MINIMIZE);
+    assert(emoteCacheTrims==trimsBefore+1 && !emoteCacheRetained);
+    emoteCacheRetained=true;
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MAX);
+    assert(emoteCacheTrims==trimsBefore+2 && emoteCacheClears==clearsBefore);
     // Startup can fail before OnExit; destruction still drops retained entries.
     emoteCacheRetained=true;
     { tTVPApplication partialStartup; }

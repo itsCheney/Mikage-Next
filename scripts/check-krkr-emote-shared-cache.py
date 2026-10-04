@@ -177,6 +177,31 @@ int main() {
     }
     assert(DecodedResource::alive == 0);
     {
+        // TrimTo backs the memory-compact hook: shed least-recently-used entries
+        // down to a byte target, without invalidating in-flight decodes.
+        Cache cache(12);
+        assert(cache.Insert(a, makeResource(30), 4));
+        assert(cache.Insert(b, makeResource(31), 4));
+        assert(cache.Insert(c, makeResource(32), 4));
+        auto promoted = cache.Find(a); // A becomes most recently used: [A, C, B]
+        const auto generation = cache.Generation();
+        const auto evictionsBefore = cache.GetStats().evictions;
+        assert(cache.TrimTo(100) == 0 && cache.GetStats().entries == 3);
+        assert(cache.TrimTo(8) == 1);
+        assert(!cache.Find(b));
+        assert(cache.Find(c) && cache.Find(c)->tag == 32);
+        assert(cache.Find(a) == promoted);
+        const auto stats = cache.GetStats();
+        assert(stats.entries == 2 && stats.retainedBytes == 8);
+        assert(stats.evictions == evictionsBefore + 1);
+        assert(stats.generation == generation && cache.Generation() == generation);
+        assert(cache.TrimTo(0) == 2);
+        assert(cache.GetStats().entries == 0 && cache.GetStats().retainedBytes == 0);
+        assert(cache.GetStats().evictions == evictionsBefore + 3);
+        assert(promoted->tag == 30); // a live handle survives a trim
+    }
+    assert(DecodedResource::alive == 0);
+    {
         emoteplayer::EmoteResourceCache<ThrowingKey, DecodedResource> cache(1);
         const ThrowingKey resident(1), incoming(2);
         assert(cache.Insert(resident, makeResource(1), 1));
@@ -224,12 +249,15 @@ int main() {
         archive = (production.parent.parent / "core/archive/XP3Archive.cpp").read_text(encoding="utf-8")
         filters = r'''
 #include <cassert>
+#include <string>
+#include <vector>
 using tTVPXP3ArchiveExtractionFilter = void (*)();
 using tTVPXP3ArchiveContentFilter = void (*)();
 static tTVPXP3ArchiveExtractionFilter TVPXP3ArchiveExtractionFilter = nullptr;
 static tTVPXP3ArchiveContentFilter TVPXP3ArchiveContentFilter = nullptr;
 int clears = 0;
-namespace emoteplayer { void ClearSharedEmoteResourceCache() { ++clears; } }
+std::vector<std::string> reasons;
+namespace emoteplayer { void ClearSharedEmoteResourceCache(const char* reason) { ++clears; reasons.emplace_back(reason ? reason : ""); } }
 '''
         filters += "\n".join(function(archive, signature) for signature in [
             "void TVPSetXP3ArchiveExtractionFilter(", "void TVPSetXP3ArchiveContentFilter(",
@@ -241,12 +269,14 @@ int main() {
     assert(!TVPHasXP3ArchiveFilters());
     TVPSetXP3ArchiveExtractionFilter(callback);
     assert(TVPHasXP3ArchiveFilters() && clears == 1);
+    assert(reasons.back() == "archiveExtractionFilter");
     TVPSetXP3ArchiveExtractionFilter(callback);
     assert(TVPHasXP3ArchiveFilters() && clears == 2);
     TVPSetXP3ArchiveExtractionFilter(nullptr);
     assert(!TVPHasXP3ArchiveFilters() && clears == 3);
     TVPSetXP3ArchiveContentFilter(callback);
     assert(TVPHasXP3ArchiveFilters() && clears == 4);
+    assert(reasons.back() == "archiveContentFilter");
     TVPSetXP3ArchiveContentFilter(callback);
     assert(TVPHasXP3ArchiveFilters() && clears == 5);
     TVPSetXP3ArchiveContentFilter(nullptr);

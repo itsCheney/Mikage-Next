@@ -98,9 +98,11 @@ Uint64 SDL_GetTicksNS() { return fakeNow; }
 std::vector<std::string> logs;
 EmoteSharedResourceCacheStats sharedStats;
 int sharedClears = 0;
+std::vector<std::string> clearReasons;
 EmoteSharedResourceCacheStats GetSharedEmoteResourceCacheStats() { return sharedStats; }
-void ClearSharedEmoteResourceCache() {
+void ClearSharedEmoteResourceCache(const char* reason) {
     ++sharedClears;
+    clearReasons.emplace_back(reason ? reason : "unspecified");
     sharedStats.retainedBytes = sharedStats.entries = 0;
     ++sharedStats.generation;
 }
@@ -178,6 +180,9 @@ int main() {
         manager.clearCache();
         assert(liveFiles == 1); // Existing live-resource contract remains intact.
         assert(sharedClears == 1);
+        // Every clear names its call site so a device log can attribute the
+        // reload that follows.
+        assert(clearReasons.back() == "scriptClearCache");
         fakeNow += 1000000000;
         manager.unload(L"lzfs://./private/assets/hero.psb");
         assert(liveFiles == 0 && resolutions == 5);
@@ -229,12 +234,14 @@ int main() {
         const int clearsBefore = sharedClears;
         ResourceManager::setEmotePSBDecryptSeed(123);
         assert(sharedClears == clearsBefore + 1 && liveFiles == 1);
+        assert(clearReasons.back() == "decryptSeed");
         ResourceManager::setEmotePSBDecryptSeed(123);
         assert(sharedClears == clearsBefore + 1);
         tTJSVariant decrypt;
         decrypt.closure.Object = &manager;
         ResourceManager::setEmotePSBDecryptFunc(decrypt);
         assert(sharedClears == clearsBefore + 2 && liveFiles == 1);
+        assert(clearReasons.back() == "decryptFunc");
         ResourceManager::setEmotePSBDecryptFunc(decrypt);
         assert(sharedClears == clearsBefore + 3); // reinstall may change script state
         fakeNow += 1000000000;
