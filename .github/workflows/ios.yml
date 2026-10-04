@@ -59,6 +59,12 @@ jobs:
           python3 scripts/check-krkr-emote-shared-cache.py
           python3 scripts/check-krkr-session-exit.py
           python3 scripts/check-krkr-point-read-trace.py
+          python3 scripts/check-krkr-graphics-load.py --source Engine/KRKRRuntime/Source/cpp
+      - name: Test bounded AlphaMovie decoding
+        run: |
+          cmake -S Tests/AlphaMovie -B build/alpha-movie-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/alpha-movie-tests --parallel
+          ctest --test-dir build/alpha-movie-tests --output-on-failure
       - name: Test Emote metadata and shared resource loading
         run: |
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release

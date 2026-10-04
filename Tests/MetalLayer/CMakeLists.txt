@@ -9,8 +9,9 @@ set(GENERATED_OVERWRITE "${CMAKE_CURRENT_BINARY_DIR}/ProductionBitmapOverwrite.i
 add_custom_command(OUTPUT "${GENERATED_OVERWRITE}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
             --source "${BITMAP_SOURCE}" --layer-source "${CORE}/core/script/tjsNativeLayer.cpp"
+            --trans-source "${CORE}/core/render/TVPTrans.cpp"
             --output "${GENERATED_OVERWRITE}"
-    DEPENDS "${BITMAP_SOURCE}" "${CORE}/core/script/tjsNativeLayer.cpp"
+    DEPENDS "${BITMAP_SOURCE}" "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/core/render/TVPTrans.cpp"
             "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
     VERBATIM)
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")

@@ -12,12 +12,14 @@
 
 四次记录全程为 serious 热状态；这些数据不构成冷机功耗或降温对照。
 
-## 已落实的改动
+## 第一批改动
 
 - 普通 Layer Metal 支持 additive alpha、Photoshop multiply/overlay/hard-light 和 alpha 转预乘，包含 opacity、HDA 别名、引用图像及 COW。Overlay/hard-light 按软件实际使用的 `/255` 查表公式计算。错位的源目标自混合保留软件扫描线顺序。
 - LayerExImage、LayerExDraw、LayerExRaster、LayerExAreaAverage、LayerExBTOA、shrinkCopy 及旧 LayerExBase 使用作用域像素访问，持有原纹理直到完成，提交实际已知写入区域。受控访问不永久 pin 纹理、不撤销脚本原始指针租约，也不把临时引用误当成 bitmap 共享。
 - 新增 `layerWorkProfile` 区间记录，按纹理/调用来源聚合上传和同步回读，记录资源加载、AMV 解码、VM 执行、GC、compact、软件回退以及 AMV 解码帧数和 RGBA 字节。字段口径见 [诊断说明](DIAGNOSTICS.md)。
 - 保持 60 FPS、现有 TJS 属性及模糊/灰度/gamma 的软件兼容路径。AMV 仍全帧解码；本批只补齐归因，没有实现按需解码。
+
+第二批新日志确认普通混合回退已消失，但仍有 BTOA、灰度/模糊、scanline 和 AMV 加载问题。本批已实现针对修复，当前实现与证据见 [第二批排查与修复](FOLLOWUP-LAYER-PERFORMANCE.md)；上述软件模糊/灰度和全帧 AMV 描述仅代表第一批发布时的状态。
 
 ## 验证与剩余验收
 

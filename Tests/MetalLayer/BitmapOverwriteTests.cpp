@@ -3,6 +3,7 @@
 #include "RenderManager.h"
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
+#include "TVPTrans.h"
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -17,6 +18,12 @@ tTVPNativeBaseBitmap::tTVPNativeBaseBitmap()
       Bitmap(nullptr) {}
 tTVPNativeBaseBitmap::~tTVPNativeBaseBitmap() {
     if(Bitmap) Bitmap->Release();
+}
+// Unrelated bitmap drawing entries complete the base vtable; these tests use
+// the production render manager directly and must never call either boundary.
+bool iTVPBaseBitmap::Fill(tTVPRect,tjs_uint32) { throw std::runtime_error("unexpected fixture Fill"); }
+bool iTVPBaseBitmap::CopyRect(tjs_int,tjs_int,const iTVPBaseBitmap*,tTVPRect,tjs_int) {
+    throw std::runtime_error("unexpected fixture CopyRect");
 }
 // Window/script event machinery is outside this test. The layer facade keeps
 // only the two fields used by the exact production copy methods below.
@@ -38,7 +45,7 @@ struct ReleaseTexture {
     void operator()(iTVPTexture2D* texture) const { if(texture) texture->Release(); }
 };
 using TextureRef=std::unique_ptr<iTVPTexture2D,ReleaseTexture>;
-class TestBitmap final : public tTVPNativeBaseBitmap {
+class TestBitmap final : public iTVPBaseBitmap {
 public:
     explicit TestBitmap(iTVPTexture2D* texture) { Bitmap=texture; }
     iTVPRenderManager* GetRenderManager() override { return TVPGetRenderManager(); }
@@ -272,5 +279,84 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
             Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes,
                     "complete CPU overwrite unnecessarily fetched destination");
         Equal(bitmap.GetTexture(),expected);
+    }
+}
+
+void TransitionOutputTests() {
+    constexpr int width=7,height=5;
+    const auto oldPixels=Pixels(width,height,0x20406080u),newPixels=Pixels(width,height,0xf0b09070u);
+    TestBitmap first(Create(newPixels,width,height)),second(Create(oldPixels,width,height));
+    tTVPScanLineProviderForBaseBitmap src1(&first),src2(&second);
+    for(bool shared:{false,true}) {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        TextureRef snapshot;
+        if(shared) { bitmap.GetTexture()->AddRef(); snapshot.reset(bitmap.GetTexture()); }
+        tTVPScanLineProviderForBaseBitmap output(&bitmap);
+        tTVPDivisibleData data{}; data.Dest=&output; data.Src1=&src1; data.Src2=&src2;
+        data.Width=width; data.Height=height;
+        for(int frame=0;frame<3;++frame) {
+            const auto before=TVPGetMetalLayerRenderStats();
+            {
+                tTVPTransitionCPUOutputScope scope(data);
+                for(int y=0;y<height;++y) {
+                    void* row=nullptr; Require(TJS_SUCCEEDED(output.GetScanLineForWrite(y,&row)),"transition output unavailable");
+                    std::memcpy(row,newPixels.data()+y*width,width*4);
+                }
+            }
+            auto* texture=bitmap.GetTexture(); texture->GetTextureHandle();
+            auto after=TVPGetMetalLayerRenderStats();
+            Require(after.readbackBytes==before.readbackBytes,"full transition output fetched discarded target");
+            Require(after.uploadedBytes==before.uploadedBytes+width*height*4,"transition output upload changed");
+            texture->GetTextureHandle(); texture->GetTextureHandle();
+            Require(TVPGetMetalLayerRenderStats().uploadedBytes==after.uploadedBytes,"transition output left an upload lease");
+            Equal(texture,newPixels);
+            // The next CPU frame follows a GPU write, invalidating its old CPU cache.
+            auto* fill=TVPGetRenderManager()->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x12345678);
+            TVPGetRenderManager()->OperateRect(fill,texture,nullptr,tTVPRect(0,0,width,height),tRenderTexRectArray());
+        }
+        if(shared) Equal(snapshot.get(),oldPixels);
+    }
+    for(int mode=0;mode<3;++mode) {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        tTVPScanLineProviderForBaseBitmap output(&bitmap);
+        tTVPDivisibleData data{}; data.Dest=&output; data.Src1=mode==1 ? &output : &src1;
+        data.Width=mode==0 ? width-2 : width; data.Height=height;
+        if(mode==0) data.DestLeft=1;
+        uint32_t* raw=mode==2 ? static_cast<uint32_t*>(bitmap.GetTexture()->GetPersistentCPUData(true)) : nullptr;
+        const auto before=TVPGetMetalLayerRenderStats();
+        {
+            tTVPTransitionCPUOutputScope scope(data);
+            for(int y=0;y<height;++y) {
+                void* row=nullptr; output.GetScanLineForWrite(y,&row);
+                std::memcpy(static_cast<uint32_t*>(row)+data.DestLeft,newPixels.data()+y*width+data.DestLeft,data.Width*4);
+            }
+        }
+        auto expected=oldPixels;
+        for(int y=0;y<height;++y) for(int x=data.DestLeft;x<data.DestLeft+data.Width;++x) expected[y*width+x]=newPixels[y*width+x];
+        if(mode<2) Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes+width*height*4,
+                           "partial/aliased transition discarded pixels");
+        else Require(raw==bitmap.GetTexture()->GetPersistentCPUData(true) && !std::memcmp(raw,expected.data(),expected.size()*4),
+                     "transition invalidated raw script pointer");
+        bitmap.GetTexture()->GetTextureHandle(); Equal(bitmap.GetTexture(),expected);
+        if(mode==2) bitmap.GetTexture()->ReleasePersistentCPUData(nullptr);
+    }
+    // A GPU transition never requests scanlines and must leave no CPU state.
+    {
+        TestBitmap bitmap(Create(oldPixels,width,height)); tTVPScanLineProviderForBaseBitmap output(&bitmap);
+        tTVPDivisibleData data{}; data.Dest=&output; data.Src1=&src1; data.Width=width; data.Height=height;
+        const auto before=TVPGetMetalLayerRenderStats();
+        { tTVPTransitionCPUOutputScope scope(data); output.GetTextureForRender()->GetTextureHandle(); }
+        NoPreservationWork(before);
+    }
+    // Unwind a partial write; its access lease must end even when the handler throws.
+    {
+        TestBitmap bitmap(Create(oldPixels,width,height)); tTVPScanLineProviderForBaseBitmap output(&bitmap);
+        tTVPDivisibleData data{}; data.Dest=&output; data.Src1=&src1; data.Width=1; data.Height=1;
+        try { tTVPTransitionCPUOutputScope scope(data); void* row=nullptr; output.GetScanLineForWrite(0,&row);
+            *static_cast<uint32_t*>(row)=newPixels[0]; throw std::runtime_error("handler failure"); }
+        catch(const std::runtime_error&) {}
+        auto* texture=bitmap.GetTexture(); texture->GetTextureHandle(); const auto uploaded=TVPGetMetalLayerRenderStats().uploadedBytes;
+        texture->GetTextureHandle(); Require(TVPGetMetalLayerRenderStats().uploadedBytes==uploaded,"failed transition leaked write lease");
+        auto expected=oldPixels; expected[0]=newPixels[0]; Equal(texture,expected);
     }
 }
