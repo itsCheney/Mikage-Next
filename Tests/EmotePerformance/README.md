@@ -3,6 +3,8 @@
 These portable C++17 tests compile production cache, bounds and alpha-tile
 headers. The node suite compiles the entire production runner, animation and
 geometry code; only PSB fixtures, SDL hints and GPU encoding are test hosts.
+The production player/adaptor translation unit is compiled as an object target
+to verify complete integration types and dependencies.
 
 ```sh
 cmake -S Tests/EmotePerformance -B build/emote-performance-tests -G Ninja -DCMAKE_BUILD_TYPE=Release

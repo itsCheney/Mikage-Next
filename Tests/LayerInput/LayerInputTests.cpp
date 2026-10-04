@@ -22,7 +22,7 @@ using tjs_real = double;
 using ttstr = std::string;
 enum tTVPMouseButton { mbLeft };
 constexpr int ltOpaque = 1;
-enum tTVPHitType { htMask, htProvince, htOpaque };
+enum tTVPHitType { htMask, htProvince };
 struct TestRect { int left=0,top=0,right=128,bottom=128;
     int get_width() const { return right-left; } int get_height() const { return bottom-top; } };
 static uint64_t nextTextureID=1, currentFrameSerial=1;
@@ -244,7 +244,7 @@ void tTJSNI_BaseLayer::GetMostFrontChildAt(int x,int y,tTJSNI_BaseLayer** out,tT
     queryTrigger=trace::origin.trigger; queryParent=trace::origin.parentTrigger;
     if(onQuery) onQuery();
     *out=hit;
-    if(hit && hit->MainImage) {
+    if(hit && (hit->MainImage || (manager && manager->IsAsyncAlphaQuery()))) {
         int localX=x,localY=y; bool inside=true;
         if(manager && manager->IsAsyncAlphaQuery()) {
             if(!manager->GetPinnedLayerPoint(hit,localX,localY,inside) || !inside) { *out=nullptr; return; }
@@ -716,6 +716,85 @@ static void asyncInputChain() {
     }
     SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
 }
+static void asyncImageCoverage() {
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
+    uint64_t serial=200;
+    for(int threshold:{16,0,-7}) for(bool forceComposition:{false,true}) {
+        struct Case { bool hasImage; int left,top,x,y; bool hit; };
+        const Case cases[]={
+            {true,8,9,7,10,false}, {true,8,9,8,9,true},
+            {true,8,9,39,32,true}, {true,8,9,40,9,false},
+            {true,8,9,8,33,false}, {true,-10,-12,0,0,true},
+            {true,-10,-12,22,0,false}, {false,0,0,5,6,threshold<=0}};
+        for(const auto& test:cases) {
+            Fixture f; TestImage image,other;
+            image.texture.width=32; image.texture.height=24; image.texture.alpha=255;
+            f.primary.MainImage=test.hasImage ? &image : nullptr;
+            f.primary.ImageLeft=test.left; f.primary.ImageTop=test.top;
+            f.primary.HitThreshold=threshold;
+            if(forceComposition) {
+                f.other.MainImage=&other; f.other.manager=&f.manager;
+                f.manager.nodes={&f.primary,&f.other};
+            }
+            // Compare against the unchanged explicit-script production method,
+            // not a reimplementation of its image-bounds/threshold rules.
+            require(f.primary._HitTestNoVisibleCheck(test.x,test.y)==test.hit,
+                    "explicit hit-test image coverage baseline changed");
+            image.texture.syncReads=0;
+            f.manager.PrimaryMouseDown(test.x+10,test.y+20,mbLeft,1);
+            if(!f.manager.PendingAlphaInput.empty()) {
+                composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput();
+            }
+            require((f.primary.downs==1)==test.hit,
+                    "UI snapshot image coverage differed for positive/zero/negative hitThreshold");
+            require(image.texture.syncReads==0,"coverage/threshold handling synchronously read GPU alpha");
+        }
+    }
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
+}
+static void asyncHitTypeSnapshot() {
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
+    uint64_t serial=300;
+    for(bool maskFirst:{false,true}) {
+        Fixture f; TestImage mask,province,other;
+        mask.texture.alpha=0; province.texture.alpha=255; province.texture.gpu=false;
+        f.primary.MainImage=&mask; f.primary.ProvinceImage=&province;
+        f.primary.HitType=maskFirst ? htMask : htProvince;
+        f.other.MainImage=&other; f.other.manager=&f.manager;
+        f.manager.nodes={&f.primary,&f.other}; // Forces a composed display F in both directions.
+        const bool frameStyle=f.primary._HitTestNoVisibleCheck(35,48);
+        require(frameStyle==!maskFirst,"production F hit-type baseline was not distinguished by transparent mask");
+        mask.texture.syncReads=0;
+        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
+        auto ticket=composeAlpha(f.manager,serial++,false);
+        f.primary.HitType=maskFirst ? htProvince : htMask;
+        ticket->presented.store(true); f.manager.ProcessPendingAlphaInput();
+        require((f.primary.downs==1)==frameStyle && mask.texture.syncReads==0,
+                "dispatch used a changed HitType or fell back to synchronous unprepared GPU mask alpha");
+        // The next physical event observes the property change with its own F;
+        // an already captured pointer is released to test fresh hit selection.
+        f.manager.ReleaseCapture();
+        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
+        if(!f.manager.PendingAlphaInput.empty()) { composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput(); }
+        require(f.primary.downs==1 && mask.texture.syncReads==0,
+                "HitType property change did not apply to the next event without a GPU wait");
+        const bool currentStyle=f.primary._HitTestNoVisibleCheck(35,48);
+        require(currentStyle==maskFirst,"explicit script HitTest still used the earlier F's type");
+        require(mask.texture.syncReads==(maskFirst ? 0 : 1),"explicit current mask query lost immediate semantics");
+    }
+    {
+        Fixture f; TestImage mask,province,other;
+        mask.texture.alpha=0; province.texture.alpha=255; province.texture.gpu=false;
+        f.primary.MainImage=&mask; f.primary.ProvinceImage=&province; f.primary.HitType=htProvince;
+        f.other.MainImage=&other; f.other.manager=&f.manager; f.manager.nodes={&f.primary,&f.other};
+        f.primary.onEnter=[&]{ f.primary.HitType=htMask; };
+        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
+        composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput();
+        require(f.primary.downs==1 && f.primary.HitType==htMask && mask.texture.syncReads==0,
+                "mouse-enter callback changing HitType caused replay's recheck to synchronously sample a new GPU mask");
+    }
+    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
+}
 
 int main() {
     try {
@@ -735,6 +814,8 @@ int main() {
         ownerChangesReset();
         multipleManagers();
         asyncInputChain();
+        asyncImageCoverage();
+        asyncHitTypeSnapshot();
         std::cout << "PASS: property callbacks, input/capture, exceptions and device lifecycle\n";
         return 0;
     } catch (const std::exception& error) {

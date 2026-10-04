@@ -35,6 +35,9 @@ Local verification recorded on 2026-10-04.
   deferred-input completion continue. No down/up events are silently discarded.
 - Explicit script pixel and `layer.hitTest()` queries retain their immediate
   semantics. Script callbacks do not inherit the built-in UI snapshot query.
+  UI hit type is fixed to its displayed frame; script type changes apply on the
+  next input event, avoiding a fallback GPU read for an unsampled mask. Image
+  bounds still reject outside points when the hit threshold is zero/negative.
 
 The async cache holds at most 32 tiles per texture, three frame entries per tile;
 events may pin entries until delivery. Backend in-flight/ready storage is bounded
@@ -76,6 +79,8 @@ entire production runner/geometry/animation; capture/bounds/alpha tests compile
 production headers. LayerInput extracts production dispatch, preflight and mask
 hit bodies. MetalLayer compiles the production texture manager and extracts both
 native Layer/bitmap ROI paths, checking COW, CPU leases and unaffected pixels.
+The full production player/adaptor translation unit is also compiled, to catch
+integration/header errors that standalone cache tests cannot detect.
 
 Existing animation, adapter/TJS, trajectory, host-mode, PSB/shared-resource,
 shutdown, cache, session-exit and point-trace regressions pass locally. Windows

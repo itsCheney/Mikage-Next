@@ -30,3 +30,15 @@ else()
     target_compile_definitions(emote-node-tests PRIVATE _KRKRSDL3_LINUX=1)
 endif()
 add_test(NAME emote-node-tests COMMAND emote-node-tests)
+
+# Compile the full production player/adaptor TU as well. Header-only cache
+# tests cannot detect missing renderer types in the actual integration file.
+add_library(emote-player-compile OBJECT "${NODE_CORE}/plugins/emoteplayer/emoteplayerclass.cpp")
+get_target_property(EMOTE_NODE_INCLUDES emote-node-tests INCLUDE_DIRECTORIES)
+get_target_property(EMOTE_NODE_DEFINITIONS emote-node-tests COMPILE_DEFINITIONS)
+target_include_directories(emote-player-compile PRIVATE ${EMOTE_NODE_INCLUDES})
+foreach(dir archive main media/font media/image media/movie media/sound utils utils/math)
+    target_include_directories(emote-player-compile PRIVATE "${NODE_CORE}/core/${dir}")
+endforeach()
+target_compile_definitions(emote-player-compile PRIVATE ${EMOTE_NODE_DEFINITIONS})
+target_compile_features(emote-player-compile PRIVATE cxx_std_17)

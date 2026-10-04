@@ -37,6 +37,7 @@ members += "\n" + header[alpha_start:alpha_end]
 members += "\n" + definition(header,"bool IsAsyncAlphaQuery() const")
 members += "\n" + definition(header,"bool SetAsyncAlphaQuery(bool enabled)")
 members += "\n    void ProcessPendingAlphaInput();\n    bool GetPinnedAlpha(tTJSNI_BaseLayer*,tjs_uint32&) const;"
+members += "\n    bool GetPinnedHitType(tTJSNI_BaseLayer*,tjs_int&) const;"
 members += "\n    bool GetPinnedLayerPoint(tTJSNI_BaseLayer*,tjs_int&,tjs_int&,bool&) const;"
 members += "\n    bool HasPinnedLayer(tTJSNI_BaseLayer*) const;"
 members += "\n    void CaptureAlphaForPresentation(tTJSNI_BaseLayer*);"
