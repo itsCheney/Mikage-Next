@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, beta, metal_dev, codex/emote-perf, fix/async-alpha-lifetime]
+    branches: [main, master, beta, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
