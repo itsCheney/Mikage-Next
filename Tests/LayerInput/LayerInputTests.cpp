@@ -25,7 +25,7 @@ constexpr int ltOpaque = 1;
 enum tTVPHitType { htMask, htProvince };
 struct TestRect { int left=0,top=0,right=128,bottom=128;
     int get_width() const { return right-left; } int get_height() const { return bottom-top; } };
-static uint64_t nextTextureID=1, currentFrameSerial=1;
+static uint64_t nextTextureID=1, currentFrameSerial=1, nextLayerLifetimeID=1;
 static std::shared_ptr<krkrsdl3::AsyncLayerPresentation> currentAlphaPresentation;
 static auto TVPGetEmoteAlphaPresentation() { return currentAlphaPresentation; }
 struct iTVPTexture2D {
@@ -75,6 +75,7 @@ class tTVPLayerManager;
 struct tTJSNI_BaseLayer {
     iTJSDispatch2 object;
     iTJSDispatch2* Owner = &object;
+    uint64_t LifetimeID = nextLayerLifetimeID++;
     tTJSNI_BaseLayer* hit = this;
     tTVPLayerManager* manager = nullptr;
     int queries = 0, clicks = 0, doubleClicks = 0, downs = 0, ups = 0, touches = 0;
@@ -109,6 +110,7 @@ struct tTJSNI_BaseLayer {
     void Update() { ++updates; }
     bool _HitTestNoVisibleCheck(int,int);
     iTJSDispatch2* GetOwnerNoAddRef() { return Owner; }
+    uint64_t GetLifetimeID() const { return LifetimeID; }
     void GetMostFrontChildAt(int,int,tTJSNI_BaseLayer**,tTJSNI_BaseLayer*,bool);
     void FromPrimaryCoordinates(int& x, int& y) { x -= offsetX; y -= offsetY; }
     void FromPrimaryCoordinates(double& x, double& y) { x -= offsetX; y -= offsetY; }
@@ -675,12 +677,16 @@ static void asyncInputChain() {
     }
     {
         Fixture f; TestImage image; f.primary.MainImage=&image;
+        const int ownerRefs=f.primary.object.refs;
         f.manager.PrimaryMouseDown(45,68,mbLeft,1);
+        require(f.primary.object.refs==ownerRefs,
+                "async alpha retained the TJS owner instead of using native lifetime identity");
         composeAlpha(f.manager,80);
-        f.primary.Owner=&f.other.object; // Same native address, different owner epoch.
+        const auto lifetime=f.primary.LifetimeID;
+        f.primary.LifetimeID=f.other.LifetimeID; // Same native address, different generation.
         f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0,"an old pointer event targeted a recycled Layer owner");
-        f.primary.Owner=&f.primary.object;
+        require(f.primary.downs==0,"an old pointer event targeted a recycled Layer generation");
+        f.primary.LifetimeID=lifetime;
     }
     {
         Fixture f; TestImage image; f.primary.MainImage=&image;
