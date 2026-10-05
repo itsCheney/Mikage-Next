@@ -72,4 +72,7 @@ add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
 set_tests_properties(metal-layer-tests PROPERTIES SKIP_RETURN_CODE 77)
 if(APPLE)
     set_tests_properties(metal-layer-tests PROPERTIES ENVIRONMENT "MTL_DEBUG_LAYER=1")
+    add_test(NAME metal-layer-compute-tests COMMAND metal-layer-tests)
+    set_tests_properties(metal-layer-compute-tests PROPERTIES SKIP_RETURN_CODE 77
+        ENVIRONMENT "MTL_DEBUG_LAYER=1;MIKAGE_METAL_LAYER_TILE_RENDERER=0")
 endif()

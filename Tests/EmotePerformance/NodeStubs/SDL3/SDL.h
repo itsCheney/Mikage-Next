@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 using Uint64 = std::uint64_t;
+inline void SDL_Log(const char*,...) {}
 inline std::map<std::string, std::string>& NodeTestHints() { static std::map<std::string, std::string> hints; return hints; }
 inline const char* SDL_GetHint(const char* key) {
     const auto value = NodeTestHints().find(key);

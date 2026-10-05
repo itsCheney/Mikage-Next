@@ -24,5 +24,5 @@ args.output.write_text(
     "namespace univ_shader {\nusing uint = uint32_t;\nusing std::max;\nusing std::min;\n"
     + "\n\n".join(function(source, name) for name in
                     ["constAlphaSD", "univTransBlendARGB", "univTransPixel",
-                     "layerPremulPixel", "layerPsPixel", "layerAlphaToPremulPixel", "layerMaskPixel"])
+                     "layerPremulPixel", "layerPsPixel", "layerAlphaToPremulPixel", "layerMaskPixel", "layerAddPixel"])
     + "\n}\n", encoding="utf-8")

@@ -1,0 +1,649 @@
+[
+  {
+    "file": "1-9nine-Mikage-diagnostics-FF8AF829-F43E-4CDF-B93B-3C10DDECC92F.jsonl",
+    "sha256": "7cabddd0ec6dea4bdd5f2278aa1d86dfbd705aa6e80992ab6104935165bcd4bf",
+    "records": 984,
+    "revision": "fd6f50fc44b0",
+    "heartbeatCount": 52,
+    "workProfileCount": 52,
+    "lastHeartbeatSeconds": 52.925227880477905,
+    "exitRequestedSeconds": 50.87531900405884,
+    "thermalStates": [
+      "2"
+    ],
+    "fpsMedian": 56.59463504249246,
+    "fpsMinimum": 18.34778027323688,
+    "maxCpuStepMS": 809.714125,
+    "peakResidentBytes": 569524224,
+    "cumulative": {
+      "layerCPUFallbacks": "254",
+      "layerReadbackBytes": "100740156",
+      "layerUploadedBytes": "616130081",
+      "layerUnsupportedMethods": "PsColorDodge5Blend:240,AddBlend:6,AdjustGamma:4,PsScreenBlend:2",
+      "metalProfile": "submits:2818,syncWaits:34,syncWaitNS:187203711,queueWaitNS:7584076",
+      "stepProfile": "eventNS:562187530,iterateNS:14048270205",
+      "emoteCaptureCPUBytes": "0",
+      "emoteCaptureCPUFallbacks": "0"
+    },
+    "readSources": {
+      "lock": {
+        "bytes": 3951280,
+        "calls": 6
+      },
+      "fallback": {
+        "bytes": 96610440,
+        "calls": 22
+      },
+      "persistent": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "pixels": {
+        "bytes": 178436,
+        "calls": 6
+      },
+      "point": {
+        "bytes": 0,
+        "calls": 0
+      }
+    },
+    "stagesCallsTotalNSMaxNS": {
+      "resourceLoad": [
+        2639,
+        4049855958,
+        525126917
+      ],
+      "amvDecode": [
+        8,
+        22329375,
+        6802792
+      ],
+      "script": [
+        18904,
+        12585989984,
+        806340667
+      ],
+      "gc": [
+        11,
+        4288833,
+        741750
+      ],
+      "compact": [
+        11,
+        86133666,
+        14228875
+      ],
+      "software": [
+        254,
+        192446153,
+        26694000
+      ],
+      "imageLoad": [
+        2711,
+        3488740130,
+        118360042
+      ],
+      "imageDecode": [
+        416,
+        3401955379,
+        113751584
+      ],
+      "imageCacheHit": [
+        2295,
+        692840,
+        6792
+      ],
+      "scriptStorage": [
+        13,
+        537475415,
+        525127042
+      ]
+    },
+    "transfersCallsBytesWallNSWaitNS": {
+      "upload:image.load": [
+        210,
+        480860640,
+        64179121,
+        0
+      ],
+      "read:shrinkCopy.read": [
+        4,
+        3845328,
+        22068250,
+        21176543
+      ],
+      "read:other": [
+        21,
+        37218020,
+        62803045,
+        57821376
+      ],
+      "upload:other": [
+        6909,
+        55496412,
+        105331097,
+        0
+      ],
+      "upload:bitmap.update": [
+        43928,
+        23971821,
+        662785656,
+        0
+      ],
+      "upload:AddBlend": [
+        1,
+        3686400,
+        192958,
+        0
+      ],
+      "read:AddBlend": [
+        1,
+        3686400,
+        21073750,
+        20837958
+      ],
+      "read:PsColorDodge5Blend": [
+        2,
+        7372800,
+        9380000,
+        8605458
+      ],
+      "upload:PsColorDodge5Blend": [
+        1,
+        3686400,
+        199125,
+        0
+      ],
+      "read:AdjustGamma": [
+        4,
+        44742008,
+        84539709,
+        75554917
+      ],
+      "upload:AdjustGamma": [
+        4,
+        44742008,
+        3793500,
+        0
+      ],
+      "read:Copy": [
+        2,
+        3875600,
+        4335625,
+        3207459
+      ],
+      "upload:Copy": [
+        1,
+        3686400,
+        368750,
+        0
+      ]
+    },
+    "amvDecodedFrames": 8,
+    "amvDecodedBytes": 14022656,
+    "largestScriptIntervals": [
+      {
+        "seconds": 46.48693490028381,
+        "intervalMS": "1568.285291",
+        "stages": "resourceLoad:437/679207031/56290958,amvDecode:0/0/0,script:523/1269333456/806340667,gc:1/741750/741750,compact:1/14228875/14228875,software:0/0/0,imageLoad:437/679157542/56290792,imageDecode:27/669181834/53382792,imageCacheHit:410/115371/6792,scriptStorage:0/0/0",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 8.916084051132202,
+        "intervalMS": "848.845167",
+        "stages": "resourceLoad:426/417679215/18390417,amvDecode:0/0/0,script:154/616006250/598122459,gc:1/304291/304291,compact:1/6896125/6896125,software:0/0/0,imageLoad:421/406747082/18390333,imageDecode:32/400246665/18262250,imageCacheHit:389/53171/791,scriptStorage:5/10907583/9544000",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 1.915903091430664,
+        "intervalMS": "1740.712875",
+        "stages": "resourceLoad:3/535563793/525126917,amvDecode:0/0/0,script:68/666919378/525094667,gc:1/641750/641750,compact:1/9916250/9916250,software:0/0/0,imageLoad:91/25633414/9474541,imageDecode:13/24454251/8932959,imageCacheHit:78/2756/208,scriptStorage:2/526089417/525127042",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 13.025776147842407,
+        "intervalMS": "1109.718625",
+        "stages": "resourceLoad:412/698323206/39554000,amvDecode:0/0/0,script:195/997607951/499167750,gc:1/641000/641000,compact:1/7617750/7617750,software:0/0/0,imageLoad:412/698297594/39553917,imageDecode:46/693845627/37904958,imageCacheHit:366/43969/459,scriptStorage:0/0/0",
+        "amvDecodedBytes": "0"
+      }
+    ]
+  },
+  {
+    "file": "2-千恋万花-Mikage-diagnostics-71D10A80-B88C-4116-A46A-78F705E9F5CE.jsonl",
+    "sha256": "7053add10563be21ceaea4737bacf486b7c5f53bb84835534760e386e40d37d7",
+    "records": 1231,
+    "revision": "fd6f50fc44b0",
+    "heartbeatCount": 61,
+    "workProfileCount": 61,
+    "lastHeartbeatSeconds": 64.092129945755,
+    "exitRequestedSeconds": 61.90478801727295,
+    "thermalStates": [
+      "2"
+    ],
+    "fpsMedian": 59.289089195715285,
+    "fpsMinimum": 0.7848570336920507,
+    "maxCpuStepMS": 2515.377583,
+    "peakResidentBytes": 657948672,
+    "cumulative": {
+      "layerCPUFallbacks": "0",
+      "layerReadbackBytes": "177564080",
+      "layerUploadedBytes": "1032782966",
+      "layerUnsupportedMethods": "",
+      "metalProfile": "submits:3388,syncWaits:26,syncWaitNS:193346165,queueWaitNS:117979622",
+      "stepProfile": "eventNS:588590154,iterateNS:10888086375",
+      "emoteCaptureCPUBytes": "0",
+      "emoteCaptureCPUFallbacks": "0"
+    },
+    "readSources": {
+      "lock": {
+        "bytes": 16588800,
+        "calls": 2
+      },
+      "fallback": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "persistent": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "pixels": {
+        "bytes": 160975280,
+        "calls": 24
+      },
+      "point": {
+        "bytes": 0,
+        "calls": 0
+      }
+    },
+    "stagesCallsTotalNSMaxNS": {
+      "resourceLoad": [
+        1169,
+        6305894072,
+        760699875
+      ],
+      "amvDecode": [
+        0,
+        0,
+        0
+      ],
+      "script": [
+        11212,
+        9638435901,
+        2511718167
+      ],
+      "gc": [
+        23,
+        12894250,
+        1467083
+      ],
+      "compact": [
+        23,
+        234376169,
+        17229417
+      ],
+      "software": [
+        0,
+        0,
+        0
+      ],
+      "imageLoad": [
+        1300,
+        5451264041,
+        70869333
+      ],
+      "imageDecode": [
+        462,
+        5395325039,
+        69653250
+      ],
+      "imageCacheHit": [
+        838,
+        125853,
+        2667
+      ],
+      "scriptStorage": [
+        14,
+        787767249,
+        760700000
+      ]
+    },
+    "transfersCallsBytesWallNSWaitNS": {
+      "upload:image.load": [
+        120,
+        194448776,
+        29433004,
+        0
+      ],
+      "upload:other": [
+        821,
+        40778590,
+        17190325,
+        0
+      ],
+      "read:shrinkCopy.read": [
+        2,
+        16588800,
+        19915250,
+        14427791
+      ],
+      "read:shrinkCopy.write": [
+        2,
+        1107072,
+        1946166,
+        1459916
+      ],
+      "read:other": [
+        5,
+        4708736,
+        18959251,
+        17849917
+      ],
+      "upload:transition.outputOverwrite": [
+        93,
+        771379200,
+        79976335,
+        0
+      ],
+      "read:transition.source": [
+        14,
+        154828800,
+        144702791,
+        118231374
+      ],
+      "upload:mixed": [
+        5,
+        3645616,
+        479499,
+        0
+      ],
+      "upload:layerExDraw.write": [
+        1,
+        696384,
+        79000,
+        0
+      ],
+      "read:layerExBase": [
+        3,
+        330672,
+        41993833,
+        41377167
+      ],
+      "upload:bitmap.update": [
+        20342,
+        21834400,
+        216706656,
+        0
+      ]
+    },
+    "amvDecodedFrames": 0,
+    "amvDecodedBytes": 0,
+    "largestScriptIntervals": [
+      {
+        "seconds": 12.667371988296509,
+        "intervalMS": "2585.685791",
+        "stages": "resourceLoad:254/2414110655/70869584,amvDecode:0/0/0,script:10/2514438000/2511718167,gc:0/0/0,compact:0/0/0,software:0/0/0,imageLoad:254/2414092369/70869333,imageDecode:107/2404911454/69653250,imageCacheHit:147/22748/2667,scriptStorage:0/0/0",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 8.088510036468506,
+        "intervalMS": "2006.972792",
+        "stages": "resourceLoad:126/1620301208/52037750,amvDecode:0/0/0,script:12/1743708085/1718876875,gc:0/0/0,compact:0/0/0,software:0/0/0,imageLoad:123/1614966210/52037583,imageDecode:67/1608140542/50119583,imageCacheHit:56/5837/500,scriptStorage:3/5326249/3992083",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 2.081277847290039,
+        "intervalMS": "1910.371834",
+        "stages": "resourceLoad:4/792315083/760699875,amvDecode:0/0/0,script:99/959632040/760674542,gc:1/345500/345500,compact:1/6948959/6948959,software:0/0/0,imageLoad:153/55135868/30446958,imageDecode:112/49122835/29403792,imageCacheHit:41/1500/84,scriptStorage:3/761868208/760700000",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 14.4339599609375,
+        "intervalMS": "1352.150833",
+        "stages": "resourceLoad:186/526802330/50011209,amvDecode:0/0/0,script:11/679993294/643849417,gc:1/513791/513791,compact:1/10152167/10152167,software:0/0/0,imageLoad:186/526790878/50011042,imageDecode:52/523600000/48996542,imageCacheHit:134/46942/2166,scriptStorage:0/0/0",
+        "amvDecodedBytes": "0"
+      }
+    ]
+  },
+  {
+    "file": "3-天使纷扰-Mikage-diagnostics-2AB3DEDF-FE37-44F1-9C73-4A44EF747300.jsonl",
+    "sha256": "97a7504bfb29ddbe37e0359ee69c26210ba3a868327eda1b1d6891df795b188f",
+    "records": 1832,
+    "revision": "fd6f50fc44b0",
+    "heartbeatCount": 92,
+    "workProfileCount": 92,
+    "lastHeartbeatSeconds": 94.1201388835907,
+    "exitRequestedSeconds": 91.19103503227234,
+    "thermalStates": [
+      "0",
+      "1",
+      "2"
+    ],
+    "fpsMedian": 57.30203662632427,
+    "fpsMinimum": 24.798536687947117,
+    "maxCpuStepMS": 601.675042,
+    "peakResidentBytes": 882737152,
+    "cumulative": {
+      "layerCPUFallbacks": "4294",
+      "layerReadbackBytes": "1886912052",
+      "layerUploadedBytes": "3126417442",
+      "layerUnsupportedMethods": "",
+      "metalProfile": "submits:5637,syncWaits:679,syncWaitNS:1113882676,queueWaitNS:88934920",
+      "stepProfile": "eventNS:804832035,iterateNS:25121072399",
+      "emoteCaptureCPUBytes": "0",
+      "emoteCaptureCPUFallbacks": "0"
+    },
+    "readSources": {
+      "lock": {
+        "bytes": 12855168,
+        "calls": 69
+      },
+      "fallback": {
+        "bytes": 1865015940,
+        "calls": 604
+      },
+      "persistent": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "pixels": {
+        "bytes": 9040944,
+        "calls": 6
+      },
+      "point": {
+        "bytes": 0,
+        "calls": 0
+      }
+    },
+    "stagesCallsTotalNSMaxNS": {
+      "resourceLoad": [
+        459,
+        2799706658,
+        1091681708
+      ],
+      "amvDecode": [
+        38,
+        406400166,
+        11416375
+      ],
+      "script": [
+        20252,
+        10515945294,
+        1091660791
+      ],
+      "gc": [
+        27,
+        18429913,
+        1758708
+      ],
+      "compact": [
+        27,
+        593179247,
+        33695791
+      ],
+      "software": [
+        4294,
+        2139599420,
+        16125833
+      ],
+      "imageLoad": [
+        448,
+        1556912970,
+        84913708
+      ],
+      "imageDecode": [
+        198,
+        1471074298,
+        82331625
+      ],
+      "imageCacheHit": [
+        250,
+        65073,
+        2292
+      ],
+      "scriptStorage": [
+        16,
+        1127020334,
+        1091681750
+      ]
+    },
+    "transfersCallsBytesWallNSWaitNS": {
+      "read:Copy": [
+        24,
+        218081904,
+        71514955,
+        36102793
+      ],
+      "upload:image.load": [
+        141,
+        445781404,
+        67072916,
+        0
+      ],
+      "read:AlphaBlend_d": [
+        1,
+        1475184,
+        920417,
+        771583
+      ],
+      "read:other": [
+        580,
+        1091085332,
+        940890287,
+        814364215
+      ],
+      "upload:other": [
+        1564,
+        364068393,
+        68826980,
+        0
+      ],
+      "upload:mixed": [
+        253,
+        2083924596,
+        200898499,
+        0
+      ],
+      "upload:FillARGB": [
+        2,
+        11109096,
+        1372875,
+        0
+      ],
+      "read:FillARGB": [
+        2,
+        8810496,
+        3994792,
+        2917417
+      ],
+      "read:CopyColor": [
+        59,
+        489369600,
+        271905128,
+        217811043
+      ],
+      "read:FillColor": [
+        1,
+        11059200,
+        2563959,
+        1459458
+      ],
+      "read:AlphaBlend": [
+        7,
+        58060800,
+        34073415,
+        28628126
+      ],
+      "upload:Copy": [
+        1,
+        11059200,
+        1151875,
+        0
+      ],
+      "upload:bitmap.update": [
+        10494,
+        10406209,
+        139810288,
+        0
+      ],
+      "upload:FillColor": [
+        1,
+        983040,
+        139500,
+        0
+      ],
+      "read:shrinkCopy.read": [
+        4,
+        8416000,
+        13268251,
+        11381583
+      ],
+      "upload:shrinkCopy.write": [
+        3,
+        19904,
+        173667,
+        0
+      ],
+      "upload:AlphaMovie.frame": [
+        24,
+        199065600,
+        20492919,
+        0
+      ],
+      "read:shrinkCopy.write": [
+        1,
+        553536,
+        555708,
+        446458
+      ]
+    },
+    "amvDecodedFrames": 38,
+    "amvDecodedBytes": 317521920,
+    "largestScriptIntervals": [
+      {
+        "seconds": 2.7160089015960693,
+        "intervalMS": "2536.163167",
+        "stages": "resourceLoad:6/1106708332/1091681708,amvDecode:0/0/0,script:120/1461993250/1091660791,gc:0/0/0,compact:0/0/0,software:707/192639338/16125833,imageLoad:15/54175751/16848042,imageDecode:15/48922751/15404250,imageCacheHit:0/0/0,scriptStorage:3/1092865417/1091681750",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 12.096333026885986,
+        "intervalMS": "1380.070875",
+        "stages": "resourceLoad:66/160054879/25421208,amvDecode:0/0/0,script:86/632556795/571363667,gc:1/1758708/1758708,compact:1/24842833/24842833,software:0/0/0,imageLoad:65/159672962/25421084,imageDecode:46/145758039/24267917,imageCacheHit:19/5373/1000,scriptStorage:1/372625/372625",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 9.716675996780396,
+        "intervalMS": "1000.780875",
+        "stages": "resourceLoad:10/44612624/19498542,amvDecode:0/0/0,script:177/434882330/396698459,gc:0/0/0,compact:0/0/0,software:110/31111625/7087291,imageLoad:3/37497083/19498416,imageDecode:3/35759833/18272291,imageCacheHit:0/0/0,scriptStorage:7/7116127/3765417",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 94.11372303962708,
+        "intervalMS": "1396.131708",
+        "stages": "resourceLoad:6/103477374/59780708,amvDecode:0/0/0,script:62/584858294/393182917,gc:2/1493624/1000041,compact:2/48348334/27996000,software:0/0/0,imageLoad:4/101246083/59780625,imageDecode:4/98426459/58787292,imageCacheHit:0/0/0,scriptStorage:2/2231125/1574583",
+        "amvDecodedBytes": "0"
+      }
+    ]
+  }
+]

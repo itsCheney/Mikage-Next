@@ -21,6 +21,8 @@
 
 第二批新日志确认普通混合回退已消失，但仍有 BTOA、灰度/模糊、scanline 和 AMV 加载问题。本批已实现针对修复，当前实现与证据见 [第二批排查与修复](FOLLOWUP-LAYER-PERFORMANCE.md)；上述软件模糊/灰度和全帧 AMV 描述仅代表第一批发布时的状态。
 
+第三批 `fd6f50f` 的三款新日志及后续 GPU 合成、缩放误判修复见 [第三批记录](THIRD-ROUND-LAYER-PERFORMANCE.md)。
+
 ## 验证与剩余验收
 
 便携测试直接编译生产 MSL 整数 helper，新增 1,048,576 组与 tvpgl 的逐像素对照；并验证裁剪/缩放/别名、alpha cache、COW、局部上传、原始指针共存、异常释放和有界诊断/C 桥接。便携设备替身不能替代实际 Metal shader、纹理排序或功耗测试。

@@ -49,6 +49,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-layer-release --parallel
           MTL_DEBUG_LAYER=0 build/metal-layer-release/metal-layer-tests --performance
+          MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_TILE_RENDERER=0 build/metal-layer-release/metal-layer-tests --performance
       - name: Test TJS shutdown and reentrant finalizers
         run: |
           cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests

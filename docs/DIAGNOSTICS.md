@@ -34,6 +34,8 @@
 - `lease=1` 表示上传时仍有 CPU 写访问未结束。内置插件完成一次操作后结束作用域访问；脚本原始写指针保留保守同步策略。合并多次 CPU 写入后上传的区域用 `mixed` 标记不同来源；租约上传优先标记原始写指针来源。
 - 每段最多记录 64 个纹理/来源/方向/租约组合，输出字节最多的八项，其余按方向合并到 `other`，保留全部次数、字节和时间。纹理 ID 只供当前运行关联；维度记录传输发生时的整张纹理尺寸，字节数可能只是局部更新。
 - 新增 `imageLoad`（完整图像请求）、`imageDecode`（未命中的存储读取、解码与 mask 合并）、`imageCacheHit`（命中次数和赋图耗时）、`scriptStorage`（脚本存储加载及执行）。旧 `resourceLoad` 也包含 `execStorage` 后的脚本执行，不能把它全部叫图片解码；这些阶段仍是包含关系，不可相加。
+- `imageResolve/imageOpen/imageCodec` 分别细分资源解析、打开/识别、主图和 mask codec。Codec 时间包含其内部流读取和 bitmap 分配。`image.codecSlow` 对至少 16 ms 的主图 codec 输出 basename、format、尺寸和时间，每线程每秒最多八条，关闭完整诊断时不输出。
+- `metal.layerWork` 与抽样 `metal.gpuCommandBuffer` 的 ID 关联，记录 rectCalls、tileDraws、rectPixels、scaledPixels、aliasPixels、blurPixels、kindPixels。kind 数值由 `LayerRenderOperation.h` 定义。Tile render 合成看 `gpuStages.otherFragmentMS`，compute 看 `layerComputeMS`；不改变 GPU 命令和同步行为，也不按像素数分摊总 GPU 时间。
 - `amvDecodedFrames`、`amvDecodedBytes` 是区间内实际解码成功的 AMV 帧数及 RGBA payload 总量，不是当前 resident memory。AMV 改为按需解码、有界 LRU；打开时只建索引，之后循环/跳帧若未命中会再解码，所以累计 payload 可以超过驻留缓存。用这两个字段及 `resourceLoad/amvDecode` 判断实际解码发生的区间。
 - 转场受控访问标记 `transition.source/output/outputOverwrite/outputUnscoped`，BTOA 进一步标记 rightBlue、bottomBlue、fillAlpha、clipAlpha、alphaToProvince 和 fillByProvince。全覆盖且非别名的 CPU 转场输出应没有旧目标回读，但仍需上传产出的像素；局部、未知输入和原始指针兼容路径仍可能回读。
 

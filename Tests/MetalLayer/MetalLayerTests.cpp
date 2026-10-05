@@ -177,6 +177,9 @@ public:
             case TVPLayerOperationKind::CopyBlueToAlpha: name="CopyBlueToAlpha"; break;
             case TVPLayerOperationKind::MultiplyAlpha: name="MultiplyAlpha"; break;
             case TVPLayerOperationKind::BoxBlur: name="BoxBlur"; break;
+            case TVPLayerOperationKind::PsScreen: name="PsScreenBlend"; break;
+            case TVPLayerOperationKind::PsColorDodge5: name="PsColorDodge5Blend"; break;
+            case TVPLayerOperationKind::Add: name="AddBlend"; break;
             default:
                 name=op.kind==TVPLayerOperationKind::Alpha ? "AlphaBlend" : op.kind==TVPLayerOperationKind::ConstAlpha ? "ConstAlphaBlend" : "ApplyColorMap";
                 break;
@@ -991,10 +994,34 @@ static void MaskAndBlurOperations() {
         Compare(st,gt,0,name);
     }
 }
+static void RectangleStretchModes() {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    for(int mode:{0,1,2,3,4,13,0x10000,0x10002})
+    for(bool scale:{false,true}) for(auto name:{"Copy","CopyColor","AlphaBlend_d","PsColorDodge5Blend"}) {
+        auto src=Image(9,7,4,48),dst=Image(13,11,4,22);
+        auto gs=Create(gpu,9,7,TVPTextureFormat::RGBA,src),ss=Create(sw,9,7,TVPTextureFormat::RGBA,src);
+        auto gd=Create(gpu,13,11,TVPTextureFormat::RGBA,dst),sd=Create(sw,13,11,TVPTextureFormat::RGBA,dst);
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,128);
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),mode);
+        auto rect=scale ? tTVPRect(-1,-2,12,10) : tTVPRect(1,2,10,9);
+        const auto before=TVPGetMetalLayerRenderStats();
+        Operation(sw,method,sd.get(),rect,ss.get(),tTVPRect(0,0,9,7));
+        Operation(gpu,method,gd.get(),rect,gs.get(),tTVPRect(0,0,9,7));
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes,
+                "ordinary rectangle rejected software-compatible stretch mode");
+        Compare(sd.get(),gd.get(),scale && mode!=0 ? 1 : 0,"rectangle stretch semantics");
+        auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x4080a0c0);
+        const auto beforeFill=TVPGetMetalLayerRenderStats();
+        Operation(gpu,fill,gd.get(),tTVPRect(0,0,13,11),nullptr,tTVPRect());
+        Require(TVPGetMetalLayerRenderStats().cpuFallbacks==beforeFill.cpuFallbacks,"fill inherited irrelevant stretch rejection");
+    }
+    gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+}
 
 static void ExtendedBlendGeometry() {
     auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
-    for(auto name:{"AdditiveAlphaBlend","AdditiveAlphaBlend_a","PsMulBlend","PsOverlayBlend","PsHardLightBlend"})
+    for(auto name:{"AdditiveAlphaBlend","AdditiveAlphaBlend_a","PsMulBlend","PsOverlayBlend","PsHardLightBlend","PsScreenBlend","PsColorDodge5Blend","AddBlend"})
     for(int opacity:{0,128,255}) {
         auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,opacity);
         auto image=Image(7,5,4,42),destination=Image(11,9,4,12);
@@ -1593,7 +1620,7 @@ static void Compatibility() {
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),3);
     Operation(sw,copy,expected.get(),tTVPRect(1,1,8,6),ss.get(),tTVPRect(0,0,9,7));
     Operation(gpu,copy,actual.get(),tTVPRect(1,1,8,6),gs.get(),tTVPRect(0,0,9,7));
-    Compare(expected.get(),actual.get(),0,"unsupported sampler fallback");
+    Compare(expected.get(),actual.get(),0,"software-compatible cubic rectangle");
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
     // Province resources remain CPU owned regardless of the current manager.
     auto province=Create(sw,9,7,TVPTextureFormat::Gray,Image(9,7,1,2));
@@ -1616,6 +1643,34 @@ static void CompositionWorkload() {
     Require(after.gpuOperations-before.gpuOperations==120 && after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes,"composition workload used CPU/readbacks");
     Compare(sd.get(),gd.get(),1,"composition workload");
     std::cout<<"composition CPU wall ms: software="<<cpu<<" GPU encoding="<<gpuCPU<<" (120 operations)\n";
+}
+static void FullHDOverdrawWorkload(iTVPRenderBackend* backend) {
+    auto* gpu=TVPGetRenderManager();
+    constexpr int w=1920,h=1080,frames=30,layers=20;
+    auto image=Image(w,h,4,31);
+    auto source=Create(gpu,w,h,TVPTextureFormat::RGBA,image),target=Create(gpu,w,h,TVPTextureFormat::RGBA,image);
+    source->GetTextureHandle(); target->GetPoint(0,0); // Complete initial uploads before measurement.
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x11223344);
+    auto* blend=gpu->GetRenderMethod("AlphaBlend_d"); blend->SetParameterOpa(0,191);
+    const auto before=TVPGetMetalLayerRenderStats();
+    const auto start=std::chrono::steady_clock::now();
+    for(int frame=0;frame<frames;++frame) {
+        Operation(gpu,fill,target.get(),tTVPRect(0,0,w,h),nullptr,tTVPRect());
+        for(int layer=0;layer<layers;++layer) Operation(gpu,blend,target.get(),tTVPRect(0,0,w,h),source.get(),tTVPRect(0,0,w,h));
+    }
+    const auto stats=TVPGetMetalLayerRenderStats();
+    Require(stats.cpuFallbacks==before.cpuFallbacks && stats.readbackBytes==before.readbackBytes &&
+            stats.uploadedBytes==before.uploadedBytes,"full-HD overdraw introduced CPU transfers");
+    const auto actual=target->GetPoint(0,0); // Wait for all commands, including the final render pass.
+    const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+    uint32_t expected=0x11223344,src; std::memcpy(&src,image.data(),4);
+    for(int i=0;i<layers;++i) TVPAlphaBlend_do(&expected,&src,1,191);
+    Require(actual==expected,"batched render pass did not preserve sequential byte rounding");
+    std::cout<<"PASS full-HD 20-layer overdraw frames="<<frames<<" wallMS="<<ms;
+#ifdef TEST_NATIVE_METAL
+    std::cout<<" tile="<<static_cast<krkrsdl3::MetalRenderBackend*>(backend)->IsLayerTileRenderingActive();
+#endif
+    std::cout<<'\n';
 }
 
 static void GlyphWorkload() {
@@ -1663,6 +1718,9 @@ int main(int argc,char** argv) {
         if(!window) { std::cout<<"SKIP no native Metal window\n"; SDL_Quit(); return 77; }
         backend.reset(krkrsdl3::MetalRenderBackend::Create(window,false));
         Require(bool(backend),"native Metal init failed");
+        auto* native=static_cast<krkrsdl3::MetalRenderBackend*>(backend.get());
+        if(native->SupportsLayerTileRendering()) Require(native->IsLayerTileRenderingActive()==
+            SDL_GetHintBoolean("MIKAGE_METAL_LAYER_TILE_RENDERER",true),"Apple GPU tile pipeline failed to initialize");
 #else
         backend=std::make_unique<DeviceDouble>();
 #endif
@@ -1674,7 +1732,11 @@ int main(int argc,char** argv) {
 #endif
         if(argc>1 && std::string(argv[1])=="--performance") {
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
-            CompositionWorkload(); GlyphWorkload(); TVPUnbindMetalLayerRenderManager(); backend.reset();
+            CompositionWorkload(); GlyphWorkload();
+#ifdef TEST_NATIVE_METAL
+            FullHDOverdrawWorkload(backend.get());
+#endif
+            TVPUnbindMetalLayerRenderManager(); backend.reset();
 #ifdef TEST_NATIVE_METAL
             SDL_DestroyWindow(window);SDL_Quit();
 #endif
@@ -1697,7 +1759,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); ExtendedBlendGeometry(); MaskAndBlurOperations(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

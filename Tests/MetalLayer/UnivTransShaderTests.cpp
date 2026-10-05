@@ -80,7 +80,13 @@ void LayerBlendShaderTests() {
         {TVPLayerOperationKind::PsHardLight,TVP_LAYER_HOLD_ALPHA,TVPPsHardLightBlend_HDA,TVPPsHardLightBlend_HDA_o},
         {TVPLayerOperationKind::PsMul,0,TVPPsMulBlend,TVPPsMulBlend_o},
         {TVPLayerOperationKind::PsOverlay,0,TVPPsOverlayBlend,TVPPsOverlayBlend_o},
-        {TVPLayerOperationKind::PsHardLight,0,TVPPsHardLightBlend,TVPPsHardLightBlend_o}};
+        {TVPLayerOperationKind::PsHardLight,0,TVPPsHardLightBlend,TVPPsHardLightBlend_o},
+        {TVPLayerOperationKind::PsScreen,0,TVPPsScreenBlend,TVPPsScreenBlend_o},
+        {TVPLayerOperationKind::PsScreen,TVP_LAYER_HOLD_ALPHA,TVPPsScreenBlend_HDA,TVPPsScreenBlend_HDA_o},
+        {TVPLayerOperationKind::PsColorDodge5,0,TVPPsColorDodge5Blend,TVPPsColorDodge5Blend_o},
+        {TVPLayerOperationKind::PsColorDodge5,TVP_LAYER_HOLD_ALPHA,TVPPsColorDodge5Blend_HDA,TVPPsColorDodge5Blend_HDA_o},
+        {TVPLayerOperationKind::Add,0,TVPAddBlend,TVPAddBlend_o},
+        {TVPLayerOperationKind::Add,TVP_LAYER_HOLD_ALPHA,TVPAddBlend_HDA,TVPAddBlend_HDA_o}};
     uint32_t random=0x287bd162u;
     auto next=[&]() { random=random*1664525u+1013904223u; return random; };
     const uint32_t edges[]={0,1,63,127,128,191,254,255};
@@ -98,6 +104,8 @@ void LayerBlendShaderTests() {
         for(unsigned i=0;i<256;++i) {
             uint32_t actual=variant.kind==TVPLayerOperationKind::AdditiveAlpha
                 ? univ_shader::layerPremulPixel(d[i],s[i],opa,variant.flags)
+                : variant.kind==TVPLayerOperationKind::Add
+                ? univ_shader::layerAddPixel(d[i],s[i],opa,variant.flags)
                 : univ_shader::layerPsPixel(d[i],s[i],int(variant.kind),opa,variant.flags);
             if(actual!=expected[i]) {
                 std::cerr<<"Layer MSL mismatch kind="<<int(variant.kind)<<" flags="<<variant.flags
