@@ -28,6 +28,7 @@ extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
 void BitmapOverwriteTests(iTVPRenderBackend* backend);
 void TransitionOutputTests();
+void BitmapRenderSessionCacheTests(iTVPRenderBackend* backend);
 void UnivTransShaderTests();
 void LayerBlendShaderTests();
 void TriangleProfileTests();
@@ -1709,8 +1710,8 @@ static void Presentation(iTVPRenderBackend* backend) {
 int main(int argc,char** argv) {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
-        UnivTransShaderTests();
-        LayerBlendShaderTests();
+        const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
+        if(!sessionCachesOnly) { UnivTransShaderTests(); LayerBlendShaderTests(); }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
         Require(SDL_Init(SDL_INIT_VIDEO),"SDL video init failed");
@@ -1724,6 +1725,14 @@ int main(int argc,char** argv) {
 #else
         backend=std::make_unique<DeviceDouble>();
 #endif
+        if(sessionCachesOnly) {
+            BitmapRenderSessionCacheTests(backend.get()); backend.reset();
+#ifdef TEST_NATIVE_METAL
+            SDL_DestroyWindow(window); SDL_Quit();
+#endif
+            std::cout<<"PASS production retained bitmap/glyph caches across four render sessions\n";
+            return 0;
+        }
 #ifndef TEST_NATIVE_METAL
         class UnavailableDevice final : public DeviceDouble {
             void* CreateLayerTexture(int,int,TVPLayerTextureFormat) override { return nullptr; }
@@ -1768,6 +1777,7 @@ int main(int argc,char** argv) {
             TVPUnbindMetalLayerRenderManager(); Require(TVPIsSoftwareRenderManager(),"software manager not restored");
             Require(TVPTakeMetalLayerTriangleProfile().stats.calls==0,"triangle sampler retained an unbound Layer session");
         }
+        BitmapRenderSessionCacheTests(backend.get());
         // Deliberately retained texture is detached safely when its session ends.
         Require(TVPBindMetalLayerRenderManager(backend.get()),"rebind failed");
         auto survivor=Create(TVPGetRenderManager(),2,2,TVPTextureFormat::RGBA,Image(2,2,4,1));

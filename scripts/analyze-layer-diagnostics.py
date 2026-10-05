@@ -17,11 +17,13 @@ def stages(value):
     return {name:tuple(map(int,numbers.split('/'))) for name,numbers in
             (item.split(':',1) for item in value.split(',') if item)}
 
-def summarize(path):
+def summarize(path, session=None):
     raw=path.read_bytes(); rows=[json.loads(line) for line in raw.decode('utf-8-sig').splitlines() if line.strip()]
-    hearts=[r for r in rows if r['event']=='heartbeat']; work=[r for r in rows if r['event']=='layerWorkProfile']
-    begin=next(r for r in rows if r['event']=='game.begin'); origin=begin['unixTime']; last=hearts[-1]['fields']
-    exit_row=next((r for r in rows if r['event']=='nativeExit.requested'),None)
+    begin=next(r for r in rows if r['event']=='game.begin' and (session is None or r['fields']['gameSession']==session))
+    session=begin['fields']['gameSession']; session_rows=[r for r in rows if r['fields'].get('gameSession')==session]
+    hearts=[r for r in session_rows if r['event']=='heartbeat']; work=[r for r in session_rows if r['event']=='layerWorkProfile']
+    origin=begin['unixTime']; last=hearts[-1]['fields']
+    exit_row=next((r for r in session_rows if r['event']=='nativeExit.requested'),None)
     read_sources={name:{'bytes':int(byte),'calls':int(calls)} for name,byte,calls in
                   re.findall(r'(\w+):(\d+)/(\d+)',last['layerReadbackBySource'])}
     assert sum(v['bytes'] for v in read_sources.values())==int(last['layerReadbackBytes']), 'readback counters disagree'
@@ -35,7 +37,7 @@ def summarize(path):
     assert sum(v[1] for k,v in transfers.items() if k.startswith('read:'))==int(last['layerReadbackBytes'])
     assert sum(v[1] for k,v in transfers.items() if k.startswith('upload:'))==int(last['layerUploadedBytes'])
     peaks=sorted(work,key=lambda r:stages(r['fields']['stages'])['script'][2],reverse=True)[:4]
-    return {'file':path.name,'sha256':hashlib.sha256(raw).hexdigest(),'records':len(rows),
+    return {'file':path.name,'sha256':hashlib.sha256(raw).hexdigest(),'records':len(rows),'sessionRecords':len(session_rows),'session':session,'game':begin['fields'].get('folder'),
         'revision':next(r for r in rows if r['event']=='environment')['fields']['sourceRevision'],
         'heartbeatCount':len(hearts),'workProfileCount':len(work),'lastHeartbeatSeconds':hearts[-1]['unixTime']-origin,
         'exitRequestedSeconds':exit_row['unixTime']-origin if exit_row else None,
@@ -56,7 +58,12 @@ def summarize(path):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('logs',nargs='+',type=Path); parser.add_argument('--output',type=Path)
-    args=parser.parse_args(); result=json.dumps([summarize(p) for p in args.logs],ensure_ascii=False,indent=2)
+    args=parser.parse_args(); summaries=[]
+    for path in args.logs:
+        rows=[json.loads(line) for line in path.read_text(encoding='utf-8-sig').splitlines() if line.strip()]
+        sessions=[r['fields']['gameSession'] for r in rows if r['event']=='game.begin']
+        summaries.extend(summarize(path,session) for session in sessions)
+    result=json.dumps(summaries,ensure_ascii=False,indent=2)
     if args.output: args.output.write_text(result+'\n',encoding='utf-8')
     else: print(result)
 

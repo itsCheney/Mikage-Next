@@ -6,12 +6,14 @@ set(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(BITMAP_SOURCE "${CORE}/core/render/LayerBitmap.cpp")
 set(GENERATED_OVERWRITE "${CMAKE_CURRENT_BINARY_DIR}/ProductionBitmapOverwrite.inc")
-add_custom_command(OUTPUT "${GENERATED_OVERWRITE}"
+set(GENERATED_CACHES "${CMAKE_CURRENT_BINARY_DIR}/ProductionBitmapCaches.inc")
+add_custom_command(OUTPUT "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
             --source "${BITMAP_SOURCE}" --layer-source "${CORE}/core/script/tjsNativeLayer.cpp"
             --trans-source "${CORE}/core/render/TVPTrans.cpp"
+            --character-source "${CORE}/core/media/font/CharacterData.cpp" --cache-output "${GENERATED_CACHES}"
             --output "${GENERATED_OVERWRITE}"
-    DEPENDS "${BITMAP_SOURCE}" "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/core/render/TVPTrans.cpp"
+    DEPENDS "${BITMAP_SOURCE}" "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/core/render/TVPTrans.cpp" "${CORE}/core/media/font/CharacterData.cpp"
             "${CMAKE_CURRENT_LIST_DIR}/extract-bitmap-overwrite.py"
     VERBATIM)
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
@@ -38,7 +40,7 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
     VERBATIM)
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
     "${GENERATED_TRIANGLE_BRIDGE}" "${GENERATED_AFFINE_MATH}"
-    UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" ${TJS_SOURCES}
+    UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}" ${TJS_SOURCES}
     "${CORE}/core/render/ComplexRect.cpp"
     "${CORE}/core/render/RenderManager.cpp"
     "${CORE}/core/render/MetalLayerRenderManager.cpp"

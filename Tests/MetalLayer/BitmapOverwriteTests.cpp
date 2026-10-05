@@ -4,9 +4,14 @@
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
 #include "TVPTrans.h"
+#include "TVPEvent.h"
+#include "CharacterData.h"
+#include "gl/tvpgl.h"
+#include "tjsUtils.h"
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <iostream>
 #include <stdexcept>
 #include <vector>
 
@@ -21,9 +26,17 @@ tTVPNativeBaseBitmap::~tTVPNativeBaseBitmap() {
 }
 // Unrelated bitmap drawing entries complete the base vtable; these tests use
 // the production render manager directly and must never call either boundary.
-bool iTVPBaseBitmap::Fill(tTVPRect,tjs_uint32) { throw std::runtime_error("unexpected fixture Fill"); }
 bool iTVPBaseBitmap::CopyRect(tjs_int,tjs_int,const iTVPBaseBitmap*,tTVPRect,tjs_int) {
     throw std::runtime_error("unexpected fixture CopyRect");
+}
+// Callback registration is a lifecycle boundary double; bitmap/cache logic
+// below is extracted from the production functions.
+static std::vector<tTVPCompactEventCallbackIntf*> testCompactHooks;
+void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf* hook,bool) {
+    if(std::find(testCompactHooks.begin(),testCompactHooks.end(),hook)==testCompactHooks.end()) testCompactHooks.push_back(hook);
+}
+void TVPRemoveCompactEventHook(tTVPCompactEventCallbackIntf* hook) {
+    testCompactHooks.erase(std::remove(testCompactHooks.begin(),testCompactHooks.end(),hook),testCompactHooks.end());
 }
 // Window/script event machinery is outside this test. The layer facade keeps
 // only the two fields used by the exact production copy methods below.
@@ -49,7 +62,9 @@ class TestBitmap final : public iTVPBaseBitmap {
 public:
     explicit TestBitmap(iTVPTexture2D* texture) { Bitmap=texture; }
     iTVPRenderManager* GetRenderManager() override { return TVPGetRenderManager(); }
+    bool BlendGlyph(tTVPCharacterData*,tTVPDrawTextData*,tjs_uint32,const tTVPRect&,tTVPRect&);
 };
+#include "ProductionBitmapCaches.inc"
 void Require(bool ok,const char* message) {
     if(!ok) throw std::runtime_error(message);
 }
@@ -359,4 +374,85 @@ void TransitionOutputTests() {
         texture->GetTextureHandle(); Require(TVPGetMetalLayerRenderStats().uploadedBytes==uploaded,"failed transition leaked write lease");
         auto expected=oldPixels; expected[0]=newPixels[0]; Equal(texture,expected);
     }
+}
+
+void BitmapRenderSessionCacheTests(krkrsdl3::iTVPRenderBackend* backend) {
+    constexpr int w=48,h=40;
+    tTVPTempBitmapHolder::AddRef(); // Retain the real holder across A -> B -> A.
+    uint64_t lastInitial=0,lastGlyph=0,lastTemp=0;
+    TextureRef retainedPrototype;
+    for(int session=0;session<4;++session) {
+        Require(TVPBindMetalLayerRenderManager(backend),"cache regression could not bind session");
+        auto* manager=TVPGetRenderManager();
+        auto* prototype=tTVPTempBitmapHolder::Get()->GetTexture();
+        if(session==0) { prototype->AddRef(); retainedPrototype.reset(prototype); }
+        else Require(retainedPrototype->IsCPUResident() && retainedPrototype->GetPoint(0,0)==0x00ffffff,
+                     "cache regeneration damaged a retained old Layer snapshot");
+        uint64_t identity=0,version=0;
+        Require(prototype->GetContentKey(identity,version) && identity!=lastInitial,
+                "initial Layer prototype retained an old render session");
+        lastInitial=identity;
+        const auto beforeCopy=TVPGetMetalLayerRenderStats();
+        TextureRef clone(manager->CreateTexture2D(w,h,prototype));
+        Require(TVPGetMetalLayerRenderStats().cpuFallbacks==beforeCopy.cpuFallbacks &&
+                TVPGetMetalLayerRenderStats().readbackBytes==beforeCopy.readbackBytes,
+                "initial Layer clone fell back after switching game");
+        auto* temporary=tTVPTempBitmapHolder::GetTemp(24,20,true);
+        Require(std::find(testCompactHooks.begin(),testCompactHooks.end(),TVPTempBitmapHolder)!=testCompactHooks.end(),
+                "retained temporary cache did not register compaction for the next session");
+        Require(temporary->GetTexture()->GetContentKey(identity,version) && identity!=lastTemp,
+                "temporary Layer bitmap retained an old render session");
+        lastTemp=identity; tTVPTempBitmapHolder::FreeTemp();
+
+        // A smaller second-session glyph must trigger ownership replacement,
+        // even though the old scratch texture is still large enough.
+        const int gw=session==0 ? 16 : 8,gh=session==0 ? 12 : 4;
+        std::vector<uint8_t> alpha(size_t(gw)*gh);
+        for(size_t i=0;i<alpha.size();++i) alpha[i]=uint8_t(i%65);
+        tGlyphMetrics metrics{};
+        tTVPCharacterData character(alpha.data(),gw,0,0,gw,gh,metrics,false);
+        TestBitmap bitmap(Create(Pixels(w,h,0x31415926),w,h));
+        tTVPDrawTextData draw{tTVPRect(0,0,w,h),w*4,255,true,bmAlphaOnAlpha};
+        tTVPRect src(0,0,gw,gh),dst(2,3,2+gw,3+gh);
+        const auto beforeGlyph=TVPGetMetalLayerRenderStats();
+        for(int glyph=0;glyph<128;++glyph)
+            Require(bitmap.BlendGlyph(&character,&draw,0xff3579bd,src,dst),"production glyph draw rejected");
+        const auto afterGlyph=TVPGetMetalLayerRenderStats();
+        if(afterGlyph.cpuFallbacks!=beforeGlyph.cpuFallbacks)
+            std::cerr<<"cache session="<<session<<" glyph fallback="<<afterGlyph.cpuFallbacks-beforeGlyph.cpuFallbacks
+                     <<" readbackBytes="<<afterGlyph.readbackBytes-beforeGlyph.readbackBytes<<'\n';
+        Require(afterGlyph.gpuOperations==beforeGlyph.gpuOperations+128 &&
+                afterGlyph.cpuFallbacks==beforeGlyph.cpuFallbacks && afterGlyph.readbackBytes==beforeGlyph.readbackBytes,
+                "glyph cache forced CPU fallback/readback in the next game");
+        Require(_CharacterTexture->GetContentKey(identity,version) && identity!=lastGlyph,
+                "glyph scratch retained an old render session");
+        lastGlyph=identity;
+
+        // Compare the sequence with the actual software operator, including
+        // glyph alpha, repeated blends, clipping and existing target pixels.
+        auto* sw=TVPGetSoftwareRenderManager();
+        auto initial=Pixels(w,h,0x31415926);
+        TextureRef expected(sw->CreateTexture2D(initial.data(),w*4,w,h,TVPTextureFormat::RGBA));
+        TextureRef gray(sw->CreateTexture2D(character.GetData(),character.Pitch,gw,gh,TVPTextureFormat::Gray));
+        auto* method=manager->GetRenderMethod("ApplyColorMap_d");
+        method->SetParameterOpa(method->EnumParameterID("opacity"),255);
+        method->SetParameterColor4B(method->EnumParameterID("color"),0xff3579bd);
+        tRenderTexRectArray::Element input(gray.get(),src);
+        for(int glyph=0;glyph<128;++glyph) sw->OperateRect(method,expected.get(),nullptr,dst,tRenderTexRectArray(&input,1));
+        const auto* expectedPixels=static_cast<const uint32_t*>(expected->GetScanLineForRead(0));
+        std::vector<uint32_t> pixels(expectedPixels,expectedPixels+w*h); Equal(bitmap.GetTexture(),pixels);
+        // Intentionally retain process caches and snapshots through unbinding.
+        // The next session must regenerate caches, while old snapshots stay safe.
+        TVPUnbindMetalLayerRenderManager();
+        testCompactHooks.clear(); // Model removal of nonpersistent hooks at game exit.
+        Require(prototype->IsCPUResident(),"old prototype was not detached safely");
+        if(session==1) {
+            TestBitmap cpu(TVPGetSoftwareRenderManager()->CreateTexture2D(nullptr,0,w,h,TVPTextureFormat::RGBA));
+            Require(cpu.BlendGlyph(&character,&draw,0xff3579bd,src,dst),"software-between-games glyph failed");
+        }
+    }
+    _CharacterTexture->Release(); _CharacterTexture=nullptr;
+    tTVPTempBitmapHolder::Release();
+    retainedPrototype.reset();
+    iTVPTexture2D::RecycleProcess();
 }

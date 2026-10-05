@@ -36,6 +36,7 @@
 - 新增 `imageLoad`（完整图像请求）、`imageDecode`（未命中的存储读取、解码与 mask 合并）、`imageCacheHit`（命中次数和赋图耗时）、`scriptStorage`（脚本存储加载及执行）。旧 `resourceLoad` 也包含 `execStorage` 后的脚本执行，不能把它全部叫图片解码；这些阶段仍是包含关系，不可相加。
 - `imageResolve/imageOpen/imageCodec` 分别细分资源解析、打开/识别、主图和 mask codec。Codec 时间包含其内部流读取和 bitmap 分配。`image.codecSlow` 对至少 16 ms 的主图 codec 输出 basename、format、尺寸和时间，每线程每秒最多八条，关闭完整诊断时不输出。
 - `metal.layerWork` 与抽样 `metal.gpuCommandBuffer` 的 ID 关联，记录 rectCalls、tileDraws、rectPixels、scaledPixels、aliasPixels、blurPixels、kindPixels。kind 数值由 `LayerRenderOperation.h` 定义。Tile render 合成看 `gpuStages.otherFragmentMS`，compute 看 `layerComputeMS`；不改变 GPU 命令和同步行为，也不按像素数分摊总 GPU 时间。
+- `layer.sourceUnavailable` 在每个 Metal Session 最多记录八条失配 source 详情：方法、sourceType、尺寸、cpuResident、currentSession、texture/version。仅完整诊断开启时记录，查询身份不触发 GPU 回读，用于区分跨会话缓存和其他 CPU source；汇总拒绝次数仍看 heartbeat。
 - `amvDecodedFrames`、`amvDecodedBytes` 是区间内实际解码成功的 AMV 帧数及 RGBA payload 总量，不是当前 resident memory。AMV 改为按需解码、有界 LRU；打开时只建索引，之后循环/跳帧若未命中会再解码，所以累计 payload 可以超过驻留缓存。用这两个字段及 `resourceLoad/amvDecode` 判断实际解码发生的区间。
 - 转场受控访问标记 `transition.source/output/outputOverwrite/outputUnscoped`，BTOA 进一步标记 rightBlue、bottomBlue、fillAlpha、clipAlpha、alphaToProvince 和 fillByProvince。全覆盖且非别名的 CPU 转场输出应没有旧目标回读，但仍需上传产出的像素；局部、未知输入和原始指针兼容路径仍可能回读。
 

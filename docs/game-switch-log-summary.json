@@ -1,0 +1,378 @@
+[
+  {
+    "file": "Mikage-diagnostics-8DA46C62-0E67-4758-BDEC-63660C8425B4.jsonl",
+    "sha256": "5414442eac2b787c4d4913217bddf8f64959350410f04787ce728b12aecdf76f",
+    "records": 2028,
+    "sessionRecords": 1317,
+    "session": "6900B2AA-5706-46CD-AF94-D73BCE6E80A1",
+    "game": "天使纷扰 RE-BOOT！",
+    "revision": "5eb900d85898",
+    "heartbeatCount": 50,
+    "workProfileCount": 50,
+    "lastHeartbeatSeconds": 51.37542772293091,
+    "exitRequestedSeconds": 49.07943773269653,
+    "thermalStates": [
+      "2"
+    ],
+    "fpsMedian": 51.06327102537334,
+    "fpsMinimum": 13.890822452788699,
+    "maxCpuStepMS": 333.263,
+    "peakResidentBytes": 851296256,
+    "cumulative": {
+      "layerCPUFallbacks": "0",
+      "layerReadbackBytes": "8969536",
+      "layerUploadedBytes": "613431160",
+      "layerUnsupportedMethods": "",
+      "metalProfile": "submits:2409,syncWaits:5,syncWaitNS:29992958,queueWaitNS:30829167",
+      "stepProfile": "eventNS:907996603,iterateNS:22418954938",
+      "emoteCaptureCPUBytes": "0",
+      "emoteCaptureCPUFallbacks": "0"
+    },
+    "readSources": {
+      "lock": {
+        "bytes": 8416000,
+        "calls": 4
+      },
+      "fallback": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "persistent": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "pixels": {
+        "bytes": 553536,
+        "calls": 1
+      },
+      "point": {
+        "bytes": 0,
+        "calls": 0
+      }
+    },
+    "stagesCallsTotalNSMaxNS": {
+      "resourceLoad": [
+        347,
+        2419771119,
+        979530000
+      ],
+      "amvDecode": [
+        36,
+        405949705,
+        12558875
+      ],
+      "script": [
+        14684,
+        9871773207,
+        979512541
+      ],
+      "gc": [
+        14,
+        13015582,
+        3206750
+      ],
+      "compact": [
+        14,
+        354408209,
+        64750250
+      ],
+      "software": [
+        0,
+        0,
+        0
+      ],
+      "imageLoad": [
+        344,
+        1291636462,
+        118057083
+      ],
+      "imageDecode": [
+        125,
+        1221631037,
+        115115250
+      ],
+      "imageCacheHit": [
+        219,
+        140661,
+        6417
+      ],
+      "scriptStorage": [
+        8,
+        1003944625,
+        979530125
+      ],
+      "imageResolve": [
+        125,
+        165987131,
+        25889084
+      ],
+      "imageOpen": [
+        125,
+        67652836,
+        10532958
+      ],
+      "imageCodec": [
+        125,
+        974602132,
+        103442792
+      ]
+    },
+    "transfersCallsBytesWallNSWaitNS": {
+      "upload:image.load": [
+        115,
+        293672532,
+        61347453,
+        0
+      ],
+      "upload:other": [
+        580,
+        120002383,
+        16681740,
+        0
+      ],
+      "upload:bitmap.update": [
+        7750,
+        8965141,
+        140925228,
+        0
+      ],
+      "read:shrinkCopy.read": [
+        4,
+        8416000,
+        32855042,
+        29366666
+      ],
+      "upload:shrinkCopy.write": [
+        3,
+        19904,
+        100959,
+        0
+      ],
+      "upload:AlphaMovie.frame": [
+        23,
+        190771200,
+        19700418,
+        0
+      ],
+      "read:shrinkCopy.write": [
+        1,
+        553536,
+        759958,
+        626292
+      ]
+    },
+    "amvDecodedFrames": 36,
+    "amvDecodedBytes": 300810240,
+    "largestScriptIntervals": [
+      {
+        "seconds": 2.3663859367370605,
+        "intervalMS": "2170.377542",
+        "stages": "resourceLoad:8/1022346249/979530000,amvDecode:0/0/0,script:174/1256782955/979512541,gc:1/517584/517584,compact:1/17963542/17963542,software:0/0/0,imageLoad:13/69173084/36218583,imageDecode:13/65843000/35235583,imageCacheHit:0/0/0,scriptStorage:3/979778583/979530125,imageResolve:13/3413585/403042,imageOpen:13/8853001/3849125,imageCodec:13/53238168/32433625",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 6.364107847213745,
+        "intervalMS": "999.964541",
+        "stages": "resourceLoad:23/72286295/22425209,amvDecode:0/0/0,script:280/535382528/313789541,gc:2/944042/540209,compact:2/37749709/20467292,software:0/0/0,imageLoad:20/48954208/22425167,imageDecode:7/47381333/22289000,imageCacheHit:13/709/209,scriptStorage:3/23330834/22325750,imageResolve:7/24303123/22053041,imageOpen:7/1895417/539292,imageCodec:7/20859873/20487750",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 49.36673974990845,
+        "intervalMS": "1000.05775",
+        "stages": "resourceLoad:2/13984208/9183375,amvDecode:0/0/0,script:172/243066419/227304292,gc:0/0/0,compact:0/0/0,software:0/0/0,imageLoad:2/13983875/9183250,imageDecode:2/12737875/8562125,imageCacheHit:0/0/0,scriptStorage:0/0/0,imageResolve:2/1996875/1011625,imageOpen:2/4472500/3201625,imageCodec:2/6257667/4365917",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 3.3638200759887695,
+        "intervalMS": "998.179791",
+        "stages": "resourceLoad:6/133101709/114909875,amvDecode:0/0/0,script:195/352033462/139296125,gc:2/1385750/906583,compact:2/41636542/26339625,software:0/0/0,imageLoad:4/18012000/13167917,imageDecode:3/16163124/11534041,imageCacheHit:1/292/292,scriptStorage:0/0/0,imageResolve:3/2856667/1265917,imageOpen:3/3751001/2491084,imageCodec:3/9551084/7774625",
+        "amvDecodedBytes": "0"
+      }
+    ]
+  },
+  {
+    "file": "Mikage-diagnostics-8DA46C62-0E67-4758-BDEC-63660C8425B4.jsonl",
+    "sha256": "5414442eac2b787c4d4913217bddf8f64959350410f04787ce728b12aecdf76f",
+    "records": 2028,
+    "sessionRecords": 695,
+    "session": "9CB150B4-DDB1-4C9F-AFC4-9A6E578A846D",
+    "game": "青空下的加缪",
+    "revision": "5eb900d85898",
+    "heartbeatCount": 21,
+    "workProfileCount": 21,
+    "lastHeartbeatSeconds": 22.215142011642456,
+    "exitRequestedSeconds": 18.633174180984497,
+    "thermalStates": [
+      "2"
+    ],
+    "fpsMedian": 57.963919894350404,
+    "fpsMinimum": 38.931753257501065,
+    "maxCpuStepMS": 116.192833,
+    "peakResidentBytes": 833961984,
+    "cumulative": {
+      "layerCPUFallbacks": "7138",
+      "layerReadbackBytes": "77124736",
+      "layerUploadedBytes": "124122972",
+      "layerUnsupportedMethods": "",
+      "metalProfile": "submits:1616,syncWaits:410,syncWaitNS:441343507,queueWaitNS:77847",
+      "stepProfile": "eventNS:139002783,iterateNS:1869041334",
+      "emoteCaptureCPUBytes": "0",
+      "emoteCaptureCPUFallbacks": "0"
+    },
+    "readSources": {
+      "lock": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "fallback": {
+        "bytes": 77099056,
+        "calls": 409
+      },
+      "persistent": {
+        "bytes": 0,
+        "calls": 0
+      },
+      "pixels": {
+        "bytes": 25680,
+        "calls": 1
+      },
+      "point": {
+        "bytes": 0,
+        "calls": 0
+      }
+    },
+    "stagesCallsTotalNSMaxNS": {
+      "resourceLoad": [
+        625,
+        1127957451,
+        813142292
+      ],
+      "amvDecode": [
+        0,
+        0,
+        0
+      ],
+      "script": [
+        3127,
+        2593580331,
+        813123458
+      ],
+      "gc": [
+        12,
+        8143750,
+        2335125
+      ],
+      "compact": [
+        12,
+        82809749,
+        9389500
+      ],
+      "software": [
+        7138,
+        468730270,
+        12530958
+      ],
+      "imageLoad": [
+        620,
+        304097654,
+        30056750
+      ],
+      "imageDecode": [
+        179,
+        286307883,
+        29209542
+      ],
+      "imageCacheHit": [
+        441,
+        20163,
+        292
+      ],
+      "scriptStorage": [
+        8,
+        824546290,
+        813142375
+      ],
+      "imageResolve": [
+        179,
+        12111960,
+        300458
+      ],
+      "imageOpen": [
+        179,
+        16842953,
+        1545167
+      ],
+      "imageCodec": [
+        179,
+        254547158,
+        27572333
+      ]
+    },
+    "transfersCallsBytesWallNSWaitNS": {
+      "upload:image.load": [
+        32,
+        105499896,
+        12029872,
+        0
+      ],
+      "read:Copy": [
+        26,
+        22054400,
+        48167958,
+        45255706
+      ],
+      "read:other": [
+        228,
+        9982496,
+        289548377,
+        283838221
+      ],
+      "upload:other": [
+        584,
+        14801196,
+        8773420,
+        0
+      ],
+      "read:ApplyColorMap_d": [
+        156,
+        45087840,
+        118925251,
+        112249580
+      ],
+      "upload:ApplyColorMap_d": [
+        251,
+        3821880,
+        3952034,
+        0
+      ]
+    },
+    "amvDecodedFrames": 0,
+    "amvDecodedBytes": 0,
+    "largestScriptIntervals": [
+      {
+        "seconds": 2.207428216934204,
+        "intervalMS": "2012.513875",
+        "stages": "resourceLoad:3/817950959/813142292,amvDecode:0/0/0,script:95/949550833/813123458,gc:2/3533833/2335125,compact:2/17323333/9389500,software:24/41790041/5523500,imageLoad:4/4900458/4168791,imageDecode:4/4249959/3624333,imageCacheHit:0/0/0,scriptStorage:2/813782083/813142375,imageResolve:4/233583/125792,imageOpen:4/269291/249833,imageCodec:4/3744167/3247500",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 5.21208119392395,
+        "intervalMS": "1004.738834",
+        "stages": "resourceLoad:542/45043447/9105750,amvDecode:0/0/0,script:80/439745708/115429000,gc:6/2739167/483042,compact:6/39815541/7021500,software:147/154534449/6178916,imageLoad:538/34551406/3286500,imageDecode:131/30255298/2925125,imageCacheHit:407/15835/292,scriptStorage:4/10455791/9105875,imageResolve:131/4140460/129042,imageOpen:131/863368/208250,imageCodec:131/25208951/2854875",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 3.2071690559387207,
+        "intervalMS": "999.727208",
+        "stages": "resourceLoad:19/7814540/3828417,amvDecode:0/0/0,script:79/212006750/111519375,gc:3/1434083/585708,compact:3/18789750/6990458,software:9/19501292/9280459,imageLoad:19/7813208/3828291,imageDecode:5/7201584/3567208,imageCacheHit:14/831/208,scriptStorage:0/0/0,imageResolve:5/177376/42917,imageOpen:5/41083/16292,imageCodec:5/6980084/3520542",
+        "amvDecodedBytes": "0"
+      },
+      {
+        "seconds": 16.20856809616089,
+        "intervalMS": "999.921167",
+        "stages": "resourceLoad:4/44459959/28740042,amvDecode:0/0/0,script:225/107012589/64422750,gc:0/0/0,compact:0/0/0,software:482/31043094/7628667,imageLoad:4/44459250/28739750,imageDecode:2/43251000/27808000,imageCacheHit:2/417/209,scriptStorage:0/0/0,imageResolve:2/392333/196708,imageOpen:2/2055042/1296459,imageCodec:2/40234959/26285584",
+        "amvDecodedBytes": "0"
+      }
+    ]
+  }
+]

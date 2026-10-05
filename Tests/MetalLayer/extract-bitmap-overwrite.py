@@ -19,6 +19,8 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--source", required=True, type=Path)
 parser.add_argument("--layer-source", required=True, type=Path)
 parser.add_argument("--trans-source", required=True, type=Path)
+parser.add_argument("--character-source", required=True, type=Path)
+parser.add_argument("--cache-output", required=True, type=Path)
 parser.add_argument("--output", required=True, type=Path)
 args = parser.parse_args()
 source = args.source.read_text(encoding="utf-8")
@@ -37,6 +39,12 @@ signatures = [
     "void tTVPNativeBaseBitmap::Recreate()",
     "void tTVPNativeBaseBitmap::Recreate(tjs_uint",
     "iTVPTexture2D* tTVPNativeBaseBitmap::GetTextureForRender(",
+    "void tTVPNativeBaseBitmap::SetSize(",
+    "bool tTVPNativeBaseBitmap::Is32BPP() const",
+    "bool iTVPBaseBitmap::Fill(",
+    "tTVPBaseTexture::tTVPBaseTexture(",
+    "bool tTVPBaseTexture::AssignBitmap(",
+    "iTVPRenderManager* tTVPBaseTexture::GetRenderManager()",
 ]
 layer_source = args.layer_source.read_text(encoding="utf-8")
 layer_signatures = [
@@ -55,9 +63,20 @@ trans_signatures=["tTVPScanLineProviderForBaseBitmap::tTVPScanLineProviderForBas
      "iTVPTexture2D* tTVPScanLineProviderForBaseBitmap::GetTextureForRender()"]
 args.output.write_text(
     "// Generated from LayerBitmap.cpp and tjsNativeLayer.cpp; do not edit.\n\n"
+    + source[source.index("#define BOUND_CHECK(x)"):source.index("\n//-------",source.index("#define BOUND_CHECK(x)"))] + "\n"
+    + function(source,"struct tTVPDrawTextData") + ";\n"
     + "\n\n".join(function(source, signature) for signature in signatures) + "\n\n"
     + "\n\n".join(function(layer_source, signature).replace("tTJSNI_BaseLayer::", "TestLayerCopy::")
                     for signature in layer_signatures) + "\n\n"
-    + "\n\n".join(function(trans_source,signature) for signature in trans_signatures) + "\n",
+    + "\n\n".join(function(trans_source,signature) for signature in trans_signatures) + "\n"
+    + "\n\n".join(function(args.character_source.read_text(encoding="utf-8"),signature) for signature in
+        ["tTVPCharacterData::tTVPCharacterData(const tjs_uint8*", "tTVPCharacterData::~tTVPCharacterData()"]),
     encoding="utf-8",
 )
+args.cache_output.write_text(
+    "// Production default/temporary bitmap holder and glyph scratch path.\n"
+    "class tTVPTempBitmapHolder;\nstatic tTVPTempBitmapHolder* TVPTempBitmapHolder=nullptr;\n"
+    + function(layer_source,"class tTVPTempBitmapHolder :") + ";\n"
+    + "static iTVPTexture2D* _CharacterTexture=nullptr;\n"
+    + function(source,"bool tTVPNativeBaseBitmap::InternalBlendText(").replace("tTVPNativeBaseBitmap::InternalBlendText", "TestBitmap::BlendGlyph"),
+    encoding="utf-8")
