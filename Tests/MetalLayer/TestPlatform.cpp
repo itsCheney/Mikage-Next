@@ -38,6 +38,7 @@ void TVPThrowExceptionMessage(const tjs_char* message,const ttstr&) { throw std:
 void TVPThrowExceptionMessage(const tjs_char* message,const ttstr&,const ttstr&) { throw std::runtime_error(message); }
 tTJSMessageHolder TVPOutOfRectangle(TJS_N("OutOfRectangle"),TJS_N("out of rectangle"));
 tTJSMessageHolder TVPCannotAllocateBitmapBits(TJS_N("CannotAllocateBitmapBits"),TJS_N("allocation failed"));
+tTJSMessageHolder TVPInvalidOperationFor8BPP(TJS_N("InvalidOperationFor8BPP"),TJS_N("operation requires 32 bits per pixel"));
 tTVPBitmap::tTVPBitmap(tjs_uint w,tjs_uint h,tjs_uint bpp) : RefCount(1), Bits(nullptr), BitmapInfo(nullptr), Palette(nullptr) {
     Width=w; Height=h; BitmapInfo=new BitmapInfomation(w,h,bpp);
     PitchBytes=PitchStep=BitmapInfo->GetPitchBytes(); Bits=std::calloc(h,PitchBytes);

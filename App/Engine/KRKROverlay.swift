@@ -16,6 +16,8 @@ struct KRKRPerformanceSnapshot {
     var layerCPUFallbacks: UInt64 = 0
     var layerUploadedBytes: UInt64 = 0
     var layerReadbackBytes: UInt64 = 0
+    var layerGammaLUTUploads: UInt64 = 0
+    var layerGammaLUTUploadedBytes: UInt64 = 0
     var residentMemoryBytes: UInt64 = 0
     var elapsedSeconds = 0
 }

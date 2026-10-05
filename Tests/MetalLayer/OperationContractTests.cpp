@@ -62,7 +62,7 @@ void StableIDsAndTraits() {
         "FillColor", "FillMask", "Alpha", "ConstAlpha", "ColorMap", "FillBlend", "RemoveConstOpacity",
         "ConstAlphaSD", "UnivTrans", "AdditiveAlpha", "PsMul", "PsOverlay", "PsHardLight",
         "AlphaToAdditiveAlpha", "GrayScale", "CopyBlueToAlpha", "MultiplyAlpha", "BoxBlur",
-        "PsScreen", "PsColorDodge5", "Add"};
+        "PsScreen", "PsColorDodge5", "Add", "Sub", "Mul", "ColorDodge", "Darken", "Lighten", "Screen", "RemoveOpacity", "AdditiveAlphaToAlpha", "AdjustGamma", "AlphaSD"};
     Require(TVP_LAYER_OPERATION_COUNT == sizeof(expected)/sizeof(expected[0]), "production stable Count changed");
     const std::string msl=TVP_LAYER_OPERATION_MSL_DEFINITIONS;
     for(uint32_t id=0;id<TVP_LAYER_OPERATION_COUNT;++id) {
@@ -93,7 +93,8 @@ void StableIDsAndTraits() {
             TVPGetLayerOperationTraits(TVPLayerOperationKind::UnivTrans)->backendInputCount==3 &&
             TVPGetLayerOperationTraits(TVPLayerOperationKind::UnivTrans)->sourceFormats[2]==TVPLayerTextureFormat::R8,
             "dual/triple source contract changed");
-    for(auto kind : {TVPLayerOperationKind::AlphaToAdditiveAlpha,TVPLayerOperationKind::GrayScale}) {
+    for(auto kind : {TVPLayerOperationKind::AlphaToAdditiveAlpha,TVPLayerOperationKind::GrayScale,
+                    TVPLayerOperationKind::AdditiveAlphaToAlpha}) {
         const auto* traits=TVPGetLayerOperationTraits(kind);
         Require(traits->logicalInputCountMask==3 && traits->backendInputCount==1 &&
                 traits->referenceRule==TVPLayerReferenceRule::UsedWhenNoInput,
@@ -101,6 +102,13 @@ void StableIDsAndTraits() {
     }
     Require(TVPGetLayerOperationTraits(TVPLayerOperationKind::Copy)->geometries==
             (TVP_LAYER_GEOMETRY_RECT|TVP_LAYER_GEOMETRY_AFFINE_COPY_SUBSET), "Copy affine subset lost");
+    Require(TVPGetLayerOperationTraits(TVPLayerOperationKind::RemoveOpacity)->sourceFormats[0]==TVPLayerTextureFormat::R8,
+            "RemoveOpacity lost mask format");
+    const auto* gamma=TVPGetLayerOperationTraits(TVPLayerOperationKind::AdjustGamma);
+    Require(gamma->logicalInputCountMask==1 && gamma->backendInputCount==0 && gamma->readsTarget &&
+            gamma->referenceRule==TVPLayerReferenceRule::Ignored &&
+            gamma->parameterResources==TVP_LAYER_RESOURCE_GAMMA_LUT,
+            "Gamma target-reading owned LUT contract changed");
     for(uint32_t id=2;id<TVP_LAYER_OPERATION_COUNT;++id)
         Require(TVP_LAYER_OPERATION_TRAITS[id].geometries==TVP_LAYER_GEOMETRY_RECT,
                 "P0 enabled new geometry");
@@ -110,26 +118,27 @@ void AlphaAndAliasExceptions() {
     using K=TVPLayerOperationKind;
     TVPLayerOperation op;
     const K hdaKinds[]={K::Alpha,K::ConstAlpha,K::ColorMap,K::FillBlend,K::AdditiveAlpha,
-        K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add};
+        K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::Sub,K::ColorDodge,K::Darken,K::Lighten,K::Screen};
     for(auto kind:hdaKinds) for(uint32_t flags=0;flags<16;++flags) {
         op.kind=kind; op.flags=flags;
         const bool expected=(flags&TVP_LAYER_HOLD_ALPHA) &&
             !(flags&(TVP_LAYER_DEST_ALPHA|TVP_LAYER_DEST_PREMULTIPLIED));
         Require(TVPLayerOperationPreservesAlpha(op,false)==expected, "HDA/d/a alpha rule changed");
     }
-    for(auto kind:{K::CopyColor,K::FillColor}) {
+    for(auto kind:{K::CopyColor,K::FillColor,K::Mul,K::AdjustGamma}) {
         op.kind=kind; Require(TVPLayerOperationPreservesAlpha(op,false), "color-only operation writes alpha");
     }
-    for(auto kind:{K::AlphaToAdditiveAlpha,K::GrayScale}) {
+    for(auto kind:{K::AlphaToAdditiveAlpha,K::GrayScale,K::AdditiveAlphaToAlpha}) {
         op.kind=kind;
         Require(TVPLayerOperationPreservesAlpha(op,true) && !TVPLayerOperationPreservesAlpha(op,false),
                 "COW/reference conversion incorrectly preserves target alpha");
     }
     for(auto kind:{K::Copy,K::CopyMask,K::CopyOpaque,K::Fill,K::FillMask,K::RemoveConstOpacity,
-                  K::ConstAlphaSD,K::UnivTrans,K::CopyBlueToAlpha,K::MultiplyAlpha,K::BoxBlur}) {
+                  K::ConstAlphaSD,K::UnivTrans,K::CopyBlueToAlpha,K::MultiplyAlpha,K::BoxBlur,K::RemoveOpacity,K::AlphaSD}) {
         op.kind=kind; Require(!TVPLayerOperationPreservesAlpha(op,true), "alpha-writing operation marked preserving");
     }
-    for(auto kind:{K::AdditiveAlpha,K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::MultiplyAlpha,K::ConstAlphaSD})
+    for(auto kind:{K::AdditiveAlpha,K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::MultiplyAlpha,K::ConstAlphaSD,
+                  K::Sub,K::Mul,K::ColorDodge,K::Darken,K::Lighten,K::Screen,K::AlphaSD})
         Require(TVPGetLayerOperationTraits(kind)->aliasRule==TVPLayerAliasRule::SamePixelOnly,
                 "sequential offset alias contract changed");
     Require(TVPGetLayerOperationTraits(K::UnivTrans)->aliasRule==TVPLayerAliasRule::Snapshot &&
@@ -149,6 +158,11 @@ void ShaderCompositionAndExtension() {
         const auto source=TVPBuildMetalLayerShaderSource(options);
         Require(source.find(std::string(options)+prefix)==0, "runtime Metal variant omitted shared definitions");
         Require(source.find("int4 layerPixel(")!=std::string::npos, "runtime Metal variant omitted pixel implementation");
+        Require(source.find("const device uchar* gamma [[buffer(2)]]")!=std::string::npos &&
+                source.find("layerGammaPixel(layerPack(d),uint(flags),gamma)")!=std::string::npos &&
+                source.find("layerPixel(d,s,color,kind,opa,flags,tables,gamma)")!=std::string::npos &&
+                source.find("layerPixel(d,s,p.color,kind,p.operation.y,p.operation.z,tables,gamma)")!=std::string::npos,
+                "Gamma LUT is not shared by compute and tile pixel paths");
         Require(source.find("if (layerNeedsSource(kind))")!=std::string::npos &&
                 source.find("if(layerNeedsSource(kind))")!=std::string::npos &&
                 source.find("bool overwrite = !layerReadsTarget(kind);")!=std::string::npos,
@@ -164,9 +178,9 @@ void ShaderCompositionAndExtension() {
     Require(!TVPFindLayerOperationTraits(extendedTraits,static_cast<uint32_t>(ExtendedKind::Count)),
             "extension Count is treated as an operation");
     const std::string fixtureSource=extendedMSL;
-    Require(fixtureSource.find("constant int TVP_LAYER_KIND_TestKind = 27;")!=std::string::npos &&
-            fixtureSource.find("case 27: return 1 != 0;")!=std::string::npos &&
-            fixtureSource.find("case 27: return true;")!=std::string::npos,
+    Require(fixtureSource.find("constant int TVP_LAYER_KIND_TestKind = 37;")!=std::string::npos &&
+            fixtureSource.find("case 37: return 1 != 0;")!=std::string::npos &&
+            fixtureSource.find("case 37: return true;")!=std::string::npos,
             "appended kind lost shader ID/dependency definitions");
     krkrsdl3::metal_diagnostics::LayerKindPixelCounters<static_cast<uint32_t>(ExtendedKind::Count)> counts;
     counts.RecordKindPixels(int(ExtendedKind::Copy),7);
@@ -174,15 +188,15 @@ void ShaderCompositionAndExtension() {
     counts.RecordKindPixels(int(ExtendedKind::Count),100);
     counts.RecordKindPixels(-1,100);
     counts.RecordKindPixels(std::numeric_limits<int>::max(),100);
-    Require(counts.pixelsByKind.back()==13 && counts.KindPixelSummary()=="1:7,27:13",
+    Require(counts.pixelsByKind.back()==13 && counts.KindPixelSummary()=="1:7,37:13",
             "Count extension lost diagnostic tail or formatter/bounds");
     krkrsdl3::metal_diagnostics::Workload workload;
-    workload.Rect(int(TVPLayerOperationKind::Add),19,false,false,false);
+    workload.Rect(int(TVPLayerOperationKind::AlphaSD),19,false,false,false);
     workload.Rect(int(TVPLayerOperationKind::BoxBlur),23,false,false,false);
     workload.RecordKindPixels(int(TVPLayerOperationKind::Count),100);
     workload.RecordKindPixels(-1,100);
     Require(workload.pixelsByKind.size()==TVP_LAYER_OPERATION_COUNT && workload.pixelsByKind.back()==19 &&
-            workload.blurPixels==23 && workload.KindPixelSummary()=="23:23,26:19",
+            workload.blurPixels==23 && workload.KindPixelSummary()=="23:23,36:19",
             "production diagnostic Count/blur/tail contract changed");
 }
 }

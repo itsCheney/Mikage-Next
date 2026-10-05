@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """Compile the production MSL integer helpers as C++ for tvpgl parity checks."""
 import argparse
+import re
 from pathlib import Path
 
 
 def function(source, name):
-    start = source.index("uint " + name + "(")
-    opening = source.index("{", start)
+    # AlphaSD uses a forward declaration before layerPixel. Extract the actual
+    # definition, never the prototype followed by an unrelated function body.
+    match = re.search(r"\buint\s+" + re.escape(name) + r"\([^;{]*\)\s*\{", source)
+    if not match:
+        raise ValueError("Missing production integer helper: " + name)
+    start = match.start()
+    opening = match.end() - 1
     depth, end = 1, opening + 1
     while depth:
         depth += (source[end] == "{") - (source[end] == "}")
         end += 1
-    return source[start:end].replace("const device uchar*", "const unsigned char*")
+    # The shared extracted helpers are consumed by both transition and P1A
+    # test translation units. Inline avoids duplicate external definitions.
+    return "inline " + source[start:end].replace("const device uchar*", "const unsigned char*")
 
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -24,6 +32,7 @@ args.output.write_text(
     "#include \"LayerRenderOperation.h\"\n"
     "namespace univ_shader {\nusing uint = uint32_t;\nusing std::max;\nusing std::min;\n"
     + "\n\n".join(function(source, name) for name in
-                    ["constAlphaSD", "univTransBlendARGB", "univTransPixel",
-                     "layerPremulPixel", "layerPsPixel", "layerAlphaToPremulPixel", "layerMaskPixel", "layerAddPixel"])
+                    ["constAlphaSD", "constAlphaSDDestAlpha", "univTransBlendARGB", "univTransPixel",
+                     "layerPremulPixel", "layerPsPixel", "layerAlphaToPremulPixel", "layerMaskPixel", "layerAddPixel",
+                     "layerP1APixel", "layerPremulToAlphaPixel", "layerGammaPixel"])
     + "\n}\n", encoding="utf-8")

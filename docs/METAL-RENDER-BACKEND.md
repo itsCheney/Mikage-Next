@@ -38,12 +38,25 @@ Layers retain the readback path. Image and video decoding are unchanged.
 
 Ordinary KRKR Layer methods also reuse the canonical software method objects
 through the Metal Layer manager. The current registry has 70 names, including
-46 names with GPU descriptors; those descriptors still have explicit input,
+59 names with GPU descriptors; those descriptors still have explicit input,
 format, parameter, geometry and alias restrictions. On supporting Apple GPUs,
 ordinary operations use programmable blending in a shared target render pass;
 other devices use the existing compute paths. The affine two-triangle Copy
 subset is accelerated; general triangles and perspective remain software paths.
-The remaining 24 registered software methods have no GPU descriptor.
+The remaining 11 registered Photoshop blend methods have no GPU descriptor.
+
+P1A Gamma operations retain immutable 768-byte software LUT snapshots. Two
+recent-version caches create new Metal buffers only for changed versions/content;
+encoded command buffers retain old buffers until completion. The same pixel
+helpers run in tile, in-place compute and snapshot compute. Gamma parameter
+uploads are reported separately as `layerGammaLUTUploads` and
+`layerGammaLUTUploadedBytes` in host/Swift diagnostics. R8 RemoveOpacity supports
+only equal-size forward in-bounds rectangles; unsupported mask scaling/mirroring
+fails before entering the unsafe generic software RGBA resize path.
+
+Gamma_a's software LUT index is clamped to 255 to fix the former index-256
+access for valid alpha/channel pairs; this intentional behavior repair is
+documented with the [P1A baseline](NATIVE-METAL-P1A-BASELINE.md).
 
 Ordinary operation IDs, traits, shader constants and diagnostic sizes come from
 one shared definition. Capability audit output separates missing registrations,

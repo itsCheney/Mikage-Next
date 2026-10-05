@@ -43,6 +43,9 @@ signatures = [
     "void tTVPNativeBaseBitmap::SetSize(",
     "bool tTVPNativeBaseBitmap::Is32BPP() const",
     "bool iTVPBaseBitmap::Fill(",
+    "void iTVPBaseBitmap::AdjustGamma(",
+    "void iTVPBaseBitmap::AdjustGammaForAdditiveAlpha(",
+    "void iTVPBaseBitmap::ConvertAddAlphaToAlpha()",
     "tTVPBaseTexture::tTVPBaseTexture(",
     "bool tTVPBaseTexture::AssignBitmap(",
     "iTVPRenderManager* tTVPBaseTexture::GetRenderManager()",
@@ -64,6 +67,8 @@ trans_signatures=["tTVPScanLineProviderForBaseBitmap::tTVPScanLineProviderForBas
      "iTVPTexture2D* tTVPScanLineProviderForBaseBitmap::GetTextureForRender()"]
 args.output.write_text(
     "// Generated from LayerBitmap.cpp and tjsNativeLayer.cpp; do not edit.\n\n"
+    + "#define RET_VOID\n"
+    + source[source.index("tTVPGLGammaAdjustData TVPIntactGammaAdjustData"):source.index(";",source.index("tTVPGLGammaAdjustData TVPIntactGammaAdjustData"))+1] + "\n"
     + source[source.index("#define BOUND_CHECK(x)"):source.index("\n//-------",source.index("#define BOUND_CHECK(x)"))] + "\n"
     + function(source,"struct tTVPDrawTextData") + ";\n"
     + "\n\n".join(function(source, signature) for signature in signatures) + "\n\n"

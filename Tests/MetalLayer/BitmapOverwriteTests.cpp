@@ -5,6 +5,7 @@
 #include "TVPCompositor.h"
 #include "TVPTrans.h"
 #include "TVPEvent.h"
+#include "TVPMsg.h"
 #include "CharacterData.h"
 #include "gl/tvpgl.h"
 #include "tjsUtils.h"
@@ -102,6 +103,34 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     constexpr int width=7,height=5;
     const auto oldPixels=Pixels(width,height,0x20406080u);
     const auto newPixels=Pixels(width,height,0xf0b09070u);
+    // Exercise the real bitmap wrappers and GetTextureForRender COW path,
+    // including their reference operand, instead of simulating a copied target.
+    for(int conversion=0;conversion<3;++conversion) {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        auto* original=bitmap.GetTexture(); original->GetTextureHandle(); original->AddRef();
+        TextureRef snapshot(original);
+        auto expected=oldPixels;
+        const tTVPRect rect(1,1,6,4);
+        const tTVPGLGammaAdjustData data{1.7f,11,231,0.7f,2,247,2.3f,19,213};
+        tTVPGLGammaAdjustTempData temp{}; TVPInitGammaAdjustTempData(&temp,&data);
+        if(conversion<2) {
+            for(int y=rect.top;y<rect.bottom;++y) {
+                auto* row=expected.data()+size_t(y)*width+rect.left;
+                if(conversion==0) TVPAdjustGamma(row,rect.get_width(),&temp);
+                else TVPAdjustGamma_a(row,rect.get_width(),&temp);
+            }
+        } else TVPConvertAdditiveAlphaToAlpha(expected.data(),int(expected.size()));
+        const auto before=TVPGetMetalLayerRenderStats();
+        if(conversion==0) bitmap.AdjustGamma(rect,data);
+        else if(conversion==1) bitmap.AdjustGammaForAdditiveAlpha(rect,data);
+        else bitmap.ConvertAddAlphaToAlpha();
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(bitmap.GetTexture()!=original && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "P1A bitmap COW conversion read back/uploaded/fell back");
+        Equal(snapshot.get(),oldPixels); Equal(bitmap.GetTexture(),expected);
+        TVPUninitGammaAdjustTempData(&temp);
+    }
     // Native guards keep the original allocation alive without forcing COW
     // for a same-image read/write alias; real bitmap sharing still requires COW.
     for(bool shared:{false,true}) {

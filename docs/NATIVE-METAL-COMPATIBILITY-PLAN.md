@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05。状态：**P0 已完成本地实施与 portable 验证；P1–P5 尚未实施，Apple 原生 Metal 与新真机基线待验证。**
+日期：2026-10-05。状态：**P0 已验收（用户报告真机暂未发现异常）；P1A 已完成本地实现与 portable 验证，P1A Apple/真机回归待验；P1B、P2–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -62,6 +62,8 @@
 
 ## 3. 对原对话结论的逐项核实
 
+下表保留初始固定版本审计结论；P1A 实施后的最新数量见第 4.1 节，实际输出与兼容行为修复见 [P1A 记录](NATIVE-METAL-P1A-BASELINE.md)。
+
 | 原结论 | 核实结果 | 对实施的影响 |
 | --- | --- | --- |
 | 当前 GL 未接普通 Layer GPU 管线 | **成立**。基类 `SupportsLayerOperations()` 为 false，GL 未覆盖这一组接口，Metal 已覆盖。C2/C6 | 不把“先接 ANGLE”作为现有算子缺口的解决办法 |
@@ -86,42 +88,42 @@
 | 范围 | 数量 | 解释 |
 | --- | ---: | --- |
 | 当前软件层注册名称 | 70 | 展开注册宏后去重 |
-| 当前显式 GPU mapping 条目 | 41 | 包含部分共享对象的重复名称 |
-| 当前有 GPU 描述符的名称 | 46 | 41 条显式映射，加 5 个未列在表中的共享对象别名；均仍有执行限制 |
-| 当前软件存在、但无 GPU 描述符 | **24** | 本轮主要算子补齐范围 |
+| 当前显式 GPU mapping 条目 | 54 | P1A 新增 13 条；包含部分共享对象的重复名称 |
+| 当前有 GPU 描述符的名称 | 59 | 54 条显式映射，加 5 个未列在表中的共享对象别名；均仍有执行限制 |
+| 当前软件存在、但无 GPU 描述符 | **11** | 剩余 P1B Photoshop 混合组 |
 | 旧 GL 注册名称 | 77 | 四类注册入口合并、去重；包括条件分支的名称集合 |
-| 旧 GL 名称在当前有 GPU 描述符 | 38 | 37 个直接交集，加 `PerspectiveAlphaBlend_a` 共享对象；其透视执行仍回退 |
-| 旧 GL 名称在当前只有软件实现 | 24 | 与本轮 24 个算子缺口相同 |
+| 旧 GL 名称在当前有 GPU 描述符 | 51 | P1A 新增 13 项；`PerspectiveAlphaBlend_a` 的透视执行仍回退 |
+| 旧 GL 名称在当前只有软件实现 | 11 | 剩余 P1B 混合组 |
 | 旧 GL 名称当前软件层也未注册 | **15** | 染色/AlphaTest 兼容能力；不能算普通 shader mapping 缺失 |
 
-核对恒等式：当前 `46 + 24 = 70`；旧 GL `38 + 24 + 15 = 77`。两边名称并集 85，见附录 A。
+核对恒等式：当前 `59 + 11 = 70`；旧 GL `51 + 11 + 15 = 77`。两边名称并集 85，见附录 A；P0 原始 `46/24` 记录保存在其独立基线中。
 
-额外 5 个共享对象别名是 `AdditiveAlphaBlend_HDA`、`PsMulBlend_HDA`、`PsOverlayBlend_HDA`、`PsHardLightBlend_HDA`、`PerspectiveAlphaBlend_a`。`AlphaBlend_HDA` 已在显式 41 条中，不再重复加。
+额外 5 个共享对象别名是 `AdditiveAlphaBlend_HDA`、`PsMulBlend_HDA`、`PsOverlayBlend_HDA`、`PsHardLightBlend_HDA`、`PerspectiveAlphaBlend_a`。`AlphaBlend_HDA` 已在显式 mapping 中，不再重复加。
 
-**特别注意 `ConstAlphaBlend_SD_a`：**旧 GL 把它注册成 `ConstAlphaBlend_SD` 的同一个对象；当前软件却是两个独立对象、分别调用不同函数。它确实缺 GPU mapping，不能按旧 GL 的别名关系误判成已支持。见 K1 2788–2793 与 C1 2965–2976。
+**特别注意 `ConstAlphaBlend_SD_a`：**旧 GL 把它注册成 `ConstAlphaBlend_SD` 的同一个对象；当前软件却是两个独立对象、分别调用不同函数。初始审计确实缺 mapping；P1A 已添加独立 flags 与双源公式，不能按旧 GL 的对象别名关系实现。见 K1 2788–2793 与 C1 2965–2976。
 
-### 4.2 24 个当前算子缺口
+### 4.2 初始 24 个算子缺口与实施状态
 
 | 组 | 方法 | 数量 | 工作性质 |
 | --- | --- | ---: | --- |
-| 普通混合 | `SubBlend`、`MulBlend`、`MulBlend_HDA`、`ColorDodgeBlend`、`DarkenBlend`、`LightenBlend`、`ScreenBlend` | 7 | 像素公式、opacity/HDA 分支、路由、alias 域 |
+| 普通混合 | `SubBlend`、`MulBlend`、`MulBlend_HDA`、`ColorDodgeBlend`、`DarkenBlend`、`LightenBlend`、`ScreenBlend` | 7 | P1A 本地完成；矩形、参数与 alias 域已接入 |
 | Photoshop 混合 | `PsAlphaBlend`、`PsAddBlend`、`PsSubBlend`、`PsSoftLightBlend`、`PsColorDodgeBlend`、`PsColorBurnBlend`、`PsLightenBlend`、`PsDarkenBlend`、`PsDiffBlend`、`PsDiff5Blend`、`PsExclusionBlend` | 11 | 不同表函数、饱和/取整、源 alpha 与 opacity 顺序 |
-| 图像与透明度 | `RemoveOpacity`、`AdditiveAlphaToAlpha`、`AdjustGamma`、`AdjustGamma_a` | 4 | R8 mask、反预乘、Gamma LUT 和参数生命周期 |
-| SD 语义 | `AlphaBlend_SD`、`ConstAlphaBlend_SD_a` | 2 | 单输入与双输入执行契约分别处理 |
+| 图像与透明度 | `RemoveOpacity`、`AdditiveAlphaToAlpha`、`AdjustGamma`、`AdjustGamma_a` | 4 | P1A 本地完成；R8 限同尺寸正向合法 ROI；Gamma owned LUT 与软件索引修复 |
+| SD 语义 | `AlphaBlend_SD`、`ConstAlphaBlend_SD_a` | 2 | P1A 本地完成；分别为单源 RGB/alpha=0、双源完整 ARGB 插值 |
 
-上述方法已经在当前软件层注册，许多还出现在 `tRenderMethodCache` 的 bm* 对应关系中；它们是明确的功能缺口，不需要先等某一款游戏报错才决定是否实现。
+上述 24 项是初始审计时的软件方法缺口；P1A 已完成其中 13 项本地实现，余下 11 项 Ps 方法仍是明确的功能缺口。许多方法出现在 `tRenderMethodCache` 的 bm* 对应关系中，不需要先等某款游戏报错才决定是否实现。
 
 ### 4.3 已有能力仍受哪些条件限制
 
 | 能力 | 已有实现 | 仍需处理/验证 |
 | --- | --- | --- |
-| 普通矩形 | copy/fill、alpha、部分 Ps、灰度、alpha/channel 等 | 格式、缩放、裁剪、镜像、错位别名、持久 CPU 指针的支持域 |
-| 双源 SD | `ConstAlphaBlend_SD`、`_d`，同尺寸矩形 | `_a` 缺失；错位源目标别名保留回退；不要与单输入 `AlphaBlend_SD` 混为一类 |
+| 普通矩形 | copy/fill、alpha、普通混合、部分 Ps、灰度/反预乘、Gamma、alpha/channel 等 | P1A 新源 wrapper 限正向矩形；格式、缩放、裁剪、错位别名、CPU pin/lease 域与原生结果待验 |
+| 双源 SD | `ConstAlphaBlend_SD`、`_d`、`_a`，同尺寸矩形 | 错位源目标别名保留回退；单输入 `AlphaBlend_SD` 的 alpha=0 契约另行处理 |
 | Universal transition | 普通、`_d`、`_a` 的三源 GPU 路径 | 两个 RGBA 源加 R8 rule、同尺寸与合法源范围；不是所有 CPU transition 都由此覆盖 |
 | affine | 两三角形、Copy、单源的兼容路径 | Alpha/Ps 等混合、镜像特例、更广参数域与数值/边缘行为 |
 | perspective | 软件执行；方法对象可有 Alpha 描述符 | 无 Metal 几何入口，所有调用仍回退 |
 | blur | 两 pass sliding sums；两个名称共用当前软件公式 | 64 MiB sums 限额、无缩放、完整合法 ROI；大图/裁剪等仍可能回退 |
-| R8 | mask/rule 资源及特定输入用法 | 不等于任意 Gray/province 目标均支持 GPU 运算 |
+| R8 | mask/rule 资源及 ColorMap/RemoveOpacity 输入 | RemoveOpacity 限同尺寸正向合法 ROI；不等于任意 Gray/province 目标均支持 GPU 运算 |
 | CPU/GPU 一致性 | COW、dirty region、point cache、CPU lease、会话隔离 | 新算子必须正确声明 alpha 变化、源依赖及写 ROI，不能绕过这些机制 |
 | tile/compute | 支持设备上 tile；in-place compute 或 snapshot compute | 新算子在所有路径的像素和顺序一致性，不能只测默认 tile |
 
@@ -197,25 +199,27 @@
 
 ### P1A：补高确定性的矩形语义
 
+2026-10-05 本地签收：13 项已实现，MetalLayer 2/2 与 MetalRenderBackend 1/1 通过；新增 21,757,036 个精确 scalar 像素。按用户选择同步修复 Gamma_a 的 LUT[256] 越界，除此之外跟随实际软件绑定。原生 MSL、iOS 构建与本轮真机回归仍待验，详见 [P1A 基线](NATIVE-METAL-P1A-BASELINE.md)。
+
 #### A. 普通混合 7 项
 
-- [ ] 实现第 4.2 节普通混合组，分别核对 HDA 和 opacity=255 的具体分支。
-- [ ] `MulBlend` 与 `MulBlend_HDA` 不合并成同一个 alpha 结果；普通 `ScreenBlend`/`ColorDodgeBlend` 不复用 Photoshop 版本代替。
-- [ ] 将格式、alias、alpha-cache invalidation 与像素实现一起接入 C2/C3，避免“描述符已支持但源格式检查仍拒绝”的半完成状态。
+- [x] 实现第 4.2 节普通混合组，分别核对 HDA 和 opacity=255 的具体分支。
+- [x] 保持 `MulBlend` 与 `_HDA` 对象和 flags 独立，各自与真实软件绑定比较；当前两个绑定均保留目标 alpha，不人为制造差异。普通 Screen/ColorDodge 不复用 Ps 公式。
+- [x] 将格式、alias、alpha-cache invalidation 与像素实现一起接入 C2/C3。
 
 #### B. 透明度、转换与 Gamma 4 项
 
-- [ ] `RemoveOpacity`：按当前软件读取 R8 mask；只改变相应 alpha，验证 opacity 和 mask 组合、字节寻址及与 RGBA source 的区别。
-- [ ] `AdditiveAlphaToAlpha`：参考当前软件的反预乘/查表，明确 alpha=0、1、254、255 和 RGB>alpha 情况；不直接照搬旧 GLSL 的 `s.rgb / s.a`。
-- [ ] `AdjustGamma` / `_a`：复用软件生成的 LUT/临时数据语义，冻结每次调用的参数；默认不在 MSL 中重新计算 pow 来近似同一张表。
-- [ ] Gamma `_a` 单独核对预乘处理、alpha=0、RGB 超出 alpha、输入/输出上下限、COW/reference 和连续更改参数。
-- [ ] 避免每次 Gamma 都分配纹理、强制提交或同步；LUT 有内容版本与明确寿命。
+- [x] `RemoveOpacity`：按当前软件读取 R8 mask，只改变 alpha；穷举 mask/opacity/alpha 组合。同尺寸正向合法 ROI 支持；缩放/镜像在写入前明确拒绝，不进入 RGBA 寻址的软件 resize。
+- [x] `AdditiveAlphaToAlpha`：精确整数实现与 TVPDivTable 等价，覆盖 alpha=0、1、254、255 和 RGB>alpha；沿用 ApplySelf/reference/COW 契约。
+- [x] `AdjustGamma` / `_a`：复用软件生成的 owned LUT，以不可变版本快照编码，不在 MSL 重算 pow。
+- [x] Gamma `_a` 独立核对 alpha/超 alpha RGB/上下限/COW/reference/连续改参数；软件与 GPU 同步钳制 LUT 索引至 255，并记录兼容性修复。
+- [x] Gamma 不新增纹理、每算子提交或同步；两个最近版本缓存和命令资源持有保证寿命，参数上传单独计数。
 
 #### C. SD 2 项
 
-- [ ] `ConstAlphaBlend_SD_a`：扩展现有双源参数/公式，匹配当前软件 `_a` 版本，不能沿用旧 GL 的名称别名。
-- [ ] `AlphaBlend_SD`：当前软件包装器从一个显式 source 和目标旧值调用 SD 函数；按这一单输入契约接入，不强制要求两张显式源纹理。
-- [ ] 双源错位自别名的顺序语义未裁决前继续回退；为被保留的拒绝情况写清原因及测试。
+- [x] `ConstAlphaBlend_SD_a`：扩展现有双源公式，按 input0/input1 顺序完整 ARGB 插值，保持独立方法对象。
+- [x] `AlphaBlend_SD`：单显式 source 与目标旧值执行 RGB 插值、输出 alpha=0，不要求两个显式输入。
+- [x] 双源及新单源混合的错位目标别名继续按顺序相关软件语义回退，保留反例测试。
 
 修改位置：C1 的参数类与映射、C2 的输入/格式路由、C6 参数结构、C4 像素函数与双源函数、C3 LUT 资源绑定及执行。
 
@@ -390,13 +394,13 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 允许声明核心路线完成的条件是 P0/P1/P2/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
 
-## 9. 初始审计与 P0 实施状态
+## 9. 初始审计与 P0/P1A 实施状态
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0 实施已完成：共享操作定义与 traits、无副作用注册审计、85 项能力 fixture/JSON、动态编译失败处理、扩展/边界测试和说明更新；本地 MetalLayer CTest 2/2、MetalRenderBackend CTest 1/1 通过。生产代码为三层基线 HEAD 上的未提交工作区改动，具体证据见 P0 记录。
+P0 实施已完成并提交；用户报告验收完成且真机暂未发现异常。P1A 已在其基础上实现 13 项矩形方法、Gamma 软件索引修复与不可变参数资源、独立上传统计及 70/59/11/15 能力审计；本地两套 CTest 通过。P1A 为当前三层 HEAD 上的未提交工作区改动，具体证据见 P1A 记录。
 
-仍未完成：P1–P5 算子与几何扩展、原生 MSL 实际编译与 GPU 像素、最新 Apple CI/device/simulator 构建、旧 GL 实际运行及新真机像素/性能/热状态基线。保存的历史真机资料不作为当前改动的验收证据。
+仍未完成：P1B/P2–P5、P1A 原生 MSL 编译与 GPU 像素、最新 Apple CI/device/simulator 构建、旧 GL 实际运行及本轮真机像素/性能/热状态基线。P0 真机反馈和保存的历史资料不作为 P1A 新改动的设备验收证据。
 
 ## 附录 A：完整名称对照
 
@@ -408,12 +412,12 @@ P0 实施已完成：共享操作定义与 traits、无副作用注册审计、8
 | `AdditiveAlphaBlend` | 3013 | 有 | 已映射：`AdditiveAlpha` | 保留并回归 |
 | `AdditiveAlphaBlend_HDA` | — | 有 | 共享 `AdditiveAlphaBlend` 对象 | 保留别名测试 |
 | `AdditiveAlphaBlend_a` | 3018 | 有 | 已映射：`AdditiveAlpha` | 保留并回归 |
-| `AdditiveAlphaToAlpha` | 3246 | 有 | 无 GPU 描述符 | P1A |
-| `AdjustGamma` | 2731 | 有 | 无 GPU 描述符 | P1A |
-| `AdjustGamma_a` | 2771 | 有 | 无 GPU 描述符 | P1A |
+| `AdditiveAlphaToAlpha` | 3246 | 有 | 已映射：`AdditiveAlphaToAlpha` | P1A 本地完成；Apple/真机待验 |
+| `AdjustGamma` | 2731 | 有 | 已映射：`AdjustGamma` | P1A owned LUT；Apple/真机待验 |
+| `AdjustGamma_a` | 2771 | 有 | 已映射：`AdjustGamma`，premultiplied flag | P1A owned LUT/索引修复；Apple/真机待验 |
 | `AlphaBlend` | 2881 | 有 | 已映射：`Alpha` | 保留并回归 |
 | `AlphaBlend_HDA` | — | 有 | 已映射：`Alpha` | 保留并回归 |
-| `AlphaBlend_SD` | 2912 | 有 | 无 GPU 描述符 | P1A：单输入契约 |
+| `AlphaBlend_SD` | 2912 | 有 | 已映射：`AlphaSD`，单输入 | P1A 本地完成；alpha=0 |
 | `AlphaBlend_a` | 2932 | 有 | 已映射：`Alpha` | 保留并回归 |
 | `AlphaBlend_color` | 2887 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `AlphaBlend_color_AlphaTest` | 2893 | 无 | 当前未注册 | P4：按调用需求恢复 |
@@ -429,11 +433,11 @@ P0 实施已完成：共享操作定义与 traits、无副作用注册审计、8
 | `ApplyColorMap_d` | 2598 | 有 | 已映射：`ColorMap` | 保留并回归 |
 | `BoxBlur` | 3277 | 有 | 已映射：`BoxBlur` | P5：预算/语义边界 |
 | `BoxBlurAlpha` | 3292 | 有 | 已映射：`BoxBlur` | P5：预算/语义边界 |
-| `ColorDodgeBlend` | 3026 | 有 | 无 GPU 描述符 | P1A |
+| `ColorDodgeBlend` | 3026 | 有 | 已映射：`ColorDodge` | P1A 本地完成；Apple/真机待验 |
 | `ConstAlphaBlend` | 2709 | 有 | 已映射：`ConstAlpha` | 保留并回归 |
 | `ConstAlphaBlend_HDA` | — | 有 | 已映射：`ConstAlpha` | 保留并回归 |
 | `ConstAlphaBlend_SD` | 2788 | 有 | 已映射：`ConstAlphaSD` | 保留双源路径 |
-| `ConstAlphaBlend_SD_a` | 2793 | 有 | 无 GPU 描述符 | P1A：独立双源公式 |
+| `ConstAlphaBlend_SD_a` | 2793 | 有 | 已映射：`ConstAlphaSD`，premultiplied flag | P1A 独立双源 ARGB 公式 |
 | `ConstAlphaBlend_SD_d` | 2796 | 有 | 已映射：`ConstAlphaSD` | 保留双源路径 |
 | `ConstAlphaBlend_a` | 2714 | 有 | 已映射：`ConstAlpha` | 保留并回归 |
 | `ConstAlphaBlend_d` | 2722 | 有 | 已映射：`ConstAlpha` | 保留并回归 |
@@ -445,14 +449,14 @@ P0 实施已完成：共享操作定义与 traits、无副作用注册审计、8
 | `CopyColor` | 2699 | 有 | 已映射：`CopyColor` | 保留并回归 |
 | `CopyMask` | 2703 | 有 | 已映射：`CopyMask` | 保留并回归 |
 | `CopyOpaqueImage` | 2692 | 有 | 已映射：`CopyOpaque` | 保留并回归 |
-| `DarkenBlend` | 3034 | 有 | 无 GPU 描述符 | P1A |
+| `DarkenBlend` | 3034 | 有 | 已映射：`Darken` | P1A 本地完成；Apple/真机待验 |
 | `DoGrayScale` | 3267 | 有 | 已映射：`GrayScale` | 保留并回归 |
 | `FillARGB` | 2633 | 有 | 已映射：`Fill` | 保留并回归 |
 | `FillColor` | 2636 | 有 | 已映射：`FillColor` | 保留并回归 |
 | `FillMask` | 2639 | 有 | 已映射：`FillMask` | 保留并回归 |
-| `LightenBlend` | 3040 | 有 | 无 GPU 描述符 | P1A |
-| `MulBlend` | 2999 | 有 | 无 GPU 描述符 | P1A |
-| `MulBlend_HDA` | 3006 | 有 | 无 GPU 描述符 | P1A |
+| `LightenBlend` | 3040 | 有 | 已映射：`Lighten` | P1A 本地完成；Apple/真机待验 |
+| `MulBlend` | 2999 | 有 | 已映射：`Mul` | P1A 独立对象/flags；当前保留 alpha |
+| `MulBlend_HDA` | 3006 | 有 | 已映射：`Mul`，HDA flag | P1A 独立对象/flags；保留 alpha |
 | `MultiplyAlpha` | — | 有 | 已映射：`MultiplyAlpha` | 保留并回归 |
 | `PerspectiveAlphaBlend_a` | 2923 | 有 | 共享 `AlphaBlend_a` 对象 | P2B：透视执行仍回退 |
 | `PsAddBlend` | 3058 | 有 | 无 GPU 描述符 | P1B |
@@ -483,9 +487,9 @@ P0 实施已完成：共享操作定义与 traits、无副作用注册审计、8
 | `PsSubBlend_color` | 3091 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `PsSubBlend_color_AlphaTest` | 3093 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `RemoveConstOpacity` | 2683 | 有 | 已映射：`RemoveConstOpacity` | 保留并回归 |
-| `RemoveOpacity` | 2619 | 有 | 无 GPU 描述符 | P1A |
-| `ScreenBlend` | 3047 | 有 | 无 GPU 描述符 | P1A |
-| `SubBlend` | 2992 | 有 | 无 GPU 描述符 | P1A |
+| `RemoveOpacity` | 2619 | 有 | 已映射：`RemoveOpacity`，R8 mask | P1A 同尺寸合法 ROI；缩放/镜像拒绝 |
+| `ScreenBlend` | 3047 | 有 | 已映射：`Screen` | P1A 本地完成；Apple/真机待验 |
+| `SubBlend` | 2992 | 有 | 已映射：`Sub` | P1A 本地完成；Apple/真机待验 |
 | `UnivTransBlend` | 2805 | 有 | 已映射：`UnivTrans` | 保留三源路径 |
 | `UnivTransBlend_a` | 2856 | 有 | 已映射：`UnivTrans` | 保留三源路径 |
 | `UnivTransBlend_d` | 2832 | 有 | 已映射：`UnivTrans` | 保留三源路径 |

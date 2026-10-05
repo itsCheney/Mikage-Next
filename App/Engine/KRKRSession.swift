@@ -820,6 +820,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerGPUOperations": String(diagnosticStats.gpuLayerOperations),
                     "layerCPUFallbacks": String(diagnosticStats.layerCPUFallbacks),
                     "layerUploadedBytes": String(diagnosticStats.layerUploadedBytes),
+                    "layerGammaLUTUploads": String(diagnosticStats.layerGammaLUTUploads),
+                    "layerGammaLUTUploadedBytes": String(diagnosticStats.layerGammaLUTUploadedBytes),
                     "layerReadbackBytes": String(diagnosticStats.layerReadbackBytes),
                     "layerPointCacheHits": String(diagnosticStats.layerPointCacheHits),
                     "layerPointCacheMisses": String(diagnosticStats.layerPointCacheMisses),
@@ -883,6 +885,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerCPUFallbacks: raw.layerCPUFallbacks,
                 layerUploadedBytes: raw.layerUploadedBytes,
                 layerReadbackBytes: raw.layerReadbackBytes,
+                layerGammaLUTUploads: raw.layerGammaLUTUploads,
+                layerGammaLUTUploadedBytes: raw.layerGammaLUTUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
                 elapsedSeconds: elapsedSeconds
             )

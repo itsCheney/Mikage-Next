@@ -76,7 +76,7 @@ triangles and perspective retain software execution. Portable timings are
 device-double wall times and do not measure native Metal readback performance.
 
 The P0 capability fixture covers all 85 appendix names: 70 software registrations,
-46 names with GPU descriptors, 24 registered methods without descriptors and
+59 names with GPU descriptors, 11 registered methods without descriptors and
 15 unregistered historical extensions. Read-only registration snapshots preserve
 canonical objects and aliases. Repeated audits never set method parameters,
 register missing methods, show a message box or render pixels.
@@ -87,14 +87,44 @@ backend facts. On portable hosts `deviceDouble=true`; `backendAvailable=true`
 means that the double bound successfully and does not establish native Metal.
 On Apple hosts an unavailable device is reported independently of mapped methods.
 Static contracts do not bypass the current ROI, session, CPU lease or pipeline
-checks. Software-only gap contracts remain rectangular baseline domains.
+checks. The 24 original software contracts remain available alongside the new
+GPU contracts; 11 of those methods still have no descriptor.
 
-The shared operation definition retains wire/shader IDs 0..26. Contract tests
+The shared operation definition retains wire/shader IDs 0..26 and appends P1A
+IDs 27..36 (Count 37). Contract tests
 check Count and invalid values, shared MSL definitions, HDA/reference alpha rules
-and a separate TestKind=27 extension fixture. The fixture reuses the definition
+and a separate TestKind=37 extension fixture. The fixture reuses the definition
 expansions and diagnostic storage without adding a production renderer. Dynamic
 script compilation failures return null with a diagnostic and leave registration
 unchanged, including in Release builds; this does not provide dynamic GLSL support.
+
+P1A adds Sub/Mul/HDA/ColorDodge/Darken/Lighten/Screen, R8 RemoveOpacity,
+AdditiveAlphaToAlpha, Gamma/Gamma_a and the two SD variants. Production MSL
+helpers compare 21,757,036 exact pixels against initialized software pointers,
+including all 256^3 alpha/mask/opacity combinations. Routing tests retain image
+residency, ROI preservation, alias order and CPU pointer/lease fallbacks.
+R8 masks require equal-size, forward, in-bounds rectangles; scaling or mirroring
+raises an engine error before writes because software ResizeRGBA cannot safely
+serve as the mask reference.
+New blend, single-source SD and reverse-alpha wrappers also require forward
+source rectangles; unsupported mirroring is rejected before writes rather than
+given a new GPU result or an undefined software fallback. Invalid 32-bit source
+or target formats are similarly rejected. Valid resource/pin failures retain
+software execution. These boundaries have exact target-preservation tests.
+
+Gamma uses owned 768-byte B/G/R LUT snapshots, preserving software byte-to-table
+ordering and default zero LUT behavior. Normal Gamma leaves alpha-zero pixels
+unchanged. Gamma_a now clamps its software LUT index to 255: the former index
+256 for channels equal to alpha at 4/8/16/32/64/128 was out of bounds. This is an
+explicit software compatibility fix, applied identically in MSL and tested with
+independent channel-endpoint expectations.
+
+Tests exercise A/A/B/A and retained old snapshots within pending native work,
+short-lived caller parameters, same-LUT reuse, missing-LUT rejection, alpha caches,
+and the extracted production bitmap Gamma/COW wrappers. Parameter uploads have
+separate counts/bytes; image uploadedBytes excludes them. Native tile/compute and
+Apple host/Swift integration remain necessary verification; a device-double pass
+does not establish actual Metal compilation or throughput.
 
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release

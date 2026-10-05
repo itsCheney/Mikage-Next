@@ -45,7 +45,7 @@ constexpr SoftwareContract softwareContracts[] = {
 #undef GAP
 };
 static_assert(sizeof(softwareContracts) / sizeof(softwareContracts[0]) == 24,
-              "All registered descriptor gaps need a software contract");
+              "Keep all 24 original software contracts across mapping additions");
 
 void Require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error("Capability audit: " + message);
@@ -150,6 +150,7 @@ void WriteGpuContract(std::ostream& out, const TVPLayerOperation& operation) {
     }
     out << "],\"reference\":" << Quote(traits->referenceRule == TVPLayerReferenceRule::UsedWhenNoInput ? "used for zero-input call" : "ignored")
         << ",\"readsTarget\":" << Bool(traits->readsTarget)
+        << ",\"forwardSourceRequired\":" << Bool(TVPLayerOperationRequiresForwardSource(operation.kind))
         << ",\"alpha\":" << Quote(Alpha(traits->alphaRule))
         << ",\"preservesAlphaForTargetSource\":" << Bool(TVPLayerOperationPreservesAlpha(operation, true))
         << ",\"preservesAlphaForDistinctSource\":" << Bool(TVPLayerOperationPreservesAlpha(operation, false))
@@ -174,7 +175,8 @@ void WriteSoftwareContract(std::ostream& out, const SoftwareContract* c) {
 }
 bool SameOperation(const TVPLayerOperation& a, const TVPLayerOperation& b) {
     return a.kind == b.kind && a.opacity == b.opacity && a.color == b.color &&
-           a.flags == b.flags && a.phase == b.phase && a.vague == b.vague;
+           a.flags == b.flags && a.phase == b.phase && a.vague == b.vague &&
+           a.gammaLUT == b.gammaLUT;
 }
 // Pure Metal stats getter; deliberately never call the consuming software
 // GetRenderStat API while inspecting capability metadata.
@@ -182,7 +184,7 @@ std::vector<uint64_t> Stats() {
     const auto s = TVPGetMetalLayerRenderStats();
     std::vector<uint64_t> result = {s.gpuOperations, s.cpuFallbacks, s.uploadedBytes,
         s.readbackBytes, s.gpuResidentBytes, s.cpuCacheBytes, s.pinnedCPUTextures,
-        s.pointCacheHits, s.pointCacheMisses};
+        s.pointCacheHits, s.pointCacheMisses, s.gammaLUTUploads, s.gammaLUTUploadedBytes};
     for (auto v : s.readbackBytesBySource) result.push_back(v);
     for (auto v : s.readbackCountBySource) result.push_back(v);
     for (auto v : s.fallbackReadbackBytesByRole) result.push_back(v);
@@ -195,13 +197,18 @@ struct MethodState {
     std::string objectName;
     TVPLayerOperation operation;
     bool describable;
+    uint64_t gammaVersion;
+    std::vector<uint8_t> gammaBytes;
 };
 std::vector<MethodState> Snapshot(iTVPRenderManager* manager) {
     std::vector<MethodState> result;
     for (const auto& r : manager->GetRenderMethodRegistrations()) {
         TVPLayerOperation op;
         const bool available = r.method->DescribeGpuOperation(op);
-        result.push_back({r, const_cast<iTVPRenderMethod*>(r.method)->GetName(), op, available});
+        std::vector<uint8_t> bytes;
+        if(op.gammaLUT) bytes.assign(op.gammaLUT->bytes.begin(),op.gammaLUT->bytes.end());
+        result.push_back({r, const_cast<iTVPRenderMethod*>(r.method)->GetName(), op, available,
+                          op.gammaLUT ? op.gammaLUT->version : 0, std::move(bytes)});
     }
     return result;
 }
@@ -212,7 +219,8 @@ void SameSnapshot(const std::vector<MethodState>& before, const std::vector<Meth
         Require(a.registration.name == b.registration.name &&
                 a.registration.canonicalName == b.registration.canonicalName &&
                 a.registration.method == b.registration.method && a.objectName == b.objectName &&
-                a.describable == b.describable && SameOperation(a.operation, b.operation),
+                a.describable == b.describable && SameOperation(a.operation, b.operation) &&
+                a.gammaVersion == b.gammaVersion && a.gammaBytes == b.gammaBytes,
                 "audit changed method name, identity or descriptor parameters: " + a.registration.name);
     }
 }
@@ -259,7 +267,11 @@ std::string TVPTestCapabilityAuditJSON(bool nativeCompiled, bool backendAvailabl
             << ",\"descriptorAvailableForCurrentParameters\":" << Bool(available)
             << ",\"kind\":" << Quote(traits ? traits->name : "Unsupported")
             << ",\"kindID\":" << static_cast<uint32_t>(op.kind)
-            << ",\"flags\":" << op.flags << ",\"parameters\":";
+            << ",\"flags\":" << op.flags
+            << ",\"gammaSnapshot\":{\"available\":" << Bool(bool(op.gammaLUT))
+            << ",\"byteCount\":" << (op.gammaLUT ? op.gammaLUT->bytes.size() : 0)
+            << ",\"version\":" << (op.gammaLUT ? op.gammaLUT->version : 0)
+            << "},\"parameters\":";
         WriteParameters(out, c);
         out << ",\"gpuContract\":";
         WriteGpuContract(out, op);
@@ -312,8 +324,8 @@ void CapabilityAuditTests(bool checkFacade) {
                                  std::string("facade object differs: ") + c.name);
     }
     Require(expectedNames == actualNames, "stable registered name set differs");
-    Require(described == 46 && gaps == 24 && unknown == 15 && aliases == 6,
-            "expected 46 descriptor names, 24 software gaps, 15 unknown names and six alias pairs");
+    Require(described == 59 && gaps == 11 && unknown == 15 && aliases == 6,
+            "expected 59 descriptor names, 11 software gaps, 15 unknown names and six alias pairs");
     Require(manager->FindRegisteredRenderMethod("ConstAlphaBlend_SD_a") !=
             manager->FindRegisteredRenderMethod("ConstAlphaBlend_SD"), "SD_a must retain independent object");
     Require(manager->FindRegisteredRenderMethod("ConstAlphaBlend_HDA") !=

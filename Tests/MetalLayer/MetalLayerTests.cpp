@@ -35,6 +35,9 @@ void LayerBlendShaderTests();
 void TriangleProfileTests();
 void CompilationFailureTests();
 void OperationContractTests();
+void P1AShaderTests();
+void P1AGammaTests(iTVPRenderBackend*);
+uint32_t TVPTestP1AGammaPixel(uint32_t,const TVPLayerOperation&,const uint8_t*);
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
 
 #ifdef TEST_NATIVE_METAL
@@ -72,6 +75,10 @@ class DeviceDouble : public iTVPRenderBackend {
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
 public:
     bool rejectTripleSource=false;
+    bool rejectGamma=false;
+    TVPLayerParameterUploadStats parameterUploads;
+    std::array<std::shared_ptr<const TVPLayerGammaLUT>,2> gammaCaches;
+    TVPLayerParameterUploadStats GetLayerParameterUploadStats() const override { return parameterUploads; }
     uint64_t asyncRequests=0, syncRegionReads=0, alphaSerial=1;
     uint64_t simulatedReadWaitNS=0;
     uint64_t GetLastReadbackWaitNanoseconds() const override { return simulatedReadWaitNS; }
@@ -163,6 +170,26 @@ public:
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
         const auto* traits=TVPGetLayerOperationTraits(op.kind);
         if(!traits || traits->backendInputCount>1) return false;
+        if(TVPLayerOperationRequiresForwardSource(op.kind) && (src.Width()<=0 || src.Height()<=0)) return false;
+        if(op.kind==TVPLayerOperationKind::AdjustGamma) {
+            if(rejectGamma || !op.gammaLUT || !target) return false;
+            auto& t=*resources.at(target);
+            if(t.bpp!=4 || dst.Width()<=0 || dst.Height()<=0) return false;
+            auto& previous=gammaCaches[(op.flags&TVP_LAYER_DEST_PREMULTIPLIED) ? 1 : 0];
+            if(!previous || previous->version!=op.gammaLUT->version || previous->bytes!=op.gammaLUT->bytes) {
+                previous=op.gammaLUT;
+                ++parameterUploads.gammaLUTUploads;
+                parameterUploads.gammaLUTUploadedBytes+=op.gammaLUT->bytes.size();
+            }
+            for(int y=std::max(0,dst.top);y<std::min(t.h,dst.bottom);++y)
+            for(int x=std::max(0,dst.left);x<std::min(t.w,dst.right);++x) {
+                auto* address=t.pixels.data()+(size_t(y)*t.w+x)*4;
+                uint32_t before; std::memcpy(&before,address,4);
+                uint32_t after=TVPTestP1AGammaPixel(before,op,op.gammaLUT->bytes.data());
+                std::memcpy(address,&after,4);
+            }
+            return true;
+        }
         auto* sw=TVPGetSoftwareRenderManager(); const char* name=nullptr;
         switch(op.kind) {
             case TVPLayerOperationKind::Copy: name="Copy"; break;
@@ -186,6 +213,15 @@ public:
             case TVPLayerOperationKind::PsScreen: name="PsScreenBlend"; break;
             case TVPLayerOperationKind::PsColorDodge5: name="PsColorDodge5Blend"; break;
             case TVPLayerOperationKind::Add: name="AddBlend"; break;
+            case TVPLayerOperationKind::Sub: name="SubBlend"; break;
+            case TVPLayerOperationKind::Mul: name="MulBlend"; break;
+            case TVPLayerOperationKind::ColorDodge: name="ColorDodgeBlend"; break;
+            case TVPLayerOperationKind::Darken: name="DarkenBlend"; break;
+            case TVPLayerOperationKind::Lighten: name="LightenBlend"; break;
+            case TVPLayerOperationKind::Screen: name="ScreenBlend"; break;
+            case TVPLayerOperationKind::RemoveOpacity: name="RemoveOpacity"; break;
+            case TVPLayerOperationKind::AdditiveAlphaToAlpha: name="AdditiveAlphaToAlpha"; break;
+            case TVPLayerOperationKind::AlphaSD: name="AlphaBlend_SD"; break;
             default:
                 name=op.kind==TVPLayerOperationKind::Alpha ? "AlphaBlend" : op.kind==TVPLayerOperationKind::ConstAlpha ? "ConstAlphaBlend" : "ApplyColorMap";
                 break;
@@ -194,7 +230,8 @@ public:
         if(op.kind>=TVPLayerOperationKind::Alpha) {
             if(op.flags&TVP_LAYER_DEST_ALPHA) methodName+="_d";
             else if(op.flags&TVP_LAYER_DEST_PREMULTIPLIED) methodName+="_a";
-            else if(op.kind==TVPLayerOperationKind::ConstAlpha && (op.flags&TVP_LAYER_HOLD_ALPHA)) methodName+="_HDA";
+            else if((op.kind==TVPLayerOperationKind::ConstAlpha || op.kind==TVPLayerOperationKind::Mul) &&
+                    (op.flags&TVP_LAYER_HOLD_ALPHA)) methodName+="_HDA";
         }
         auto* method=sw->GetRenderMethod(methodName.c_str());
         method->SetParameterOpa(method->EnumParameterID("opacity"),op.opacity);
@@ -253,7 +290,8 @@ public:
                                     void* source2,const TVPLayerRect& src2) override {
         if(op.kind!=TVPLayerOperationKind::ConstAlphaSD || !target || !source1 || !source2) return false;
         auto* sw=TVPGetSoftwareRenderManager();
-        const char* name=(op.flags&TVP_LAYER_DEST_ALPHA) ? "ConstAlphaBlend_SD_d" : "ConstAlphaBlend_SD";
+        const char* name=(op.flags&TVP_LAYER_DEST_ALPHA) ? "ConstAlphaBlend_SD_d" :
+            (op.flags&TVP_LAYER_DEST_PREMULTIPLIED) ? "ConstAlphaBlend_SD_a" : "ConstAlphaBlend_SD";
         auto* method=sw->GetRenderMethod(name);
         method->SetParameterOpa(method->EnumParameterID("opacity"),op.opacity);
         auto& t=*resources.at(target);
@@ -499,7 +537,7 @@ static void Synchronization() {
     Texture independent(gpu->CreateTexture2D(9,7,output.get()));
     independent->SetPoint(0,0,0xff123456);
     Require(output->GetPoint(0,0)==0x99887766 && independent->GetPoint(0,0)==0xff123456,"independent copy changed shared pixels");
-    auto* gray=gpu->GetRenderMethod("AdditiveAlphaToAlpha");
+    auto* gray=gpu->GetRenderMethod("PsAlphaBlend");
     auto* sw=TVPGetSoftwareRenderManager(); auto expected=Create(sw,9,7,TVPTextureFormat::RGBA,image);
     auto actual=Create(gpu,9,7,TVPTextureFormat::RGBA,image);
     auto beforeFallback=TVPGetMetalLayerRenderStats().cpuFallbacks;
@@ -921,7 +959,7 @@ static void WorkDiagnostics() {
 static void AlphaConversionReference() {
     auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
     auto image=Image(17,13,4,33),destination=Image(17,13,4,9);
-    for(auto name:{"AlphaToAdditiveAlpha","DoGrayScale"}) {
+    for(auto name:{"AlphaToAdditiveAlpha","DoGrayScale","AdditiveAlphaToAlpha"}) {
     auto* method=gpu->GetRenderMethod(name);
     for(bool alias:{false,true}) {
         auto gs=Create(gpu,17,13,TVPTextureFormat::RGBA,image),ss=Create(sw,17,13,TVPTextureFormat::RGBA,image);
@@ -936,6 +974,153 @@ static void AlphaConversionReference() {
         Compare(st,gt,0,"alpha conversion reference/COW");
     }
     }
+}
+
+static void P1ARectangles(iTVPRenderBackend* backend) {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    const char* names[]={"SubBlend","MulBlend","MulBlend_HDA","ColorDodgeBlend","DarkenBlend",
+                        "LightenBlend","ScreenBlend","RemoveOpacity","AdditiveAlphaToAlpha","AlphaBlend_SD"};
+    for(auto* name:names) for(int opacity:{0,1,127,128,254,255}) {
+        auto* method=gpu->GetRenderMethod(name);
+        const bool mask=!std::strcmp(name,"RemoveOpacity");
+        auto source=Image(17,13,mask?1:4,91),destination=Image(17,13,4,67);
+        auto format=mask?TVPTextureFormat::Gray:TVPTextureFormat::RGBA;
+        auto ss=Create(sw,17,13,format,source),gs=Create(gpu,17,13,format,source);
+        auto sd=Create(sw,17,13,TVPTextureFormat::RGBA,destination),gd=Create(gpu,17,13,TVPTextureFormat::RGBA,destination);
+        method->SetParameterOpa(method->EnumParameterID("opacity"),opacity);
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+        sw->SetParameterInt(sw->EnumParameterID("StretchType"),0);
+        gs->GetTextureHandle(); gd->GetTextureHandle();
+        const tTVPRect dr(3,2,14,11),sr(1,1,12,10);
+        Operation(sw,method,sd.get(),dr,ss.get(),sr);
+        const auto before=TVPGetMetalLayerRenderStats();
+        Operation(gpu,method,gd.get(),dr,gs.get(),sr);
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "resident P1A rectangle fell back/transferred pixels");
+        Compare(sd.get(),gd.get(),0,name);
+    }
+    // Sampling/clip routing is checked with a uniform source so its rounding
+    // cannot conceal an integer blend mismatch. No new tolerance is introduced.
+    for(auto* name:{"SubBlend","MulBlend","MulBlend_HDA","ColorDodgeBlend","DarkenBlend","LightenBlend","ScreenBlend","AlphaBlend_SD"}) {
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,191);
+        for(int sampling:{0,1}) {
+            std::vector<uint8_t> image(7*5*4); const uint32_t value=0x8b7fa9e3;
+            for(size_t i=0;i<image.size();i+=4) std::memcpy(image.data()+i,&value,4);
+            auto destination=Image(17,13,4,63);
+            auto ss=Create(sw,7,5,TVPTextureFormat::RGBA,image),gs=Create(gpu,7,5,TVPTextureFormat::RGBA,image);
+            auto sd=Create(sw,17,13,TVPTextureFormat::RGBA,destination),gd=Create(gpu,17,13,TVPTextureFormat::RGBA,destination);
+            gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),sampling);
+            sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
+            gs->GetTextureHandle(); gd->GetTextureHandle();
+            const tTVPRect dr(-2,-1,15,12),sr(0,0,7,5);
+            Operation(sw,method,sd.get(),dr,ss.get(),sr);
+            const auto before=TVPGetMetalLayerRenderStats();
+            Operation(gpu,method,gd.get(),dr,gs.get(),sr);
+            const auto after=TVPGetMetalLayerRenderStats();
+            Require(after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes &&
+                    after.uploadedBytes==before.uploadedBytes,"P1A clip/scale left GPU residency");
+            Compare(sd.get(),gd.get(),0,"P1A exact clip/scale routing");
+        }
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+        sw->SetParameterInt(sw->EnumParameterID("StretchType"),0);
+        for(bool shifted:{false,true}) {
+            auto image=Image(17,13,4,58);
+            auto sd=Create(sw,17,13,TVPTextureFormat::RGBA,image),gd=Create(gpu,17,13,TVPTextureFormat::RGBA,image);
+            const tTVPRect dr(2,2,13,11),sr=shifted?tTVPRect(1,1,12,10):dr;
+            Operation(sw,method,sd.get(),dr,sd.get(),sr);
+            const auto before=TVPGetMetalLayerRenderStats();
+            Operation(gpu,method,gd.get(),dr,gd.get(),sr);
+            const auto after=TVPGetMetalLayerRenderStats();
+            Require(after.cpuFallbacks==before.cpuFallbacks+(shifted?1:0),"P1A shifted alias policy changed");
+            Compare(sd.get(),gd.get(),0,"P1A alias/order");
+        }
+    }
+    auto* remove=gpu->GetRenderMethod("RemoveOpacity"); remove->SetParameterOpa(0,128);
+    auto mask=Create(gpu,7,5,TVPTextureFormat::Gray,Image(7,5,1,3));
+    auto actual=Create(gpu,17,13,TVPTextureFormat::RGBA,Image(17,13,4,5));
+    auto expected=Create(sw,17,13,TVPTextureFormat::RGBA,Image(17,13,4,5));
+    mask->GetTextureHandle(); actual->GetTextureHandle();
+    for(auto sr:{tTVPRect(0,0,7,5),tTVPRect(7,0,0,5)}) {
+        const auto before=TVPGetMetalLayerRenderStats(); bool failed=false;
+        try { Operation(gpu,remove,actual.get(),tTVPRect(0,0,11,9),mask.get(),sr); }
+        catch(const std::exception&) { failed=true; }
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(failed && after.gpuOperations==before.gpuOperations && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "unsafe R8 geometry was not rejected before writes/transfers");
+    }
+    Compare(expected.get(),actual.get(),0,"R8 rejection preserves target");
+    for(auto* name:{"SubBlend","MulBlend","MulBlend_HDA","ColorDodgeBlend","DarkenBlend","LightenBlend","ScreenBlend","AdditiveAlphaToAlpha","AlphaBlend_SD"}) {
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(method->EnumParameterID("opacity"),127);
+        auto original=Image(17,13,4,25);
+        auto source=Create(gpu,17,13,TVPTextureFormat::RGBA,original);
+        auto target=Create(gpu,17,13,TVPTextureFormat::RGBA,original);
+        auto unchanged=Create(sw,17,13,TVPTextureFormat::RGBA,original);
+        source->GetTextureHandle(); target->GetTextureHandle();
+        const auto before=TVPGetMetalLayerRenderStats(); bool failed=false;
+        try { Operation(gpu,method,target.get(),tTVPRect(1,1,8,6),source.get(),tTVPRect(8,1,1,6)); }
+        catch(const std::exception&) { failed=true; }
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(failed && after.gpuOperations==before.gpuOperations && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "unsupported P1A mirror entered GPU or unsafe software fallback");
+        TVPLayerOperation op; Require(method->DescribeGpuOperation(op),"missing P1A mirror test descriptor");
+        Require(!backend->OperateLayerRect(op,target->GetTextureHandle(),TVPLayerRect{1,1,8,6},
+                source->GetTextureHandle(),TVPLayerRect{8,1,1,6},0),"backend accepted unsupported P1A mirror");
+        Compare(unchanged.get(),target.get(),0,"P1A mirror rejection preserves target");
+        auto wrongSource=Create(gpu,17,13,TVPTextureFormat::Gray,Image(17,13,1,7));
+        const auto formatBefore=TVPGetMetalLayerRenderStats(); failed=false;
+        try { Operation(gpu,method,target.get(),tTVPRect(1,1,8,6),wrongSource.get(),tTVPRect(1,1,8,6)); }
+        catch(const std::exception&) { failed=true; }
+        const auto formatAfter=TVPGetMetalLayerRenderStats();
+        Require(failed && formatAfter.cpuFallbacks==formatBefore.cpuFallbacks &&
+                formatAfter.readbackBytes==formatBefore.readbackBytes && formatAfter.uploadedBytes==formatBefore.uploadedBytes,
+                "invalid P1A source format reached an unsafe 32-bit fallback");
+        Compare(unchanged.get(),target.get(),0,"P1A format rejection preserves target");
+    }
+    for(auto* name:{"AdjustGamma","AdjustGamma_a"}) {
+        auto* method=gpu->GetRenderMethod(name);
+        const tTVPGLGammaAdjustData data{1.3f,7,239,0.6f,3,219,2.1f,17,227};
+        method->SetParameterPtr(method->EnumParameterID("gammaAdjustData"),&data);
+        auto pixels=Image(17,13,4,71); const uint32_t changed=0x40102030;
+        std::memcpy(pixels.data()+(2*17+2)*4,&changed,4);
+        auto sd=Create(sw,17,13,TVPTextureFormat::RGBA,pixels);
+        auto gd=Create(gpu,17,13,TVPTextureFormat::RGBA,Image(17,13,4,71));
+        auto* pointer=static_cast<uint32_t*>(gd->GetPersistentCPUData(true));
+        pointer[2*17+2]=changed;
+        const tTVPRect roi(1,1,7,6);
+        sw->OperateRect(method,sd.get(),nullptr,roi,tRenderTexRectArray());
+        const auto before=TVPGetMetalLayerRenderStats();
+        gpu->OperateRect(method,gd.get(),nullptr,roi,tRenderTexRectArray());
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.cpuFallbacks==before.cpuFallbacks+1 && after.gammaLUTUploads==before.gammaLUTUploads &&
+                pointer==gd->GetPersistentCPUData(true),"Gamma broke pinned CPU pointer/fallback semantics");
+        Compare(sd.get(),gd.get(),0,"Gamma CPU pin/lease fallback");
+        gd->ReleasePersistentCPUData(nullptr);
+    }
+#ifndef TEST_NATIVE_METAL
+    // Inject a native-resource failure before writes, then compare CPU fallback
+    // against the initialized software method with the same owned parameters.
+    auto* doubleBackend=static_cast<DeviceDouble*>(backend);
+    doubleBackend->rejectGamma=true;
+    auto* gamma=gpu->GetRenderMethod("AdjustGamma");
+    const tTVPGLGammaAdjustData data{1.7f,11,231,0.7f,2,247,2.3f,19,213};
+    gamma->SetParameterPtr(gamma->EnumParameterID("gammaAdjustData"),&data);
+    actual=Create(gpu,17,13,TVPTextureFormat::RGBA,Image(17,13,4,5));
+    expected=Create(sw,17,13,TVPTextureFormat::RGBA,Image(17,13,4,5));
+    const tTVPRect rect(2,1,15,12); actual->GetTextureHandle();
+    sw->OperateRect(gamma,expected.get(),nullptr,rect,tRenderTexRectArray());
+    const auto before=TVPGetMetalLayerRenderStats();
+    gpu->OperateRect(gamma,actual.get(),nullptr,rect,tRenderTexRectArray());
+    const auto after=TVPGetMetalLayerRenderStats();
+    Require(after.cpuFallbacks==before.cpuFallbacks+1 && after.gammaLUTUploads==before.gammaLUTUploads,
+            "Gamma resource failure did not safely fall back");
+    Compare(expected.get(),actual.get(),0,"Gamma resource fallback");
+    doubleBackend->rejectGamma=false;
+#endif
+    std::cout<<"PASS P1A resident rectangles, ROI, mask rejection, alias order and failure routing\n";
 }
 
 static void MaskAndBlurOperations() {
@@ -1122,7 +1307,7 @@ static void ReadbackAttribution() {
         auto t=Create(gpu,16,12,TVPTextureFormat::RGBA,image);
         Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
         auto before=count(TVPLayerReadbackSource::Fallback);
-        auto* gray=gpu->GetRenderMethod("AdditiveAlphaToAlpha");
+        auto* gray=gpu->GetRenderMethod("PsAlphaBlend");
         Operation(gpu,gray,t.get(),tTVPRect(0,0,16,12),t.get(),tTVPRect(0,0,16,12));
         Require(count(TVPLayerReadbackSource::Fallback)>before,"fallback readback not attributed");
     }
@@ -1150,7 +1335,7 @@ static void ReadbackAttribution() {
 }
 static void DualSourceTransitions() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
-    const char* methods[]={"ConstAlphaBlend_SD","ConstAlphaBlend_SD_d"};
+    const char* methods[]={"ConstAlphaBlend_SD","ConstAlphaBlend_SD_d","ConstAlphaBlend_SD_a"};
     for(auto* name:methods) for(int opacity:{0,1,63,127,128,191,254,255}) {
         auto* method=gpu->GetRenderMethod(name);
         Require(method==sw->GetRenderMethod(name),"dual-source canonical method pointer changed");
@@ -1774,7 +1959,7 @@ int main(int argc,char** argv) {
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
         if(!sessionCachesOnly) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
-            UnivTransShaderTests(); LayerBlendShaderTests();
+            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests();
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -1834,7 +2019,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif
