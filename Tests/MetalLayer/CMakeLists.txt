@@ -23,6 +23,7 @@ add_custom_command(OUTPUT "${GENERATED_UNIV_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
             --source "${UNIV_SHADER_SOURCE}" --output "${GENERATED_UNIV_MATH}"
     DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
+            "${CORE}/core/render/LayerRenderOperation.h" "${CORE}/core/render/LayerOperationDefinitions.def"
     VERBATIM)
 set(TRIANGLE_BRIDGE_SOURCE "${CORE}/../host/MikageKRKRRuntime.mm")
 set(GENERATED_TRIANGLE_BRIDGE "${CMAKE_CURRENT_BINARY_DIR}/ProductionTriangleProfileBridge.inc")
@@ -39,6 +40,7 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
     DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-affine-math.py"
     VERBATIM)
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
+    CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp
     "${GENERATED_TRIANGLE_BRIDGE}" "${GENERATED_AFFINE_MATH}"
     UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}" ${TJS_SOURCES}
     "${CORE}/core/render/ComplexRect.cpp"
@@ -71,6 +73,7 @@ else()
 endif()
 enable_testing()
 add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
+add_test(NAME metal-layer-capability-audit COMMAND metal-layer-tests --audit-capabilities)
 set_tests_properties(metal-layer-tests PROPERTIES SKIP_RETURN_CODE 77)
 if(APPLE)
     set_tests_properties(metal-layer-tests PROPERTIES ENVIRONMENT "MTL_DEBUG_LAYER=1")

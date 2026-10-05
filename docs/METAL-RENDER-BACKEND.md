@@ -36,6 +36,22 @@ blend conventions. Ordinary Emote-to-Layer full overwrites use a GPU copy when
 the Layer renderer exposes an unpinned GPU target; incompatible or CPU-backed
 Layers retain the readback path. Image and video decoding are unchanged.
 
+Ordinary KRKR Layer methods also reuse the canonical software method objects
+through the Metal Layer manager. The current registry has 70 names, including
+46 names with GPU descriptors; those descriptors still have explicit input,
+format, parameter, geometry and alias restrictions. On supporting Apple GPUs,
+ordinary operations use programmable blending in a shared target render pass;
+other devices use the existing compute paths. The affine two-triangle Copy
+subset is accelerated; general triangles and perspective remain software paths.
+The remaining 24 registered software methods have no GPU descriptor.
+
+Ordinary operation IDs, traits, shader constants and diagnostic sizes come from
+one shared definition. Capability audit output separates missing registrations,
+missing descriptors, declared parameter domains and actual backend availability.
+Dynamic GLSL compilation remains unsupported by these managers and fails without
+registering a null method. See [P0 baseline](NATIVE-METAL-P0-BASELINE.md) and the
+[ordinary Layer tests](../Tests/MetalLayer/README.md) for verification boundaries.
+
 The optional `CaptureFrame` backend method and C frame capture/free functions
 provide top-down straight-alpha RGBA8 screenshots. Metal replays the current
 window composition into a temporary target only when a screenshot is requested;

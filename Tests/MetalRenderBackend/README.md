@@ -4,7 +4,7 @@ This executable links the production Metal and software offscreen backends
 without the game engine. On macOS it verifies:
 
 - padded RGBA uploads, row order, target clear/preserve and readback;
-- all 11 Layer methods against the software backend at six opacity values,
+- all 11 compositor LayerDrawRect methods against the software backend at six opacity values,
   including clipped rectangles and reversed UVs (maximum byte error: 1);
 - mesh blend modes, color modulation and the 127/128 mask threshold;
 - target clear and consecutive same-target mesh/deformation draws sharing one render encoder;
@@ -41,9 +41,11 @@ The framework integration additionally requires device and simulator builds
 using `scripts/build-krkr-ios.sh`, plus manual iPhone/iPad checks: all three
 settings, fallback logs/HUD, screenshots with menu/floating controls, Retina
 dimensions, foreground/background and repeated game switches. Compare CPU,
-frame time and memory in the same games/scenes; ordinary KRKR Layer trees
-still compose on the CPU, so a backend change alone is not proof of lower
-memory use or full Layer acceleration.
+frame time and memory in the same games/scenes. Ordinary KRKR Layers already use
+Metal within their supported method, format, geometry and resource domains;
+unsupported calls retain software fallback. See ../MetalLayer for actual software
+RenderManager parity and capability audits. Backend tests alone do not establish
+complete Layer acceleration or lower memory use.
 
 When the host enables the `MIKAGE_METAL_DIAGNOSTICS` SDL hint, the backend samples
 at most one command buffer per second. `metal.gpuCommandBuffer` reports the

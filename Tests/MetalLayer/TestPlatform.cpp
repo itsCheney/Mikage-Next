@@ -14,6 +14,7 @@
 #include <vector>
 bool TVPTestCaptureLogs = false;
 std::vector<std::string> TVPTestLogs;
+unsigned TVPTestMessageBoxes = 0;
 void TVPConsoleLog(const tjs_char* format,...) {
     if(!TVPTestCaptureLogs) return;
     char line[2048];
@@ -31,7 +32,7 @@ void TVPAddAtExitHandler(tjs_int,void (*)()) {}
 void TVPAddContinuousEventHook(tTVPContinuousEventCallbackIntf*) {}
 void TVPRemoveContinuousEventHook(tTVPContinuousEventCallbackIntf*) {}
 void TVPCheckMemory() {}
-int TVPShowSimpleMessageBox(const ttstr&,const ttstr&) { return 0; }
+int TVPShowSimpleMessageBox(const ttstr&,const ttstr&) { ++TVPTestMessageBoxes; return 0; }
 void TVPThrowExceptionMessage(const tjs_char* message) { throw std::runtime_error(message); }
 void TVPThrowExceptionMessage(const tjs_char* message,const ttstr&) { throw std::runtime_error(message); }
 void TVPThrowExceptionMessage(const tjs_char* message,const ttstr&,const ttstr&) { throw std::runtime_error(message); }

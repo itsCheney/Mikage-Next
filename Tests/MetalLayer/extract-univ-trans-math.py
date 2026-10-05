@@ -21,6 +21,7 @@ args = parser.parse_args()
 source = args.source.read_text(encoding="utf-8")
 args.output.write_text(
     "// Generated from MetalLayerShaders.h; do not edit.\n"
+    "#include \"LayerRenderOperation.h\"\n"
     "namespace univ_shader {\nusing uint = uint32_t;\nusing std::max;\nusing std::min;\n"
     + "\n\n".join(function(source, name) for name in
                     ["constAlphaSD", "univTransBlendARGB", "univTransPixel",

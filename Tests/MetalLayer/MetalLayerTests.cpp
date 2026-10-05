@@ -7,6 +7,7 @@
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
 #include <SDL3/SDL.h>
 #include "gl/tvpgl.h"
+#include "CapabilityAuditTests.h"
 #ifdef TEST_NATIVE_METAL
 #include "backend/MetalRenderBackend.h"
 #include <SDL3/SDL.h>
@@ -32,6 +33,8 @@ void BitmapRenderSessionCacheTests(iTVPRenderBackend* backend);
 void UnivTransShaderTests();
 void LayerBlendShaderTests();
 void TriangleProfileTests();
+void CompilationFailureTests();
+void OperationContractTests();
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
 
 #ifdef TEST_NATIVE_METAL
@@ -158,6 +161,8 @@ public:
         return true;
     }
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
+        const auto* traits=TVPGetLayerOperationTraits(op.kind);
+        if(!traits || traits->backendInputCount>1) return false;
         auto* sw=TVPGetSoftwareRenderManager(); const char* name=nullptr;
         switch(op.kind) {
             case TVPLayerOperationKind::Copy: name="Copy"; break;
@@ -1707,11 +1712,70 @@ static void Presentation(iTVPRenderBackend* backend) {
 }
 #endif
 
+static void InvalidOperationKinds(iTVPRenderBackend& backend) {
+    auto pixels=Image(5,3,4,41);
+    auto expected=Create(TVPGetSoftwareRenderManager(),5,3,TVPTextureFormat::RGBA,pixels);
+    auto actual=Create(TVPGetRenderManager(),5,3,TVPTextureFormat::RGBA,pixels);
+    void* target=actual->GetTextureHandle();
+    CapabilityAuditTests(true); // Also audit with live, resident GPU resources.
+    const TVPLayerRect rect{0,0,5,3};
+    TVPLayerAffineCopy affine; affine.clip=affine.sourceCrop=rect;
+#ifdef TEST_NATIVE_METAL
+    const auto submits=testMetalSubmits, waits=testMetalWaits, blits=testMetalBlits;
+#endif
+    for(auto kind:{TVPLayerOperationKind::Unsupported,TVPLayerOperationKind::Count,
+                   static_cast<TVPLayerOperationKind>(UINT32_MAX)}) {
+        TVPLayerOperation op; op.kind=kind;
+        Require(!backend.OperateLayerRect(op,target,rect,target,rect,0),"invalid kind encoded a rectangle");
+        Require(!backend.OperateLayerAffine(op,target,affine,target,0),"invalid kind encoded affine");
+        Require(!backend.OperateLayerRectDualSource(op,target,rect,target,rect,target,rect),"invalid kind encoded dual-source");
+        Require(!backend.OperateLayerRectTripleSource(op,target,rect,target,rect,target,rect,target,rect),"invalid kind encoded triple-source");
+    }
+    for(auto kind:{TVPLayerOperationKind::ConstAlphaSD,TVPLayerOperationKind::UnivTrans}) {
+        TVPLayerOperation op; op.kind=kind;
+        Require(!backend.OperateLayerRect(op,target,rect,target,rect,0),"multi-source kind encoded through single-source entry");
+    }
+#ifdef TEST_NATIVE_METAL
+    Require(testMetalSubmits==submits && testMetalWaits==waits && testMetalBlits==blits,
+            "invalid operation kind submitted/waited/copied before rejection");
+#endif
+    Compare(expected.get(),actual.get(),0,"invalid kind leaves target unchanged");
+}
+
+static int AuditCapabilities() {
+    CapabilityAuditTests(false);
+    std::unique_ptr<iTVPRenderBackend> backend;
+#ifdef TEST_NATIVE_METAL
+    const bool initialized=SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window=initialized ? SDL_CreateWindow("Layer capability audit",128,128,SDL_WINDOW_METAL|SDL_WINDOW_HIDDEN) : nullptr;
+    if(window) backend.reset(krkrsdl3::MetalRenderBackend::Create(window,false));
+    constexpr bool nativeCompiled=true, deviceDouble=false;
+#else
+    backend=std::make_unique<DeviceDouble>();
+    constexpr bool nativeCompiled=false, deviceDouble=true;
+#endif
+    const bool available=backend && TVPBindMetalLayerRenderManager(backend.get());
+    CapabilityAuditTests(available);
+    const auto json=TVPTestCapabilityAuditJSON(nativeCompiled,available,deviceDouble);
+    if(available) TVPUnbindMetalLayerRenderManager();
+    backend.reset();
+#ifdef TEST_NATIVE_METAL
+    if(window) SDL_DestroyWindow(window);
+    if(initialized) SDL_Quit();
+#endif
+    std::cout<<json<<'\n';
+    return 0;
+}
+
 int main(int argc,char** argv) {
     try {
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
+        if(argc>1 && std::string(argv[1])=="--audit-capabilities") return AuditCapabilities();
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
-        if(!sessionCachesOnly) { UnivTransShaderTests(); LayerBlendShaderTests(); }
+        if(!sessionCachesOnly) {
+            CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
+            UnivTransShaderTests(); LayerBlendShaderTests();
+        }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
         Require(SDL_Init(SDL_INIT_VIDEO),"SDL video init failed");
@@ -1755,6 +1819,8 @@ int main(int argc,char** argv) {
         for(int session=0;session<3;++session) {
             TVPSetMetalLayerTriangleDiagnostics(true);
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
+            CapabilityAuditTests(true);
+            if(session==0) InvalidOperationKinds(*backend);
             const auto newTriangleInterval=TVPTakeMetalLayerTriangleProfile();
             Require(newTriangleInterval.stats.calls==0 && newTriangleInterval.stats.maxCpuTimeNS==0 &&
                     newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");

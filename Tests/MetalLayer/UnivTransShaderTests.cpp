@@ -116,11 +116,11 @@ void LayerBlendShaderTests() {
             if(univ_shader::layerAlphaToPremulPixel(d[i])!=converted)
                 throw std::runtime_error("Alpha conversion shader integer parity failed");
             uint32_t gray=d[i]; TVPDoGrayScale(&gray,1);
-            if(univ_shader::layerMaskPixel(0,d[i],20)!=gray)
+            if(univ_shader::layerMaskPixel(0,d[i],TVP_LAYER_KIND_GrayScale)!=gray)
                 throw std::runtime_error("Gray scale shader integer parity failed");
             const uint32_t product=(d[i]>>24)*(s[i]>>24);
-            if(univ_shader::layerMaskPixel(d[i],s[i],21)!=((d[i]&0xffffffu)|((s[i]&255u)<<24)) ||
-               univ_shader::layerMaskPixel(d[i],s[i],22)!=((d[i]&0xffffffu)|(((product+(product>>7))>>8)<<24)))
+            if(univ_shader::layerMaskPixel(d[i],s[i],TVP_LAYER_KIND_CopyBlueToAlpha)!=((d[i]&0xffffffu)|((s[i]&255u)<<24)) ||
+               univ_shader::layerMaskPixel(d[i],s[i],TVP_LAYER_KIND_MultiplyAlpha)!=((d[i]&0xffffffu)|(((product+(product>>7))>>8)<<24)))
                 throw std::runtime_error("BTOA shader integer parity failed");
             ++count;
         }

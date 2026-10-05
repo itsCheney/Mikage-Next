@@ -49,9 +49,10 @@ facade in place of the script/window machinery. Coverage includes:
 The full iOS framework build remains necessary to validate plugin and script
 class integration. Test checks remain active in Release builds.
 
-Additive-alpha, Photoshop multiply/overlay/hard-light and straight-to-premultiplied
-conversion compile the production MSL scalar helpers as C++ and compare
-1,048,576 exact pixels with tvpgl, including channel/alpha/opacity boundaries.
+Additive-alpha, Photoshop multiply/overlay/hard-light/screen/color-dodge5, add,
+and straight-to-premultiplied conversion compile the production MSL scalar
+helpers as C++ and compare 1,835,008 exact pixels with tvpgl, including
+channel/alpha/opacity boundaries and grayscale/channel-mask checks.
 Overlay and hard-light use the production `/255` table formula. Routing tests
 cover canonical/HDA aliases, reference-based conversion after COW, native pixel
 access without permanent pinning, ROI-only uploads, raw script pointer coexistence,
@@ -70,8 +71,30 @@ maxima and histograms), HUD reads leaving samples intact, enabled/disabled
 capture, nested source tags and exception unwind, visible clip areas and full-HD
 targets, actual readbacks versus CPU cache hits, target/source/reference aliases,
 bounded size histograms, NUL-terminated bridge summaries and unchanged fallback
-pixels. No triangle GPU renderer is enabled; Linux timings are device-double wall
-times and do not measure native Metal readback performance.
+pixels. The existing two-triangle affine Copy subset has a GPU path; general
+triangles and perspective retain software execution. Portable timings are
+device-double wall times and do not measure native Metal readback performance.
+
+The P0 capability fixture covers all 85 appendix names: 70 software registrations,
+46 names with GPU descriptors, 24 registered methods without descriptors and
+15 unregistered historical extensions. Read-only registration snapshots preserve
+canonical objects and aliases. Repeated audits never set method parameters,
+register missing methods, show a message box or render pixels.
+
+`metal-layer-tests --audit-capabilities` writes JSON with registration, descriptor,
+static input/format/parameter/geometry/alias/alpha contracts and separately supplied
+backend facts. On portable hosts `deviceDouble=true`; `backendAvailable=true`
+means that the double bound successfully and does not establish native Metal.
+On Apple hosts an unavailable device is reported independently of mapped methods.
+Static contracts do not bypass the current ROI, session, CPU lease or pipeline
+checks. Software-only gap contracts remain rectangular baseline domains.
+
+The shared operation definition retains wire/shader IDs 0..26. Contract tests
+check Count and invalid values, shared MSL definitions, HDA/reference alpha rules
+and a separate TestKind=27 extension fixture. The fixture reuses the definition
+expansions and diagnostic storage without adding a production renderer. Dynamic
+script compilation failures return null with a diagnostic and leave registration
+unchanged, including in Release builds; this does not provide dynamic GLSL support.
 
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release
