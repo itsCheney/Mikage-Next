@@ -77,6 +77,9 @@ using tjs_char = wchar_t;
 struct tTJSVariantClosure {
     void* Object = nullptr;
     tTJSVariantClosure(std::nullptr_t = nullptr) {}
+    // Lifetime balancing is tested with real TJS closures in EmoteMetadata;
+    // this storage/load-contract boundary double has no owned dispatch object.
+    void Release() {}
 };
 class iTJSDispatch2 {};
 #define TJS_N(value) L##value
