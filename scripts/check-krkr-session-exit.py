@@ -35,6 +35,7 @@ def main():
 #include <stdexcept>
 #include <string>
 bool systemAlive, pluginsAlive, vmAlive, backendAlive, emoteCacheRetained;
+bool graphicCacheRetained, emoteSessionRetained;
 int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears, emoteCacheTrims;
 const int TVP_COMPACT_LEVEL_MINIMIZE=15;
 const int TVP_COMPACT_LEVEL_MAX=100;
@@ -49,10 +50,15 @@ struct tTVPCompactEventCallbackIntf {
 };
 void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf*, bool=false) {}
 namespace emoteplayer {
+void ResetEmotePlayerSession() {
+    assert(backendAlive && (!emoteSessionRetained || (vmAlive && systemAlive && pluginsAlive)));
+    emoteSessionRetained=false;
+}
 void ClearSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheClears; }
 void TrimSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheTrims; }
 }
 void TVPInvalidateMovieSession() {} void TVPFinalizeVideoOverlaySession() {}
+void TVPResetXP3FilterSession() { assert(backendAlive); }
 void* TVPGetScriptEngine() { return vmAlive ? reinterpret_cast<void*>(1) : nullptr; }
 void TVPDeliverCompactEvent(int) {
     // The game's save callback loads another script from its ZIP archive.
@@ -61,8 +67,12 @@ void TVPDeliverCompactEvent(int) {
 }
 void TVPSystemUninit() { systemAlive=false; }
 void TVPUnloadPlugins() { pluginsAlive=false; }
-void TVPResetEventState() {} void TVPResetGraphicSessionState() {}
-void TVPUninitScriptEngine() { vmAlive=false; emoteCacheRetained=true; }
+void TVPResetEventState() {}
+void TVPResetGraphicSessionState() { graphicCacheRetained=false; }
+void TVPUninitScriptEngine() {
+    assert(!emoteSessionRetained);
+    vmAlive=false; emoteCacheRetained=true; graphicCacheRetained=true;
+}
 void TVPClearAllAutoPath() {} void TVPClearAllWindows() {}
 namespace krkrsdl3 { void TVPClearAllTexture() { assert(backendAlive); } }
 struct iTVPTexture2D { static void RecycleProcess() { assert(backendAlive); } };
@@ -108,10 +118,12 @@ struct tTVPArchiveCache {
 int main() {
     for(int session=0;session<50;++session) {
         systemAlive=pluginsAlive=vmAlive=backendAlive=true;
+        emoteSessionRetained=graphicCacheRetained=true;
         TVPSystemControl=new Control;
         tTVPApplication application;application.image_load_thread_=new Loader;
         application.OnExit();assert(!vmAlive && !systemAlive && !pluginsAlive);
-        assert(application.image_load_thread_==nullptr && backendAlive && !emoteCacheRetained);
+        assert(application.image_load_thread_==nullptr && backendAlive && !emoteCacheRetained &&
+               !graphicCacheRetained && !emoteSessionRetained);
     }
     assert(saves==50 && stoppedLoaders==50);
     assert(emoteCacheClears==100);

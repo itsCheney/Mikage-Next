@@ -18,6 +18,8 @@ def definition(source, signature):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--source", required=True, type=Path)
 parser.add_argument("--header", required=True, type=Path)
+parser.add_argument("--session-source", required=True, type=Path)
+parser.add_argument("--session-header", required=True, type=Path)
 parser.add_argument("--output-dir", required=True, type=Path)
 args = parser.parse_args()
 source = args.source.read_text(encoding="utf-8")
@@ -40,3 +42,19 @@ signatures = [
     "std::shared_ptr<const EmoteDecodedResource> emotefile::SnapshotDecodedResource(",
 ]
 (out / "ProductionLoad.inc").write_text("\n\n".join(definition(source, s) for s in signatures) + "\n", encoding="utf-8")
+session_source = args.session_source.read_text(encoding="utf-8")
+session_header = args.session_header.read_text(encoding="utf-8")
+(out / "ProductionSession.inc").write_text(
+    definition(session_header, "class Motion\n{") + ";\n"
+    + definition(session_header, "struct EmoteResourceDiagnostics") + ";\n"
+    + definition(session_header, "class ResourceManager\n{") + ";\n"
+    + "iTJSDispatch2* ResourceManager::_kagWindow=nullptr;\n"
+    + "static SeparateLayerAdaptor* _motionWorkLayer=nullptr;\n"
+    + "\n\n".join(definition(session_source, s) for s in [
+        "ResourceManager::ResourceManager(", "ResourceManager::~ResourceManager()",
+        "void ResourceManager::unloadAllInternal(",
+        "void ResourceManager::setEmotePSBDecryptSeed(",
+        "void ResourceManager::setEmotePSBDecryptFunc(",
+        "void ResourceManager::ResetSession()", "void ResetEmotePlayerSession()",
+        "SeparateLayerAdaptor::~SeparateLayerAdaptor()",
+    ]) + "\n", encoding="utf-8")

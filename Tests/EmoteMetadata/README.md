@@ -67,6 +67,10 @@ read-only streams, and full PSB name-trie/string/chunk-table decoding. It checks
 - Active XP3 content/extraction filters bypass shared hits so dynamic output and
   per-open callbacks are not skipped. The standalone cache script compiles the
   actual filter setters/query and verifies invalidation on install/remove.
+- Production ResourceManager/session/file callback methods with real TJS closure
+  references: 50 VM lifetimes, 100 work-layer rebuilds, repeated callback install,
+  replacement while a file stays live, bound-context retention/release, idempotent
+  reset and destruction of an old adaptor after a new session cache is installed.
 
 Limitations: metadata-only fixtures inject their decoded tables; the loader
 fixtures cover real table decoding but replace host storage with an in-memory
@@ -74,8 +78,8 @@ file map. Their `GenerateAniTree` allocates a small mutable marker in place of
 the rendering/physics tree; this checks that every load regenerates independent
 runtime state, not the real animation implementation. Decrypt callbacks use a
 minimal buffer accessor around a real TJS closure. Session reset/invalidation
-are called directly; application hook wiring and ResourceManager behavior are
-covered separately by the resource-cache scripts. PSB v1 is outside these tests.
+are called directly; work-layer native/window behavior is a boundary double.
+Application hook wiring is covered by the session-exit script. PSB v1 is outside these tests.
 The metadata reference lookup does not recreate the old `_metadata->_varList.size()`
 scan bound. Real-game compatibility and Metal/iOS performance still need device
 testing; this is not a full application build.

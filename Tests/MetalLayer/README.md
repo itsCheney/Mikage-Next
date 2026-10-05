@@ -58,6 +58,12 @@ access without permanent pinning, ROI-only uploads, raw script pointer coexisten
 exception unwind, and diagnostic interval/reset/overflow and C bridge behavior.
 Native Metal shader compilation and device rendering still require Apple CI.
 
+The production initial/temporary bitmap and glyph caches are also checked across
+game sessions. Standalone initial bitmap access with no existing holder must keep
+its texture alive after holder release and GPU session detach. Retained holders
+must rebuild caches in the new session, preserve old snapshots, register compact
+hooks again and draw smaller glyphs with no CPU fallback/readback.
+
 `TriangleProfileTests.cpp` exercises the production triangle fallback and the
 extracted production C diagnostic bridge. It verifies interval resets (including
 maxima and histograms), HUD reads leaving samples intact, enabled/disabled

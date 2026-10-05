@@ -25,6 +25,7 @@ parser.add_argument("--output", required=True, type=Path)
 args = parser.parse_args()
 source = args.source.read_text(encoding="utf-8")
 signatures = [
+    "tTVPNativeBaseBitmap::tTVPNativeBaseBitmap(const tTVPNativeBaseBitmap&",
     "bool tTVPNativeBaseBitmap::AssignTexture(",
     "bool tTVPNativeBaseBitmap::CopyFromGPUTarget(",
     "bool tTVPNativeBaseBitmap::CopyFromGPUTargetRegion(",
@@ -77,6 +78,7 @@ args.cache_output.write_text(
     "// Production default/temporary bitmap holder and glyph scratch path.\n"
     "class tTVPTempBitmapHolder;\nstatic tTVPTempBitmapHolder* TVPTempBitmapHolder=nullptr;\n"
     + function(layer_source,"class tTVPTempBitmapHolder :") + ";\n"
+    + function(layer_source,"tTVPBaseTexture TVPGetInitialBitmap()") + "\n"
     + "static iTVPTexture2D* _CharacterTexture=nullptr;\n"
     + function(source,"bool tTVPNativeBaseBitmap::InternalBlendText(").replace("tTVPNativeBaseBitmap::InternalBlendText", "TestBitmap::BlendGlyph"),
     encoding="utf-8")

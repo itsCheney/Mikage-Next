@@ -18,6 +18,7 @@
 // Only font/platform setup is stubbed. The transaction and texture adoption
 // below are extracted from production and use the real bitmap declaration,
 // reference counts, GPU textures, CPU caches, and render manager.
+void TVPInializeFontRasterizers() {}
 tTVPNativeBaseBitmap::tTVPNativeBaseBitmap()
     : Font{}, FontChanged(true), GlobalFontState(-1), PrerenderedFont(nullptr),
       Bitmap(nullptr) {}
@@ -378,6 +379,23 @@ void TransitionOutputTests() {
 
 void BitmapRenderSessionCacheTests(krkrsdl3::iTVPRenderBackend* backend) {
     constexpr int w=48,h=40;
+    // First use with no live Layer/Bitmap: the returned default must own its
+    // texture after the temporary holder itself has been destroyed.
+    Require(!TVPTempBitmapHolder,"cache fixture unexpectedly retained a holder");
+    for(int session=0;session<3;++session) {
+        Require(TVPBindMetalLayerRenderManager(backend),"standalone prototype session failed");
+        {
+            tTVPBaseTexture initial(TVPGetInitialBitmap());
+            Require(!TVPTempBitmapHolder,"standalone prototype leaked its holder");
+            Require(initial.GetWidth()==32 && initial.GetHeight()==32 &&
+                    initial.GetTexture()->GetPoint(0,0)==0x00ffffff,
+                    "standalone default bitmap lost ownership");
+            TVPUnbindMetalLayerRenderManager();
+            Require(initial.GetTexture()->IsCPUResident() && initial.GetTexture()->GetPoint(0,0)==0x00ffffff,
+                    "standalone prototype did not survive session detach");
+        }
+        iTVPTexture2D::RecycleProcess();
+    }
     tTVPTempBitmapHolder::AddRef(); // Retain the real holder across A -> B -> A.
     uint64_t lastInitial=0,lastGlyph=0,lastTemp=0;
     TextureRef retainedPrototype;

@@ -57,6 +57,30 @@ bool emotefile::ClearAniTree()
 #include "ProductionReader.inc"
 }
 
+// Window/native-Layer integration is a boundary double; callbacks, variants,
+// reference counts and the session manager methods use production TJS/code.
+static iTJSDispatch2* sessionGlobal = nullptr;
+iTJSDispatch2* TVPGetScriptDispatch() {
+    if (sessionGlobal) sessionGlobal->AddRef();
+    return sessionGlobal;
+}
+namespace emoteplayer {
+static unsigned workLayersCreated = 0, workLayersCleared = 0;
+class SeparateLayerAdaptor : public tTJSDispatch {
+public:
+    bool active = true;
+    explicit SeparateLayerAdaptor(iTJSDispatch2*) { ++workLayersCreated; }
+    ~SeparateLayerAdaptor();
+    void clear() { if (active) { active=false; ++workLayersCleared; } }
+};
+struct EmoteResourceDiagnostics;
+static std::uint64_t nextEmoteManagerId() { static std::uint64_t id=0; return ++id; }
+static void recordEmoteCacheEvent(const char*,const EmoteResourceDiagnostics&,std::size_t) {}
+#define private public
+#include "ProductionSession.inc"
+#undef private
+}
+
 namespace {
 #include "PSBFixture.hpp"
 Node sampleRoot()
@@ -395,6 +419,94 @@ void compactTrimEvictsLeastRecentlyUsed()
             "trim on an empty cache repopulated entries");
     require(loaderLiveTrees == 0 && loaderLiveStreams == 0, "trim test leaked streams or runtime trees");
 }
+
+class CallbackLifetime : public tTJSDispatch {
+    unsigned& live;
+public:
+    explicit CallbackLifetime(unsigned& count) : live(count) { ++live; }
+    ~CallbackLifetime() override { --live; }
+    tjs_error FuncCall(tjs_uint32,const tjs_char*,tjs_uint32*,tTJSVariant*,
+                      tjs_int,tTJSVariant**,iTJSDispatch2* context) override {
+        require(context!=nullptr,"decrypt callback lost its bound context");
+        return TJS_S_OK;
+    }
+};
+void callbackAndWorkLayerSessionLifetime()
+{
+    using namespace emoteplayer;
+    ResetEmotePlayerSession();
+    unsigned liveCallbacks=0,liveContexts=0;
+    for(int session=0;session<50;++session) {
+        auto* vm=new tTJS(); sessionGlobal=vm->GetGlobalNoAddRef();
+        {
+            auto* window=TJSCreateDictionaryObject();
+            auto* pool=TJSCreateDictionaryObject();
+            tTJSVariant width(1280),height(720),parent(pool);
+            pool->Release();
+            window->PropSet(TJS_MEMBERENSURE,TJS_N("width"),nullptr,&width,window);
+            window->PropSet(TJS_MEMBERENSURE,TJS_N("height"),nullptr,&height,window);
+            window->PropSet(TJS_MEMBERENSURE,TJS_N("poolLayer"),nullptr,&parent,window);
+            ResourceManager manager(window,0);
+            require(_motionWorkLayer && _motionWorkLayer->active,"session did not create a live work layer");
+            auto* firstLayer=_motionWorkLayer;
+            tTJSVariant retained(firstLayer); // A script may retain an invalidated adaptor.
+            unsigned firstCallbackCount=0,firstContextCount=0;
+            {
+                emotefile liveFile;
+                auto* callback=new CallbackLifetime(firstCallbackCount);
+                auto* context=new CallbackLifetime(firstContextCount);
+                {
+                    tTJSVariant value(callback,context);
+                    callback->Release(); context->Release();
+                    for(int reinstall=0;reinstall<64;++reinstall)
+                        ResourceManager::setEmotePSBDecryptFunc(value);
+                    liveFile.setFun(ResourceManager::_decryptClo);
+                    liveFile.setFun(ResourceManager::_decryptClo); // balanced self replacement.
+                }
+                require(firstCallbackCount==1 && firstContextCount==1,"callback lost ownership too soon");
+                auto* replacement=new CallbackLifetime(liveCallbacks);
+                auto* replacementContext=new CallbackLifetime(liveContexts);
+                {
+                    tTJSVariant value(replacement,replacementContext);
+                    replacement->Release(); replacementContext->Release();
+                    ResourceManager::setEmotePSBDecryptFunc(value);
+                }
+                require(firstCallbackCount==1 && firstContextCount==1,"manager replacement broke a live file");
+                liveFile._decryptClo.FuncCall(0,nullptr,nullptr,nullptr,0,nullptr,nullptr);
+                ResourceManager::setEmotePSBDecryptSeed(123);
+                Motion::setEnableD3D(true);
+                ResetEmotePlayerSession(); ResetEmotePlayerSession();
+                require(liveCallbacks==0 && liveContexts==0,"session leaked callback or bound context");
+                require(!ResourceManager::_decryptClo.Object && !ResourceManager::_decryptClo.ObjThis &&
+                        !ResourceManager::_kagWindow && !_motionWorkLayer &&
+                        ResourceManager::_decryptkey==0 && !Motion::getEnableD3D(),"session retained Emote state");
+                require(!firstLayer->active,"session reset left the native work layer active");
+                // The old file retains the old callback, independent of both
+                // the replacement and the process/session settings.
+                liveFile._decryptClo.FuncCall(0,nullptr,nullptr,nullptr,0,nullptr,nullptr);
+            }
+            require(firstCallbackCount==0 && firstContextCount==0,"file/callback replacement leaked references");
+            ResourceManager second(window,0);
+            require(_motionWorkLayer && _motionWorkLayer!=firstLayer && _motionWorkLayer->active,
+                    "next session reused the old work layer");
+            auto* currentLayer=_motionWorkLayer;
+            retained.Clear();
+            require(_motionWorkLayer==currentLayer,"old adaptor destruction cleared the new session cache");
+            ResetEmotePlayerSession(); window->Release();
+        }
+        sessionGlobal=nullptr;
+        delete vm;
+        require(liveCallbacks==0 && liveContexts==0,"VM teardown retained callback objects");
+    }
+    require(workLayersCreated==100 && workLayersCleared==100,"work layer was not rebuilt/cleared per session");
+    // Destroying the global's sole adaptor reference must clear its borrowed
+    // cache identity, even without the explicit session reset.
+    tTJS vm; sessionGlobal=vm.GetGlobalNoAddRef();
+    auto* adaptor=new SeparateLayerAdaptor(nullptr); _motionWorkLayer=adaptor;
+    adaptor->Release();
+    require(!_motionWorkLayer,"destroyed adaptor left a dangling session cache");
+    sessionGlobal=nullptr;
+}
 }
 
 int main()
@@ -412,9 +524,11 @@ int main()
         dynamicArchiveFilterBypass();
         trimToHonorsLruOrder();
         compactTrimEvictsLeastRecentlyUsed();
+        callbackAndWorkLayerSessionLifetime();
         resetFixture();
         std::cout << "PASS: production Emote load/cache integration, full PSB tables, raw/LZ4/MDF cold-warm loads, "
-                     "independent trees/cursors, read-only data, seed/custom-decrypt isolation, compact trim, reset and lifetime\n";
+                     "independent trees/cursors, read-only data, seed/custom-decrypt isolation, compact trim, reset, "
+                     "50 session callback/context lifetimes and work-layer rebuilds\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n'; return 1;

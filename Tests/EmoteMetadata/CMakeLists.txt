@@ -19,12 +19,17 @@ set(GENERATED_LOADER
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionFileClass.inc"
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionDecode.inc"
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionSharedResource.inc"
-    "${CMAKE_CURRENT_BINARY_DIR}/ProductionLoad.inc")
+    "${CMAKE_CURRENT_BINARY_DIR}/ProductionLoad.inc"
+    "${CMAKE_CURRENT_BINARY_DIR}/ProductionSession.inc")
 add_custom_command(OUTPUT ${GENERATED_LOADER}
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-loader.py"
             --source "${READER}" --header "${CORE}/plugins/emoteplayer/emotefile.h"
+            --session-source "${CORE}/plugins/emoteplayer/emoteplayerclass.cpp"
+            --session-header "${CORE}/plugins/emoteplayer/emoteplayerclass.h"
             --output-dir "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${READER}" "${CORE}/plugins/emoteplayer/emotefile.h"
+            "${CORE}/plugins/emoteplayer/emoteplayerclass.cpp"
+            "${CORE}/plugins/emoteplayer/emoteplayerclass.h"
             "${CMAKE_CURRENT_LIST_DIR}/extract-loader.py"
     VERBATIM)
 add_executable(emote-shared-loader-tests EmoteSharedLoaderTests.cpp
