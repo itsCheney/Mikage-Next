@@ -567,6 +567,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "alphaTables:\(diagnosticStats.layerGPURejectAlphaTables)",
                     "psTables:\(diagnosticStats.layerGPURejectPsTables)",
                     "affineAlias:\(diagnosticStats.layerGPURejectAffineAlias)",
+                    "perspectiveAlias:\(diagnosticStats.layerGPURejectPerspectiveAlias)",
                     "backendFailure:\(diagnosticStats.layerGPURejectBackendFailure)",
                     "triangles:\(diagnosticStats.layerGPURejectTriangles)",
                     "perspective:\(diagnosticStats.layerGPURejectPerspective)"

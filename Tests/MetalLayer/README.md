@@ -71,8 +71,8 @@ maxima and histograms), HUD reads leaving samples intact, enabled/disabled
 capture, nested source tags and exception unwind, visible clip areas and full-HD
 targets, actual readbacks versus CPU cache hits, target/source/reference aliases,
 bounded size histograms, NUL-terminated bridge summaries and unchanged fallback
-pixels. The two-triangle affine Copy and declared blend subsets have GPU paths; general
-triangles and perspective retain software execution. Portable timings are
+pixels. The two-triangle affine and prepared perspective subsets have GPU paths;
+general triangles retain software execution. Portable timings are
 device-double wall times and do not measure native Metal readback performance.
 
 The P0 capability fixture covers all 85 appendix names: 70 software registrations,
@@ -162,6 +162,32 @@ The portable double executes extracted coordinate/byte helpers and the initializ
 software blend on the sampled frame. Native Apple tests use the production kernel;
 portable results do not validate MSL compilation, texture binding or GPU ordering.
 Existing scalar blend tests remain independent coverage of the shared pixel math.
+
+P2B adds inverse homography compute for Copy and the P2A blend families, including
+the shared `PerspectiveAlphaBlend_a` object. LT/RT/LB/RB coordinates preserve the
+software right/bottom +1 warp convention, whole-source sampling, clip-relative
+pixel centers, transparent borders and byte rounding. Rectangular shortcuts use
+point 3 for the lower-right corner; the software index-2 bug and disjoint-rectangle
+full-clip warp were fixed before establishing the new reference. Clips are clamped,
+all quads are validated before writes, negative filters and singular/nonfinite
+mappings raise controlled errors, and unsupported valid domains retain software.
+
+Up to 256 quads execute as one ordered backend transaction. A scratch target and
+per-quad snapshots ensure aliased sources see earlier results; the real target is
+written only after every quad encodes successfully. Rectangular shifted/scaled
+self-aliases (including Copy), StretchType outside 0..2 and inverse coefficients
+above 1e6 retain software execution. `PerspectiveAlias` is a distinct rejection
+reason. Reference is ignored as in software. This path uses compute and GPU scratch
+textures, with no new per-operation submit/wait; it does not use affine triangles.
+
+Tests cover 32 names, exact scalar coordinates, strong perspective/reflections,
+source/target clipping, fractional/out-of-range source coordinates, mixed ordered
+quads, failed late quads, default unsupported backends, table failures, COW/alpha
+caches/CPU leases and pending multi-target batches. Injected mid-batch failures also
+read the physical backend target/source to ensure CPU caches cannot hide a partial
+commit. The portable double preserves the software filter while using sampled-frame
+blend references; native MSL, GPU ordering and scratch-resource cost need Apple and
+device validation. Perspective support does not imply arbitrary Layer triangles.
 
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release

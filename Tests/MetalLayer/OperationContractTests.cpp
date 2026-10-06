@@ -101,7 +101,7 @@ void StableIDsAndTraits() {
                 "reference-based conversion contract changed");
     }
     Require(TVPGetLayerOperationTraits(TVPLayerOperationKind::Copy)->geometries==
-            (TVP_LAYER_GEOMETRY_RECT|TVP_LAYER_GEOMETRY_AFFINE_COPY_SUBSET), "Copy affine subset lost");
+            (TVP_LAYER_GEOMETRY_RECT|TVP_LAYER_GEOMETRY_AFFINE_COPY_SUBSET|TVP_LAYER_GEOMETRY_PERSPECTIVE_SUBSET), "Copy affine subset lost");
     Require(TVPGetLayerOperationTraits(TVPLayerOperationKind::RemoveOpacity)->sourceFormats[0]==TVPLayerTextureFormat::R8,
             "RemoveOpacity lost mask format");
     const auto* gamma=TVPGetLayerOperationTraits(TVPLayerOperationKind::AdjustGamma);
@@ -124,7 +124,7 @@ void StableIDsAndTraits() {
         const auto kind=static_cast<TVPLayerOperationKind>(id);
         bool blend=false; for(auto candidate:affineKinds) blend|=kind==candidate;
         if(id>1) Require(TVP_LAYER_OPERATION_TRAITS[id].geometries==
-                (TVP_LAYER_GEOMETRY_RECT|(blend?TVP_LAYER_GEOMETRY_AFFINE_BLEND_SUBSET:0)),
+                (TVP_LAYER_GEOMETRY_RECT|(blend?(TVP_LAYER_GEOMETRY_AFFINE_BLEND_SUBSET|TVP_LAYER_GEOMETRY_PERSPECTIVE_SUBSET):0)),
                 "P2A declared an unexpected affine family");
         TVPLayerOperation op; op.kind=kind;
         for(uint32_t flags:{0u,1u,2u,4u,8u,15u,16u,0xffffffffu}) for(int opacity:{-1,0,1,127,128,254,255,256}) {
@@ -132,6 +132,7 @@ void StableIDsAndTraits() {
             const bool expected=kind==TVPLayerOperationKind::Copy?flags==0:
                 blend && flags<16 && opacity>=0 && opacity<=255;
             Require(TVPLayerOperationSupportsAffine(op)==expected,"P2A affine helper domain changed");
+            Require(TVPLayerOperationSupportsPerspective(op)==expected,"P2B perspective helper domain changed");
         }
     }
     for(auto kind:{TVPLayerOperationKind::Count,static_cast<TVPLayerOperationKind>(UINT32_MAX)}) {

@@ -2,6 +2,7 @@
 #include "RenderManager.h"
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
+#include "LayerPerspectiveGeometry.h"
 #include "PointReadTrace.h"
 #include "AsyncAlphaTileCache.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
@@ -75,11 +76,13 @@ static std::vector<krkrsdl3::point_trace::Query> pointReadObservations;
 class DeviceDouble : public iTVPRenderBackend {
     struct Resource { std::vector<uint8_t> pixels; int w,h,bpp; };
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
+    bool preserveSoftwareStretch=false;
 public:
     bool rejectTripleSource=false;
     bool rejectGamma=false;
     bool rejectAlphaTables=false;
     bool rejectAffine=false;
+    int rejectPerspectiveQuad=-1;
     bool rejectPsTables=false;
     bool psTablesReady=false;
     std::array<uint8_t,196608> psTables{};
@@ -314,7 +317,7 @@ public:
             sv.reset(sw->CreateTexture2D(pixels,s.w*s.bpp,s.w,s.h,s.bpp==1?TVPTextureFormat::Gray:TVPTextureFormat::RGBA));
             input={sv.get(),Rect(src)};
         }
-        sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
+        if(!preserveSoftwareStretch) sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
         sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(source?&input:nullptr,source?1:0));return true;
     }
     bool OperateLayerAffine(const TVPLayerOperation& op,void* target,const TVPLayerAffineCopy& map,void* source,int sampling) override {
@@ -368,6 +371,72 @@ public:
             sw->OperateRect(method,tv.get(),nullptr,Rect(clip),tRenderTexRectArray(&input,1));
         }
         return true;
+    }
+    bool OperateLayerPerspective(const TVPLayerOperation& op,void* target,const TVPLayerPerspectiveQuad* quads,
+                                size_t count,void* source,int sampling) override {
+        if(!TVPLayerOperationSupportsPerspective(op) || sampling<0 || sampling>1 || count>TVP_LAYER_PERSPECTIVE_MAX_QUADS) return false;
+        if(!count) return true;
+        if(!quads || !resources.count(target) || !resources.count(source)) return false;
+        auto& t=*resources.at(target);auto& s=*resources.at(source);
+        if(t.bpp!=4 || s.bpp!=4) return false;
+        const auto* traits=TVPGetLayerOperationTraits(op.kind);
+        if((traits->parameterResources&TVP_LAYER_RESOURCE_PS_TABLES) && !psTablesReady) return false;
+        auto valid=[](const TVPLayerRect& r,int w,int h){return r.left>=0&&r.top>=0&&r.right>=r.left&&r.bottom>=r.top&&r.right<=w&&r.bottom<=h;};
+        for(size_t i=0;i<count;++i) {
+            const auto& q=quads[i];if(!valid(q.clip,t.w,t.h)) return false;
+            if(!q.clip.Width() || !q.clip.Height()) continue;
+            if(q.rectangle) {
+                if(!valid(q.source,s.w,s.h)||q.source.Width()<=0||q.source.Height()<=0||!valid(q.destination,t.w,t.h) ||
+                   q.destination.Width()<=0||q.destination.Height()<=0 ||
+                   q.clip.left<q.destination.left||q.clip.top<q.destination.top||q.clip.right>q.destination.right||q.clip.bottom>q.destination.bottom) return false;
+                if(target==source && (q.source.left!=q.destination.left||q.source.top!=q.destination.top||q.source.right!=q.destination.right||q.source.bottom!=q.destination.bottom)) return false;
+            } else {
+                if(!layer_perspective::ValidateInverse(q.inverse)) return false;
+                for(double v:q.inverse) if(std::abs(v)>1000000) return false;
+            }
+        }
+        // The caller already selected the software filter. Rectangular quads
+        // use that equivalent 0/1/2 filter, and prepared frames have equal
+        // extents, so neither needs to change it. A late transactional failure
+        // must leave the original filter intact for the facade's CPU fallback.
+        struct RestoreStretchPolicy { bool& flag;bool saved;~RestoreStretchPolicy(){flag=saved;} } restore{preserveSoftwareStretch,preserveSoftwareStretch};
+        preserveSoftwareStretch=true;
+        void* work=CreateLayerTexture(t.w,t.h,TVPLayerTextureFormat::RGBA8);
+        void* snapshot=CreateLayerTexture(s.w,s.h,TVPLayerTextureFormat::RGBA8);
+        auto release=[&](void*){DestroyLayerTexture(work);DestroyLayerTexture(snapshot);};
+        std::unique_ptr<void,decltype(release)> cleanup(work,release);
+        resources.at(work)->pixels=t.pixels;
+        for(size_t i=0;i<count;++i) {
+            if(rejectPerspectiveQuad==int(i)) return false; // Transactional failure after a written temporary prefix.
+            const auto& q=quads[i];const auto& clip=q.clip;
+            if(!clip.Width()||!clip.Height()) continue;
+            resources.at(snapshot)->pixels=target==source?resources.at(work)->pixels:s.pixels;
+            if(q.rectangle) {
+                if(!OperateLayerRect(op,work,q.destination,snapshot,q.source,sampling)) return false;
+                continue;
+            }
+            const auto& pixels=resources.at(snapshot)->pixels;
+            float hi[9],lo[9];for(int k=0;k<9;++k){hi[k]=float(q.inverse[k]);lo[k]=float(q.inverse[k]-double(hi[k]));}
+            auto coordinate=[&](int row,int x,int y){int j=row*3;return affine_shader::perspectiveCoordinate(hi[j],lo[j],hi[j+1],lo[j+1],hi[j+2],lo[j+2],hi[6],lo[6],hi[7],lo[7],hi[8],lo[8],float(x)+0.5f,float(y)+0.5f);};
+            std::vector<uint8_t> frame(size_t(clip.Width())*clip.Height()*4);
+            auto pixel=[&](int x,int y,int c){return int(pixels[(size_t(y)*s.w+x)*4+c]);};
+            for(int y=0;y<clip.Height();++y) for(int x=0;x<clip.Width();++x) {
+                float sx=coordinate(0,x,y),sy=coordinate(1,x,y);
+                if(sx<0.5f||sx>=s.w-0.5f||sy<0.5f||sy>=s.h-0.5f||!std::isfinite(sx)||!std::isfinite(sy)) continue;
+                auto* out=frame.data()+(size_t(y)*clip.Width()+x)*4;
+                if(!sampling) {for(int c=0;c<4;++c) out[c]=pixel(std::clamp(int(sx+0.5f),0,s.w-1),std::clamp(int(sy+0.5f),0,s.h-1),c);}
+                else {
+                    int ax=std::clamp(int(sx),0,std::max(0,s.w-2)),ay=std::clamp(int(sy),0,std::max(0,s.h-2));
+                    int bx=std::min(ax+1,s.w-1),by=std::min(ay+1,s.h-1);float fx=s.w==1?0:sx-ax,fy=s.h==1?0:sy-ay;
+                    for(int c=0;c<4;++c) out[c]=affine_shader::affineBilinearByte(fx,fy,pixel(ax,ay,c),pixel(bx,ay,c),pixel(ax,by,c),pixel(bx,by,c));
+                }
+            }
+            void* sampled=CreateLayerTexture(clip.Width(),clip.Height(),TVPLayerTextureFormat::RGBA8);
+            resources.at(sampled)->pixels=std::move(frame);
+            bool ok=OperateLayerRect(op,work,clip,sampled,TVPLayerRect{0,0,clip.Width(),clip.Height()},0);
+            DestroyLayerTexture(sampled);if(!ok) return false;
+        }
+        t.pixels=resources.at(work)->pixels;return true;
     }
     bool OperateLayerRectDualSource(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,
                                     void* source1,const TVPLayerRect& src1,
@@ -1990,6 +2059,7 @@ static void AffineCopyTriangles() {
     std::cout<<"PASS Copy affine triangle: "<<cases<<" exact comparisons and full-HD resident burst\n";
 }
 #include "P2AAffineTests.inc"
+#include "P2BPerspectiveTests.inc"
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -2011,7 +2081,7 @@ static void Compatibility() {
     st.second=quad;gt.second=quad;
     sw->OperatePerspective(copy,1,expected.get(),nullptr,tTVPRect(0,0,9,7),quad,tRenderTexQuadArray(&st,1));
     gpu->OperatePerspective(copy,1,actual.get(),nullptr,tTVPRect(0,0,9,7),quad,tRenderTexQuadArray(&gt,1));
-    Compare(expected.get(),actual.get(),0,"perspective fallback");
+    Compare(expected.get(),actual.get(),0,"perspective Copy supported rectangle");
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),3);
     Operation(sw,copy,expected.get(),tTVPRect(1,1,8,6),ss.get(),tTVPRect(0,0,9,7));
     Operation(gpu,copy,actual.get(),tTVPRect(1,1,8,6),gs.get(),tTVPRect(0,0,9,7));
@@ -2109,6 +2179,7 @@ static void InvalidOperationKinds(iTVPRenderBackend& backend) {
     CapabilityAuditTests(true); // Also audit with live, resident GPU resources.
     const TVPLayerRect rect{0,0,5,3};
     TVPLayerAffineCopy affine; affine.clip=affine.sourceCrop=rect;
+    TVPLayerPerspectiveQuad perspective;perspective.clip=rect;perspective.inverse[0]=perspective.inverse[4]=perspective.inverse[8]=1;
 #ifdef TEST_NATIVE_METAL
     const auto submits=testMetalSubmits, waits=testMetalWaits, blits=testMetalBlits;
 #endif
@@ -2117,6 +2188,7 @@ static void InvalidOperationKinds(iTVPRenderBackend& backend) {
         TVPLayerOperation op; op.kind=kind;
         Require(!backend.OperateLayerRect(op,target,rect,target,rect,0),"invalid kind encoded a rectangle");
         Require(!backend.OperateLayerAffine(op,target,affine,target,0),"invalid kind encoded affine");
+        Require(!backend.OperateLayerPerspective(op,target,&perspective,1,target,0),"invalid kind encoded perspective");
         Require(!backend.OperateLayerRectDualSource(op,target,rect,target,rect,target,rect),"invalid kind encoded dual-source");
         Require(!backend.OperateLayerRectTripleSource(op,target,rect,target,rect,target,rect,target,rect),"invalid kind encoded triple-source");
     }
@@ -2247,7 +2319,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

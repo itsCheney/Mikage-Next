@@ -50,8 +50,10 @@ complete Layer acceleration or lower memory use.
 The Layer suite also covers the P2A prepared affine blend domain. Nonrectangular
 Alpha/ConstAlpha/AdditiveAlpha and Photoshop quads use compute with GPU snapshots;
 ordinary rectangular shortcuts keep their tile/compute routing. These tests remain
-distinct from the compositor's general mesh tests and do not establish perspective
-or arbitrary ordinary Layer triangle support.
+distinct from the compositor's general mesh tests. P2B perspective tests in the
+Layer suite use the production inverse-homography compute kernel on Apple and
+verify ordered transactional quad batches; arbitrary ordinary Layer triangles
+remain outside this domain. Portable results do not compile that native kernel.
 
 When the host enables the `MIKAGE_METAL_DIAGNOSTICS` SDL hint, the backend samples
 at most one command buffer per second. `metal.gpuCommandBuffer` reports the

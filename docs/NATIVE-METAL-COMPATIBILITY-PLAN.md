@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收；P1A/P1B 已提交，用户报告测试暂未发现异常；P2A 已完成本地实现与 portable 验证，新 Apple/真机回归待验；P2B、P3–P5 尚未实施。**
+日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收；P1A/P1B/P2A 已提交，用户报告测试暂未发现问题；P2B 已完成本地实现与 portable 验证，新 Apple/真机回归待验；P3–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -92,7 +92,7 @@
 | 当前有 GPU 描述符的名称 | 70 | 65 条显式映射，加 5 个共享对象别名；均仍有执行限制 |
 | 当前软件存在、但无 GPU 描述符 | **0** | P1B 11 项矩形描述符已补齐；不代表全几何 GPU 支持 |
 | 旧 GL 注册名称 | 77 | 四类注册入口合并、去重；包括条件分支的名称集合 |
-| 旧 GL 名称在当前有 GPU 描述符 | 62 | P1A/P1B 新增 24 项；`PerspectiveAlphaBlend_a` 的透视执行仍回退 |
+| 旧 GL 名称在当前有 GPU 描述符 | 62 | P1A/P1B 新增 24 项；P2B 已接入 `PerspectiveAlphaBlend_a` 的受限透视执行 |
 | 旧 GL 名称在当前只有软件实现 | 0 | 15 个未注册历史扩展仍未恢复 |
 | 旧 GL 名称当前软件层也未注册 | **15** | 染色/AlphaTest 兼容能力；不能算普通 shader mapping 缺失 |
 
@@ -121,7 +121,7 @@
 | 双源 SD | `ConstAlphaBlend_SD`、`_d`、`_a`，同尺寸矩形 | 错位源目标别名保留回退；单输入 `AlphaBlend_SD` 的 alpha=0 契约另行处理 |
 | Universal transition | 普通、`_d`、`_a` 的三源 GPU 路径 | 两个 RGBA 源加 R8 rule、同尺寸与合法源范围；不是所有 CPU transition 都由此覆盖 |
 | affine | 两三角形、Copy 及 Alpha/ConstAlpha/AdditiveAlpha/Ps 单源兼容路径 | P2A 本地完成；镜像扫描线、非整数源、其他过滤器保留回退；原生顺序/像素及 tile affine 优化待验 |
-| perspective | 软件执行；方法对象可有 Alpha 描述符 | 无 Metal 几何入口，所有调用仍回退 |
+| perspective | P2B：Copy 与 Alpha/ConstAlpha/AdditiveAlpha/Ps 单 RGBA 源逆映射 compute | 本地完成；其它方法、过滤器、超限批次、矩形错位自别名等仍软件；新 Apple/真机待验 |
 | blur | 两 pass sliding sums；两个名称共用当前软件公式 | 64 MiB sums 限额、无缩放、完整合法 ROI；大图/裁剪等仍可能回退 |
 | R8 | mask/rule 资源及 ColorMap/RemoveOpacity 输入 | RemoveOpacity 限同尺寸正向合法 ROI；不等于任意 Gray/province 目标均支持 GPU 运算 |
 | CPU/GPU 一致性 | COW、dirty region、point cache、CPU lease、会话隔离 | 新算子必须正确声明 alpha 变化、源依赖及写 ROI，不能绕过这些机制 |
@@ -253,12 +253,14 @@
 
 ### P2B：新增真正的 Perspective GPU 路径
 
-- [ ] 在通用 backend 接口中增加透视描述与能力入口，默认实现返回不支持，避免影响其他后端。
-- [ ] 从现有 `GetPerspectiveTransform`/`WarpPerspectiveRGBA` 提取并测试输入坐标、矩阵方向和边界契约；不要为此重新引入 OpenCV。
-- [ ] 选择逆映射 compute 或正确透视插值的 raster 路径；先满足当前单输入语义。选择依据是像素结果和样例，不把两三角形 affine 当作透视。
-- [ ] `PerspectiveAlphaBlend_a` 已共享 Alpha 描述符；需要补的是执行路由与坐标处理，不是重复注册同名对象。
-- [ ] 测试 identity、平移、倾斜四边形、强透视、多 quad、部分越界、退化矩阵、w/分母接近零、反向顶点与纹理别名。
-- [ ] 审计现有软件矩形特判及 quad 顶点索引；若参考实现有问题，先记录并修复行为，再把它用于 Metal 验收。
+2026-10-06 本地签收：Copy 与 P2A 的 19 个混合 kind 接入单 RGBA 源 perspective，32 个名称/别名参与测试；MetalLayer 2/2、MetalRenderBackend 1/1 通过，共 78,622 次精确表面比较，见 [P2B 基线](NATIVE-METAL-P2B-BASELINE.md)。支持域外的有效输入仍软件；新原生/真机验证待验。
+
+- [x] 新增 quad 描述与默认 false 的通用 batch 入口；最多 256 quad 的 Metal 事务，失败在真实目标提交前返回。
+- [x] 共用原 Gaussian 求解与 3×3 inverse，固定 LT/RT/LB/RB、右/下 +1、whole-source、clip-relative centers 与透明边界；不引入 OpenCV。
+- [x] 使用真正逆 homography compute 与共用像素函数；按 quad 次序更新 scratch，最后提交真实目标，不用 affine 两三角形替代透视。
+- [x] 沿用 `PerspectiveAlphaBlend_a` 共享对象与描述符，不新增注册或 kind 编号。
+- [x] 精确回归覆盖 identity/变换/强透视/反射、源目标裁剪、分母、混合多 quad/alias、失败原子性、COW/cache/lease 与无中途读回的排队批次。
+- [x] 修复软件矩形 point2/point3 错误、不相交误 warp、晚 quad 非法输入与未初始化矩阵、负过滤器和非有限采样；独立参照确认新行为。
 
 验收：当前合法单输入透视场景留在 GPU；多 quad 不越界、不相互污染参数；覆盖边缘和采样的差异有逐项结论；异常输入不会在部分修改目标后再次软件渲染。
 
@@ -398,13 +400,13 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 允许声明核心路线完成的条件是 P0/P1/P2/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
 
-## 9. 初始审计与 P0/P1A/P1B/P2A 实施状态
+## 9. 初始审计与 P0/P1A/P1B/P2A/P2B 实施状态
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0/P1A/P1B 已完成并提交；用户报告既有版本测试暂未发现异常。P1B 补齐 11 项 Ps 方法、真实三表资源与独立上传统计，能力审计为 70/70/0/15。P2A 在三层干净 HEAD 上接入 affine 混合、明确 target/reference/alias/alpha 契约、细化诊断并完成两套本地 CTest；P2A 改动未提交，证据见独立 P2A 记录。
+P0/P1A/P1B/P2A 已完成并提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A 接入 affine 混合与明确资源契约。P2B 在三层干净 HEAD 上修复软件透视参照，新增事务 compute 路径与诊断并完成两套本地 CTest；P2B 未提交，证据见独立 P2B 记录。
 
-仍未完成：P2B、P3–P5，新增 P2A 的原生 MSL/GPU 像素、Apple device/simulator 构建与真机像素/性能/热状态基线，以及旧 GL 实际运行。既有版本反馈不替代新增 P2A 的设备验收；P2 整体签收仍要求 perspective 和几何边界证据。
+仍未完成：P3–P5，新增 P2B 的原生 MSL/GPU 像素、Apple device/simulator 构建与真机像素/性能/热状态基线，以及旧 GL 实际运行。P2 本地支持域与拒绝反例已记录，整体签收仍需新原生与设备证据；既有版本反馈不替代 P2B 验收。
 
 ## 附录 A：完整名称对照
 
@@ -462,7 +464,7 @@ P0/P1A/P1B 已完成并提交；用户报告既有版本测试暂未发现异常
 | `MulBlend` | 2999 | 有 | 已映射：`Mul` | P1A 独立对象/flags；当前保留 alpha |
 | `MulBlend_HDA` | 3006 | 有 | 已映射：`Mul`，HDA flag | P1A 独立对象/flags；保留 alpha |
 | `MultiplyAlpha` | — | 有 | 已映射：`MultiplyAlpha` | 保留并回归 |
-| `PerspectiveAlphaBlend_a` | 2923 | 有 | 共享 `AlphaBlend_a` 对象 | P2B：透视执行仍回退 |
+| `PerspectiveAlphaBlend_a` | 2923 | 有 | 共享 `AlphaBlend_a` 对象 | P2B：单 RGBA 源透视支持域本地完成，Apple/真机待验 |
 | `PsAddBlend` | 3058 | 有 | 已映射：`PsAdd` | P1B 本地完成；Apple/真机待验 |
 | `PsAddBlend_color` | 3066 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `PsAddBlend_color_AlphaTest` | 3068 | 无 | 当前未注册 | P4：按调用需求恢复 |

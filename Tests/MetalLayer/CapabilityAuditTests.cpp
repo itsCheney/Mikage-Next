@@ -163,8 +163,8 @@ void WriteGpuContract(std::ostream& out, const TVPLayerOperation& operation) {
         << ",\"geometry\":{\"rect\":" << Bool(traits->geometries & TVP_LAYER_GEOMETRY_RECT)
         << ",\"affineCopySubset\":" << Bool((traits->geometries & TVP_LAYER_GEOMETRY_AFFINE_COPY_SUBSET) && operation.flags == 0)
         << ",\"affineBlendSubset\":" << Bool((traits->geometries & TVP_LAYER_GEOMETRY_AFFINE_BLEND_SUBSET) && TVPLayerOperationSupportsAffine(operation))
-        << ",\"perspective\":false,\"arbitraryTriangles\":false}"
-        << ",\"limitations\":" << Quote("Descriptor is semantic metadata, not an execution guarantee. Existing format, extent, sampling, opacity, source-range, alias, CPU residency and backend checks still apply; affine is Copy/flags=0 or declared blend families, one RGBA source, count=2, integer forward ROI, stretch 0..2 and accepted quad/clip only. Blend rectangle aliases require the same pixel rectangle; nonrectangular aliases use a source snapshot; triangle reference is ignored.") << '}';
+        << ",\"perspective\":" << Bool(TVPLayerOperationSupportsPerspective(operation)) << ",\"arbitraryTriangles\":false}"
+        << ",\"limitations\":" << Quote("Descriptor is semantic metadata, not an execution guarantee. Existing format, extent, sampling, opacity, source-range, alias, CPU residency and backend checks still apply; affine is Copy/flags=0 or declared blend families, one RGBA source, count=2, integer forward ROI, stretch 0..2 and accepted quad/clip only. Perspective is Copy/flags=0 or the 19 declared blend families, at most 256 quads, one whole RGBA source, stretch 0..2 and finite bounded inverse coefficients. Perspective rectangular source aliases require the exact destination pixel rectangle even for Copy; nonrectangular aliases snapshot each ordered prefix. Triangle and perspective reference are ignored. Native P2B MSL compilation and GPU ordering remain pending Apple validation.") << '}';
 }
 void WriteSoftwareContract(std::ostream& out, const SoftwareContract* c) {
     if (!c) { out << "null"; return; }
