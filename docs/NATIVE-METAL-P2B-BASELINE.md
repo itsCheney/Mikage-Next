@@ -71,3 +71,11 @@ Portable double 执行生产坐标/采样 helper，再用初始化的软件方�
 三层原始 patch 在被忽略的 `build/native-metal-p2b-baseline/{main,runtime,core}.patch`，包含新增文件、排除 metadata 自身；只做 reverse-check，不修改 Git。CTest 由 PowerShell 保存。
 
 待验：新 P2B macOS Objective-C++/生产 MSL、默认 tile 与强制 compute 整套原生回归、真实批次快照/顺序/提交及资源失败；iOS device/simulator framework/App 重建；新真机画面、透明/输入、生命周期、内存、帧时间和热状态。旧 CI/P2A 反馈不替代新增 P2B 验收。P3 通用三角形与 P4/P5 未实施。
+
+## Apple CI 编译补修：2026-10-06
+
+用户提供 Xcode 26.6 / AppleClang 21 的 `Build and test native Metal backend` 日志：`fullTarget(id<MTLTexture>&)` 参数被 ARC 推导为 autoreleasing，与三个 strong 缓存成员不匹配，产生三个编译错误。现显式声明 `id<MTLTexture> __strong&`，匹配缓存成员所有权；分配、复用、失败事务和渲染算法不变。`fastMathEnabled` 的弃用警告不是此次失败原因。
+
+补修开始时三层 HEAD 为主仓库 `83c343b9ad2c4a0af74f36a3778c496b822703f3`、runtime `4bb67e1f46e8d7b86940b440efd23119ee28727f`、core `105a7be86b600bb251d3c846c17eff2b51eed92e`，工作区干净；补修尚未提交或推送。用户日志未包含 run URL/完整 SHA，不能据此绑定原生测试结果到新修复。
+
+同类引用检查只找到这一处。Windows 两套 CTest 回归通过（2/2、1/1）；日志位于本地忽略目录 `build/p2b-arc-layer-tests.log` 与 `build/p2b-arc-backend-tests.log`。Windows 不编译 Objective-C++，这些回归不验证 ARC 修复。尝试配置的 Mac 只读验证时，SSH 连接被关闭；Apple 完整构建和 MSL/GPU 验证仍待后续 CI。
