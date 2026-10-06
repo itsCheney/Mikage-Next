@@ -36,6 +36,7 @@ void TriangleProfileTests();
 void CompilationFailureTests();
 void OperationContractTests();
 void P1AShaderTests();
+void P1BShaderTests();
 void P1AGammaTests(iTVPRenderBackend*);
 uint32_t TVPTestP1AGammaPixel(uint32_t,const TVPLayerOperation&,const uint8_t*);
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
@@ -76,9 +77,21 @@ class DeviceDouble : public iTVPRenderBackend {
 public:
     bool rejectTripleSource=false;
     bool rejectGamma=false;
+    bool rejectPsTables=false;
+    bool psTablesReady=false;
+    std::array<uint8_t,196608> psTables{};
     TVPLayerParameterUploadStats parameterUploads;
     std::array<std::shared_ptr<const TVPLayerGammaLUT>,2> gammaCaches;
     TVPLayerParameterUploadStats GetLayerParameterUploadStats() const override { return parameterUploads; }
+    bool SetLayerPsTables(const uint8_t* soft,const uint8_t* dodge,const uint8_t* burn) override {
+        if(rejectPsTables || !soft || !dodge || !burn) return false;
+        if(psTablesReady && !std::memcmp(psTables.data(),soft,65536) &&
+           !std::memcmp(psTables.data()+65536,dodge,65536) && !std::memcmp(psTables.data()+131072,burn,65536)) return true;
+        std::memcpy(psTables.data(),soft,65536); std::memcpy(psTables.data()+65536,dodge,65536);
+        std::memcpy(psTables.data()+131072,burn,65536); psTablesReady=true;
+        ++parameterUploads.psTableUploads; parameterUploads.psTableUploadedBytes+=psTables.size();
+        return true;
+    }
     uint64_t asyncRequests=0, syncRegionReads=0, alphaSerial=1;
     uint64_t simulatedReadWaitNS=0;
     uint64_t GetLastReadbackWaitNanoseconds() const override { return simulatedReadWaitNS; }
@@ -170,6 +183,7 @@ public:
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
         const auto* traits=TVPGetLayerOperationTraits(op.kind);
         if(!traits || traits->backendInputCount>1) return false;
+        if((traits->parameterResources&TVP_LAYER_RESOURCE_PS_TABLES) && !psTablesReady) return false;
         if(TVPLayerOperationRequiresForwardSource(op.kind) && (src.Width()<=0 || src.Height()<=0)) return false;
         if(op.kind==TVPLayerOperationKind::AdjustGamma) {
             if(rejectGamma || !op.gammaLUT || !target) return false;
@@ -222,6 +236,17 @@ public:
             case TVPLayerOperationKind::RemoveOpacity: name="RemoveOpacity"; break;
             case TVPLayerOperationKind::AdditiveAlphaToAlpha: name="AdditiveAlphaToAlpha"; break;
             case TVPLayerOperationKind::AlphaSD: name="AlphaBlend_SD"; break;
+            case TVPLayerOperationKind::PsAlpha: name="PsAlphaBlend"; break;
+            case TVPLayerOperationKind::PsAdd: name="PsAddBlend"; break;
+            case TVPLayerOperationKind::PsSub: name="PsSubBlend"; break;
+            case TVPLayerOperationKind::PsSoftLight: name="PsSoftLightBlend"; break;
+            case TVPLayerOperationKind::PsColorDodge: name="PsColorDodgeBlend"; break;
+            case TVPLayerOperationKind::PsColorBurn: name="PsColorBurnBlend"; break;
+            case TVPLayerOperationKind::PsLighten: name="PsLightenBlend"; break;
+            case TVPLayerOperationKind::PsDarken: name="PsDarkenBlend"; break;
+            case TVPLayerOperationKind::PsDiff: name="PsDiffBlend"; break;
+            case TVPLayerOperationKind::PsDiff5: name="PsDiff5Blend"; break;
+            case TVPLayerOperationKind::PsExclusion: name="PsExclusionBlend"; break;
             default:
                 name=op.kind==TVPLayerOperationKind::Alpha ? "AlphaBlend" : op.kind==TVPLayerOperationKind::ConstAlpha ? "ConstAlphaBlend" : "ApplyColorMap";
                 break;
@@ -540,11 +565,13 @@ static void Synchronization() {
     auto* gray=gpu->GetRenderMethod("PsAlphaBlend");
     auto* sw=TVPGetSoftwareRenderManager(); auto expected=Create(sw,9,7,TVPTextureFormat::RGBA,image);
     auto actual=Create(gpu,9,7,TVPTextureFormat::RGBA,image);
+    actual->GetPersistentCPUData(true);
     auto beforeFallback=TVPGetMetalLayerRenderStats().cpuFallbacks;
     Operation(sw,gray,expected.get(),tTVPRect(0,0,9,7),expected.get(),tTVPRect(0,0,9,7));
     Operation(gpu,gray,actual.get(),tTVPRect(0,0,9,7),actual.get(),tTVPRect(0,0,9,7));
     Require(TVPGetMetalLayerRenderStats().cpuFallbacks==beforeFallback+1,"unsupported operator did not fall back");
     Compare(expected.get(),actual.get(),0,"software fallback");
+    actual->ReleasePersistentCPUData(nullptr);
     actual->GetTextureHandle();
     Require(actual->GetPoint(0,0)==expected->GetPoint(0,0),"fallback upload cache failed");
 }
@@ -1123,6 +1150,123 @@ static void P1ARectangles(iTVPRenderBackend* backend) {
     std::cout<<"PASS P1A resident rectangles, ROI, mask rejection, alias order and failure routing\n";
 }
 
+static void P1BRectangles(iTVPRenderBackend* backend) {
+    auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
+    const char* names[]={"PsAlphaBlend","PsAddBlend","PsSubBlend","PsSoftLightBlend","PsColorDodgeBlend",
+        "PsColorBurnBlend","PsLightenBlend","PsDarkenBlend","PsDiffBlend","PsDiff5Blend","PsExclusionBlend"};
+    const auto tablesBefore=backend->GetLayerParameterUploadStats();
+#ifndef TEST_NATIVE_METAL
+    // Force first-session table provisioning to fail before any target writes.
+    auto* device=static_cast<DeviceDouble*>(backend); device->rejectPsTables=true;
+    auto* soft=gpu->GetRenderMethod("PsSoftLightBlend"); soft->SetParameterOpa(0,128);
+    auto pixels=Image(19,15,4,23),destination=Image(19,15,4,47);
+    auto ss=Create(sw,19,15,TVPTextureFormat::RGBA,pixels),gs=Create(gpu,19,15,TVPTextureFormat::RGBA,pixels);
+    auto sd=Create(sw,19,15,TVPTextureFormat::RGBA,destination),gd=Create(gpu,19,15,TVPTextureFormat::RGBA,destination);
+    gs->GetTextureHandle(); gd->GetTextureHandle();
+    const tTVPRect rect(1,1,17,14);
+    Operation(sw,soft,sd.get(),rect,ss.get(),rect);
+    const auto failureBefore=TVPGetMetalLayerRenderStats();
+    Operation(gpu,soft,gd.get(),rect,gs.get(),rect);
+    const auto failureAfter=TVPGetMetalLayerRenderStats();
+    Require(failureAfter.cpuFallbacks==failureBefore.cpuFallbacks+1 &&
+            failureAfter.psTableUploads==failureBefore.psTableUploads &&
+            failureAfter.gpuRejectCountByReason[int(TVPLayerGPURejectReason::PsTables)]==
+                failureBefore.gpuRejectCountByReason[int(TVPLayerGPURejectReason::PsTables)]+1,
+            "PS table failure did not retain exact software fallback/reason");
+    Compare(sd.get(),gd.get(),0,"PS table resource fallback");
+    device->rejectPsTables=false;
+#endif
+    for(auto* name:names) for(int opacity:{0,1,63,127,128,191,254,255}) {
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,opacity);
+        auto image=Image(19,15,4,71),output=Image(19,15,4,91);
+        auto ss=Create(sw,19,15,TVPTextureFormat::RGBA,image),gs=Create(gpu,19,15,TVPTextureFormat::RGBA,image);
+        auto sd=Create(sw,19,15,TVPTextureFormat::RGBA,output),gd=Create(gpu,19,15,TVPTextureFormat::RGBA,output);
+        gs->GetTextureHandle(); gd->GetTextureHandle();
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+        sw->SetParameterInt(sw->EnumParameterID("StretchType"),0);
+        const tTVPRect dst(3,2,16,13),src(1,1,14,12);
+        Operation(sw,method,sd.get(),dst,ss.get(),src);
+        const auto before=TVPGetMetalLayerRenderStats();
+        Operation(gpu,method,gd.get(),dst,gs.get(),src);
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "resident PS blend transferred pixels or fell back");
+        Compare(sd.get(),gd.get(),0,name);
+    }
+    const auto tablesAfter=backend->GetLayerParameterUploadStats();
+    Require(tablesAfter.psTableUploads>=tablesBefore.psTableUploads &&
+            tablesAfter.psTableUploads<=tablesBefore.psTableUploads+1 &&
+            tablesAfter.psTableUploadedBytes-tablesBefore.psTableUploadedBytes==
+                196608*(tablesAfter.psTableUploads-tablesBefore.psTableUploads),
+            "PS tables uploaded per operation or were billed as wrong-sized parameters");
+    Require(backend->SetLayerPsTables(TVPGetPsBlendTable(0),TVPGetPsBlendTable(1),TVPGetPsBlendTable(2)),
+            "repeat PS table supply failed");
+    Require(backend->GetLayerParameterUploadStats().psTableUploads==tablesAfter.psTableUploads,
+            "identical PS tables uploaded twice");
+    Require(!backend->SetLayerPsTables(nullptr,TVPGetPsBlendTable(1),TVPGetPsBlendTable(2)) &&
+            backend->GetLayerParameterUploadStats().psTableUploads==tablesAfter.psTableUploads,
+            "invalid PS table supply modified the retained resource");
+    for(auto* name:names) {
+        auto* method=gpu->GetRenderMethod(name); method->SetParameterOpa(0,191);
+        for(int sampling:{0,1}) {
+            std::vector<uint8_t> image(7*5*4); const uint32_t value=0xb79fa3c7;
+            for(size_t i=0;i<image.size();i+=4) std::memcpy(image.data()+i,&value,4);
+            auto output=Image(19,15,4,41);
+            auto ss=Create(sw,7,5,TVPTextureFormat::RGBA,image),gs=Create(gpu,7,5,TVPTextureFormat::RGBA,image);
+            auto sd=Create(sw,19,15,TVPTextureFormat::RGBA,output),gd=Create(gpu,19,15,TVPTextureFormat::RGBA,output);
+            gs->GetTextureHandle(); gd->GetTextureHandle();
+            gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),sampling);
+            sw->SetParameterInt(sw->EnumParameterID("StretchType"),sampling);
+            const tTVPRect dst(-2,-1,17,14),src(0,0,7,5);
+            Operation(sw,method,sd.get(),dst,ss.get(),src);
+            const auto before=TVPGetMetalLayerRenderStats();
+            Operation(gpu,method,gd.get(),dst,gs.get(),src);
+            const auto after=TVPGetMetalLayerRenderStats();
+            Require(after.cpuFallbacks==before.cpuFallbacks && after.readbackBytes==before.readbackBytes &&
+                    after.uploadedBytes==before.uploadedBytes,"PS clipped scale left residency");
+            Compare(sd.get(),gd.get(),0,"PS uniform-source clip/scale routing");
+        }
+        gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
+        sw->SetParameterInt(sw->EnumParameterID("StretchType"),0);
+        for(bool shifted:{false,true}) {
+            auto image=Image(19,15,4,17);
+            auto sd=Create(sw,19,15,TVPTextureFormat::RGBA,image),gd=Create(gpu,19,15,TVPTextureFormat::RGBA,image);
+            const tTVPRect dst(2,2,16,13),src=shifted?tTVPRect(1,1,15,12):dst;
+            Operation(sw,method,sd.get(),dst,sd.get(),src);
+            const auto before=TVPGetMetalLayerRenderStats();
+            Operation(gpu,method,gd.get(),dst,gd.get(),src);
+            const auto after=TVPGetMetalLayerRenderStats();
+            Require(after.cpuFallbacks==before.cpuFallbacks+(shifted?1:0),"PS alias order domain changed");
+            Compare(sd.get(),gd.get(),0,"PS alias/order");
+        }
+        auto image=Image(19,15,4,63);
+        auto source=Create(gpu,19,15,TVPTextureFormat::RGBA,image),target=Create(gpu,19,15,TVPTextureFormat::RGBA,image);
+        auto unchanged=Create(sw,19,15,TVPTextureFormat::RGBA,image);
+        source->GetTextureHandle(); target->GetTextureHandle();
+        bool rejected=false; const auto before=TVPGetMetalLayerRenderStats();
+        try { Operation(gpu,method,target.get(),tTVPRect(1,1,8,6),source.get(),tTVPRect(8,1,1,6)); }
+        catch(const std::exception&) { rejected=true; }
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(rejected && after.gpuOperations==before.gpuOperations && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "PS mirror reached an undefined software/GPU domain");
+        Compare(unchanged.get(),target.get(),0,"PS mirror rejection");
+        auto* pointer=static_cast<uint32_t*>(target->GetPersistentCPUData(true));
+        const uint32_t pixel=0x40112233; pointer[2*19+2]=pixel;
+        auto expected=image; std::memcpy(expected.data()+(2*19+2)*4,&pixel,4);
+        auto sd=Create(sw,19,15,TVPTextureFormat::RGBA,expected);
+        const tTVPRect roi(1,1,8,6); Operation(sw,method,sd.get(),roi,source.get(),roi);
+        const auto pinBefore=TVPGetMetalLayerRenderStats();
+        Operation(gpu,method,target.get(),roi,source.get(),roi);
+        Require(TVPGetMetalLayerRenderStats().cpuFallbacks==pinBefore.cpuFallbacks+1 &&
+                target->GetPersistentCPUData(true)==pointer,"PS blend broke a CPU lease/pointer");
+        Compare(sd.get(),target.get(),0,"PS pinned CPU fallback");
+        target->ReleasePersistentCPUData(nullptr);
+    }
+    std::cout<<"PASS P1B residency, immutable PS tables, ROI, alias order, mirrors and CPU leases\n";
+}
+
 static void MaskAndBlurOperations() {
     auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
     auto image=Image(17,13,4,47),destination=Image(17,13,4,13);
@@ -1308,7 +1452,7 @@ static void ReadbackAttribution() {
         Operation(gpu,fill,t.get(),tTVPRect(0,0,16,12),nullptr,tTVPRect());
         auto before=count(TVPLayerReadbackSource::Fallback);
         auto* gray=gpu->GetRenderMethod("PsAlphaBlend");
-        Operation(gpu,gray,t.get(),tTVPRect(0,0,16,12),t.get(),tTVPRect(0,0,16,12));
+        Operation(gpu,gray,t.get(),tTVPRect(1,1,16,12),t.get(),tTVPRect(0,0,15,11));
         Require(count(TVPLayerReadbackSource::Fallback)>before,"fallback readback not attributed");
     }
     // Scanline access after the GPU took ownership.
@@ -1959,7 +2103,7 @@ int main(int argc,char** argv) {
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
         if(!sessionCachesOnly) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
-            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests();
+            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests();
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2019,7 +2163,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

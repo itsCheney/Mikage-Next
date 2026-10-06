@@ -1,5 +1,5 @@
 // Minimal verified rectangular contracts for the original 24 P0 software gaps.
-// Retain these software semantics when P1A adds a GPU descriptor. Binding names
+// Retain these software semantics when P1A/P1B add GPU descriptors. Binding names
 // are production TVP function pointers, not
 // similarly named legacy tvpgl *_c routines. Valid domains below are baseline
 // fixture domains, not an assertion that every software geometry is safe.

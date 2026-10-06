@@ -565,6 +565,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "invalidGeometry:\(diagnosticStats.layerGPURejectInvalidGeometry)",
                     "unsupportedKind:\(diagnosticStats.layerGPURejectUnsupportedKind)",
                     "alphaTables:\(diagnosticStats.layerGPURejectAlphaTables)",
+                    "psTables:\(diagnosticStats.layerGPURejectPsTables)",
                     "backendFailure:\(diagnosticStats.layerGPURejectBackendFailure)",
                     "triangles:\(diagnosticStats.layerGPURejectTriangles)",
                     "perspective:\(diagnosticStats.layerGPURejectPerspective)"
@@ -822,6 +823,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerUploadedBytes": String(diagnosticStats.layerUploadedBytes),
                     "layerGammaLUTUploads": String(diagnosticStats.layerGammaLUTUploads),
                     "layerGammaLUTUploadedBytes": String(diagnosticStats.layerGammaLUTUploadedBytes),
+                    "layerPsTableUploads": String(diagnosticStats.layerPsTableUploads),
+                    "layerPsTableUploadedBytes": String(diagnosticStats.layerPsTableUploadedBytes),
                     "layerReadbackBytes": String(diagnosticStats.layerReadbackBytes),
                     "layerPointCacheHits": String(diagnosticStats.layerPointCacheHits),
                     "layerPointCacheMisses": String(diagnosticStats.layerPointCacheMisses),
@@ -887,6 +890,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerReadbackBytes: raw.layerReadbackBytes,
                 layerGammaLUTUploads: raw.layerGammaLUTUploads,
                 layerGammaLUTUploadedBytes: raw.layerGammaLUTUploadedBytes,
+                layerPsTableUploads: raw.layerPsTableUploads,
+                layerPsTableUploadedBytes: raw.layerPsTableUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
                 elapsedSeconds: elapsedSeconds
             )

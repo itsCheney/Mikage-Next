@@ -42,6 +42,7 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
     CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp
     P1AShaderTests.cpp
+    P1BShaderTests.cpp
     P1AGammaTests.cpp
     "${GENERATED_TRIANGLE_BRIDGE}" "${GENERATED_AFFINE_MATH}"
     UnivTransShaderTests.cpp "${GENERATED_UNIV_MATH}" "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}" ${TJS_SOURCES}

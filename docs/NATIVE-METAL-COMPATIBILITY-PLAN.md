@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05。状态：**P0 已验收（用户报告真机暂未发现异常）；P1A 已完成本地实现与 portable 验证，P1A Apple/真机回归待验；P1B、P2–P5 尚未实施。**
+日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收（用户报告真机暂未发现异常）；P1A/P1B 已完成本地实现与 portable 验证，Apple/真机回归待验；P2–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -62,7 +62,7 @@
 
 ## 3. 对原对话结论的逐项核实
 
-下表保留初始固定版本审计结论；P1A 实施后的最新数量见第 4.1 节，实际输出与兼容行为修复见 [P1A 记录](NATIVE-METAL-P1A-BASELINE.md)。
+下表保留初始固定版本审计结论；P1B 实施后的最新数量见第 4.1 节，实际输出见 [P1B 记录](NATIVE-METAL-P1B-BASELINE.md)，Gamma 兼容修复见 [P1A 记录](NATIVE-METAL-P1A-BASELINE.md)。
 
 | 原结论 | 核实结果 | 对实施的影响 |
 | --- | --- | --- |
@@ -88,15 +88,15 @@
 | 范围 | 数量 | 解释 |
 | --- | ---: | --- |
 | 当前软件层注册名称 | 70 | 展开注册宏后去重 |
-| 当前显式 GPU mapping 条目 | 54 | P1A 新增 13 条；包含部分共享对象的重复名称 |
-| 当前有 GPU 描述符的名称 | 59 | 54 条显式映射，加 5 个未列在表中的共享对象别名；均仍有执行限制 |
-| 当前软件存在、但无 GPU 描述符 | **11** | 剩余 P1B Photoshop 混合组 |
+| 当前显式 GPU mapping 条目 | 65 | P1A/P1B 新增 24 条；包含部分共享对象的重复名称 |
+| 当前有 GPU 描述符的名称 | 70 | 65 条显式映射，加 5 个共享对象别名；均仍有执行限制 |
+| 当前软件存在、但无 GPU 描述符 | **0** | P1B 11 项矩形描述符已补齐；不代表全几何 GPU 支持 |
 | 旧 GL 注册名称 | 77 | 四类注册入口合并、去重；包括条件分支的名称集合 |
-| 旧 GL 名称在当前有 GPU 描述符 | 51 | P1A 新增 13 项；`PerspectiveAlphaBlend_a` 的透视执行仍回退 |
-| 旧 GL 名称在当前只有软件实现 | 11 | 剩余 P1B 混合组 |
+| 旧 GL 名称在当前有 GPU 描述符 | 62 | P1A/P1B 新增 24 项；`PerspectiveAlphaBlend_a` 的透视执行仍回退 |
+| 旧 GL 名称在当前只有软件实现 | 0 | 15 个未注册历史扩展仍未恢复 |
 | 旧 GL 名称当前软件层也未注册 | **15** | 染色/AlphaTest 兼容能力；不能算普通 shader mapping 缺失 |
 
-核对恒等式：当前 `59 + 11 = 70`；旧 GL `51 + 11 + 15 = 77`。两边名称并集 85，见附录 A；P0 原始 `46/24` 记录保存在其独立基线中。
+核对恒等式：当前 `70 + 0 = 70`；旧 GL `62 + 0 + 15 = 77`。两边名称并集 85，见附录 A；P0 `46/24` 与 P1A `59/11` 记录保存在各自独立基线中。
 
 额外 5 个共享对象别名是 `AdditiveAlphaBlend_HDA`、`PsMulBlend_HDA`、`PsOverlayBlend_HDA`、`PsHardLightBlend_HDA`、`PerspectiveAlphaBlend_a`。`AlphaBlend_HDA` 已在显式 mapping 中，不再重复加。
 
@@ -107,11 +107,11 @@
 | 组 | 方法 | 数量 | 工作性质 |
 | --- | --- | ---: | --- |
 | 普通混合 | `SubBlend`、`MulBlend`、`MulBlend_HDA`、`ColorDodgeBlend`、`DarkenBlend`、`LightenBlend`、`ScreenBlend` | 7 | P1A 本地完成；矩形、参数与 alias 域已接入 |
-| Photoshop 混合 | `PsAlphaBlend`、`PsAddBlend`、`PsSubBlend`、`PsSoftLightBlend`、`PsColorDodgeBlend`、`PsColorBurnBlend`、`PsLightenBlend`、`PsDarkenBlend`、`PsDiffBlend`、`PsDiff5Blend`、`PsExclusionBlend` | 11 | 不同表函数、饱和/取整、源 alpha 与 opacity 顺序 |
+| Photoshop 混合 | `PsAlphaBlend`、`PsAddBlend`、`PsSubBlend`、`PsSoftLightBlend`、`PsColorDodgeBlend`、`PsColorBurnBlend`、`PsLightenBlend`、`PsDarkenBlend`、`PsDiffBlend`、`PsDiff5Blend`、`PsExclusionBlend` | 11 | P1B 本地完成；真实软件三表、整数公式与独立变体 |
 | 图像与透明度 | `RemoveOpacity`、`AdditiveAlphaToAlpha`、`AdjustGamma`、`AdjustGamma_a` | 4 | P1A 本地完成；R8 限同尺寸正向合法 ROI；Gamma owned LUT 与软件索引修复 |
 | SD 语义 | `AlphaBlend_SD`、`ConstAlphaBlend_SD_a` | 2 | P1A 本地完成；分别为单源 RGB/alpha=0、双源完整 ARGB 插值 |
 
-上述 24 项是初始审计时的软件方法缺口；P1A 已完成其中 13 项本地实现，余下 11 项 Ps 方法仍是明确的功能缺口。许多方法出现在 `tRenderMethodCache` 的 bm* 对应关系中，不需要先等某款游戏报错才决定是否实现。
+上述 24 项是初始审计时的软件方法缺口，P1A/P1B 均已完成其矩形描述符与本地实现。许多方法出现在 `tRenderMethodCache` 的 bm* 对应关系中；实际 GPU 路由仍有格式、几何、alias、lease、参数资源和 backend 限制。
 
 ### 4.3 已有能力仍受哪些条件限制
 
@@ -227,10 +227,12 @@
 
 ### P1B：补 Photoshop 混合 11 项
 
-- [ ] 实现第 4.2 节 Ps 组全部 11 项；按公式共享 helper，不按名称数量重复维护 shader。
-- [ ] `PsSoftLightBlend` 先核对软件表生成；若用 LUT，在同一提交内保证参数不变。
-- [ ] 分别验证 ColorDodge/ColorDodge5、Diff/Diff5、普通 blend/Ps blend，覆盖源 alpha 与 opacity 相乘先后的差别。
-- [ ] 扩展 tile、in-place compute、snapshot compute 对同一像素 helper 的调用，以及支持域声明。
+2026-10-06 本地签收：fetch 后三层 metal_dev 与 origin/metal_dev 均 0/0、文件 diff 为空、子模块指针一致；随后实施 P1B。MetalLayer 2/2 与 MetalRenderBackend 1/1 通过，新增 46,137,346 个精确 scalar 像素；原生 MSL/Apple/真机结果待验，见 [P1B 基线](NATIVE-METAL-P1B-BASELINE.md)。
+
+- [x] 实现第 4.2 节 Ps 组全部 11 项，共用 layerPsP1BPixel 整数 helper。
+- [x] SoftLight/Dodge/Burn 导出实际软件初始化表，196608-byte 三表包只读上传/缓存，命令保留旧资源，不重算 pow。
+- [x] 验证 ColorDodge/ColorDodge5、Diff/Diff5 与普通/Ps 的公式/alpha/opacity 次序，增加独立反例及端点断言。
+- [x] tile、in-place 与 snapshot compute 均绑定 buffer(3)；RGBA 正向单源矩形、same-pixel alias、错位软件回退与 pin/lease 域有测试。
 
 验收：与 P1A 合计 24 个缺口均完成矩形支持与反例回退；当前 70 个注册名称都有明确的 GPU 能力描述或经记录的限制。这里不宣布其所有几何和所有输入均 GPU 化。
 
@@ -394,13 +396,13 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 允许声明核心路线完成的条件是 P0/P1/P2/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
 
-## 9. 初始审计与 P0/P1A 实施状态
+## 9. 初始审计与 P0/P1A/P1B 实施状态
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0 实施已完成并提交；用户报告验收完成且真机暂未发现异常。P1A 已在其基础上实现 13 项矩形方法、Gamma 软件索引修复与不可变参数资源、独立上传统计及 70/59/11/15 能力审计；本地两套 CTest 通过。P1A 为当前三层 HEAD 上的未提交工作区改动，具体证据见 P1A 记录。
+P0/P1A 已完成并提交；用户报告 P0 真机暂未发现异常。P1B 在与远端一致的三层 HEAD 上补齐 11 项 Ps 方法、真实三表资源与独立上传统计，能力审计为 70/70/0/15，本地两套 CTest 通过；P1B 改动未提交，具体证据见 P1B 记录。
 
-仍未完成：P1B/P2–P5、P1A 原生 MSL 编译与 GPU 像素、最新 Apple CI/device/simulator 构建、旧 GL 实际运行及本轮真机像素/性能/热状态基线。P0 真机反馈和保存的历史资料不作为 P1A 新改动的设备验收证据。
+仍未完成：P2–P5、P1A/P1B 原生 MSL/GPU 像素、最新 Apple CI/device/simulator 构建、旧 GL 实际运行及新真机像素/性能/热状态基线。P0 真机反馈和历史资料不替代 P1A/P1B 新改动的设备验收。
 
 ## 附录 A：完整名称对照
 
@@ -459,20 +461,20 @@ P0 实施已完成并提交；用户报告验收完成且真机暂未发现异�
 | `MulBlend_HDA` | 3006 | 有 | 已映射：`Mul`，HDA flag | P1A 独立对象/flags；保留 alpha |
 | `MultiplyAlpha` | — | 有 | 已映射：`MultiplyAlpha` | 保留并回归 |
 | `PerspectiveAlphaBlend_a` | 2923 | 有 | 共享 `AlphaBlend_a` 对象 | P2B：透视执行仍回退 |
-| `PsAddBlend` | 3058 | 有 | 无 GPU 描述符 | P1B |
+| `PsAddBlend` | 3058 | 有 | 已映射：`PsAdd` | P1B 本地完成；Apple/真机待验 |
 | `PsAddBlend_color` | 3066 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `PsAddBlend_color_AlphaTest` | 3068 | 无 | 当前未注册 | P4：按调用需求恢复 |
-| `PsAlphaBlend` | 2917 | 有 | 无 GPU 描述符 | P1B |
-| `PsColorBurnBlend` | 3175 | 有 | 无 GPU 描述符 | P1B |
+| `PsAlphaBlend` | 2917 | 有 | 已映射：`PsAlpha` | P1B 本地完成；Apple/真机待验 |
+| `PsColorBurnBlend` | 3175 | 有 | 已映射：`PsColorBurn`，三表资源 | P1B 本地完成；Apple/真机待验 |
 | `PsColorDodge5Blend` | 3168 | 有 | 已映射：`PsColorDodge5` | 保留并回归 |
-| `PsColorDodgeBlend` | 3159 | 有 | 无 GPU 描述符 | P1B |
-| `PsDarkenBlend` | 3190 | 有 | 无 GPU 描述符 | P1B |
-| `PsDiff5Blend` | 3202 | 有 | 无 GPU 描述符 | P1B |
-| `PsDiffBlend` | 3196 | 有 | 无 GPU 描述符 | P1B |
-| `PsExclusionBlend` | 3209 | 有 | 无 GPU 描述符 | P1B |
+| `PsColorDodgeBlend` | 3159 | 有 | 已映射：`PsColorDodge`，三表资源 | P1B 与 Dodge5 分开验证 |
+| `PsDarkenBlend` | 3190 | 有 | 已映射：`PsDarken` | P1B 本地完成；Apple/真机待验 |
+| `PsDiff5Blend` | 3202 | 有 | 已映射：`PsDiff5` | P1B 源先 fade 再 difference |
+| `PsDiffBlend` | 3196 | 有 | 已映射：`PsDiff` | P1B difference 后插值 |
+| `PsExclusionBlend` | 3209 | 有 | 已映射：`PsExclusion` | P1B 本地完成；Apple/真机待验 |
 | `PsHardLightBlend` | 3143 | 有 | 已映射：`PsHardLight` | 保留并回归 |
 | `PsHardLightBlend_HDA` | — | 有 | 共享 `PsHardLightBlend` 对象 | 保留别名测试 |
-| `PsLightenBlend` | 3184 | 有 | 无 GPU 描述符 | P1B |
+| `PsLightenBlend` | 3184 | 有 | 已映射：`PsLighten` | P1B 本地完成；Apple/真机待验 |
 | `PsMulBlend` | 3110 | 有 | 已映射：`PsMul` | 保留并回归 |
 | `PsMulBlend_HDA` | — | 有 | 共享 `PsMulBlend` 对象 | 保留别名测试 |
 | `PsMulBlend_color` | 3120 | 无 | 当前未注册 | P4：按调用需求恢复 |
@@ -482,8 +484,8 @@ P0 实施已完成并提交；用户报告验收完成且真机暂未发现异�
 | `PsScreenBlend` | 3219 | 有 | 已映射：`PsScreen` | 保留并回归 |
 | `PsScreenBlend_color` | 3228 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `PsScreenBlend_color_AlphaTest` | 3231 | 无 | 当前未注册 | P4：按调用需求恢复 |
-| `PsSoftLightBlend` | 3151 | 有 | 无 GPU 描述符 | P1B |
-| `PsSubBlend` | 3083 | 有 | 无 GPU 描述符 | P1B |
+| `PsSoftLightBlend` | 3151 | 有 | 已映射：`PsSoftLight`，三表资源 | P1B 使用真实初始化软件表 |
+| `PsSubBlend` | 3083 | 有 | 已映射：`PsSub` | P1B 本地完成；Apple/真机待验 |
 | `PsSubBlend_color` | 3091 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `PsSubBlend_color_AlphaTest` | 3093 | 无 | 当前未注册 | P4：按调用需求恢复 |
 | `RemoveConstOpacity` | 2683 | 有 | 已映射：`RemoveConstOpacity` | 保留并回归 |

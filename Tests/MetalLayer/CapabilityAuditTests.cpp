@@ -156,6 +156,9 @@ void WriteGpuContract(std::ostream& out, const TVPLayerOperation& operation) {
         << ",\"preservesAlphaForDistinctSource\":" << Bool(TVPLayerOperationPreservesAlpha(operation, false))
         << ",\"alias\":" << Quote(Alias(traits->aliasRule))
         << ",\"parameterResources\":" << traits->parameterResources
+        << ",\"requiresPsBlendTables\":" << Bool(traits->parameterResources & TVP_LAYER_RESOURCE_PS_TABLES)
+        << ",\"psBlendTableLayout\":" << ((traits->parameterResources & TVP_LAYER_RESOURCE_PS_TABLES)
+            ? Quote("196608 bytes; SoftLight@0, ColorDodge@65536, ColorBurn@131072; each source*256+destination") : "null")
         << ",\"requiresAlphaTablesForFlags\":" << Bool(TVPLayerOperationNeedsAlphaTables(operation))
         << ",\"geometry\":{\"rect\":" << Bool(traits->geometries & TVP_LAYER_GEOMETRY_RECT)
         << ",\"affineCopySubset\":" << Bool((traits->geometries & TVP_LAYER_GEOMETRY_AFFINE_COPY_SUBSET) && operation.flags == 0)
@@ -184,7 +187,8 @@ std::vector<uint64_t> Stats() {
     const auto s = TVPGetMetalLayerRenderStats();
     std::vector<uint64_t> result = {s.gpuOperations, s.cpuFallbacks, s.uploadedBytes,
         s.readbackBytes, s.gpuResidentBytes, s.cpuCacheBytes, s.pinnedCPUTextures,
-        s.pointCacheHits, s.pointCacheMisses, s.gammaLUTUploads, s.gammaLUTUploadedBytes};
+        s.pointCacheHits, s.pointCacheMisses, s.gammaLUTUploads, s.gammaLUTUploadedBytes,
+        s.psTableUploads, s.psTableUploadedBytes};
     for (auto v : s.readbackBytesBySource) result.push_back(v);
     for (auto v : s.readbackCountBySource) result.push_back(v);
     for (auto v : s.fallbackReadbackBytesByRole) result.push_back(v);
@@ -324,8 +328,8 @@ void CapabilityAuditTests(bool checkFacade) {
                                  std::string("facade object differs: ") + c.name);
     }
     Require(expectedNames == actualNames, "stable registered name set differs");
-    Require(described == 59 && gaps == 11 && unknown == 15 && aliases == 6,
-            "expected 59 descriptor names, 11 software gaps, 15 unknown names and six alias pairs");
+    Require(described == 70 && gaps == 0 && unknown == 15 && aliases == 6,
+            "expected 70 descriptor names, zero software gaps, 15 unknown names and six alias pairs");
     Require(manager->FindRegisteredRenderMethod("ConstAlphaBlend_SD_a") !=
             manager->FindRegisteredRenderMethod("ConstAlphaBlend_SD"), "SD_a must retain independent object");
     Require(manager->FindRegisteredRenderMethod("ConstAlphaBlend_HDA") !=

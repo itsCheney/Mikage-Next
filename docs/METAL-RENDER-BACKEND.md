@@ -38,12 +38,13 @@ Layers retain the readback path. Image and video decoding are unchanged.
 
 Ordinary KRKR Layer methods also reuse the canonical software method objects
 through the Metal Layer manager. The current registry has 70 names, including
-59 names with GPU descriptors; those descriptors still have explicit input,
+70 names with GPU descriptors; those descriptors still have explicit input,
 format, parameter, geometry and alias restrictions. On supporting Apple GPUs,
 ordinary operations use programmable blending in a shared target render pass;
 other devices use the existing compute paths. The affine two-triangle Copy
 subset is accelerated; general triangles and perspective remain software paths.
-The remaining 11 registered Photoshop blend methods have no GPU descriptor.
+P1B completes the remaining 11 registered Photoshop descriptors, without adding
+the 15 unregistered historical extensions or general geometry support.
 
 P1A Gamma operations retain immutable 768-byte software LUT snapshots. Two
 recent-version caches create new Metal buffers only for changed versions/content;
@@ -57,6 +58,14 @@ fails before entering the unsafe generic software RGBA resize path.
 Gamma_a's software LUT index is clamped to 255 to fix the former index-256
 access for valid alpha/channel pairs; this intentional behavior repair is
 documented with the [P1A baseline](NATIVE-METAL-P1A-BASELINE.md).
+
+P1B SoftLight/Dodge/Burn use a process-initialized software table export, packed
+source-major into 196608 immutable parameter bytes. The backend uploads this
+bundle once per distinct content and binds buffer(3) on tile, in-place compute
+and snapshot compute. Existing PS Screen/ColorDodge5 stay on their prior helpers.
+`layerPsTableUploads`, `layerPsTableUploadedBytes` and `psTables` rejection counts
+are separate diagnostic fields. See the [P1B baseline](NATIVE-METAL-P1B-BASELINE.md)
+for the remote precheck and portable/native verification boundary.
 
 Ordinary operation IDs, traits, shader constants and diagnostic sizes come from
 one shared definition. Capability audit output separates missing registrations,

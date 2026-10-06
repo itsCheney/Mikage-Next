@@ -34,5 +34,5 @@ args.output.write_text(
     + "\n\n".join(function(source, name) for name in
                     ["constAlphaSD", "constAlphaSDDestAlpha", "univTransBlendARGB", "univTransPixel",
                      "layerPremulPixel", "layerPsPixel", "layerAlphaToPremulPixel", "layerMaskPixel", "layerAddPixel",
-                     "layerP1APixel", "layerPremulToAlphaPixel", "layerGammaPixel"])
+                     "layerP1APixel", "layerPremulToAlphaPixel", "layerGammaPixel", "layerPsP1BPixel"])
     + "\n}\n", encoding="utf-8")

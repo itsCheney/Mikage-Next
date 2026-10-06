@@ -76,7 +76,7 @@ triangles and perspective retain software execution. Portable timings are
 device-double wall times and do not measure native Metal readback performance.
 
 The P0 capability fixture covers all 85 appendix names: 70 software registrations,
-59 names with GPU descriptors, 11 registered methods without descriptors and
+70 names with GPU descriptors, zero registered methods without descriptors and
 15 unregistered historical extensions. Read-only registration snapshots preserve
 canonical objects and aliases. Repeated audits never set method parameters,
 register missing methods, show a message box or render pixels.
@@ -88,12 +88,12 @@ means that the double bound successfully and does not establish native Metal.
 On Apple hosts an unavailable device is reported independently of mapped methods.
 Static contracts do not bypass the current ROI, session, CPU lease or pipeline
 checks. The 24 original software contracts remain available alongside the new
-GPU contracts; 11 of those methods still have no descriptor.
+GPU contracts; P1A/P1B now describe every registered name, with explicit execution domains.
 
 The shared operation definition retains wire/shader IDs 0..26 and appends P1A
-IDs 27..36 (Count 37). Contract tests
+IDs 27..36 and P1B IDs 37..47 (Count 48). Contract tests
 check Count and invalid values, shared MSL definitions, HDA/reference alpha rules
-and a separate TestKind=37 extension fixture. The fixture reuses the definition
+and a separate TestKind=48 extension fixture. The fixture reuses the definition
 expansions and diagnostic storage without adding a production renderer. Dynamic
 script compilation failures return null with a diagnostic and leave registration
 unchanged, including in Release builds; this does not provide dynamic GLSL support.
@@ -125,6 +125,23 @@ and the extracted production bitmap Gamma/COW wrappers. Parameter uploads have
 separate counts/bytes; image uploadedBytes excludes them. Native tile/compute and
 Apple host/Swift integration remain necessary verification; a device-double pass
 does not establish actual Metal compilation or throughput.
+
+P1B adds the remaining 11 Photoshop methods, sharing `layerPsP1BPixel` across
+ordinary compute and tile. Tests compare 46,137,346 exact pixels against the
+actual initialized HDA function pointers and source/destination table axes.
+Source alpha and opacity keep their original `/256` order, including independent
+Dodge/Dodge5 and Diff/Diff5 counterexamples. SoftLight/Dodge/Burn use the actual
+software tables as an immutable 196608-byte bundle at buffer(3); repeated equal
+table supply performs no upload. Other kinds retain the previous helpers and
+bind a valid non-lookup placeholder.
+
+PS table counts/bytes are separate from image uploads and Gamma parameters.
+`PsTables` is an appended GPU rejection reason for safe resource fallback.
+Routing tests require resident inputs to avoid image transfers/fallback, check
+ROI and uniform-source scale/clip routing, preserve same-pixel alias and shifted
+software order, reject mirrors, and retain CPU leases. With all methods now
+described, generic fallback fixtures explicitly use pinned targets or shifted
+aliases rather than pretending PsAlphaBlend remains unmapped.
 
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release

@@ -62,7 +62,7 @@ void StableIDsAndTraits() {
         "FillColor", "FillMask", "Alpha", "ConstAlpha", "ColorMap", "FillBlend", "RemoveConstOpacity",
         "ConstAlphaSD", "UnivTrans", "AdditiveAlpha", "PsMul", "PsOverlay", "PsHardLight",
         "AlphaToAdditiveAlpha", "GrayScale", "CopyBlueToAlpha", "MultiplyAlpha", "BoxBlur",
-        "PsScreen", "PsColorDodge5", "Add", "Sub", "Mul", "ColorDodge", "Darken", "Lighten", "Screen", "RemoveOpacity", "AdditiveAlphaToAlpha", "AdjustGamma", "AlphaSD"};
+        "PsScreen", "PsColorDodge5", "Add", "Sub", "Mul", "ColorDodge", "Darken", "Lighten", "Screen", "RemoveOpacity", "AdditiveAlphaToAlpha", "AdjustGamma", "AlphaSD", "PsAlpha", "PsAdd", "PsSub", "PsSoftLight", "PsColorDodge", "PsColorBurn", "PsLighten", "PsDarken", "PsDiff", "PsDiff5", "PsExclusion"};
     Require(TVP_LAYER_OPERATION_COUNT == sizeof(expected)/sizeof(expected[0]), "production stable Count changed");
     const std::string msl=TVP_LAYER_OPERATION_MSL_DEFINITIONS;
     for(uint32_t id=0;id<TVP_LAYER_OPERATION_COUNT;++id) {
@@ -109,6 +109,10 @@ void StableIDsAndTraits() {
             gamma->referenceRule==TVPLayerReferenceRule::Ignored &&
             gamma->parameterResources==TVP_LAYER_RESOURCE_GAMMA_LUT,
             "Gamma target-reading owned LUT contract changed");
+    for(auto kind : {TVPLayerOperationKind::PsSoftLight,TVPLayerOperationKind::PsColorDodge,
+                    TVPLayerOperationKind::PsColorBurn})
+        Require(TVPGetLayerOperationTraits(kind)->parameterResources==TVP_LAYER_RESOURCE_PS_TABLES,
+                "PS table operation lost immutable initialized table dependency");
     for(uint32_t id=2;id<TVP_LAYER_OPERATION_COUNT;++id)
         Require(TVP_LAYER_OPERATION_TRAITS[id].geometries==TVP_LAYER_GEOMETRY_RECT,
                 "P0 enabled new geometry");
@@ -118,7 +122,7 @@ void AlphaAndAliasExceptions() {
     using K=TVPLayerOperationKind;
     TVPLayerOperation op;
     const K hdaKinds[]={K::Alpha,K::ConstAlpha,K::ColorMap,K::FillBlend,K::AdditiveAlpha,
-        K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::Sub,K::ColorDodge,K::Darken,K::Lighten,K::Screen};
+        K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::Sub,K::ColorDodge,K::Darken,K::Lighten,K::Screen,K::PsAlpha,K::PsAdd,K::PsSub,K::PsSoftLight,K::PsColorDodge,K::PsColorBurn,K::PsLighten,K::PsDarken,K::PsDiff,K::PsDiff5,K::PsExclusion};
     for(auto kind:hdaKinds) for(uint32_t flags=0;flags<16;++flags) {
         op.kind=kind; op.flags=flags;
         const bool expected=(flags&TVP_LAYER_HOLD_ALPHA) &&
@@ -138,7 +142,7 @@ void AlphaAndAliasExceptions() {
         op.kind=kind; Require(!TVPLayerOperationPreservesAlpha(op,true), "alpha-writing operation marked preserving");
     }
     for(auto kind:{K::AdditiveAlpha,K::PsMul,K::PsOverlay,K::PsHardLight,K::PsScreen,K::PsColorDodge5,K::Add,K::MultiplyAlpha,K::ConstAlphaSD,
-                  K::Sub,K::Mul,K::ColorDodge,K::Darken,K::Lighten,K::Screen,K::AlphaSD})
+                  K::Sub,K::Mul,K::ColorDodge,K::Darken,K::Lighten,K::Screen,K::AlphaSD,K::PsAlpha,K::PsAdd,K::PsSub,K::PsSoftLight,K::PsColorDodge,K::PsColorBurn,K::PsLighten,K::PsDarken,K::PsDiff,K::PsDiff5,K::PsExclusion})
         Require(TVPGetLayerOperationTraits(kind)->aliasRule==TVPLayerAliasRule::SamePixelOnly,
                 "sequential offset alias contract changed");
     Require(TVPGetLayerOperationTraits(K::UnivTrans)->aliasRule==TVPLayerAliasRule::Snapshot &&
@@ -160,9 +164,12 @@ void ShaderCompositionAndExtension() {
         Require(source.find("int4 layerPixel(")!=std::string::npos, "runtime Metal variant omitted pixel implementation");
         Require(source.find("const device uchar* gamma [[buffer(2)]]")!=std::string::npos &&
                 source.find("layerGammaPixel(layerPack(d),uint(flags),gamma)")!=std::string::npos &&
-                source.find("layerPixel(d,s,color,kind,opa,flags,tables,gamma)")!=std::string::npos &&
-                source.find("layerPixel(d,s,p.color,kind,p.operation.y,p.operation.z,tables,gamma)")!=std::string::npos,
+                source.find("layerPixel(d,s,color,kind,opa,flags,tables,gamma,psTables)")!=std::string::npos &&
+                source.find("layerPixel(d,s,p.color,kind,p.operation.y,p.operation.z,tables,gamma,psTables)")!=std::string::npos,
                 "Gamma LUT is not shared by compute and tile pixel paths");
+        Require(source.find("const device uchar* psTables [[buffer(3)]]")!=std::string::npos &&
+                source.find("layerPsP1BPixel(layerPack(d),layerPack(s),kind,opa,uint(flags),psTables)")!=std::string::npos,
+                "PS immutable table buffer/helper omitted from shared pixel paths");
         Require(source.find("if (layerNeedsSource(kind))")!=std::string::npos &&
                 source.find("if(layerNeedsSource(kind))")!=std::string::npos &&
                 source.find("bool overwrite = !layerReadsTarget(kind);")!=std::string::npos,
@@ -178,9 +185,9 @@ void ShaderCompositionAndExtension() {
     Require(!TVPFindLayerOperationTraits(extendedTraits,static_cast<uint32_t>(ExtendedKind::Count)),
             "extension Count is treated as an operation");
     const std::string fixtureSource=extendedMSL;
-    Require(fixtureSource.find("constant int TVP_LAYER_KIND_TestKind = 37;")!=std::string::npos &&
-            fixtureSource.find("case 37: return 1 != 0;")!=std::string::npos &&
-            fixtureSource.find("case 37: return true;")!=std::string::npos,
+    Require(fixtureSource.find("constant int TVP_LAYER_KIND_TestKind = 48;")!=std::string::npos &&
+            fixtureSource.find("case 48: return 1 != 0;")!=std::string::npos &&
+            fixtureSource.find("case 48: return true;")!=std::string::npos,
             "appended kind lost shader ID/dependency definitions");
     krkrsdl3::metal_diagnostics::LayerKindPixelCounters<static_cast<uint32_t>(ExtendedKind::Count)> counts;
     counts.RecordKindPixels(int(ExtendedKind::Copy),7);
@@ -188,15 +195,15 @@ void ShaderCompositionAndExtension() {
     counts.RecordKindPixels(int(ExtendedKind::Count),100);
     counts.RecordKindPixels(-1,100);
     counts.RecordKindPixels(std::numeric_limits<int>::max(),100);
-    Require(counts.pixelsByKind.back()==13 && counts.KindPixelSummary()=="1:7,37:13",
+    Require(counts.pixelsByKind.back()==13 && counts.KindPixelSummary()=="1:7,48:13",
             "Count extension lost diagnostic tail or formatter/bounds");
     krkrsdl3::metal_diagnostics::Workload workload;
-    workload.Rect(int(TVPLayerOperationKind::AlphaSD),19,false,false,false);
+    workload.Rect(int(TVPLayerOperationKind::PsExclusion),19,false,false,false);
     workload.Rect(int(TVPLayerOperationKind::BoxBlur),23,false,false,false);
     workload.RecordKindPixels(int(TVPLayerOperationKind::Count),100);
     workload.RecordKindPixels(-1,100);
     Require(workload.pixelsByKind.size()==TVP_LAYER_OPERATION_COUNT && workload.pixelsByKind.back()==19 &&
-            workload.blurPixels==23 && workload.KindPixelSummary()=="23:23,36:19",
+            workload.blurPixels==23 && workload.KindPixelSummary()=="23:23,47:19",
             "production diagnostic Count/blur/tail contract changed");
 }
 }
