@@ -71,7 +71,7 @@ maxima and histograms), HUD reads leaving samples intact, enabled/disabled
 capture, nested source tags and exception unwind, visible clip areas and full-HD
 targets, actual readbacks versus CPU cache hits, target/source/reference aliases,
 bounded size histograms, NUL-terminated bridge summaries and unchanged fallback
-pixels. The existing two-triangle affine Copy subset has a GPU path; general
+pixels. The two-triangle affine Copy and declared blend subsets have GPU paths; general
 triangles and perspective retain software execution. Portable timings are
 device-double wall times and do not measure native Metal readback performance.
 
@@ -142,6 +142,26 @@ ROI and uniform-source scale/clip routing, preserve same-pixel alias and shifted
 software order, reject mirrors, and retain CPU leases. With all methods now
 described, generic fallback fixtures explicitly use pinned targets or shifted
 aliases rather than pretending PsAlphaBlend remains unmapped.
+
+P2A extends prepared affine quads to Alpha, ConstAlpha, AdditiveAlpha and all
+registered Photoshop families, including their registered alpha/HDA aliases.
+The nonrectangular path samples the existing software-compatible warp and applies
+the ordinary pixel helper against the old target across the full clip. Transparent
+warp borders participate in blending. Reference is ignored, matching the software
+triangle implementation, and overlapping warp sources are snapshotted on the GPU.
+The axis-aligned shortcut reuses ordinary rectangles; shifted/scaled self-blends
+retain scanline software semantics and report `AffineAlias`. Source crops must be
+forward, integral and in bounds, clips must already be clamped to the target, and
+StretchType is restricted to 0..2. Mirrored axis-aligned scanlines, fractional source
+crops, non-affine quads and other filters retain their existing software behavior.
+
+Nonrectangular affine blends currently use compute plus GPU snapshots on every
+device. They end any active tile pass; consecutive rectangular shortcuts can still
+reuse it. This is a correctness path, with no new per-operation submit or wait.
+The portable double executes extracted coordinate/byte helpers and the initialized
+software blend on the sampled frame. Native Apple tests use the production kernel;
+portable results do not validate MSL compilation, texture binding or GPU ordering.
+Existing scalar blend tests remain independent coverage of the shared pixel math.
 
 ```sh
 cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release

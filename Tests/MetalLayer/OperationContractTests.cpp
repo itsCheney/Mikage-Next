@@ -113,9 +113,31 @@ void StableIDsAndTraits() {
                     TVPLayerOperationKind::PsColorBurn})
         Require(TVPGetLayerOperationTraits(kind)->parameterResources==TVP_LAYER_RESOURCE_PS_TABLES,
                 "PS table operation lost immutable initialized table dependency");
-    for(uint32_t id=2;id<TVP_LAYER_OPERATION_COUNT;++id)
-        Require(TVP_LAYER_OPERATION_TRAITS[id].geometries==TVP_LAYER_GEOMETRY_RECT,
-                "P0 enabled new geometry");
+    const TVPLayerOperationKind affineKinds[]={TVPLayerOperationKind::Alpha,TVPLayerOperationKind::ConstAlpha,
+        TVPLayerOperationKind::AdditiveAlpha,TVPLayerOperationKind::PsMul,TVPLayerOperationKind::PsOverlay,
+        TVPLayerOperationKind::PsHardLight,TVPLayerOperationKind::PsScreen,TVPLayerOperationKind::PsColorDodge5,
+        TVPLayerOperationKind::PsAlpha,TVPLayerOperationKind::PsAdd,TVPLayerOperationKind::PsSub,
+        TVPLayerOperationKind::PsSoftLight,TVPLayerOperationKind::PsColorDodge,TVPLayerOperationKind::PsColorBurn,
+        TVPLayerOperationKind::PsLighten,TVPLayerOperationKind::PsDarken,TVPLayerOperationKind::PsDiff,
+        TVPLayerOperationKind::PsDiff5,TVPLayerOperationKind::PsExclusion};
+    for(uint32_t id=0;id<TVP_LAYER_OPERATION_COUNT;++id) {
+        const auto kind=static_cast<TVPLayerOperationKind>(id);
+        bool blend=false; for(auto candidate:affineKinds) blend|=kind==candidate;
+        if(id>1) Require(TVP_LAYER_OPERATION_TRAITS[id].geometries==
+                (TVP_LAYER_GEOMETRY_RECT|(blend?TVP_LAYER_GEOMETRY_AFFINE_BLEND_SUBSET:0)),
+                "P2A declared an unexpected affine family");
+        TVPLayerOperation op; op.kind=kind;
+        for(uint32_t flags:{0u,1u,2u,4u,8u,15u,16u,0xffffffffu}) for(int opacity:{-1,0,1,127,128,254,255,256}) {
+            op.flags=flags;op.opacity=opacity;
+            const bool expected=kind==TVPLayerOperationKind::Copy?flags==0:
+                blend && flags<16 && opacity>=0 && opacity<=255;
+            Require(TVPLayerOperationSupportsAffine(op)==expected,"P2A affine helper domain changed");
+        }
+    }
+    for(auto kind:{TVPLayerOperationKind::Count,static_cast<TVPLayerOperationKind>(UINT32_MAX)}) {
+        TVPLayerOperation op;op.kind=kind;
+        Require(!TVPLayerOperationSupportsAffine(op),"invalid kind supports affine");
+    }
 }
 
 void AlphaAndAliasExceptions() {

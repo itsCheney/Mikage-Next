@@ -19,6 +19,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <limits>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -77,6 +78,8 @@ class DeviceDouble : public iTVPRenderBackend {
 public:
     bool rejectTripleSource=false;
     bool rejectGamma=false;
+    bool rejectAlphaTables=false;
+    bool rejectAffine=false;
     bool rejectPsTables=false;
     bool psTablesReady=false;
     std::array<uint8_t,196608> psTables{};
@@ -134,7 +137,7 @@ public:
     void LayerSetBlend(int,float,const float*) override {}
     void LayerDrawRect(void*,float,float,float,float,float,float,float,float) override {}
     bool SupportsLayerOperations() const override { return true; }
-    bool SetLayerAlphaTables(const uint8_t*,const uint8_t*) override { return true; }
+    bool SetLayerAlphaTables(const uint8_t*,const uint8_t*) override { return !rejectAlphaTables; }
     void* CreateLayerTexture(int w,int h,TVPLayerTextureFormat f) override {
         auto r=std::make_unique<Resource>(); r->w=w;r->h=h;r->bpp=f==TVPLayerTextureFormat::R8?1:4;
         r->pixels.resize(size_t(w)*h*r->bpp); auto* key=r.get(); resources[key]=std::move(r); return key;
@@ -179,6 +182,39 @@ public:
             pointReadObservations.push_back(*query);
         }
         return true;
+    }
+    static iTVPRenderMethod* SoftwareMethod(const TVPLayerOperation& op) {
+        auto* sw=TVPGetSoftwareRenderManager(); const char* name=nullptr;
+        switch(op.kind) {
+            case TVPLayerOperationKind::Copy: name="Copy"; break;
+            case TVPLayerOperationKind::Alpha: name="AlphaBlend"; break;
+            case TVPLayerOperationKind::ConstAlpha: name="ConstAlphaBlend"; break;
+            case TVPLayerOperationKind::AdditiveAlpha: name="AdditiveAlphaBlend"; break;
+            case TVPLayerOperationKind::PsMul: name="PsMulBlend"; break;
+            case TVPLayerOperationKind::PsOverlay: name="PsOverlayBlend"; break;
+            case TVPLayerOperationKind::PsHardLight: name="PsHardLightBlend"; break;
+            case TVPLayerOperationKind::PsScreen: name="PsScreenBlend"; break;
+            case TVPLayerOperationKind::PsColorDodge5: name="PsColorDodge5Blend"; break;
+            case TVPLayerOperationKind::PsAlpha: name="PsAlphaBlend"; break;
+            case TVPLayerOperationKind::PsAdd: name="PsAddBlend"; break;
+            case TVPLayerOperationKind::PsSub: name="PsSubBlend"; break;
+            case TVPLayerOperationKind::PsSoftLight: name="PsSoftLightBlend"; break;
+            case TVPLayerOperationKind::PsColorDodge: name="PsColorDodgeBlend"; break;
+            case TVPLayerOperationKind::PsColorBurn: name="PsColorBurnBlend"; break;
+            case TVPLayerOperationKind::PsLighten: name="PsLightenBlend"; break;
+            case TVPLayerOperationKind::PsDarken: name="PsDarkenBlend"; break;
+            case TVPLayerOperationKind::PsDiff: name="PsDiffBlend"; break;
+            case TVPLayerOperationKind::PsDiff5: name="PsDiff5Blend"; break;
+            case TVPLayerOperationKind::PsExclusion: name="PsExclusionBlend"; break;
+            default: return nullptr;
+        }
+        std::string methodName=name;
+        if(op.flags&TVP_LAYER_DEST_ALPHA) methodName+="_d";
+        else if(op.flags&TVP_LAYER_DEST_PREMULTIPLIED) methodName+="_a";
+        else if(op.kind==TVPLayerOperationKind::ConstAlpha && (op.flags&TVP_LAYER_HOLD_ALPHA)) methodName+="_HDA";
+        auto* method=sw->GetRenderMethod(methodName.c_str());
+        method->SetParameterOpa(method->EnumParameterID("opacity"),op.opacity);
+        return method;
     }
     bool OperateLayerRect(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,void* source,const TVPLayerRect& src,int sampling) override {
         const auto* traits=TVPGetLayerOperationTraits(op.kind);
@@ -282,11 +318,20 @@ public:
         sw->OperateRect(method,tv.get(),nullptr,Rect(dst),tRenderTexRectArray(source?&input:nullptr,source?1:0));return true;
     }
     bool OperateLayerAffine(const TVPLayerOperation& op,void* target,const TVPLayerAffineCopy& map,void* source,int sampling) override {
-        if(op.kind!=TVPLayerOperationKind::Copy || op.flags || !target || !source || sampling<0 || sampling>1) return false;
+        if(!TVPLayerOperationSupportsAffine(op) || !target || !source || sampling<0 || sampling>1) return false;
+        if(rejectAffine) return false;
+        const auto* traits=TVPGetLayerOperationTraits(op.kind);
+        if((traits->parameterResources&TVP_LAYER_RESOURCE_PS_TABLES) && !psTablesReady) return false;
         auto& t=*resources.at(target); auto& s=*resources.at(source);
         // Snapshot independent of destination: the production backend blits on alias.
         const auto pixels=s.pixels;
         const auto& rc=map.sourceCrop; const auto& clip=map.clip;
+        if(t.bpp!=4 || s.bpp!=4 || rc.left<0 || rc.top<0 || rc.right>s.w || rc.bottom>s.h ||
+           rc.Width()<=0 || rc.Height()<=0 || clip.left<0 || clip.top<0 || clip.right>t.w || clip.bottom>t.h ||
+           clip.Width()<=0 || clip.Height()<=0) return false;
+        for(double value:map.inverse) if(!std::isfinite(value) || std::abs(value)>1000000) return false;
+        if(op.kind!=TVPLayerOperationKind::Copy && map.inverse[0]*map.inverse[4]-map.inverse[1]*map.inverse[3]==0) return false;
+        std::vector<uint8_t> sampled(size_t(clip.Width())*clip.Height()*4);
         auto coordinate=[&](int row,int x,int y) {
             float h[3],l[3];
             for(int i=0;i<3;++i) { h[i]=float(map.inverse[row*3+i]); l[i]=float(map.inverse[row*3+i]-double(h[i])); }
@@ -295,8 +340,7 @@ public:
         const int w=rc.Width(),h=rc.Height();
         for(int y=clip.top;y<clip.bottom;++y) for(int x=clip.left;x<clip.right;++x) {
             float sx=coordinate(0,x-clip.left,y-clip.top),sy=coordinate(1,x-clip.left,y-clip.top);
-            uint8_t* out=t.pixels.data()+(y*t.w+x)*4;
-            std::memset(out,0,4);
+            uint8_t* out=sampled.data()+((y-clip.top)*clip.Width()+x-clip.left)*4;
             if(sx<0.5f || sx>=w-0.5f || sy<0.5f || sy>=h-0.5f) continue;
             auto pixel=[&](int px,int py,int c) {return int(pixels[((py+rc.top)*s.w+px+rc.left)*4+c]);};
             if(sampling==0) {
@@ -307,6 +351,21 @@ public:
                 float fx=w==1?0:sx-ax,fy=h==1?0:sy-ay;
                 for(int c=0;c<4;++c) out[c]=affine_shader::affineBilinearByte(fx,fy,pixel(ax,ay,c),pixel(bx,ay,c),pixel(ax,by,c),pixel(bx,by,c));
             }
+        }
+        // Sampling is extracted production MSL. Blending here deliberately uses
+        // initialized software methods: this double proves routing/residency and
+        // sampled-frame semantics, not native MSL pixel execution. Equal extents
+        // avoid touching global StretchType or resampling the prepared frame.
+        if(op.kind==TVPLayerOperationKind::Copy) {
+            for(int y=clip.top;y<clip.bottom;++y) std::memcpy(t.pixels.data()+(size_t(y)*t.w+clip.left)*4,
+                sampled.data()+size_t(y-clip.top)*clip.Width()*4,size_t(clip.Width())*4);
+        } else {
+            auto* sw=TVPGetSoftwareRenderManager();
+            auto* method=SoftwareMethod(op); if(!method) return false;
+            Texture tv(sw->CreateTexture2D(t.pixels.data(),t.w*4,t.w,t.h,TVPTextureFormat::RGBA));
+            Texture sv(sw->CreateTexture2D(sampled.data(),clip.Width()*4,clip.Width(),clip.Height(),TVPTextureFormat::RGBA));
+            std::pair<iTVPTexture2D*,tTVPRect> input{sv.get(),tTVPRect(0,0,clip.Width(),clip.Height())};
+            sw->OperateRect(method,tv.get(),nullptr,Rect(clip),tRenderTexRectArray(&input,1));
         }
         return true;
     }
@@ -1893,7 +1952,7 @@ static void AffineCopyTriangles() {
         tTVPPointD sp[]={{1,1},{14,1},{1,10},{14,1},{1,10},{14,10}};
         tTVPPointD dp[]={{2,2},{19,2},{2,14},{19,2},{2,14},{19,14}};
         if(failure==2) {dp[0].x=dp[2].x=dp[4].x=19;dp[1].x=dp[3].x=dp[5].x=2;}
-        auto* method=gpu->GetRenderMethod(failure==0?"AlphaBlend":"Copy"); method->SetParameterOpa(0,127);
+        auto* method=gpu->GetRenderMethod(failure==0?"DoGrayScale":"Copy"); method->SetParameterOpa(0,127);
         gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),failure==1?3:1);
         std::pair<iTVPTexture2D*,const tTVPPointD*> si(ss.get(),sp),gi(gs.get(),sp);
         const auto before=TVPGetMetalLayerRenderStats();
@@ -1930,6 +1989,7 @@ static void AffineCopyTriangles() {
     gpu->SetParameterInt(gpu->EnumParameterID("StretchType"),0);
     std::cout<<"PASS Copy affine triangle: "<<cases<<" exact comparisons and full-HD resident burst\n";
 }
+#include "P2AAffineTests.inc"
 static void Compatibility() {
     auto* sw=TVPGetSoftwareRenderManager(); auto* gpu=TVPGetRenderManager();
     auto image=Image(9,7,4,2),second=Image(9,7,4,5);
@@ -2064,6 +2124,30 @@ static void InvalidOperationKinds(iTVPRenderBackend& backend) {
         TVPLayerOperation op; op.kind=kind;
         Require(!backend.OperateLayerRect(op,target,rect,target,rect,0),"multi-source kind encoded through single-source entry");
     }
+    for(unsigned failure=0;failure<7;++failure) {
+        TVPLayerOperation op;op.kind=TVPLayerOperationKind::Alpha;
+        int sampling=0;
+        if(failure==0) op.kind=TVPLayerOperationKind::GrayScale;
+        if(failure==1) op.flags=16;
+        if(failure==2) op.opacity=-1;
+        if(failure==3) op.opacity=256;
+        if(failure==4) {op.kind=TVPLayerOperationKind::Copy;op.flags=TVP_LAYER_HOLD_ALPHA;}
+        if(failure==5) sampling=-1;
+        if(failure==6) sampling=2;
+        Require(!backend.OperateLayerAffine(op,target,affine,target,sampling),"unsupported affine backend domain encoded");
+    }
+    for(unsigned failure=0;failure<7;++failure) {
+        TVPLayerOperation op;op.kind=TVPLayerOperationKind::Alpha;
+        auto malformed=affine; malformed.inverse[0]=malformed.inverse[4]=1;
+        if(failure==0) malformed.inverse[0]=std::numeric_limits<double>::quiet_NaN();
+        if(failure==1) malformed.inverse[2]=std::numeric_limits<double>::infinity();
+        if(failure==2) malformed.inverse[0]=1000001;
+        if(failure==3) malformed.inverse[4]=0;
+        if(failure==4) malformed.sourceCrop.right=malformed.sourceCrop.left;
+        if(failure==5) malformed.clip.left=-1;
+        if(failure==6) malformed.clip.right=6;
+        Require(!backend.OperateLayerAffine(op,target,malformed,target,0),"malformed affine backend map encoded");
+    }
 #ifdef TEST_NATIVE_METAL
     Require(testMetalSubmits==submits && testMetalWaits==waits && testMetalBlits==blits,
             "invalid operation kind submitted/waited/copied before rejection");
@@ -2163,7 +2247,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

@@ -1,0 +1,22 @@
+Internal ctest changing into directory: D:/vn-sim/build/metal-render-tests
+UpdateCTestConfiguration  from :D:/vn-sim/build/metal-render-tests/DartConfiguration.tcl
+UpdateCTestConfiguration  from :D:/vn-sim/build/metal-render-tests/DartConfiguration.tcl
+Test project D:/vn-sim/build/metal-render-tests
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: metal-render-tests
+
+1: Test command: D:\vn-sim\build\metal-render-tests\metal-render-tests.exe
+1: Working Directory: D:/vn-sim/build/metal-render-tests
+1: Test timeout computed to be: 10000000
+1: PASS: diagnostic attribution/sampling/stage timing and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)
+1/1 Test #1: metal-render-tests ...............   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.07 sec

@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收（用户报告真机暂未发现异常）；P1A/P1B 已完成本地实现与 portable 验证，Apple/真机回归待验；P2–P5 尚未实施。**
+日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收；P1A/P1B 已提交，用户报告测试暂未发现异常；P2A 已完成本地实现与 portable 验证，新 Apple/真机回归待验；P2B、P3–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -120,7 +120,7 @@
 | 普通矩形 | copy/fill、alpha、普通混合、部分 Ps、灰度/反预乘、Gamma、alpha/channel 等 | P1A 新源 wrapper 限正向矩形；格式、缩放、裁剪、错位别名、CPU pin/lease 域与原生结果待验 |
 | 双源 SD | `ConstAlphaBlend_SD`、`_d`、`_a`，同尺寸矩形 | 错位源目标别名保留回退；单输入 `AlphaBlend_SD` 的 alpha=0 契约另行处理 |
 | Universal transition | 普通、`_d`、`_a` 的三源 GPU 路径 | 两个 RGBA 源加 R8 rule、同尺寸与合法源范围；不是所有 CPU transition 都由此覆盖 |
-| affine | 两三角形、Copy、单源的兼容路径 | Alpha/Ps 等混合、镜像特例、更广参数域与数值/边缘行为 |
+| affine | 两三角形、Copy 及 Alpha/ConstAlpha/AdditiveAlpha/Ps 单源兼容路径 | P2A 本地完成；镜像扫描线、非整数源、其他过滤器保留回退；原生顺序/像素及 tile affine 优化待验 |
 | perspective | 软件执行；方法对象可有 Alpha 描述符 | 无 Metal 几何入口，所有调用仍回退 |
 | blur | 两 pass sliding sums；两个名称共用当前软件公式 | 64 MiB sums 限额、无缩放、完整合法 ROI；大图/裁剪等仍可能回退 |
 | R8 | mask/rule 资源及 ColorMap/RemoveOpacity 输入 | RemoveOpacity 限同尺寸正向合法 ROI；不等于任意 Gray/province 目标均支持 GPU 运算 |
@@ -240,12 +240,14 @@
 
 目标：优先解决现有游戏可到达的 affine quad 回退，不把通用网格设计作为阻塞项。
 
-- [ ] 梳理 `GPUAffineCopy()`、`layer_affine::Prepare()`、`TVPLayerAffineCopy`、`affineCopyLayer` 的现有约束；保留已经验证的 Copy 快路。
-- [ ] 建立采样与像素混合分离的 affine 路径，优先 Alpha/ConstAlpha/AdditiveAlpha 及 `_d/_a/HDA`，再扩展已验证的 Ps 家族。
-- [ ] 确定目标旧值和 reference 的读取契约，复用 alpha tables 和新的参数资源。
-- [ ] 验证旋转、缩放、错切、非整数位置、镜像、源裁剪、目标裁剪与单像素边界；保留软件 scanline 路径不同的场景，直到差异裁决完成。
-- [ ] 对普通矩形和 affine 分别定义 StretchType 支持域，不能因为普通矩形已接纳较大的正值，就放宽 affine 的所有过滤器。
-- [ ] 在支持 tile 的设备上评估同目标 pass 复用；compute 实现作为正确性路径，不以必须达到 tile 最优性能作为第一次上线条件。
+2026-10-06 本地签收：19 个混合 kind、30 个方法/别名接入准备后的 affine 域，MetalLayer 2/2 和 MetalRenderBackend 1/1 通过。Copy 快路、矩形与 affine 各自采样域保持；原生验证和设备上的 tile 性能评估仍待验，详见 [P2A 基线](NATIVE-METAL-P2A-BASELINE.md)。
+
+- [x] 梳理既有约束，将 manager 入口扩展为 `GPUAffine()`，保留 `TVPLayerAffineCopy`、Prepare 与原 Copy kernel。
+- [x] 分离采样与混合，新 compute kernel 复用 `layerPixel()`；接入注册的 Alpha/ConstAlpha/AdditiveAlpha 变体与全部 Ps 家族。
+- [x] 软件 warp 读取 target 旧值并忽略 reference；完整 clip 的透明 warp 边界参与混合，复用 alpha/PS tables 与源/目标 GPU 快照。
+- [x] 精确 portable 回归覆盖旋转、错切、非整数目标位置、非矩形反射、源 ROI、目标 clip、单像素/单行/列、alias/COW/cache/lease；特殊扫描线和其他几何仍回退。
+- [x] affine 限 StretchType 0..2；矩形既有过滤器域不变。新增 `AffineAlias` 诊断区分矩形重叠。
+- [x] 明确首版非矩形 affine 使用 compute 与快照，会关闭 tile pass；矩形特判保留 pass 复用。未实现 affine tile fragment，设备成本评估留作待验。
 
 验收：声明支持的 affine quad 与软件逐像素一致；仍不支持的几何有最小反例；无额外 CPU 中转；triangle diagnostics 区分 GPU 成功、方法缺失、采样/几何/alias 拒绝。
 
@@ -396,13 +398,13 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 允许声明核心路线完成的条件是 P0/P1/P2/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
 
-## 9. 初始审计与 P0/P1A/P1B 实施状态
+## 9. 初始审计与 P0/P1A/P1B/P2A 实施状态
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0/P1A 已完成并提交；用户报告 P0 真机暂未发现异常。P1B 在与远端一致的三层 HEAD 上补齐 11 项 Ps 方法、真实三表资源与独立上传统计，能力审计为 70/70/0/15，本地两套 CTest 通过；P1B 改动未提交，具体证据见 P1B 记录。
+P0/P1A/P1B 已完成并提交；用户报告既有版本测试暂未发现异常。P1B 补齐 11 项 Ps 方法、真实三表资源与独立上传统计，能力审计为 70/70/0/15。P2A 在三层干净 HEAD 上接入 affine 混合、明确 target/reference/alias/alpha 契约、细化诊断并完成两套本地 CTest；P2A 改动未提交，证据见独立 P2A 记录。
 
-仍未完成：P2–P5、P1A/P1B 原生 MSL/GPU 像素、最新 Apple CI/device/simulator 构建、旧 GL 实际运行及新真机像素/性能/热状态基线。P0 真机反馈和历史资料不替代 P1A/P1B 新改动的设备验收。
+仍未完成：P2B、P3–P5，新增 P2A 的原生 MSL/GPU 像素、Apple device/simulator 构建与真机像素/性能/热状态基线，以及旧 GL 实际运行。既有版本反馈不替代新增 P2A 的设备验收；P2 整体签收仍要求 perspective 和几何边界证据。
 
 ## 附录 A：完整名称对照
 
