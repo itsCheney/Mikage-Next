@@ -1,0 +1,8 @@
+Collector Profile bytes=90512 Summary bytes=33016 C bridge Profile bytes=184888
+D:\vn-sim\Engine\KRKRRuntime\Source\cpp/core/render/LayerWorkDiagnostics.h:353:16:krkrsdl3::layer_work::Summary krkrsdl3::layer_work::Take()	182368	static
+build/metal-layer-tests/ProductionTriangleProfileBridge.inc:40:17:bool MikageKRKRTakeLayerWorkProfile(MikageKRKRLayerWorkProfile*)	33152	static
+Tests/MetalLayer/TriangleProfileTests.cpp:72:6:void TriangleProfileTests()	210256	static
+Engine/KRKRRuntime/Source/cpp/core/render/LayerWorkDiagnostics.h:123:13:void krkrsdl3::layer_work::SetEnabled(bool)	90640	static
+Tests/MetalLayer/C4ProfileTests.cpp:16:6:void {anonymous}::AttributionAndRouting()	66320	static
+Tests/MetalLayer/C4ProfileTests.cpp:44:6:void {anonymous}::ScopesAndEpochs()	66224	static
+Tests/MetalLayer/C4ProfileTests.cpp:74:6:void {anonymous}::CapacityAndWireBounds()	66576	static

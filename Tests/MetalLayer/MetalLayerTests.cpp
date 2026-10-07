@@ -3,6 +3,7 @@
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
 #include "LayerPerspectiveGeometry.h"
+#include "LayerTransitionGeometry.h"
 #include "PointReadTrace.h"
 #include "AsyncAlphaTileCache.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
@@ -25,11 +26,13 @@
 #include <unordered_map>
 #include <vector>
 #include <thread>
+#include <functional>
 using krkrsdl3::iTVPRenderBackend;
 using Texture=std::unique_ptr<iTVPTexture2D>;
 extern bool TVPTestCaptureLogs;
 extern std::vector<std::string> TVPTestLogs;
 void BitmapOverwriteTests(iTVPRenderBackend* backend);
+void C4BitmapResourceTests(iTVPRenderBackend*);
 void TransitionOutputTests();
 void BitmapRenderSessionCacheTests(iTVPRenderBackend* backend);
 void UnivTransShaderTests();
@@ -40,6 +43,12 @@ void OperationContractTests();
 void C0ProfileTests();
 void P1AShaderTests();
 void P1BShaderTests();
+void TransitionHandlerTests(iTVPRenderBackend*);
+void TransitionContractTests();
+void TransitionHandlerDispatchFailureTests(const std::function<void(bool)>&);
+void TransitionHandlerPipelineFailureTests(const std::function<void(bool)>&);
+void C4ProfileTests();
+uint32_t TVPTestTransitionPixel(const TVPLayerTransitionOperation&,int,int,const uint8_t*,int,const uint8_t*,int);
 void P1AGammaTests(iTVPRenderBackend*);
 uint32_t TVPTestP1AGammaPixel(uint32_t,const TVPLayerOperation&,const uint8_t*);
 uint32_t TVPTestUnivTransPixel(uint32_t,uint32_t,uint8_t,const TVPLayerOperation&);
@@ -83,6 +92,10 @@ public:
     bool failDiagnosticUpload=false, cycleDiagnosticsOnRead=false;
     bool cycleDiagnosticsOnUpload=false, cycleDiagnosticsOnRegionRead=false;
     bool rejectTripleSource=false;
+    bool throwAfterTransitionDispatch=false;
+    bool rejectTransition=false;
+    TVPLayerTransitionResult transitionResult=TVPLayerTransitionResult::Applied;
+    TVPLayerTransitionResult LastLayerTransitionResult() const override { return transitionResult; }
     bool rejectGamma=false;
     bool rejectAlphaTables=false;
     bool rejectAffine=false;
@@ -144,6 +157,27 @@ public:
     void LayerSetBlend(int,float,const float*) override {}
     void LayerDrawRect(void*,float,float,float,float,float,float,float,float) override {}
     bool SupportsLayerOperations() const override { return true; }
+    bool SupportsLayerTransitions() const override { return true; }
+    bool OperateLayerTransition(const TVPLayerTransitionOperation& op,void* target,void* source1,void* source2) override {
+        if(rejectTransition) {transitionResult=TVPLayerTransitionResult::PipelineUnavailable;return false;}
+        auto t=resources.find(target),s1=resources.find(source1),s2=resources.find(source2);
+        if(t==resources.end() || s1==resources.end() || s2==resources.end() ||
+           target==source1 || target==source2 || t->second->bpp!=4 || s1->second->bpp!=4 || s2->second->bpp!=4) return false;
+        auto& p=op.params;
+        transitionResult=layer_transition::Validate(op,t->second->w,t->second->h,s1->second->w,s1->second->h,
+             s2->second->w,s2->second->h);
+        if(transitionResult!=TVPLayerTransitionResult::Applied) return false;
+        for(int y=0;y<p.height;++y) for(int x=0;x<p.width;++x) {
+            const auto pixel=TVPTestTransitionPixel(op,p.left+x,p.top+y,
+                s1->second->pixels.data(),s1->second->w*4,s2->second->pixels.data(),s2->second->w*4);
+            std::memcpy(t->second->pixels.data()+size_t((p.destTop+y)*t->second->w+p.destLeft+x)*4,&pixel,4);
+        }
+        if(throwAfterTransitionDispatch) throw std::bad_alloc();
+        krkrsdl3::layer_work::RecordTransitionParameters(1,sizeof(op.params));
+        ++parameterUploads.transitionParameterUploads;
+        parameterUploads.transitionParameterUploadedBytes+=sizeof(op.params);
+        return true;
+    }
     bool SetLayerAlphaTables(const uint8_t*,const uint8_t*) override { return !rejectAlphaTables; }
     void* CreateLayerTexture(int w,int h,TVPLayerTextureFormat f) override {
         auto r=std::make_unique<Resource>(); r->w=w;r->h=h;r->bpp=f==TVPLayerTextureFormat::R8?1:4;
@@ -2279,7 +2313,7 @@ int main(int argc,char** argv) {
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
         if(!sessionCachesOnly) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
-            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests();
+            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests();
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2320,6 +2354,16 @@ int main(int argc,char** argv) {
 #endif
             return 0;
         }
+        // Keep C4's necessary alpha-table supply in its own session, so the
+        // existing cold-table rejection fixtures still exercise a cold session.
+        Require(TVPBindMetalLayerRenderManager(backend.get()),"transition session init failed");
+        TransitionHandlerTests(backend.get()); C4ProfileTests(); C4BitmapResourceTests(backend.get());
+#ifndef TEST_NATIVE_METAL
+        auto& transitionDevice=*static_cast<DeviceDouble*>(backend.get());
+        TransitionHandlerDispatchFailureTests([&](bool value){transitionDevice.throwAfterTransitionDispatch=value;});
+        TransitionHandlerPipelineFailureTests([&](bool value){transitionDevice.rejectTransition=value;});
+#endif
+        TVPUnbindMetalLayerRenderManager();
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
         for(int session=0;session<3;++session) {
             TVPSetMetalLayerTriangleDiagnostics(true);

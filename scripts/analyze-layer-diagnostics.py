@@ -15,6 +15,78 @@ import re
 import statistics
 from urllib.parse import unquote
 
+TRANSITION_HANDLERS = ('mosaic', 'wave', 'ripple', 'turn', 'rotatezoom', 'rotatevanish', 'rotateswap')
+TRANSITION_METRICS = ('frames', 'gpuCalls', 'cpuCalls', 'passthroughCalls', 'pixels',
+    'parameterUploads', 'parameterBytes', 'readCalls', 'readBytes', 'readWallNS', 'readWaitNS',
+    'uploadCalls', 'uploadBytes', 'uploadWallNS', 'uploadWaitNS')
+
+
+def parse_transition_profile(fields, errors, context):
+    """Independent subset attribution; never add these transfers to C0 totals."""
+    if 'transitionProfileVersion' not in fields:
+        return None
+    if str(fields['transitionProfileVersion']) != '1':
+        problem(errors, context, 'unknown transition profile version')
+        return None
+    complete = True
+    try:
+        rows = json.loads(fields['transitionProfiles'])
+        overflow = json.loads(fields['transitionOverflow'])
+        if not isinstance(rows, list) or len(rows) > 64 or not isinstance(overflow, dict):
+            raise ValueError('expected bounded rows and overflow object')
+    except (KeyError, TypeError, ValueError) as error:
+        problem(errors, context, 'invalid transition JSON: ' + str(error))
+        return {'records': [], 'overflow': None, 'dropped': None, 'complete': False}
+    parsed = []
+    for index, row in enumerate(rows):
+        detail = context + '[%d]' % index
+        if not isinstance(row, dict):
+            problem(errors, detail, 'expected transition object'); complete = False; continue
+        if any(not isinstance(row.get(key), str) or not row[key] for key in ('requested', 'effective', 'reason', 'metadata')):
+            problem(errors, detail, 'missing transition names/reason/metadata'); complete = False; continue
+        dimensions = row.get('dimensions')
+        if not isinstance(dimensions, list) or len(dimensions) != 8 or any(
+                not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in dimensions):
+            problem(errors, detail, 'expected canvas/source1/source2/output dimensions'); complete = False; continue
+        try:
+            metadata = json.loads(row['metadata'])
+            if not isinstance(metadata, dict):
+                raise ValueError('metadata is not an object')
+        except ValueError:
+            problem(errors, detail, 'invalid normalized transition metadata'); complete = False; continue
+        counts = {key: numeric(row.get(key), errors, detail + '.' + key) for key in TRANSITION_METRICS}
+        ticks = {key: numeric(row.get(key), errors, detail + '.' + key) for key in ('firstTick', 'lastTick')}
+        if any(value is None for value in (*counts.values(), *ticks.values())):
+            complete = False; continue
+        parsed.append({**{key: row[key] for key in ('requested', 'effective', 'reason')},
+            'dimensions': dimensions, 'metadata': metadata, **ticks, **counts})
+    folded = {key: numeric(overflow.get(key), errors, context + '.overflow.' + key)
+        for key in (*TRANSITION_METRICS, 'capacityRecords', 'oversizeRecords')}
+    dropped = numeric(fields.get('transitionProfilesDropped'), errors, context + '.dropped')
+    if dropped is None or any(value is None for value in folded.values()):
+        complete = False
+    elif dropped != folded['capacityRecords'] + folded['oversizeRecords']:
+        problem(errors, context, 'transition dropped count disagrees with overflow causes'); complete = False
+    return {'records': parsed, 'overflow': folded, 'dropped': dropped, 'complete': complete and dropped == 0}
+
+
+def transition_lifecycles(rows, errors):
+    result = []
+    for row in rows:
+        # Native messages travel through different host log adapters. Read only
+        # string values; embedded text never controls this analyzer.
+        for key, value in row['fields'].items():
+            if not isinstance(value, str) or not value.startswith('transition.lifecycle '):
+                continue
+            try:
+                event = json.loads(value[len('transition.lifecycle '):])
+                if not isinstance(event, dict) or event.get('stage') not in ('begin', 'end'):
+                    raise ValueError('invalid lifecycle object')
+                result.append({'unixTime': row.get('unixTime'), **event})
+            except ValueError as error:
+                problem(errors, 'transition.lifecycle.' + key, str(error))
+    return result
+
 
 def problem(errors, context, message):
     errors.append({'context': context, 'message': message})
@@ -211,8 +283,14 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
     reconciliations, formats, peaks = [], set(), []
     amv = {'amvDecodedFrames': [], 'amvDecodedBytes': []}
     origins_valid = True
+    transition_windows, transition_missing = [], 0
     for index, row in enumerate(work):
         fields = row['fields']; context = 'work[%d]' % index
+        transition = parse_transition_profile(fields, errors, context + '.transitions')
+        if transition is None:
+            transition_missing += 1
+        else:
+            transition_windows.append(transition)
         stage_values = stages(fields.get('stages'), errors, context + '.stages')
         for name, values in stage_values.items():
             total = timings[name]; total[0] += values[0]; total[1] += values[1]; total[2] = max(total[2], values[2])
@@ -281,6 +359,25 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
     origin_complete &= file_complete
     named_complete = origin_complete and not any(folded_totals['read'] + folded_totals['upload']) and not (
         folded_totals['capacityRecords'] or folded_totals['oversizeRecords'])
+    transition_rows = {}
+    transition_overflow = collections.defaultdict(int)
+    for window in transition_windows:
+        for detail in window['records']:
+            key = (detail['requested'], detail['effective'], detail['reason'], tuple(detail['dimensions']),
+                json.dumps(detail['metadata'], ensure_ascii=False, sort_keys=True))
+            if key not in transition_rows:
+                transition_rows[key] = {**detail, **{metric: 0 for metric in TRANSITION_METRICS}}
+            target = transition_rows[key]
+            for metric in TRANSITION_METRICS:
+                target[metric] += detail[metric]
+            target['firstTick'] = min(target['firstTick'], detail['firstTick'])
+            target['lastTick'] = max(target['lastTick'], detail['lastTick'])
+        if window['overflow']:
+            for key, value in window['overflow'].items():
+                if value is not None:
+                    transition_overflow[key] += value
+    transition_complete = bool(work) and not transition_missing and file_complete and all(w['complete'] for w in transition_windows)
+    transition_observed = {detail['effective'] for detail in transition_rows.values()}
     comparison = {}
     for direction, key in (('read', 'layerReadbackBytes'), ('upload', 'layerUploadedBytes')):
         snapshot = numeric(last.get(key), errors, 'heartbeat.' + key)
@@ -321,6 +418,15 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
             'availableWorkWindows': len(all_work), 'selectedWorkWindows': len(work), 'windows': windows, 'v2Windows': v2_count,
             'legacyWindows': legacy_count, 'missingTextureWindows': texture_missing, 'missingOverflowWindows': overflow_missing,
             'fileDataComplete': file_complete}, 'heartbeatComparison': comparison, 'issues': errors,
+        'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
+            'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,
+            'legacyHandler': 'unknown' if transition_missing else None,
+            'knownDropped': sum(w['dropped'] or 0 for w in transition_windows), 'overflowKnownTotals': dict(transition_overflow),
+            'gpuPathHandlers': list(TRANSITION_HANDLERS),
+            'unobservedBuiltins': [name for name in TRANSITION_HANDLERS if name not in transition_observed],
+            'supportDomain': 'Observed dimensions, immutable metadata and concrete routing reasons; unobserved variants remain unverified',
+            'lifecycles': transition_lifecycles(selected_rows, errors),
+            'transferBasis': 'subset of same-window C0 transfer totals; parameter uploads reported separately; never add detail rows to overall transfers'},
         **{key: sum(values) if values and all(v is not None for v in values) else None for key, values in amv.items()},
         'largestScriptIntervals': [{'seconds': seconds(row), 'intervalMS': row['fields'].get('intervalMS'), 'stages': row['fields'].get('stages'),
             'amvDecodedBytes': row['fields'].get('amvDecodedBytes')} for _, row in sorted(peaks, key=lambda item: item[0], reverse=True)[:4]]}

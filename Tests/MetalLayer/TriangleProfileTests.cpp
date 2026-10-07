@@ -77,6 +77,8 @@ void TriangleProfileTests() {
     work::RecordFrame(100,21);work::RecordFrame(130,33);
     MikageKRKRLayerWorkProfile workProfile;
     Require(!MikageKRKRLayerWorkProfileOrigins(nullptr) &&
+            !MikageKRKRLayerWorkProfileTransitions(nullptr) &&
+            !MikageKRKRLayerWorkProfileTransitionOverflow(nullptr) &&
             !MikageKRKRLayerWorkProfileFrameIntervals(nullptr) &&
             !MikageKRKRLayerWorkProfileFrameCpuWall(nullptr),"work profile accessor accepted null input");
     std::memset(&workProfile,0xa5,sizeof(workProfile));
@@ -101,6 +103,27 @@ void TriangleProfileTests() {
     Require(!workProfile.transferOrigins[0] && workProfile.frameSampleCount==0 && workProfile.frameSamplesDropped==0 &&
             workProfile.frameIntervalNS[0]==0 && workProfile.frameCpuWallNS[0]==0,
             "work bridge did not reset origin/frame samples or zero reused output arrays");
+    Require(workProfile.transitionProfileVersion==1 && std::string(workProfile.transitionProfiles)=="[]" &&
+            workProfile.transitionProfilesDropped==0 &&
+            MikageKRKRLayerWorkProfileTransitions(&workProfile)==workProfile.transitionProfiles &&
+            MikageKRKRLayerWorkProfileTransitionOverflow(&workProfile)==workProfile.transitionOverflow,
+            "work bridge transition suffix/version/read-only accessor did not preserve backing views");
+    {
+        work::TransitionScope transition("requested.alias","crossfade",19,17,23,19,29,23,7,5,500,1,"{\"time\":300}");
+        work::RecordTransitionResult(true,"renderManager",35,2,168);
+        work::Record(false,99,7,5,140,13,7);
+    }
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) &&
+            std::strstr(workProfile.transitionProfiles,"\"requested\":\"requested.alias\"") &&
+            std::strstr(workProfile.transitionProfiles,"\"effective\":\"crossfade\"") &&
+            std::strstr(workProfile.transitionProfiles,"\"parameterUploads\":2,\"parameterBytes\":168") &&
+            std::strstr(workProfile.transitionProfiles,"\"readCalls\":1,\"readBytes\":140,\"readWallNS\":13,\"readWaitNS\":7"),
+            "work bridge dropped transition provider/parameter/transfer data");
+    workProfile.transitionProfileVersion=99;
+    Require(!MikageKRKRLayerWorkProfileTransitions(&workProfile) &&
+            !MikageKRKRLayerWorkProfileTransitionOverflow(&workProfile),"work bridge exposed unknown transition schema");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && std::string(workProfile.transitionProfiles)=="[]",
+            "work bridge retained transition rows across Take");
     work::RecordFrame(170,47);
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
             workProfile.frameIntervalNS[0]==40 && workProfile.frameCpuWallNS[0]==47,
@@ -128,6 +151,12 @@ void TriangleProfileTests() {
         work::profile.frameSamplesDropped=maximum;
     }
     const auto expectedOrigins=work::profile.originSize;
+    for(size_t i=0;i<work::TransitionCapacity;++i) {
+        const auto name="bridge.handler."+std::to_string(i);
+        work::TransitionScope transition(name.c_str(),name.c_str(),999,997,991,983,977,971,967,953,maximum,i);
+        work::SetTransitionMetadata(("{\"fixture\":\""+std::string(230,'x')+"\"}").c_str());
+        work::RecordTransitionResult(true,"applied",maximum,maximum,maximum);
+    }
     Require(expectedOrigins==64,"work bridge full-capacity suffix fixture lost distinct origin groups");
     std::memset(&workProfile,0xa5,sizeof(workProfile));
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge rejected bounded full/max-width suffix");
@@ -143,6 +172,11 @@ void TriangleProfileTests() {
     Require(workProfile.frameSampleCount==2048 && workProfile.frameIntervalNS[0]==maximum &&
             workProfile.frameIntervalNS[2047]==5 && workProfile.frameCpuWallNS[2047]==maximum &&
             workProfile.frameSamplesDropped==maximum,"work bridge frame arrays/count/drop suffix failed at capacity");
+    Require(workProfile.transitionProfileVersion==1 && workProfile.transitionProfilesDropped==0 &&
+            std::memchr(workProfile.transitionProfiles,0,sizeof(workProfile.transitionProfiles)) &&
+            std::strstr(workProfile.transitionProfiles,"bridge.handler.63") &&
+            std::strstr(workProfile.transitionProfiles,"\"parameterBytes\":18446744073709551615"),
+            "work bridge silently cut full transition capacity or max-width counters");
     Require(MikageKRKRLayerWorkProfileOrigins(&workProfile)==workProfile.transferOrigins &&
             MikageKRKRLayerWorkProfileFrameIntervals(&workProfile)==workProfile.frameIntervalNS &&
             MikageKRKRLayerWorkProfileFrameCpuWall(&workProfile)==workProfile.frameCpuWallNS,

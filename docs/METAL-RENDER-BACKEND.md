@@ -41,10 +41,21 @@ through the Metal Layer manager. The current registry has 70 names, including
 70 names with GPU descriptors; those descriptors still have explicit input,
 format, parameter, geometry and alias restrictions. On supporting Apple GPUs,
 ordinary operations use programmable blending in a shared target render pass;
-other devices use the existing compute paths. The affine two-triangle Copy
-subset is accelerated; general triangles and perspective remain software paths.
+other devices use the existing compute paths. Affine Copy and the supported
+blend subset, plus bounded single-input perspective batches, are accelerated;
+general triangles still retain their existing restricted paths.
 P1B completes the remaining 11 registered Photoshop descriptors, without adding
 the 15 unregistered historical extensions or general geometry support.
+
+C4 adds compute paths for the seven built-in extrans handlers: mosaic, wave,
+ripple, turn, rotatezoom, rotatevanish and rotateswap. Their software time
+stepping, fixed-point scanline plans and lookup tables remain authoritative.
+Resident RGBA inputs avoid CPU scanlines and per-frame pixel output uploads;
+parameter uploads are counted separately. Actual target aliases, CPU leases,
+unavailable pipelines and unsupported resources retain the CPU path. Undefined
+legacy parameter cases fail explicitly. Portable parity is verified; Apple
+shader execution and paired device performance remain pending in the
+[C4 baseline](NATIVE-METAL-P2C-C4-BASELINE.md).
 
 P1A Gamma operations retain immutable 768-byte software LUT snapshots. Two
 recent-version caches create new Metal buffers only for changed versions/content;

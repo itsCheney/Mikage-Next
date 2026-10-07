@@ -19,6 +19,13 @@ add_custom_command(OUTPUT "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}"
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
 set(UNIV_SHADER_SOURCE "${CORE}/core/render/backend/MetalLayerShaders.h")
 set(GENERATED_UNIV_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionUnivTransMath.inc")
+set(GENERATED_TRANSITION_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionTransitionMath.inc")
+add_custom_command(OUTPUT "${GENERATED_TRANSITION_MATH}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-math.py"
+            --source "${CORE}/core/render/backend/MetalTransitionShaders.h" --output "${GENERATED_TRANSITION_MATH}"
+    DEPENDS "${CORE}/core/render/backend/MetalTransitionShaders.h" "${CORE}/core/render/LayerTransition.h"
+            "${CORE}/core/render/LayerTransitionDefinitions.def" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-math.py"
+    VERBATIM)
 add_custom_command(OUTPUT "${GENERATED_UNIV_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-univ-trans-math.py"
             --source "${UNIV_SHADER_SOURCE}" --output "${GENERATED_UNIV_MATH}"
@@ -42,6 +49,11 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
     CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp C0ProfileTests.cpp
     P1AShaderTests.cpp
+    TransitionHandlerTests.cpp TransitionShaderTests.cpp C4ProfileTests.cpp "${GENERATED_TRANSITION_MATH}"
+    "${CORE}/plugins/extrans/mosaic.cpp" "${CORE}/plugins/extrans/wave.cpp"
+    "${CORE}/plugins/extrans/ripple.cpp" "${CORE}/plugins/extrans/turn.cpp"
+    "${CORE}/plugins/extrans/turntrans_table.cpp" "${CORE}/plugins/extrans/rotatebase.cpp"
+    "${CORE}/plugins/extrans/rotatetrans.cpp"
     P1BShaderTests.cpp
     P1AGammaTests.cpp
     "${GENERATED_TRIANGLE_BRIDGE}" "${GENERATED_AFFINE_MATH}"
@@ -56,7 +68,7 @@ foreach(dir archive main media/font media/image media/movie media/sound msg rend
     target_include_directories(metal-layer-tests PRIVATE "${CORE}/core/${dir}")
 endforeach()
 target_include_directories(metal-layer-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-    "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins")
+    "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins" "${CORE}/plugins/extrans")
 target_compile_definitions(metal-layer-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)
 if(WIN32)
     target_include_directories(metal-layer-tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../EmotePerformance/NodeStubs")

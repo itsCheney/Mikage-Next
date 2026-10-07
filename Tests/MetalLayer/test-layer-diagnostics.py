@@ -37,6 +37,22 @@ def heart(timestamp=106, session='A', **overrides):
     return row('heartbeat', timestamp, session, **fields)
 
 
+def transition_fields(records=(), dropped=0, **overflow_overrides):
+    overflow = {key: 0 for key in (*analysis.TRANSITION_METRICS, 'capacityRecords', 'oversizeRecords')}
+    overflow.update(overflow_overrides)
+    return {'transitionProfileVersion': '1', 'transitionProfiles': json.dumps(list(records), ensure_ascii=False),
+        'transitionProfilesDropped': str(dropped), 'transitionOverflow': json.dumps(overflow)}
+
+
+def transition_record(**overrides):
+    record = {key: 0 for key in analysis.TRANSITION_METRICS}
+    record.update(requested='custom.alias', effective='mosaic', reason='applied', metadata='{"maxsize":31}',
+        dimensions=[127, 91, 131, 97, 139, 101, 17, 13], firstTick=500, lastTick=700, frames=3,
+        gpuCalls=5, pixels=105, parameterUploads=5, parameterBytes=420)
+    record.update(overrides)
+    return record
+
+
 class LayerDiagnosticsTests(unittest.TestCase):
     def summarize(self, records, **bounds):
         with tempfile.TemporaryDirectory() as directory:
@@ -165,6 +181,62 @@ class LayerDiagnosticsTests(unittest.TestCase):
         self.assertIsNone(result['cumulative']['layerReadbackBytes'])
         self.assertIsNone(result['fpsMedian'])
         self.assertEqual(result['heartbeatComparison']['read']['status'], 'unavailable')
+
+    def test_transition_subset_and_parameters_do_not_duplicate_overall_transfers(self):
+        detail = transition_record(readCalls=2, readBytes=20, readWallNS=30, readWaitNS=4)
+        result = self.summarize(self.basic(work(**transition_fields([detail])), heart()))
+        self.assertEqual(result['transfersCallsBytesWallNSWaitNS']['read:load'], [2, 20, 30, 4])
+        transitions = result['transitions']
+        self.assertTrue(transitions['complete'])
+        self.assertEqual(transitions['records'][0]['parameterBytes'], 420)
+        self.assertEqual(transitions['records'][0]['dimensions'], detail['dimensions'])
+        self.assertEqual(transitions['records'][0]['metadata'], {'maxsize': 31})
+        self.assertIn('rotateswap', transitions['unobservedBuiltins'])
+        self.assertNotIn('mosaic', transitions['unobservedBuiltins'])
+
+    def test_unknown_provider_and_lifecycle_keep_names_and_normalized_parameters(self):
+        name = 'plugin,"未知\\handler'
+        detail = transition_record(requested=name, effective=name, reason='provider.cpu', cpuCalls=5, gpuCalls=0)
+        lifecycle = row('native.log', 102, message='transition.lifecycle ' + json.dumps({
+            'stage': 'begin', 'requested': name, 'effective': name, 'canvas': [127, 91], 'tick': 500}, ensure_ascii=False))
+        result = self.summarize(self.basic(lifecycle, work(**transition_fields([detail])), heart()))
+        self.assertEqual(result['transitions']['records'][0]['effective'], name)
+        self.assertEqual(result['transitions']['lifecycles'][0]['requested'], name)
+
+    def test_old_logs_have_unknown_handlers_without_guessing_from_bytes(self):
+        result = self.summarize(self.basic(work(), heart()))
+        self.assertFalse(result['transitions']['complete'])
+        self.assertEqual(result['transitions']['legacyHandler'], 'unknown')
+        self.assertEqual(result['transitions']['records'], [])
+        self.assertEqual(result['transitions']['missingHandlerWindows'], 1)
+
+    def test_transition_windows_merge_counts_and_preserve_coverage_bounds(self):
+        first = work(**transition_fields([transition_record()]))
+        second = work(110, **transition_fields([transition_record(firstTick=800, lastTick=900)]))
+        result = self.summarize(self.basic(first, second, heart(111)))
+        detail = result['transitions']['records'][0]
+        self.assertEqual(detail['gpuCalls'], 10)
+        self.assertEqual(detail['frames'], 6)
+        self.assertEqual((detail['firstTick'], detail['lastTick']), (500, 900))
+        bounded = self.summarize(self.basic(first, second, heart(111)), from_seconds=5, to_seconds=10)
+        self.assertEqual(bounded['transitions']['records'][0]['frames'], 3)
+
+    def test_transition_overflow_and_malformed_rows_remain_explicit_lower_bounds(self):
+        event = work(**transition_fields([transition_record()], 2, capacityRecords=1, oversizeRecords=1, readBytes=99))
+        result = self.summarize(self.basic(event, heart()))
+        self.assertFalse(result['transitions']['complete'])
+        self.assertEqual(result['transitions']['knownDropped'], 2)
+        self.assertEqual(result['transitions']['overflowKnownTotals']['readBytes'], 99)
+        broken = transition_record(parameterBytes=-1, dimensions=[1, 2])
+        result = self.summarize(self.basic(work(**transition_fields([broken])), heart()))
+        self.assertFalse(result['transitions']['complete'])
+        self.assertTrue(any('dimensions' in issue['message'] for issue in result['issues']))
+        bad_json = transition_fields(); bad_json['transitionProfiles'] = '{broken'
+        result = self.summarize(self.basic(work(**bad_json), heart()))
+        self.assertFalse(result['transitions']['complete'])
+        mismatch = transition_fields([], 2, capacityRecords=1)
+        result = self.summarize(self.basic(work(**mismatch), heart()))
+        self.assertTrue(any('dropped count disagrees' in issue['message'] for issue in result['issues']))
 
 
 if __name__ == '__main__':

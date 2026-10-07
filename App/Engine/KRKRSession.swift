@@ -793,6 +793,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                         "originOverflow": overflow,
                         "frameSamplesNS": copiedSample.frameSamplesNS,
                         "frameSamplesDropped": String(workProfile.frameSamplesDropped),
+                        "transitionProfileVersion": String(workProfile.transitionProfileVersion),
+                        "transitionProfiles": copiedSample.transitionProfiles,
+                        "transitionProfilesDropped": String(workProfile.transitionProfilesDropped),
+                        "transitionOverflow": copiedSample.transitionOverflow,
                         "amvDecodedFrames": String(workProfile.amvDecodedFrames),
                         "amvDecodedBytes": String(workProfile.amvDecodedBytes)
                     ])

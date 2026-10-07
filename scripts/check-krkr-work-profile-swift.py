@@ -25,7 +25,20 @@ def main():
         module = Path(folder)
         (module / 'module.modulemap').write_text('module KRKRRuntime { header "' + header.as_posix() + '" export * }\n', encoding='utf-8')
         smoke = module / 'ProfileImportSmoke.swift'
-        smoke.write_text('import KRKRRuntime\nfunc smoke() {\n  var profile = MikageKRKRLayerWorkProfile()\n  _ = KRKRLayerWorkSample(profile: &profile)\n}\n', encoding='utf-8')
+        smoke.write_text('''import KRKRRuntime
+func smoke() {
+  var profile = MikageKRKRLayerWorkProfile()
+  profile.transitionProfileVersion = 1
+  profile.transitionProfilesDropped = 0
+  let copied = KRKRLayerWorkSample(profile: &profile)
+  let _: String = copied.transitionProfiles
+  let _: String = copied.transitionOverflow
+  withUnsafePointer(to: &profile) { pointer in
+    let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileTransitions(pointer)
+    let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileTransitionOverflow(pointer)
+  }
+}
+''', encoding='utf-8')
         command = [swiftc, '-typecheck', '-swift-version', '5', '-sdk', sdk, '-I', str(module)]
         if args.sdk == 'iphonesimulator':
             architecture = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x86_64'

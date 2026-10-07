@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-07",
+  "heads": {
+    "main": "4943c0e47665433ef0c1d139d9043c408ef5c33a",
+    "runtime": "9efe69b102db7fa00f446efbe79c18a225b5b7ab",
+    "core": "860204a34f5d52f96df989bb82210f72bd45233d"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "planSHA256": "85fca5d6955ff5512c1b08240c7bf81684bfbb33fcd934f92ed103257206bc64",
+  "logs": {
+    "perf_log\\After_C0\\Mikage-diagnostics-194874F4-91E6-48CA-8DAC-F8E88D40C8C1.jsonl": "d2d33952e853b67966431e506c44314a929844cf23324c765a55fa97724dcceb",
+    "perf_log\\After_C0\\Mikage-diagnostics-480485A9-5400-4C26-AFA9-0F1615B2B507.jsonl": "cb03f4543feb0b794998a772bcf9ff225bfbe620240175021b35151ffef12ec9",
+    "perf_log\\After_C0\\Mikage-diagnostics-526441BA-3F67-48AB-995B-44AC1782953A.jsonl": "42bff92d8813ac8b0eb438c6c93848909e060fa25a8f03bbe087df36dc446330",
+    "perf_log\\After_C0\\Mikage-diagnostics-65F577F1-0431-4ED7-BE7A-49C66C00148F.jsonl": "d5ea5fe456003037b596af0ceec30544f75814a3816a898d5f86d0b9885a63c8",
+    "perf_log\\After_C0\\Mikage-diagnostics-81E2F82E-CC44-4CD3-A305-E83500279CC6.jsonl": "e42e9987331d7b8cf54c02dc0700eb31ce26e60814fd73cfc87559afd107e31b",
+    "perf_log\\After_C0\\Mikage-diagnostics-9128675A-527A-4E9F-8546-38250BA47C3D.jsonl": "89be0334d93d7d1e66be15b85c21a22eb813130c73a108350e6913cfaab4fc28",
+    "perf_log\\After_C0\\Mikage-diagnostics-A939C048-12F1-4F10-B09F-62B7F64119DF.jsonl": "3c086eac472c24145eb1b58e725be73d41bead2ae99e5d98fdb38411b0142090",
+    "perf_log\\After_C0\\Mikage-diagnostics-E1581EEF-BCC0-4753-9C1E-926F970784CC.jsonl": "91a5bc14aaa3f138d9c4d7ac5b0f0a4a51d3e9e902c3560dbe162530792ae88f"
+  },
+  "tests": "Windows portable/device-double; MetalLayer 4/4 and MetalRenderBackend 1/1 pre-change passed; Apple pending"
+}

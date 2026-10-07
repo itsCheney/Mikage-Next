@@ -4,6 +4,7 @@
 #include "MetalLayerRenderManager.h"
 #include "TVPCompositor.h"
 #include "TVPTrans.h"
+#include "metaltransition.h"
 #include "TVPEvent.h"
 #include "TVPMsg.h"
 #include "CharacterData.h"
@@ -99,6 +100,68 @@ void NoPreservationWork(const TVPLayerRenderStats& before) {
 }
 }
 
+void C4BitmapResourceTests(krkrsdl3::iTVPRenderBackend* backend) {
+    constexpr int w=8,h=8;
+    const auto old=Pixels(w,h,0x12034567),a=Pixels(w,h,0xf02468ac),b=Pixels(w,h,0xabcdef01);
+    for(bool diagnostics:{false,true}) for(int mode=0;mode<5;++mode) {
+        TestBitmap target(Create(old,w,h)),first(Create(a,w,h)),second(Create(b,w,h));
+        target.GetTexture()->GetTextureHandle();first.GetTexture()->GetTextureHandle();second.GetTexture()->GetTextureHandle();
+        TextureRef snapshot;
+        if(mode==1) {auto* original=target.GetTexture();original->AddRef();snapshot.reset(original);}
+        if(mode==2) target.GetTexture()->MarkCPUModified(tTVPRect(0,0,w,h));
+        const void* lease=mode==4 ? target.GetTexture()->LockCPURead() : nullptr;
+        tTVPScanLineProviderForBaseBitmap dest(&target),s1(&first),s2(&second);
+        tTVPDivisibleData data{}; data.Width=w;data.Height=h;data.Dest=&dest;data.Src1=&s1;data.Src2=&s2;
+        if(mode==3) data.Src1=&dest;
+        TVPLayerTransitionOperation op;op.params.kind=1;op.params.frameWidth=w;op.params.frameHeight=h;op.params.blockSize=2;
+        const auto before=TVPGetMetalLayerRenderStats();
+        krkrsdl3::layer_work::SetEnabled(diagnostics);
+        TVPLayerTransitionResult result;
+        {
+            krkrsdl3::layer_work::TransitionScope scope("mosaic","mosaic",w,h,w,h,w,h,w,h,1,1);
+            scope.SetPixels(w*h);result=TVPTryDivisibleMetalTransition(op,&data);
+        }
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes &&
+                after.cpuFallbacks==before.cpuFallbacks,"C4 resource preflight or dispatch crossed CPU boundary");
+        const auto profile=krkrsdl3::layer_work::Take();
+        if(diagnostics) Require(profile.transitionProfiles.find(mode>=3 ? "\"cpuCalls\":1" : "\"gpuCalls\":1")!=std::string::npos,
+            "C4 production route not attributed");
+        else Require(profile.transitionProfiles=="[]","disabled C4 diagnostics changed recording");
+        krkrsdl3::layer_work::SetEnabled(false);
+        if(mode>=3) {
+            Require(result==(mode==3 ? TVPLayerTransitionResult::Alias : TVPLayerTransitionResult::CPUAccess),
+                "C4 alias/lease rejection changed");
+            if(lease) target.GetTexture()->UnlockCPU();
+            Equal(target.GetTexture(),old);
+        } else {
+            Require(result==TVPLayerTransitionResult::Applied,"C4 bitmap route rejected");
+            auto expected=old;
+            for(int y=0;y<h;++y) for(int x=0;x<w;++x) expected[y*w+x]=a[((y/2)*2+1)*w+(x/2)*2+1];
+            Equal(target.GetTexture(),expected);
+            if(snapshot) Equal(snapshot.get(),old);
+            Equal(first.GetTexture(),a);Equal(second.GetTexture(),b);
+        }
+    }
+    TestBitmap target(Create(old,w,h)),first(Create(a,w,h)),second(Create(b,w,h));
+    auto* th=target.GetTexture()->GetTextureHandle();auto* sh1=first.GetTexture()->GetTextureHandle();auto* sh2=second.GetTexture()->GetTextureHandle();
+    TVPLayerTransitionOperation invalid;invalid.params.frameWidth=w;invalid.params.frameHeight=h;
+    invalid.params.width=w;invalid.params.height=h;invalid.params.blockSize=2;
+    const auto before=TVPGetMetalLayerRenderStats();
+    for(int kind:{-1,0,8,9,INT32_MAX}) {
+        invalid.params.kind=kind;
+        Require(TVPTryMetalLayerTransition(invalid,target.GetTexture(),first.GetTexture(),second.GetTexture())==TVPLayerTransitionResult::Unsupported,
+            "C4 facade accepted invalid kind");
+        Require(!backend->OperateLayerTransition(invalid,th,sh1,sh2) &&
+                backend->LastLayerTransitionResult()==TVPLayerTransitionResult::Unsupported,
+            "C4 backend encoded invalid kind");
+    }
+    const auto after=TVPGetMetalLayerRenderStats();
+    Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+            "invalid C4 kind crossed CPU boundary");
+    Equal(target.GetTexture(),old);
+    std::cout<<"PASS C4 real bitmap COW, dirty overwrite, alias, lease, invalid kinds and diagnostic toggle\n";
+}
 void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     constexpr int width=7,height=5;
     const auto oldPixels=Pixels(width,height,0x20406080u);

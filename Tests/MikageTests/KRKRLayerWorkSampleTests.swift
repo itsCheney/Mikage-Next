@@ -8,6 +8,8 @@ final class KRKRLayerWorkSampleTests: XCTestCase {
         let copied = KRKRLayerWorkSample(profile: &profile)
         XCTAssertEqual(copied.origins, "")
         XCTAssertEqual(copied.frameSamplesNS, "")
+        XCTAssertEqual(copied.transitionProfiles, "")
+        XCTAssertEqual(copied.transitionOverflow, "")
     }
 
     func testLargeOriginsAndFrameBoundaryRemainOwnedAfterProfileReset() {
@@ -39,5 +41,30 @@ final class KRKRLayerWorkSampleTests: XCTestCase {
         var profile = MikageKRKRLayerWorkProfile()
         profile.frameSampleCount = 2049
         XCTAssertEqual(KRKRLayerWorkSample(profile: &profile).frameSamplesNS, "")
+    }
+
+    func testLargeTransitionViewsRemainOwnedAfterResetAndInvalidFrameCount() {
+        var profile = MikageKRKRLayerWorkProfile()
+        profile.transitionProfileVersion = 1
+        profile.frameSampleCount = 2049
+        let transitions = "[\"" + String(repeating: "x", count: 120000) + "\"]"
+        let overflow = "{\"capacityRecords\":0,\"oversizeRecords\":0}"
+        withUnsafePointer(to: &profile) { pointer in
+            let destination = UnsafeMutablePointer(mutating: MikageKRKRLayerWorkProfileTransitions(pointer)!)
+            transitions.utf8CString.withUnsafeBufferPointer { bytes in
+                destination.update(from: bytes.baseAddress!, count: bytes.count)
+            }
+            let folded = UnsafeMutablePointer(mutating: MikageKRKRLayerWorkProfileTransitionOverflow(pointer)!)
+            overflow.utf8CString.withUnsafeBufferPointer { bytes in
+                folded.update(from: bytes.baseAddress!, count: bytes.count)
+            }
+        }
+        let copied = KRKRLayerWorkSample(profile: &profile)
+        profile = MikageKRKRLayerWorkProfile()
+        XCTAssertEqual(copied.transitionProfiles, transitions)
+        XCTAssertEqual(copied.transitionOverflow, overflow)
+        XCTAssertEqual(copied.frameSamplesNS, "")
+        profile.transitionProfileVersion = 99
+        XCTAssertEqual(KRKRLayerWorkSample(profile: &profile).transitionProfiles, "")
     }
 }
