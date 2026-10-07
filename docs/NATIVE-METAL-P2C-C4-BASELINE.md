@@ -79,3 +79,9 @@ python scripts/check-krkr-frame-times.py
 - 合并完整窗口的原始帧样本，nearest-rank p50/p95/p99、超过 50 ms 的数量及缺失/overflow/丢失显式报告；不平均窗口 p95，不把历史 thermal=2 样本混入配对百分比。
 
 本地 HEAD 尚未变化，因此任何未提交构建仍显示原提交的 HEAD；判断具体构建还须结合三层 diff 和包哈希。本轮没有新设备数据，不补零或推断 FPS、温度、功耗改善。
+
+## AppleClang 严格警告补修：2026-10-07
+
+用户提供的 CI 日志中，`tjs-shutdown-tests` 已构建并通过 1/1；失败发生在其后的 `check-krkr-frame-times.py`。AppleClang 21 在 `-Wall -Wextra -Werror` 下拒绝 `TransitionScope` 构造函数使用布尔按位 `&`，报 `-Wbitwise-instead-of-logical`。补修开始时本地短 HEAD 为主仓库 `29c2084900a2`、Runtime `d51f5de158f7`、Core `e5d66dcb61bc`；日志未提供 CI checkout SHA，不将其推断为上述提交。
+
+三个 `TransitionString()` 调用改为分别保存布尔结果，再用 `&&` 合并，保留三项始终校验和填充的语义，不关闭严格警告。本地 Windows/GCC 已重新构建并通过 TJS shutdown 1/1、MetalLayer 4/4、frame-timing 及该 CI 步骤后续五项脚本。补修未提交；实际 AppleClang CI 重跑及其后 Apple 专项验证仍待确认。原 C4 验收日志和 manifest 保持为历史证据。
