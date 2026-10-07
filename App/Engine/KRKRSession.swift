@@ -779,35 +779,19 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     let transfers = withUnsafePointer(to: &workProfile.transfers) {
                         $0.withMemoryRebound(to: CChar.self, capacity: 2048) { String(cString: $0) }
                     }
-                    let origins = withUnsafePointer(to: &workProfile.transferOrigins) {
-                        $0.withMemoryRebound(to: CChar.self, capacity: 16384) { String(cString: $0) }
-                    }
+                    let copiedSample = KRKRLayerWorkSample(profile: &workProfile)
                     let overflow = withUnsafePointer(to: &workProfile.originOverflow) {
                         $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
                     }
-                    let sampleCount = Int(workProfile.frameSampleCount)
-                    let frameIntervals = withUnsafePointer(to: &workProfile.frameIntervalNS) {
-                        $0.withMemoryRebound(to: UInt64.self, capacity: 2048) {
-                            Array(UnsafeBufferPointer(start: $0, count: sampleCount))
-                        }
-                    }
-                    let frameCpuWall = withUnsafePointer(to: &workProfile.frameCpuWallNS) {
-                        $0.withMemoryRebound(to: UInt64.self, capacity: 2048) {
-                            Array(UnsafeBufferPointer(start: $0, count: sampleCount))
-                        }
-                    }
-                    let frameSamples = zip(frameIntervals, frameCpuWall).map { sample in
-                        "\(sample.0)/\(sample.1)"
-                    }.joined(separator: ",")
                     AppDiagnostics.shared.event("session", "layerWorkProfile", [
                         "workProfileVersion": String(workProfile.workProfileVersion),
                         "intervalMS": String(Double(workProfile.intervalNS) / 1_000_000),
                         "displayTicks": String(displayTicks),
                         "stages": stages,
                         "transfers": transfers,
-                        "transferOrigins": origins,
+                        "transferOrigins": copiedSample.origins,
                         "originOverflow": overflow,
-                        "frameSamplesNS": frameSamples,
+                        "frameSamplesNS": copiedSample.frameSamplesNS,
                         "frameSamplesDropped": String(workProfile.frameSamplesDropped),
                         "amvDecodedFrames": String(workProfile.amvDecodedFrames),
                         "amvDecodedBytes": String(workProfile.amvDecodedBytes)

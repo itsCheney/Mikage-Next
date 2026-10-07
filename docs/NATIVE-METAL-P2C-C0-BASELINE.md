@@ -69,3 +69,13 @@ python scripts/check-krkr-frame-times.py --cxx C:/Strawberry/c/bin/c++.exe
 报告每 origin 的 calls/bytes/wallNS/waitNS、overflow、帧间隔和 CPU wall p50/p95/p99/长帧、总体 fallback/reject、上传/回读、encoder/submit、内存与热状态。C0 本身只增加观察能力，不以这些数据宣称优化；C1–C4 各自另验。
 
 待验：Apple 默认 tile/强制 compute、真实诊断开关无额外 submit/wait、iOS device/simulator host/App 重建、4 项 App XCTest、设置页窄屏显示与包内 HEAD 一致、上述真机配对基线。
+
+## Simulator 编译补修：2026-10-07
+
+用户提供 [app-tests.log](C:/Users/Ayach/Desktop/app-tests.log)，SHA-256 `8979e7dc72890d5732da8be65330f31328794a13a98a119ba7f760c82d5d0cb9`。日志明确显示 framework 头文件存在 `transferOrigins[16384]`，但 Swift 无法导入该内联数组字段；App 在编译阶段失败，XCTest 尚未执行。这不是旧 framework 缺少字段，也不是测试断言失败。
+
+补修起点：主仓库 `4ace2ba574394d4331125b9022aefc02d8dd75a5`、runtime `97e1ac9bf546e46a1cf9b60647bb43e759b6cacd`、core `860204a34f5d52f96df989bb82210f72bd45233d`，三层工作区干净。保留原 C profile 的容量/布局，新增只读 C accessors 返回 caller-owned origin/帧数组视图；Swift 通过独立生产 reader 在 profile 生命周期内复制字符串和 ns 数据，不再直接访问三处大数组。accessor 不采样、不重置、不分配 GPU 资源；null 和超限 frame count 有测试。
+
+新增 C bridge pointer identity/边界测试，新增 3 项 App XCTest 验证空样本、大字符串/2048 边界、复制后原 profile 重置和超限保护。CI 在 App 编译前运行 `check-krkr-work-profile-swift.py`，以实际公开头文件构造临时 Clang module，并用 iOS simulator SDK 对生产 Swift reader 和 profile 初始化做类型检查，避免纯 C++ 测试漏掉 importer 限制。
+
+本地 Layer CTest 4/4、backend 1/1 通过；Python 检查脚本语法通过。Windows 无 Swift/Xcode，配置的 Mac SSH 探测超时，因此新增 Swift 检查及 XCTest 未本地执行；下一轮 Apple CI 仍待确认。补修未提交或推送，local 日志保存于忽略目录 `build/c0-swift-import-*.log`。

@@ -476,7 +476,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 在三层与远端一致的 HEAD 上完成诊断聚合、逐帧采样、解析工具、版本 HEAD 和 portable 回归，本轮未提交，真机基线待验，见独立 C0 记录。
+P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 的诊断、逐帧、解析与版本 HEAD 已提交；随后 simulator App 编译暴露 Swift 无法导入 16384-byte C 数组字段，现改为只读 C accessor 并新增真实 Swift importer 检查，补修未提交、Apple 重建待验，见独立 C0 记录。
 
 仍未完成：C0 的 Apple/真机对照、C1–C4、P3–P5，以及新原生像素/性能/热状态基线和旧 GL 实际运行。普通 Layer fallback 为零不排除 scanline/lock/raw-pointer 边界；C0 观察能力不等于已优化。后续按同条件实测优先级处理 shrinkCopy、LayerEx、tiny update 与 CPU transition；既有版本反馈不替代新增代码验收。
 

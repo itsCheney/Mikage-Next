@@ -157,6 +157,7 @@ jobs:
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
+          python3 scripts/check-krkr-work-profile-swift.py
           python3 scripts/check-app-build-info.py
           xcodegen generate
       - name: Test app model on a simulator

@@ -76,6 +76,9 @@ void TriangleProfileTests() {
     work::RecordAMVFrame(4096);
     work::RecordFrame(100,21);work::RecordFrame(130,33);
     MikageKRKRLayerWorkProfile workProfile;
+    Require(!MikageKRKRLayerWorkProfileOrigins(nullptr) &&
+            !MikageKRKRLayerWorkProfileFrameIntervals(nullptr) &&
+            !MikageKRKRLayerWorkProfileFrameCpuWall(nullptr),"work profile accessor accepted null input");
     std::memset(&workProfile,0xa5,sizeof(workProfile));
     Require(!MikageKRKRTakeLayerWorkProfile(nullptr),"work bridge accepted a null output");
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge did not sample");
@@ -140,6 +143,15 @@ void TriangleProfileTests() {
     Require(workProfile.frameSampleCount==2048 && workProfile.frameIntervalNS[0]==maximum &&
             workProfile.frameIntervalNS[2047]==5 && workProfile.frameCpuWallNS[2047]==maximum &&
             workProfile.frameSamplesDropped==maximum,"work bridge frame arrays/count/drop suffix failed at capacity");
+    Require(MikageKRKRLayerWorkProfileOrigins(&workProfile)==workProfile.transferOrigins &&
+            MikageKRKRLayerWorkProfileFrameIntervals(&workProfile)==workProfile.frameIntervalNS &&
+            MikageKRKRLayerWorkProfileFrameCpuWall(&workProfile)==workProfile.frameCpuWallNS,
+            "work profile accessor copied, reset, or returned the wrong backing field");
+    const auto frameCount=workProfile.frameSampleCount;
+    workProfile.frameSampleCount=2049;
+    Require(!MikageKRKRLayerWorkProfileFrameIntervals(&workProfile) &&
+            !MikageKRKRLayerWorkProfileFrameCpuWall(&workProfile),"work profile accessor exposes oversized frame arrays");
+    workProfile.frameSampleCount=frameCount;
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==0 &&
             workProfile.frameSamplesDropped==0 && workProfile.frameIntervalNS[2047]==0,
             "work bridge maximum-width frame window did not clear after Take");
