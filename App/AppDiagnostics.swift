@@ -38,10 +38,11 @@ final class AppDiagnostics: @unchecked Sendable {
     }
 
     @MainActor private func recordEnvironment() {
+        let buildInfo = AppBuildInfo()
         event("app", "environment", [
-            "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            "build": Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown",
-            "sourceRevision": Bundle.main.infoDictionary?["MikageSourceRevision"] as? String ?? "unknown",
+            "version": buildInfo.version,
+            "build": buildInfo.build,
+            "sourceRevision": buildInfo.sourceRevision,
             "system": UIDevice.current.systemVersion,
             "device": UIDevice.current.model,
             "screenPoints": NSCoder.string(for: UIScreen.main.bounds),

@@ -197,11 +197,17 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("MIKAGE NEXT · 0.1")
-                        .font(.caption2)
-                        .tracking(3)
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity)
+                    let buildInfo = AppBuildInfo()
+                    VStack(spacing: 4) {
+                        Text(buildInfo.versionLine)
+                            .tracking(3)
+                        Text(buildInfo.headLine)
+                            .font(.system(.caption2, design: .monospaced))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("app-build-info")
                 }
                 .listRowBackground(Color.clear)
             }

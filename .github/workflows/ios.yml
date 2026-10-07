@@ -156,10 +156,13 @@ jobs:
           path: build/KRKRRuntime.xcframework
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          python3 scripts/check-app-build-info.py
+          xcodegen generate
       - name: Test app model on a simulator
         run: |
           set -o pipefail
+          MIKAGE_SOURCE_REVISION="$(git rev-parse --short=12 HEAD)"
           # Resolve a real simulator rather than hardcoding a device name that
           # changes with the Xcode version on the runner image.
           SIMULATOR="$(xcrun simctl list devices available \
@@ -178,9 +181,15 @@ jobs:
             -destination "platform=iOS Simulator,id=${SIMULATOR}" \
             -derivedDataPath build/TestDerivedData \
             CODE_SIGNING_ALLOWED=NO \
+            MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
             2>&1 | tee build/app-tests.log
       - name: Build unsigned iPhone app
         run: bash scripts/build-ios.sh
+      - name: Verify app revision metadata
+        run: |
+          python3 scripts/check-app-build-info.py \
+            --plist build/DerivedData/Build/Products/Release-iphoneos/Mikage.app/Info.plist \
+            --expected-revision "$(git rev-parse --short=12 HEAD)"
       - name: Package unsigned IPA
         run: |
           mkdir -p build/package/Payload

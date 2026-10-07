@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-06。状态：**P0 已验收；P1A/P1B/P2A 已提交，用户报告测试暂未发现问题；P2B 已完成本地实现与 portable 验证，新 Apple/真机回归待验；P3–P5 尚未实施。**
+日期：2026-10-05；更新：2026-10-07。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 的 origin 聚合、逐帧基线接口和 App 构建 HEAD 已完成本地实现与 portable 验证，新 Apple/真机对照待验；C1–C4、P3–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -11,6 +11,8 @@
 1. **当前引擎的普通 Layer 能力**：补齐当前已注册软件方法的 Metal 路由及有效参数域，扩大 affine/perspective 的 GPU 支持，减少可避免的软件回退和像素传输。
 2. **旧 GL 的额外兼容能力**：对当前未注册的染色、AlphaTest 等方法明确支持契约；只在确认调用方需求后接入。动态 GLSL 不纳入本轮默认承诺。
 3. **真机性能与稳定性**：在同一设备、游戏、场景和设置下验证画面、输入、帧耗时、GPU 阶段、内存和长时间运行。GPU 算子覆盖增加本身不能证明持续卡顿或发热消失。
+
+特别地，`layerCPUFallbacks=0`、GPU 算子 reject 为零、以及像素正确，都不能推出没有 CPU↔GPU 传输：上层仍可主动取得 scanline、lock 或 raw pointer。本计划将“扩大 GPU 算子支持域”与“消除已证实的 CPU 像素边界”分别验收，不能用其中一项替代另一项。
 
 
 ## 2. 审计基线与证据边界
@@ -59,6 +61,17 @@
 | T1 | [普通 Layer 测试][t-layer]、[测试构建配置][t-layer-cmake] |
 | T2 | [Metal backend 测试][t-backend]、[iOS CI][t-ci] |
 | D1 | [第三批性能核对与已实施优化][d-third]、[此前 Layer 性能跟进][d-followup] |
+
+### 2.4 2026-10-06 诊断样本：P2C 的证据与边界
+
+以下是上传诊断日志的**现象基线**，不是对当前工作区或所有游戏的性能承诺。六个横向样本均标记为 `sourceRevision=6e5cbf10e7dd`；实施前必须在当时的三层 HEAD、同设备、同场景重新采样。它们的共同结果是 `layerCPUFallbacks=0`、GPU reject=0，因此这里的传输不是普通 Layer Metal 算子被拒绝后的 software fallback。
+
+- 一个 transition 场景累计 upload 1,176.45 MiB、readback 171.45 MiB；其中 `transition.outputOverwrite` 为 133 次/1,052.05 MiB（89.43% upload），`transition.source` 为 16 次/158.20 MiB（92.28% readback）。该采样还记录 26 次同步等待、430.63 ms。它对应传统 `DivisibleTransHandler` 经 scanline 在 CPU 处理后整图写回的路径；现有 overwrite 优化避免了旧目标 readback，但不能避免每帧整图 upload。
+- 六个不同游戏样本没有 `transition.source` / `transition.outputOverwrite`，故 transition 是严重但触发相关的路径，不能被用来解释所有游戏的卡顿。`shrinkCopy`/同类 lock readback 则更普遍：DRACU-RIOT! 为 155 次、5.74 MiB、271.4 ms wait；天使纷扰为 78 次、21.95 MiB、486.5 ms wait；9-nine 为 12 次、3.94 MiB、40.2 ms wait。小至约 13 KiB 的读取也观察到 10–40 ms 等待，优化目标不能只按 MiB 排序。
+- 天使纷扰记录了同一张 1052×900 texture 的 `layerExDraw.write` 与 `layerExBase` 两次完整 GPU→CPU→GPU 往返，单轮约 14.45 MiB；其中 `layerExBase` readback 的 GPU wait 约 40.92 ms。这是 raw-pixel API 与 GPU-authoritative texture 交替使用的可复现样例，不应笼统归为“插件少量读回”。
+- 六个样本还出现 7,304–32,131 次 `bitmap.update`。常见单次约 500 bytes，但部分样本达到约 4,650 次/s，且与 `blitEncoders` 高度相关。这是 encoder/命令编码 churn 的强信号，不足以单凭相关性断言调用链；P2C 必须先补齐 origin 与调用点证据，再做批处理。
+
+诊断现有的 texture-ID top-N 输出会把多个来源折叠成 `read:other`/`upload:other`。例如天使纷扰中 `read:other` 为 67 次/4.58 MiB/289.2 ms wait；在按 `layerReadbackBySource` 的统计中，同一采样却显示 71 次 lock readback。故 P2C 的第一个可交付物是有界的按 origin 聚合，不能在 `other` 仍吞没 stall 来源时直接归因或设性能目标。
 
 ## 3. 对原对话结论的逐项核实
 
@@ -124,6 +137,7 @@
 | perspective | P2B：Copy 与 Alpha/ConstAlpha/AdditiveAlpha/Ps 单 RGBA 源逆映射 compute | 本地完成；其它方法、过滤器、超限批次、矩形错位自别名等仍软件；新 Apple/真机待验 |
 | blur | 两 pass sliding sums；两个名称共用当前软件公式 | 64 MiB sums 限额、无缩放、完整合法 ROI；大图/裁剪等仍可能回退 |
 | R8 | mask/rule 资源及 ColorMap/RemoveOpacity 输入 | RemoveOpacity 限同尺寸正向合法 ROI；不等于任意 Gray/province 目标均支持 GPU 运算 |
+| 显式 CPU 像素边界 | `DivisibleTransHandler` scanline、`shrinkCopy` lock、LayerEx raw pointer、bitmap dirty update 均可请求 CPU 可见像素 | 不是普通 Layer operation descriptor 的缺口；P2C 必须逐一裁决 GPU 路径、完整覆盖写、必要 CPU 边界与批处理，不能声称任意插件/截图/命中测试零回读 |
 | CPU/GPU 一致性 | COW、dirty region、point cache、CPU lease、会话隔离 | 新算子必须正确声明 alpha 变化、源依赖及写 ROI，不能绕过这些机制 |
 | tile/compute | 支持设备上 tile；in-place compute 或 snapshot compute | 新算子在所有路径的像素和顺序一致性，不能只测默认 tile |
 
@@ -174,7 +188,7 @@
 
 ## 6. 实施阶段与验收门槛
 
-建议顺序：**P0 → P1A → P2A → P1B → P2B → P3 → P5**。P4 是按调用需求启用的兼容分支。若新的真实日志表明某个未覆盖家族占主要成本，可调整 P1A/P1B 内部顺序。
+建议顺序：**P0 → P1A → P2A → P1B → P2B → P2C → P3 → P5**。P4 是按调用需求启用的兼容分支。P2C 先建立可归因的基线；默认依次处理更普遍的 `shrinkCopy` 同步、LayerEx raw-pixel ping-pong、tiny `bitmap.update` 批处理和 CPU transition。若目标游戏的同条件新日志显示 `transition.source`/`transition.outputOverwrite` 为主因，可将 transition 子项提升到 P2C 的最前面。
 
 ### P0：把能力契约和测试基线固定下来
 
@@ -264,6 +278,52 @@
 
 验收：当前合法单输入透视场景留在 GPU；多 quad 不越界、不相互污染参数；覆盖边缘和采样的差异有逐项结论；异常输入不会在部分修改目标后再次软件渲染。
 
+### P2C：消除已证实的 CPU/GPU 边界与 tiny-upload churn
+
+目标：把先前 P5 中泛化的“检查读源”变成可交付的运行时路径。这个阶段不以“所有 CPU pixel API 必须消失”为目标；CPU 算法、截图或插件 ABI 仍可能合理地需要边界。目标是让声明支持的生产路径保持 GPU resident，或将不可避免的 CPU 边界收敛为一次、可归因、语义正确的操作，而不是默许整图往返、同步 lock 或每个小 dirty rect 一个 encoder。
+
+#### C0. 先补齐传输归因与可比较基线
+
+2026-10-07 本地签收：64 槽 origin（40 个保护槽/24 动态槽）与显式 overflow、2048 对真实 runtime 帧间隔/CPU wall 样本、v2 C/Swift/分析接口和设置页构建 HEAD 已接入。Layer CTest 4/4、backend 1/1、frame 检查通过；78,628 精确表面比较、3 session。按用户选择，真机配对基线仍待验，不宣称性能改善，见 [C0 基线](NATIVE-METAL-P2C-C0-BASELINE.md)。
+
+- [x] 在 `metal.layerWork` 中增加与 texture-ID top-N 并列、但不按 texture ID 拆分的**有界 origin 聚合**：每个 origin 的 calls、bytes、wallNS、sync waitNS；保留 top-N texture 明细用于定位，不能再由 `other` 隐藏 stall 来源。
+- [x] 为 `transition.source`、`transition.outputOverwrite`、`shrinkCopy.read/write`、`layerExBase`、`layerExDraw.write`、`bitmap.update` 和未分类 lock/pixels 保持稳定且可测试的命名；新来源超长/超容量显式进入 overflow，原字符串不改写。
+- [x] 计数器只观察既有工作；生产 texture/cache/lease 路径与 device double 验证实际次数、bytes、wait、generation、开关工作量一致，未新增 GPU 同步。原生分支的 submit/wait 断言需 Apple 执行。
+- [x] 逐帧采样、整窗口分析、nearest-rank 分位数、旧格式下界/缺失/丢失标识，以及设置页与诊断共用 Bundle HEAD 均有本地连线/数学测试；App XCTest 与 UI 编译待 Apple。
+- [ ] 以第 2.4 节的游戏/场景重放采集改动前后样本，同时记录设备、OS、三层 commit、分辨率、热状态、运行时间、输入步骤和 frame-time 分位数。没有同条件的 before/after，不宣称改善。
+
+#### C1. `shrinkCopy`：优先消除同步 lock 路径
+
+- [ ] 从 `shrinkCopy.read` 和 `shrinkCopy.write` 反查全部调用链、ROI、filter、源/目标驻留、读旧目标需求和调用频率。将“名称为 write”与“可以完整覆盖目标”分开：前者并不自动允许 overwrite。
+- [ ] 对已有 GPU-resident 源/目标且语义等价的 resize/copy，走 GPU blit/render/compute 路径，保留当前像素、边缘、clip、alias/COW 和操作顺序。只在**证明整个写入区域完全定义**时使用 overwrite contract；部分 read-modify-write 禁止借此跳过旧目标读取。
+- [ ] GPU 路径不可用时保留正确 CPU fallback，并以 origin 记录其数据量与同步等待；不得为消除 readback 改变缩放滤镜、区域外像素或重叠顺序。
+
+验收：对可重放的、源和目标均已驻留的 `shrinkCopy` 支持域，`shrinkCopy` 归因的 readback calls/bytes/sync wait 均为零，且无整图 CPU upload；完整覆盖写不会先读旧目标。DRACU-RIOT!、天使纷扰和 9-nine 的同条件日志分别报告次数、bytes、p50/p95 wait 与长帧数；仍需 CPU 的调用有明确原因，不能混入 `other`。
+
+#### C2. LayerEx/raw-pixel：收敛 GPU↔CPU ping-pong，而非假定插件可自动 GPU 化
+
+- [ ] 将 `LayerExBase`、`LayerExDraw`、`ScopedLayerPixels` 等调用按只读、完整覆盖写、局部读改写和真 CPU 算法分类，并捕获调用栈/功能样例。每类明确 CPU cache、dirty ROI、lease、COW、alpha cache 和跨会话资源语义。
+- [ ] 对有已知 GPU 等价实现的功能接入专用 GPU 路径；对 ABI 必须提供 raw pointer 的功能，设计单次、区域化的 acquire/release 与上传边界。不能通过延迟 dirty、复用失效 CPU buffer 或虚构 full overwrite 改变插件可见像素。
+- [ ] 以天使纷扰的 1052×900 `layerExDraw.write` → `layerExBase` 交替访问为回归样例。重构前先证明两次完整往返由同一调用序列造成；重构后要么消除其中可 GPU 化的一段，要么记录为何 ABI/算法必须保留边界。
+
+验收：样例的像素、raw-pointer 可见性、区域外内容、COW/lease 和资源释放保持正确；一次逻辑插件处理不会在没有新的 CPU 消费者需求时对同一完整纹理产生两次 GPU→CPU→GPU 往返。若语义确实要求多次 CPU 阶段，报告每段 origin、区域和 wait，而不是把它标成“已优化”。
+
+#### C3. `bitmap.update`：按帧聚合小更新与 encoder 生命周期
+
+- [ ] 先用 C0 origin、调用点和 dirty-rect/texture 数据验证 `bitmap.update` 与 blit encoder 的关系；相关性不是充分的调用链证据。区分启动资源加载、字形/文本、小 UI、movie frame 与普通 bitmap 写入。
+- [ ] 在不改变可见次序的前提下，把同一帧中可合并的 dirty rect 放入 staging arena/ring，并复用尽可能少的 blit encoder；跨目标、跨依赖或中间读取时保留顺序，不能为减少 encoder 数而延迟本帧必须可见的内容。
+- [ ] 约束 staging 资源寿命、背压、最大合并大小、内存上限和 submission 预算；场景切换、后台恢复和跨会话销毁不得引用旧 staging buffer。
+
+验收：小 bitmap 的像素、dirty ROI、可见时序及 CPU/GPU 所有权正确；在选定的高频 UI/文本场景中，encoder/submit 数不再与 `bitmap.update` 次数近似一一对应（受真实依赖限制的例外必须记录）。报告每秒 update、encoder、submit、CPU encoding 时间和 frame-time，而不是只报告累计 MiB。
+
+#### C4. CPU transition：对高频 `DivisibleTransHandler` 建立 GPU 保留路径
+
+- [ ] 先统计真实游戏使用的 `DivisibleTransHandler` 类型、规则/源数、frame 尺寸、持续帧数和 fallback 条件；优先映射高频且能与现有 Universal transition 或新增 Metal kernel 语义等价的类型。不能把“已有 Universal transition”误称为覆盖任意 CPU transition。
+- [ ] 在支持域内让 source、rule 和 output 全程 GPU resident，并保持 alpha、clip、时间步进、随机性、目标别名、COW 与中断/场景切换语义。未知或不等价 transition 仍走正确 CPU 路径，且诊断必须标明类型和原因。
+- [ ] 不把 `LockCPUWriteForOverwrite()` 当作 transition GPU 化的替代方案：它仅省去旧 output readback；CPU 生成的每帧 full-frame output 仍会产生 upload，必须由 GPU 计算路径消除。
+
+验收：对已支持的 1920×1080/1440 transition 重放，`transition.source` readback bytes、`transition.outputOverwrite` upload bytes、该 transition 的 CPU fallback 和归因 sync wait 均为零；无新增每帧 submit 或等待，并与软件参照逐像素一致或有预先定义的容差。未支持类型必须正确回退且可从 origin 聚合中辨认，不能以总 readback 为零掩盖它。
+
 ### P3：通用三角形能力
 
 目标：覆盖旧 GL 的一般 `OperateTriangles()` 形状；这是扩展引擎能力，不只是删除 `count!=2` 检查。
@@ -294,7 +354,7 @@
 - [ ] 分析真实 alias snapshot 面积、生命周期、分配和 pass 切换；优先减少可证明冗余的复制。GPU ping-pong 本身不是失败。
 - [ ] 对 blur 超 64 MiB 临时预算的输入评估分块/条带算法，保留正确 halo 和 source==target 语义。没有明确需求前不取消预算。
 - [ ] 将大核/偶数核/非对称 area 与当前软件规则锁定；是否恢复另一种 alpha-aware BoxBlurAlpha 作为单独兼容变更评估。
-- [ ] 检查 CPU 转场、raw pixel 插件、截图、命中测试的实际读源；只迁移已知具体转场，不承诺任意 CPU 插件零回读。
+- [ ] 复核 P2C 之外的低频 CPU 边界：截图、命中测试、异步 alpha 和尚未触发的插件。CPU transition、`shrinkCopy`、LayerEx/raw-pixel、`bitmap.update` 的实施与专项验收归 P2C；这里仅处理新证据和跨路径回归，不把“未触发”写成零回读。
 - [ ] 保存原有异步 alpha 的 presentation gating、不可变显示版本和 simulator guard；新算子正确失效 alpha cache，HDA 仅在真正不改变 alpha 时保留缓存。
 - [ ] 测试场景切换、前后台、截屏、分辨率变化、显存压力、资源销毁、异步回调与跨会话缓存。
 - [ ] 沿用 `metal.gpuStages`、`metal.layerWork`、fallback/readback/upload 来源及 triangle profile；必要时新增方法×拒绝原因×像素量统计，保持有界且不添加同步。
@@ -311,15 +371,20 @@
 | D | affine alpha/const/additive 扩展 | A、对应像素族 | 高；采样边界与别名 |
 | E | Ps 11 项及 affine 中适用的像素族 | A、D 的接口 | 中；表函数、变体差异 |
 | F | 单源 perspective | D、语义裁决样例 | 高；坐标/多 quad/退化输入 |
-| G | 通用三角形与安全支持域 | D、独立参照 | 高；软件回退不通用 |
-| H | 按需历史 color/AlphaTest/stencil | 明确调用需求、G 中所需能力 | 高；扩展旧协议 |
-| I | snapshot/blur/批处理专项优化和真机收口 | 对应功能包稳定 | 高；收益只能实测 |
+| G0 | P2C origin 聚合、无同步诊断和场景基线 | F、现有 `metal.layerWork` | 中；计数正确性与诊断不能改变时序 |
+| G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取 |
+| G2 | LayerEx/raw-pixel 边界收敛 | G0、插件样例 | 高；ABI 可见性、COW/lease、CPU cache |
+| G3 | `bitmap.update` staging/encoder 批处理 | G0、调用点证据 | 高；更新顺序、可见时序、资源寿命 |
+| G4 | 高频 CPU transition GPU 保留路径 | G0、实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
+| H | 通用三角形与安全支持域 | D、独立参照 | 高；软件回退不通用 |
+| I | 按需历史 color/AlphaTest/stencil | 明确调用需求、H 中所需能力 | 高；扩展旧协议 |
+| J | snapshot/blur/低频边界专项优化和真机收口 | 对应功能包稳定 | 高；收益只能实测 |
 
 每包均包括必要的 production scalar 对照、路由与资源测试、原生 GPU 测试和文档更新。不要把所有 Metal 修改合成一个大提交，再补测试。
 
 跨仓库位置：主要实现属于 core；host 只在新增诊断/配置确有需要时变更；测试/CI/计划属于主仓库。实现完成后的提交和 submodule 指针更新按 core → runtime/host → 主仓库顺序处理。本计划不执行提交或推送。
 
-不在源码静态审计阶段承诺精确人日；最大不确定项是几何兼容裁决、旧接口真实需求及 Apple 设备验证。A/B/C 是确定性较高的首批，F/G/H 需阶段性评估。
+不在源码静态审计阶段承诺精确人日；最大不确定项是 raw-pixel ABI 的必要边界、transition 类型的真实覆盖、几何兼容裁决、旧接口真实需求及 Apple 设备验证。A/B/C 是确定性较高的首批，G1–G4/H/I 需阶段性评估。
 
 ## 8. 验证矩阵与完成标准
 
@@ -354,6 +419,8 @@
 - 参数/LUT/顶点上传是必要 GPU 输入，单独记录；不能用“绝对零上传”误拒正确实现。
 - 正常提交预算触发允许保留；不新增每算子提交或 `waitUntilCompleted`。诊断开启不得增加额外提交/等待。
 - 对应禁用条件和设备失败必须有测试，确保回退保留输入、区域外像素和参数状态；失败不能先改一部分目标，再重复执行整个软件操作。
+- 对 P2C，先同时查看按 origin 聚合与 texture-ID top-N，报告 calls、bytes、wallNS、sync waitNS；`other` 只能是有界的补充桶，不能作为关键 stall 的最终归因。对不需要 CPU 的指定支持域，逐 origin 断言为零；对 ABI/算法确需 CPU 的路径，断言一次边界的区域、原因和顺序正确，而不是用全局总数掩盖它。
+- 小传输验收必须同时记录次数、每秒峰值、encoder/submit 数、CPU encoding 时间和 frame-time 分布。小于 1 MiB 的 readback 仍可能等待前序 GPU 工作，禁止以累计 bytes 小而跳过同步指标。
 
 ### 8.4 真机场景与指标
 
@@ -362,6 +429,10 @@
 | 9nine UI/效果 | Gamma 与 Ps/普通混合、透明和短时尖峰 | D1 曾记录少量 Gamma 回退；需新版本同条件复测 |
 | 天使纷扰设置/鉴赏 | Stretch、复制/混合、fallback 和传输 | 已有修复不能列为本计划新成果 |
 | 天使纷扰后期剧情 | tile 与 compute 成本、持续帧时间及热状态 | D1 有低回读下 GPU/展示等待证据，不能只看回退数 |
+| 天使纷扰 LayerEx 触发流程 | raw-pixel boundary、同 texture ping-pong、CPU wait | P2C C2 重放 1052×900 往返样例；需先确认实际插件功能和调用栈 |
+| DRACU-RIOT! 缩放触发流程 | `shrinkCopy` 小读回的 p50/p95 wait、长帧 | P2C C1；现有样本 155 次/271.4 ms 仅作待复测基线 |
+| 高频 UI/文本流程（少女领域、DRACU-RIOT!、9-nine、青空下的加缪各至少一个） | `bitmap.update` rate、blit encoder/submit、CPU encoding | P2C C3；先验证调用点，不将相关性当成因果 |
+| 已知 CPU transition 流程 | `transition.source`/`outputOverwrite`、画面和时间步进 | P2C C4；仅在新日志确认触发时进入最高优先级 |
 | 千恋万花流程图首次/再次打开 | 图像加载、脚本时间与渲染的分离 | 解码/首次加载成本不由 Metal 算子覆盖自动解决 |
 | affine/perspective 专用场景 | 正确坐标、边缘、COW、回退来源 | 若游戏缺少稳定样例，先制作可重放最小脚本 |
 | Emote 静置及连续点击 | mesh、mask、capture、显示版本与输入 | 与 ordinary Layer 缺口分开归因；保留 async alpha 行为 |
@@ -394,19 +465,20 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [x] P0：静态清单与运行时名称/对象关系一致，已有 portable 像素/路由回归通过；原生 Metal 与新真机基线待验，见签收范围。
 - [ ] P1：24 个矩形语义缺口完成，全部支持域/回退域有证据。
 - [ ] P2：常用 affine 混合及单输入 perspective 留在 GPU，几何边界裁决完成。
+- [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
 - [ ] P3：通用三角形域有独立参照与安全拒绝/回退。
 - [ ] P4：逐项标明“未触发/延后/已验收”，不作为当前核心功能完成的隐含条件。
 - [ ] P5：Apple 测试与 device/simulator 构建通过，目标真机场景达到预先保存的正确性和性能门槛。
 
-允许声明核心路线完成的条件是 P0/P1/P2/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
+允许声明核心路线完成的条件是 P0/P1/P2/P2C/P3/P5 验收齐全，P4 有明确处置记录。允许先发布较小功能包，但只能声明该包已覆盖的输入域，不能写“Kirikiroid 全兼容”。
 
 ## 9. 初始审计与 P0/P1A/P1B/P2A/P2B 实施状态
 
 初始审计已完成：固定版本源码获取、旧 GL/当前软件/Metal 注册与别名核对、接口及几何/blur/回读审计、现有测试与 CI 阅读、实施依赖和验收计划。
 
-P0/P1A/P1B/P2A/P2B 已完成本地实现并提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A 接入 affine 混合与明确资源契约。P2B 修复软件透视参照，新增事务 compute 路径与诊断并完成两套本地 CTest。随后 Apple CI 暴露纹理引用参数的 ARC 所有权编译错误，已补上显式 strong 引用；补修未提交，Apple 重建待验，证据见独立 P2B 记录。
+P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 在三层与远端一致的 HEAD 上完成诊断聚合、逐帧采样、解析工具、版本 HEAD 和 portable 回归，本轮未提交，真机基线待验，见独立 C0 记录。
 
-仍未完成：P3–P5，新增 P2B 的原生 MSL/GPU 像素、Apple device/simulator 构建与真机像素/性能/热状态基线，以及旧 GL 实际运行。P2 本地支持域与拒绝反例已记录，整体签收仍需新原生与设备证据；既有版本反馈不替代 P2B 验收。
+仍未完成：C0 的 Apple/真机对照、C1–C4、P3–P5，以及新原生像素/性能/热状态基线和旧 GL 实际运行。普通 Layer fallback 为零不排除 scanline/lock/raw-pointer 边界；C0 观察能力不等于已优化。后续按同条件实测优先级处理 shrinkCopy、LayerEx、tiny update 与 CPU transition；既有版本反馈不替代新增代码验收。
 
 ## 附录 A：完整名称对照
 
@@ -513,6 +585,9 @@ P0/P1A/P1B/P2A/P2B 已完成本地实现并提交；用户报告 P2A 测试暂�
 | 优化 blur | 64 MiB 预算、halo、边缘分母、整数溢出界限、偶数核、源目标重叠 |
 | 改合成 pass | 目标切换、upload/blit/compute/readback 顺序、呈现/截图、批处理和提交预算 |
 | 改资源缓存 | pin/lease、dirty ROI、CPU cache、会话解绑、游戏切换和异步回调 |
+| 改 CPU pixel 边界 | 调用栈/用途分类、完整覆盖证明、ROI、source/target 驻留、CPU cache、COW/lease、alpha cache、同步 wait 与回退可见性 |
+| 合并 tiny upload | dirty-rect 顺序、同帧可见性、中间读取、staging 生命周期/背压/上限、encoder/submit 预算、场景切换与跨会话销毁 |
+| 改传输诊断 | 按 origin 聚合与 texture 明细同时保留、calls/bytes/wallNS/waitNS、一致的 origin 名、`other` 上限、关闭诊断后的时序不变 |
 
 [k-register]: https://github.com/zeas2/Kirikiroid2/blob/d1c2b1259423542c893e0b65eaeb46c848848f2b/src/core/visual/ogl/RenderManager_ogl.cpp#L2587-L3307
 [k-readback]: https://github.com/zeas2/Kirikiroid2/blob/d1c2b1259423542c893e0b65eaeb46c848848f2b/src/core/visual/ogl/RenderManager_ogl.cpp#L2114-L2143

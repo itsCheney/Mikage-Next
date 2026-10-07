@@ -1,0 +1,254 @@
+{
+  "phase": "P2C C0",
+  "capturedUTC": "2026-10-07T04:46:40.992310+00:00",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "compiler": "C:/Strawberry/c/bin/c++.exe",
+  "nativeCompiled": false,
+  "deviceDouble": true,
+  "skips": 0,
+  "startingWorktrees": "runtime/core clean; main preexisting compatibility plan 81 additions / 9 deletions",
+  "repositories": [
+    {
+      "name": "main",
+      "head": "6e5cbf10e7dd58aa5d2c847213ecea3d82823dd7",
+      "branch": "metal_dev",
+      "status": " M .github/workflows/ios.yml\n M App/AppDiagnostics.swift\n M App/Engine/KRKRSession.swift\n M App/SettingsView.swift\n m Engine/KRKRRuntime/Source\n M Tests/MetalLayer/CMakeLists.txt\n M Tests/MetalLayer/MetalLayerTests.cpp\n M Tests/MetalLayer/README.md\n M Tests/MetalLayer/TriangleProfileTests.cpp\n M docs/NATIVE-METAL-COMPATIBILITY-PLAN.md\n M scripts/analyze-layer-diagnostics.py\n M scripts/check-krkr-frame-times.py\n?? App/AppBuildInfo.swift\n?? Tests/MetalLayer/C0ProductionDiagnostics.inc\n?? Tests/MetalLayer/C0ProfileTests.cpp\n?? Tests/MetalLayer/test-layer-diagnostics.py\n?? Tests/MikageTests/AppBuildInfoTests.swift\n?? docs/NATIVE-METAL-P2C-C0-BASELINE.md\n?? docs/native-metal-p2c-c0-baseline/\n?? scripts/check-app-build-info.py\n",
+      "patch": "D:\\vn-sim\\build\\native-metal-p2c-c0-baseline\\main.patch",
+      "patchSHA256": "bf2977529c1749fc8dd928cfc6278e5b1b9952ba3b21e7af06a176c18f442bb6",
+      "reverseCheckPassed": true
+    },
+    {
+      "name": "runtime",
+      "head": "e0b0d3826bad2d3ff3ffa0c0a8df46cc444b6c29",
+      "branch": "metal_dev",
+      "status": " m cpp\n M host/MikageKRKRRuntime.h\n M host/MikageKRKRRuntime.mm\n",
+      "patch": "D:\\vn-sim\\build\\native-metal-p2c-c0-baseline\\runtime.patch",
+      "patchSHA256": "643627b82eaf9d85c634f147f5e0a54c28d43d353ed16f980dd78c1948511943",
+      "reverseCheckPassed": true
+    },
+    {
+      "name": "core",
+      "head": "b8800eee7a831aa3ce8a51284c65389e9fe08dcf",
+      "branch": "metal_dev",
+      "status": " M core/render/LayerWorkDiagnostics.h\n M core/render/MetalLayerRenderManager.cpp\n M core/render/RenderManager.h\n",
+      "patch": "D:\\vn-sim\\build\\native-metal-p2c-c0-baseline\\core.patch",
+      "patchSHA256": "a13a7380f6520b758295000399af74386a0ce0cf3e7b42e7ad06a14a0ad2511b",
+      "reverseCheckPassed": true
+    }
+  ],
+  "commands": [
+    "cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release",
+    "cmake --build build/metal-layer-tests --parallel 2",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure --verbose",
+    "build/metal-layer-tests/metal-layer-tests.exe --audit-capabilities",
+    "cmake -S Tests/MetalRenderBackend -B build/metal-render-tests",
+    "cmake --build build/metal-render-tests --parallel 2",
+    "ctest --test-dir build/metal-render-tests --output-on-failure --verbose",
+    "TEMP/TMP=D:/vn-sim/build/native-metal-p2c-c0-baseline (Windows sandbox)",
+    "python scripts/check-krkr-frame-times.py --cxx C:/Strawberry/c/bin/c++.exe",
+    "python Tests/MetalLayer/test-layer-diagnostics.py",
+    "python scripts/check-app-build-info.py"
+  ],
+  "capabilities": {
+    "appendixNames": 85,
+    "registeredNames": 70,
+    "descriptorNames": 70,
+    "softwareOnlyNames": 0,
+    "unknownNames": 15
+  },
+  "fileHashes": [
+    {
+      "repository": "main",
+      "path": ".github/workflows/ios.yml",
+      "sha256": "c1200d69681628240695ddb2871c007eba6f7524d248c592f55f72ac8e0d5722"
+    },
+    {
+      "repository": "main",
+      "path": "App/AppBuildInfo.swift",
+      "sha256": "2bb900f56be19260a69d08bf1face27ad99571e274043562d0ed1dbe48f46309"
+    },
+    {
+      "repository": "main",
+      "path": "App/AppDiagnostics.swift",
+      "sha256": "64baaf0b59f9c8636d080b030fc57b1f1530f5086c6e651e261e5e82f14d1f14"
+    },
+    {
+      "repository": "main",
+      "path": "App/Engine/KRKRSession.swift",
+      "sha256": "6aa2c3b43117e0c0552925c0c8a60571cb87328825df177a8e8c9a209f8d1acc"
+    },
+    {
+      "repository": "main",
+      "path": "App/SettingsView.swift",
+      "sha256": "3e1d69a2e2e453d49b134e707d5de329ec2289e03f9ac163f05de5afecd32f5d"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/C0ProductionDiagnostics.inc",
+      "sha256": "4651581963d93340c872241ecfabfd5728d91dc0142967971f3964cb6c1dda69"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/C0ProfileTests.cpp",
+      "sha256": "cdfeb8b2fbe2a4a1651534eb17d9eab9b540137568f6e74a6e294b4e6d5ad41a"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/CMakeLists.txt",
+      "sha256": "4303f1e2e6bdb7049f6ac81731afccccc27dbcf1a58caf7c0d7c3239399b2da2"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/MetalLayerTests.cpp",
+      "sha256": "68b21873605289d093b8332627ebf7d3d41eb50845b39e304276524ae73a8c44"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/README.md",
+      "sha256": "d6419c18377bd94e544a8b9656cfc50da215f4f2f01f48d82c9bfdb5f4904fb0"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/TriangleProfileTests.cpp",
+      "sha256": "d8ac53a8a3bd839f17eefefa0662a9b1e5abbaa736e60d4712500ffdaf55cd05"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/test-layer-diagnostics.py",
+      "sha256": "10cbb28cdcfeb4586c1bf000ef6a54792b4c3c8d1d229a133b1f17ccf1b985ab"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MikageTests/AppBuildInfoTests.swift",
+      "sha256": "e903037d278575854e50a3f5abbd9bbbba17b79a95814577789e1870995f7ddf"
+    },
+    {
+      "repository": "main",
+      "path": "docs/NATIVE-METAL-COMPATIBILITY-PLAN.md",
+      "sha256": "4bc8e59e1923a685d98d3d0f4d480f0d206a95f780fffa119c1842a9e985dec2"
+    },
+    {
+      "repository": "main",
+      "path": "docs/NATIVE-METAL-P2C-C0-BASELINE.md",
+      "sha256": "2c3684081846c623e4930fb6f556211d865de73b974c81a99a6555915c80c8f4"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/capabilities.json",
+      "sha256": "f42c9277bb5b784ca68be1263fad6e7fd354740e29144b4c2c33fbaef9b07a7f"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/frame-timing-after.log",
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-layer-after.log",
+      "sha256": "6a91daf7cc68aa667c7e04906bf29bd1c80dd03e5ad5c5ebcfc715021bc74dcf"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-layer-before.log",
+      "sha256": "bc86530f2127c72a1bfe6d54931d5906ebae22e4d8703be6fd8c977c924e66fa"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-layer-build.log",
+      "sha256": "ccafeb59ba3c57f20c2d37509e7ed86100bf7b557763f7a0002ff11a21f4abfd"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-render-after.log",
+      "sha256": "a6d9efc990eeb152a5f74034138740f8b1fd01fe4ce31cf07ef3c06106ceafd9"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-render-before.log",
+      "sha256": "a6d9efc990eeb152a5f74034138740f8b1fd01fe4ce31cf07ef3c06106ceafd9"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p2c-c0-baseline/metal-render-build.log",
+      "sha256": "7c11a7fdd50c38b225e28ee6d5c43bb002e5e754ffe77271b15c95e2dc7ed800"
+    },
+    {
+      "repository": "main",
+      "path": "scripts/analyze-layer-diagnostics.py",
+      "sha256": "f56aff94b0dd5cac6f3d7ec385d830c1d4e5b24d8b4bb99b889130284adab9c9"
+    },
+    {
+      "repository": "main",
+      "path": "scripts/check-app-build-info.py",
+      "sha256": "2d401a074a30fbff1e74df1336e6e1abf3fc67639222d7b18fab0a81a04c83cb"
+    },
+    {
+      "repository": "main",
+      "path": "scripts/check-krkr-frame-times.py",
+      "sha256": "afd54b3fc3f683a378a2c72019a2efb0e09de836554d44e9bd364e82b3c87e17"
+    },
+    {
+      "repository": "runtime",
+      "path": "host/MikageKRKRRuntime.h",
+      "sha256": "1bc0d80c7982fcdd8c57a239bf1352215e7d6d5ae86727dae3c7c7fd60b824bf"
+    },
+    {
+      "repository": "runtime",
+      "path": "host/MikageKRKRRuntime.mm",
+      "sha256": "0dbf325c064ab06d720d7db57881e07f2cd69ec8c7b75cffbf6e61a75551e68f"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/LayerWorkDiagnostics.h",
+      "sha256": "497a5cbc21f3d8e5ee8d939c5c405d6bfc25c5952b86e949058d711ced0278d6"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/MetalLayerRenderManager.cpp",
+      "sha256": "ffdb7b21ad6040ad3fd1e014135bae9b90ef0686127d535e1fc66e8ca58b4a70"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/RenderManager.h",
+      "sha256": "901c8da69ba89fa7a4319b608b2844aeeac8f8b542e77f6fa475c8cabb4fe940"
+    }
+  ],
+  "patchCapture": "Raw Git diff stdout including new files; no commits or pushes; exclude metadata itself.",
+  "pending": [
+    "C0 macOS production MSL and Objective-C++ compilation",
+    "C0 default tile and forced compute native regression including snapshots/order",
+    "C0 iOS device/simulator framework and app build",
+    "C0 paired real-device correctness, lifetime, performance and thermal baseline",
+    "4 AppBuildInfo XCTest cases and narrow-screen footer visual check",
+    "Paired three-run device/scene baseline; no performance improvement claim"
+  ],
+  "originalPlan": {
+    "path": "D:\\vn-sim\\build\\native-metal-p2c-c0-baseline\\plan-before.md",
+    "sha256": "95cd9facfb3e19e75c893594d167225b30fe6f88b935035f37c43a4e0cd4f84c",
+    "patchPath": "D:\\vn-sim\\build\\native-metal-p2c-c0-baseline\\plan-before.patch",
+    "patchSHA256": "f56a793b40cc0b92203ace00df2310d2f225f7c1d8817bb38437e1f05e09a4cb",
+    "preserved": true
+  },
+  "clientDate": "2026-10-07",
+  "limits": {
+    "origins": 64,
+    "protectedOriginSlots": 40,
+    "dynamicOriginSlots": 24,
+    "nameBytes": 47,
+    "originBufferBytes": 16384,
+    "framesPerWindow": 2048
+  },
+  "validation": {
+    "layerCTestsPassed": 4,
+    "backendCTestsPassed": 1,
+    "surfaceComparisons": 78628,
+    "sessions": 3,
+    "parserFixturesPassed": 12,
+    "frameTimingCheckPassed": true,
+    "appWiringCheckPassed": true,
+    "appXCTestsAdded": 4,
+    "appXCTestsExecuted": false,
+    "nativeObjCXXCompiled": false,
+    "swiftUICompiled": false
+  }
+}

@@ -37,6 +37,7 @@ void LayerBlendShaderTests();
 void TriangleProfileTests();
 void CompilationFailureTests();
 void OperationContractTests();
+void C0ProfileTests();
 void P1AShaderTests();
 void P1BShaderTests();
 void P1AGammaTests(iTVPRenderBackend*);
@@ -78,6 +79,9 @@ class DeviceDouble : public iTVPRenderBackend {
     std::unordered_map<void*,std::unique_ptr<Resource>> resources;
     bool preserveSoftwareStretch=false;
 public:
+    uint64_t fullReads=0, updateCalls=0;
+    bool failDiagnosticUpload=false, cycleDiagnosticsOnRead=false;
+    bool cycleDiagnosticsOnUpload=false, cycleDiagnosticsOnRegionRead=false;
     bool rejectTripleSource=false;
     bool rejectGamma=false;
     bool rejectAlphaTables=false;
@@ -147,11 +151,22 @@ public:
     }
     void DestroyLayerTexture(void* handle) override { resources.erase(handle); }
     bool UpdateLayerTexture(void* handle,const uint8_t* data,int pitch,const TVPLayerRect& rc) override {
+        if(failDiagnosticUpload) return false;
+        ++updateCalls;
+        if(cycleDiagnosticsOnUpload) {
+            cycleDiagnosticsOnUpload=false;
+            krkrsdl3::layer_work::SetEnabled(false); krkrsdl3::layer_work::SetEnabled(true);
+        }
         auto& r=*resources.at(handle);
         for(int y=0;y<rc.Height();++y) std::memcpy(r.pixels.data()+((y+rc.top)*r.w+rc.left)*r.bpp,data+y*pitch,rc.Width()*r.bpp);
         return true;
     }
     bool ReadLayerTexture(void* handle,std::vector<uint8_t>& pixels,int& pitch) override {
+        ++fullReads;
+        if(cycleDiagnosticsOnRead) {
+            cycleDiagnosticsOnRead=false;
+            krkrsdl3::layer_work::SetEnabled(false); krkrsdl3::layer_work::SetEnabled(true);
+        }
         simulatedReadWaitNS=9000000;
         auto& r=*resources.at(handle);pixels=r.pixels;pitch=r.w*r.bpp;return true;
     }
@@ -174,6 +189,10 @@ public:
         return true;
     }
     bool ReadLayerTextureRegion(void* handle,const TVPLayerRect& rc,std::vector<uint8_t>& pixels,int& pitch) override {
+        if(cycleDiagnosticsOnRegionRead) {
+            cycleDiagnosticsOnRegionRead=false;
+            krkrsdl3::layer_work::SetEnabled(false); krkrsdl3::layer_work::SetEnabled(true);
+        }
         simulatedReadWaitNS=9000000;
         ++syncRegionReads;
         auto& r=*resources.at(handle);pitch=rc.Width()*r.bpp;pixels.resize(size_t(pitch)*rc.Height());
@@ -1111,6 +1130,7 @@ static void WorkDiagnostics() {
     Require(disabled.transfers.empty() && !disabled.decodedFrames,"disabled recording retained work diagnostics");
 }
 
+#include "C0ProductionDiagnostics.inc"
 static void AlphaConversionReference() {
     auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
     auto image=Image(17,13,4,33),destination=Image(17,13,4,9);
@@ -2319,7 +2339,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); C0ProfileTests(); C0ProductionDiagnostics(backend.get()); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

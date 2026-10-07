@@ -4,9 +4,11 @@
 #include "LayerTriangleTrace.h"
 #include "../../Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.h"
 #include <atomic>
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -72,6 +74,7 @@ void TriangleProfileTests() {
     work::SetEnabled(true);
     work::Record(true,17,1920,1080,8,3,0,false,"bridge.test");
     work::RecordAMVFrame(4096);
+    work::RecordFrame(100,21);work::RecordFrame(130,33);
     MikageKRKRLayerWorkProfile workProfile;
     std::memset(&workProfile,0xa5,sizeof(workProfile));
     Require(!MikageKRKRTakeLayerWorkProfile(nullptr),"work bridge accepted a null output");
@@ -80,11 +83,75 @@ void TriangleProfileTests() {
             std::memchr(workProfile.transfers,0,sizeof(workProfile.transfers)),"work bridge strings not terminated");
     Require(workProfile.amvDecodedFrames==1 && workProfile.amvDecodedBytes==4096 &&
             std::strstr(workProfile.transfers,"bridge.test@17"),"work bridge dropped decoded/transfer data");
+    Require(workProfile.workProfileVersion==2 &&
+            std::string(workProfile.transferOrigins)=="upload:bridge.test=1/8/3/0" &&
+            std::string(workProfile.originOverflow)=="read=0/0/0/0,upload=0/0/0/0,capacityRecords=0,oversizeRecords=0",
+            "work bridge origin suffix version/metrics were not copied exactly");
+    Require(std::memchr(workProfile.transferOrigins,0,sizeof(workProfile.transferOrigins)) &&
+            std::memchr(workProfile.originOverflow,0,sizeof(workProfile.originOverflow)),"work bridge suffix strings not terminated");
+    Require(workProfile.frameSampleCount==2 && workProfile.frameIntervalNS[0]==0 && workProfile.frameIntervalNS[1]==30 &&
+            workProfile.frameCpuWallNS[0]==21 && workProfile.frameCpuWallNS[1]==33 && workProfile.frameSamplesDropped==0 &&
+            workProfile.frameIntervalNS[2]==0 && workProfile.frameCpuWallNS[2047]==0,
+            "work bridge frame suffix did not preserve nanoseconds or clear unused array tail");
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && !workProfile.transfers[0] && !workProfile.amvDecodedFrames,
             "work bridge did not reset its interval");
+    Require(!workProfile.transferOrigins[0] && workProfile.frameSampleCount==0 && workProfile.frameSamplesDropped==0 &&
+            workProfile.frameIntervalNS[0]==0 && workProfile.frameCpuWallNS[0]==0,
+            "work bridge did not reset origin/frame samples or zero reused output arrays");
+    work::RecordFrame(170,47);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
+            workProfile.frameIntervalNS[0]==40 && workProfile.frameCpuWallNS[0]==47,
+            "work bridge Take reset runtime frame timestamp continuity");
+    work::RecordFrame(180,49);work::ResetFrameHistory();work::RecordFrame(1000,53);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
+            workProfile.frameIntervalNS[0]==0 && workProfile.frameCpuWallNS[0]==53,
+            "work bridge reset history retained an old cadence/sample");
+    work::SetEnabled(true);
+    for(const auto* name:work::protectedOrigins) for(bool upload:{false,true})
+        work::Record(upload,1,1,1,1,1,1,false,name);
+    for(size_t i=0;i<work::OriginCapacity-work::protectedOrigins.size()*2;++i) {
+        const auto name=std::string(46,'%')+char(0x80+i);
+        work::Record(false,i+2,1,1,1,1,1,false,name.c_str());
+    }
+    for(uint64_t i=0;i<work::MaxFrameSamples+3;++i) work::RecordFrame(2000+i*5,i+1);
+    const auto maximum=std::numeric_limits<uint64_t>::max();
+    {
+        std::lock_guard<std::mutex> lock(work::mutex);
+        for(auto& origin:work::profile.origins) origin.calls=origin.bytes=origin.ns=origin.waitNS=maximum;
+        for(auto& overflow:work::profile.originOverflow) overflow.calls=overflow.bytes=overflow.ns=overflow.waitNS=maximum;
+        work::profile.capacityRecords=work::profile.oversizeRecords=maximum;
+        work::profile.frameIntervalNS[0]=maximum;
+        work::profile.frameCpuWallNS[2047]=maximum;
+        work::profile.frameSamplesDropped=maximum;
+    }
+    const auto expectedOrigins=work::profile.originSize;
+    Require(expectedOrigins==64,"work bridge full-capacity suffix fixture lost distinct origin groups");
+    std::memset(&workProfile,0xa5,sizeof(workProfile));
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge rejected bounded full/max-width suffix");
+    Require(std::memchr(workProfile.transferOrigins,0,sizeof(workProfile.transferOrigins)) &&
+            std::memchr(workProfile.originOverflow,0,sizeof(workProfile.originOverflow)) &&
+            std::count(workProfile.transferOrigins,workProfile.transferOrigins+std::strlen(workProfile.transferOrigins),',')==int(expectedOrigins-1),
+            "work bridge silently cut a full-capacity escaped origin row");
+    const std::string maxTuple="18446744073709551615/18446744073709551615/18446744073709551615/18446744073709551615";
+    Require(std::strstr(workProfile.transferOrigins,maxTuple.c_str()) &&
+            std::string(workProfile.originOverflow)=="read="+maxTuple+",upload="+maxTuple+
+                ",capacityRecords=18446744073709551615,oversizeRecords=18446744073709551615",
+            "work bridge shortened maximum-width origin/overflow counters");
+    Require(workProfile.frameSampleCount==2048 && workProfile.frameIntervalNS[0]==maximum &&
+            workProfile.frameIntervalNS[2047]==5 && workProfile.frameCpuWallNS[2047]==maximum &&
+            workProfile.frameSamplesDropped==maximum,"work bridge frame arrays/count/drop suffix failed at capacity");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==0 &&
+            workProfile.frameSamplesDropped==0 && workProfile.frameIntervalNS[2047]==0,
+            "work bridge maximum-width frame window did not clear after Take");
     running=false; Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled outside session"); running=true;
     diagnosticCallback.store(nullptr); Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled with recording off");
     diagnosticCallback.store(TestLog); work::SetEnabled(false);
+    work::Record(false,1,1,1,1);work::RecordFrame(30000,77);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.intervalNS==0 &&
+            workProfile.workProfileVersion==2 && !workProfile.transferOrigins[0] && workProfile.frameSampleCount==0 &&
+            workProfile.frameSamplesDropped==0,"disabled collector bridge kept interval/origin/frame data");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.intervalNS==0,
+            "disabled work bridge restarted interval timing on Take");
     static_assert(!std::is_copy_constructible<trace::SourceScope>::value);
     auto t=Create(),s=Create(),r=Create();
     auto* mgr=TVPGetRenderManager();

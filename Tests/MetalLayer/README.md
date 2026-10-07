@@ -194,3 +194,18 @@ cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release
 cmake --build build/metal-layer-tests --parallel
 ctest --test-dir build/metal-layer-tests --output-on-failure
 ```
+
+P2C C0 adds a parallel direction/origin view to the existing texture top-eight
+profile: 64 bounded slots, protected names, explicit capacity/oversize overflow,
+and exact calls/bytes/wall/wait totals. Production read/upload/point paths capture
+the profiling generation before backend work; cache hits and failed operations do
+not count. Tests cover deferred long names, raw lease changes, all four mid-backend
+generation changes and identical pixels/backend work with diagnostics on/off.
+
+Runtime frame sampling stores at most 2048 interval/CPU-wall pairs per window,
+retains history across sampling, and resets on lifecycle/recording boundaries.
+The extracted production C bridge verifies complete bounded strings/arrays and
+old-field compatibility. Parser fixtures validate v1 lower bounds, v2 reconciliation,
+overflow/missing samples, complete windows and raw-sample nearest-rank quantiles.
+App metadata wiring checks run portably; SwiftUI/XCTest and real-device baselines
+remain separate Apple acceptance. No C1-C4 rendering optimization is implied.

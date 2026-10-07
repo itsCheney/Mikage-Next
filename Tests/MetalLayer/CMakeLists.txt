@@ -40,7 +40,7 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
     DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-affine-math.py"
     VERBATIM)
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
-    CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp
+    CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp C0ProfileTests.cpp
     P1AShaderTests.cpp
     P1BShaderTests.cpp
     P1AGammaTests.cpp
@@ -77,6 +77,8 @@ endif()
 enable_testing()
 add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
 add_test(NAME metal-layer-capability-audit COMMAND metal-layer-tests --audit-capabilities)
+add_test(NAME layer-diagnostics-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-layer-diagnostics.py")
+add_test(NAME app-build-info-wiring COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../../scripts/check-app-build-info.py")
 set_tests_properties(metal-layer-tests PROPERTIES SKIP_RETURN_CODE 77)
 if(APPLE)
     set_tests_properties(metal-layer-tests PROPERTIES ENVIRONMENT "MTL_DEBUG_LAYER=1")

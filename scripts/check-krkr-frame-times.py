@@ -41,6 +41,8 @@ def main():
     production += function(emote, "static void recordSlowEmoteOperation(")
     tests = r'''
 int main() {
+    namespace work = krkrsdl3::layer_work;
+    work::SetEnabled(true);
     resetStats();
     Uint64 now = fakeNow;
     for (int i = 0; i < 60; ++i) {
@@ -52,6 +54,9 @@ int main() {
     assert(std::abs(currentCpuFrameTimeMS - 2.0) < 0.001);
     assert(std::abs(currentMaxCpuFrameTimeMS - 2.0) < 0.001);
     assert(logs.empty());
+    const auto normalSamples = work::Take();
+    assert(normalSamples.frameSampleCount == 60 && normalSamples.frameIntervalNS[0] == 0);
+    assert(normalSamples.frameIntervalNS[59] == 16666667 && normalSamples.frameCpuWallNS[59] == 2000000);
     // A scene-load spike must appear in generation peak, independently of
     // the display cadence and the rolling average frame interval.
     for (int i = 0; i < 30; ++i) {
@@ -64,6 +69,9 @@ int main() {
     assert(std::abs(currentMaxCpuFrameTimeMS - 120.0) < 0.001);
     assert(logs.size() == 1);
     assert(logs.back().find("count=1 peakWallMS=120.000 peakEventMS=110.000 peakIterateMS=9.000 peakEvents=7") != std::string::npos);
+    const auto stalledSamples = work::Take();
+    assert(stalledSamples.frameSampleCount == 30 && stalledSamples.frameIntervalNS[0] == 120000000);
+    assert(stalledSamples.frameCpuWallNS[0] == 120000000 && stalledSamples.frameCpuWallNS[29] == 2000000);
     // Continuous slow frames generate one summary per second, and peak fields
     // remain tied to one frame rather than combining unrelated stage maxima.
     fakeNow = now;
@@ -83,6 +91,12 @@ int main() {
     assert(frameCount == 0 && frameWorkTotal == 0 && frameWorkMax == 0);
     assert(slowFrameCount == 0 && peakFrameEventTimeNS == 0 && peakFrameIterateTimeNS == 0);
     assert(peakFrameEventCount == 0);
+    assert(work::Take().frameSampleCount == 0);
+    recordFrame(fakeNow + 1000000000, 3000000, 0, 3000000, 0);
+    const auto resumedSamples = work::Take();
+    assert(resumedSamples.frameSampleCount == 1 && resumedSamples.frameIntervalNS[0] == 0);
+    assert(resumedSamples.frameCpuWallNS[0] == 3000000);
+    work::SetEnabled(false);
 
     logs.clear();
     recordSlowEmoteOperation(true, fakeNow - 49000000);
@@ -147,6 +161,7 @@ int main() {
 #include <cstdio>
 #include <string>
 #include <vector>
+#include "LayerWorkDiagnostics.h"
 using Uint64 = std::uint64_t;
 Uint64 fakeNow = 1000000000ULL;
 Uint64 SDL_GetTicksNS() { return fakeNow; }
@@ -166,7 +181,8 @@ void TVPConsoleLog(const char *format, ...) {
         unit = Path(directory) / "frame-times.cpp"
         exe = Path(directory) / ("frame-times.exe" if os.name == "nt" else "frame-times")
         unit.write_text(prefix + production + tests, encoding="utf-8")
-        subprocess.run([cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror", str(unit), "-o", str(exe)], check=True)
+        subprocess.run([cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror",
+                        "-I", str(ROOT / "Engine/KRKRRuntime/Source/cpp/core/render"), str(unit), "-o", str(exe)], check=True)
         subprocess.run([str(exe)], check=True)
     return 0
 

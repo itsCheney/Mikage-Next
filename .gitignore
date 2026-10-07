@@ -9,3 +9,4 @@ node_modules/
 artifacts/
 Mikage.xcodeproj/
 artifacts-preview*.log
+perf_log/
