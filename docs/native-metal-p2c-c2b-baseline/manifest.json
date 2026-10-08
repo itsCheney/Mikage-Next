@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "stage": "P2C C2B",
+  "date": "2026-10-09",
+  "startedDate": "2026-10-08",
+  "archivedAtLocal": "2026-10-09T00:01:43.192738+08:00",
+  "archivedAtUTC": "2026-10-08T16:01:43.192738+00:00",
+  "heads": {
+    "main": "3cc3971f518c12dea81acdced04d8bda5f3826b8",
+    "runtime": "023673063436e72d352920002f88412ceac0533e",
+    "core": "cb387a6524f9423e9f563428ba69d0c440deb133"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "compiler": "MinGW GCC 13.2",
+  "deviceDouble": true,
+  "nativeMetal": false,
+  "realPlutovgCPU": true,
+  "skip": 0,
+  "committed": false,
+  "pushed": false,
+  "before": "Three repositories clean; original plan, empty diff/status and historical LastTest outputs saved before edits. Historical outputs are not fresh pre-change builds.",
+  "originalPlanSHA256": "69f915be9586c89242cd667261261935dceff3bed5dd821c5c8f4852f5a55b81",
+  "inputLogHashes": {
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-817663D6-A389-4750-906E-FDE38B2ED55B.jsonl": "15d5f276b3557fa61a2c960cef128c223c233c80ac4a08899c00013b277ed4c7",
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-847178B0-D3E6-4105-A4B0-C9FB8610C654.jsonl": "3bedf4b741a937c9580efcea6a64e7622ab412d3493165d0f9ff077edd457259",
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-B883B5DF-E115-45A8-8B5B-A6B60FB50D87.jsonl": "ce1bca00e35ced5ab2f3e72e4859c90fefe891e49ef9f65244e5f4d3846a23c9"
+  },
+  "buildTypes": {
+    "metalLayer": "Release / Ninja",
+    "metalBackend": "unspecified / MinGW Makefiles",
+    "tjsShutdown": "unspecified / Ninja"
+  },
+  "environment": {
+    "TEMP": "D:/vn-sim/build/tmp",
+    "TMP": "D:/vn-sim/build/tmp",
+    "CXX": "C:/Strawberry/c/bin/c++.exe",
+    "python": "C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe"
+  },
+  "commands": [
+    "cmake -S Tests/MetalLayer -B build/metal-layer-tests -DPLUTOVG_ORACLE_SOURCE_DIR=D:/vn-sim/build/plutovg-c2b/plutovg-1.3.3",
+    "cmake --build build/metal-layer-tests --parallel 6",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "ctest --test-dir build/metal-layer-tests -R plutovg-exact-capture --output-on-failure --verbose",
+    "cmake --build build/metal-render-tests --parallel 6",
+    "ctest --test-dir build/metal-render-tests --output-on-failure",
+    "cmake --build build/tjs-shutdown-tests --parallel 6",
+    "ctest --test-dir build/tjs-shutdown-tests --output-on-failure",
+    "python Tests/MetalLayer/test-layer-diagnostics.py",
+    "python scripts/check-krkr-frame-times.py",
+    "python scripts/check-krkr-point-read-trace.py",
+    "python build/native-metal-p2c-c2b-baseline/check-production-syntax.py",
+    "c++ -std=c++17 -Wall -Wextra -Werror -I Engine/KRKRRuntime/Source/cpp/core/render Tests/MetalLayer/C2ConsumerTraceTests.cpp build/native-metal-p2c-c2a-baseline/c2a-helper-main.cpp -o build/native-metal-p2c-c2b-baseline/c2b-trace-strict.exe",
+    "build/native-metal-p2c-c2b-baseline/c2b-trace-strict.exe",
+    "python scripts/analyze-layer-diagnostics.py <three After_P2C_C2A JSONL paths> --output build/native-metal-p2c-c2b-baseline/c2a-analysis.json"
+  ],
+  "tests": {
+    "metalLayer": "5/5",
+    "metalBackend": "1/1",
+    "tjsShutdown": "1/1",
+    "parserFixtures": 34,
+    "plutovgOracle": "6 real upstream CPU/capture scenes; 730434 pixels; full byte equality; FNV64 diagnostic 17800086430293495788",
+    "spanMath": "2359296 coverage/source-alpha/arbitrary-packed comparisons plus edge/CSR/budget cases",
+    "productionBinding": "3 methods, exact pixels and typed result, result constructors/throws once, pre/postcommit, COW/lease/clip/record/borrowed/escaped aliases",
+    "facade": "device-double; residency/counters/diagnostic toggle/dirty ROI/reject/cache invalidation",
+    "strictDiagnosticHelper": "PASS C++17 Wall Wextra Werror",
+    "frameTiming": "PASS",
+    "pointTrace": "PASS debug/release",
+    "productionSyntax": [
+      "core/script/tjsNativeLayer.cpp",
+      "plugins/LayerExBase.cpp",
+      "plugins/LayerExDraw/LayerExDraw.cpp"
+    ],
+    "surfaceComparisons": 78634,
+    "sessions": 3,
+    "C4ExactCases": 1962,
+    "C1ExactComparisons": 60,
+    "oldC2AAnalysis": [
+      {
+        "file": "Mikage-diagnostics-817663D6-A389-4750-906E-FDE38B2ED55B.jsonl",
+        "sha256": "15d5f276b3557fa61a2c960cef128c223c233c80ac4a08899c00013b277ed4c7",
+        "windows": 59,
+        "issues": 0,
+        "layerSpanVersion": null
+      },
+      {
+        "file": "Mikage-diagnostics-847178B0-D3E6-4105-A4B0-C9FB8610C654.jsonl",
+        "sha256": "3bedf4b741a937c9580efcea6a64e7622ab412d3493165d0f9ff077edd457259",
+        "windows": 47,
+        "issues": 0,
+        "layerSpanVersion": null
+      },
+      {
+        "file": "Mikage-diagnostics-B883B5DF-E115-45A8-8B5B-A6B60FB50D87.jsonl",
+        "sha256": "ce1bca00e35ced5ab2f3e72e4859c90fefe891e49ef9f65244e5f4d3846a23c9",
+        "windows": 71,
+        "issues": 0,
+        "layerSpanVersion": null
+      }
+    ]
+  },
+  "failuresPreserved": [
+    "Dense all-cap fixture exceeded 512 row references; split independent calls without changing budget",
+    "Test dependency ODR collision produced CPU no-acquire mismatch; renamed test types, no production pixel changes",
+    "Multiple scalar definitions at link; extracted helper functions inline",
+    "Analyzer initially received a directory instead of paths; retried with explicit JSONL files"
+  ],
+  "pending": [
+    "Apple Objective-C++/MSL and real GPU ordering",
+    "default/forced compute, device/simulator and App",
+    "Native diagnostic toggle submit/wait and synchronous save/error behavior",
+    "New matching device logs and 3-repeat controlled pairs",
+    "Remaining C2 domains; C3/P2D/9-nine geometry+blur/async saving outside this batch"
+  ],
+  "evidence": {
+    "archive-evidence.py": {
+      "path": "docs/native-metal-p2c-c2b-baseline/archive-evidence.py",
+      "bytes": 7367,
+      "sha256": "9fc419b38b07e4d0066a2cd166e28b742e67d4cae15c469fa08747363d83c3b6"
+    },
+    "backend-check.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/backend-check.log",
+      "bytes": 334,
+      "sha256": "4d63532662f6023935530d2222d932fc54a9f19113fff67d02c4ccc729082d72"
+    },
+    "backend-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/backend-tests.log",
+      "bytes": 313,
+      "sha256": "b0ac06ea9a1db7c82f10bfdc5013eeeab972ab4c6180bd22f0950c5010642714"
+    },
+    "backend.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/backend.after.last-test.log",
+      "bytes": 870,
+      "sha256": "c3aaa6b651dd8918af941862be1a8dd97b709b8ae753ddfa6f660c501958d299"
+    },
+    "backend.before.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/backend.before.last-test.log",
+      "bytes": 870,
+      "sha256": "f38acaaf0d4aef3de3c3d452173c285d149b3c40fa622a0069f365caaf1dd0db"
+    },
+    "before.json": {
+      "path": "docs/native-metal-p2c-c2b-baseline/before.json",
+      "bytes": 914,
+      "sha256": "6aafbb179baf0eb64a1c5fa97ad0e09ac96095a3549de51692f97251f4c10a41"
+    },
+    "c2a-parser-retry.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/c2a-parser-retry.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "c2a-parser.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/c2a-parser.log",
+      "bytes": 1309,
+      "sha256": "aabbb06a3e6053b7e7ab9d822052177f022f845218fe918379a3ccc572139810"
+    },
+    "check-production-syntax.py": {
+      "path": "docs/native-metal-p2c-c2b-baseline/check-production-syntax.py",
+      "bytes": 996,
+      "sha256": "fa90cb0d7cd47e0e4159b60411868617d6719376b57362744c1edc33f85c0dcd"
+    },
+    "core.before.patch": {
+      "path": "docs/native-metal-p2c-c2b-baseline/core.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core.before.status": {
+      "path": "docs/native-metal-p2c-c2b-baseline/core.before.status",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "frame-check.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/frame-check.log",
+      "bytes": 91,
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123"
+    },
+    "frame-final.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/frame-final.log",
+      "bytes": 91,
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123"
+    },
+    "layer-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-build.log",
+      "bytes": 3364,
+      "sha256": "8cc3db0ff0bcfa64a4942093813589ed34e407ceb3446ecd315b01d5df59e399"
+    },
+    "layer-check.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-check.log",
+      "bytes": 638,
+      "sha256": "80026b17f85a54bb622cfd350a58e1caee747ed2f1312575e5df653731924aba"
+    },
+    "layer-configure.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-configure.log",
+      "bytes": 460,
+      "sha256": "2efa71a17868375f9fb051b8f08ed1a83142104aff187c7f45a62f15a7a3fdd0"
+    },
+    "layer-final-acceptance-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-final-acceptance-build.log",
+      "bytes": 181,
+      "sha256": "23dab7d19449f52cef8fb9d32e1521314d1dac16220307bf86a8e3420e109bfc"
+    },
+    "layer-final-acceptance-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-final-acceptance-tests.log",
+      "bytes": 744,
+      "sha256": "ad238f3d354ef6fdb938ed79540018c85830d4538951681cd28da4458df01cbe"
+    },
+    "layer-final-build-retry.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-final-build-retry.log",
+      "bytes": 1802,
+      "sha256": "5d19cb67149850dff122c544289bed3788d93678f39d9ba96ba19a80b93a6327"
+    },
+    "layer-final-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-final-build.log",
+      "bytes": 18486,
+      "sha256": "8233609567f05488292a9064950b9f0e15e70417f4694b6d1a822bdc8e91d346"
+    },
+    "layer-resume-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-resume-build.log",
+      "bytes": 336,
+      "sha256": "22f55dcad1ef50484a2d33f3da66b155c381e3619b5e878c4e25e707f9cd37eb"
+    },
+    "layer-tests-final.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-tests-final.log",
+      "bytes": 744,
+      "sha256": "b10dfa93c3f2d1a993b6cea2a9f11a9b3abf3c1ce19a6768850ebabea3d35407"
+    },
+    "layer-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer-tests.log",
+      "bytes": 1698,
+      "sha256": "85d1a60596d1b9bd5843b06566d9e34bf526e909aba6de6adeb4638cc325caf7"
+    },
+    "layer.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer.after.last-test.log",
+      "bytes": 156223,
+      "sha256": "4763f336c3856d171e0b9b4f12831a1200368fbaebc1591c7a60477e66fe667f"
+    },
+    "layer.before.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/layer.before.last-test.log",
+      "bytes": 274450,
+      "sha256": "4a9e2332304722e4941fb98b404a42b7a759d8511bd0a314bddb3239f360fc5b"
+    },
+    "main.before.patch": {
+      "path": "docs/native-metal-p2c-c2b-baseline/main.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "main.before.status": {
+      "path": "docs/native-metal-p2c-c2b-baseline/main.before.status",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "metal-render-tests-final-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/metal-render-tests-final-build.log",
+      "bytes": 40,
+      "sha256": "7c11a7fdd50c38b225e28ee6d5c43bb002e5e754ffe77271b15c95e2dc7ed800"
+    },
+    "metal-render-tests-final-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/metal-render-tests-final-tests.log",
+      "bytes": 313,
+      "sha256": "b0ac06ea9a1db7c82f10bfdc5013eeeab972ab4c6180bd22f0950c5010642714"
+    },
+    "parser-final.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/parser-final.log",
+      "bytes": 138,
+      "sha256": "5dbf7e1e360a8bbe6e1da90960c2b1da61967199f9699fbb2afbbf20c180fbdc"
+    },
+    "plan.before.md": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plan.before.md",
+      "bytes": 90779,
+      "sha256": "69f915be9586c89242cd667261261935dceff3bed5dd821c5c8f4852f5a55b81"
+    },
+    "plutovg-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-build.log",
+      "bytes": 1528,
+      "sha256": "81cef599735c220739a2d45458a551d203c48c11f1a8dd2d9b48b4afe6b56acc"
+    },
+    "plutovg-final-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-final-build.log",
+      "bytes": 336,
+      "sha256": "22f55dcad1ef50484a2d33f3da66b155c381e3619b5e878c4e25e707f9cd37eb"
+    },
+    "plutovg-final-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-final-tests.log",
+      "bytes": 1233,
+      "sha256": "03c6bc842ebab9d8d58355e1dab0779235e6312c1d87c1bb387598e47c95e4a3"
+    },
+    "plutovg-instrumented.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-instrumented.log",
+      "bytes": 1316,
+      "sha256": "9a4ca629ef2b8085426f9842ea12415e2ae9367ad7ed55b4576231c254e1a208"
+    },
+    "plutovg-tests-final.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-tests-final.log",
+      "bytes": 1260,
+      "sha256": "9ea37d6bebf57a58725a31fff68527aadf3ffc9d568028c34be3ee7854071cf2"
+    },
+    "plutovg-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/plutovg-tests.log",
+      "bytes": 1260,
+      "sha256": "a293192a9b28275d9526e8252c0e36b57218f9edcd807479c4e7aded45d76675"
+    },
+    "point-check.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/point-check.log",
+      "bytes": 178,
+      "sha256": "d29b50a21d35f30e24e5ce0230f14e3641f0fd437f069438a198f56f6f4fab0f"
+    },
+    "point-final.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/point-final.log",
+      "bytes": 178,
+      "sha256": "d29b50a21d35f30e24e5ce0230f14e3641f0fd437f069438a198f56f6f4fab0f"
+    },
+    "production-syntax.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/production-syntax.log",
+      "bytes": 4762,
+      "sha256": "8b5df5414929ac4c8a38cf95096031340e732ec2ea22bb3cd4662ea20fa0e550"
+    },
+    "runtime.before.patch": {
+      "path": "docs/native-metal-p2c-c2b-baseline/runtime.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime.before.status": {
+      "path": "docs/native-metal-p2c-c2b-baseline/runtime.before.status",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tjs-check.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs-check.log",
+      "bytes": 299,
+      "sha256": "7f98e970a28428eaf95f5c8f23157d2627b917d4b2e2eeaa78eca755c1042d6d"
+    },
+    "tjs-shutdown-tests-final-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs-shutdown-tests-final-build.log",
+      "bytes": 65,
+      "sha256": "7716162f3cd3b99cf3b8a8dd6decf324e08c7e941aae7e730baba5e4fc8c075b"
+    },
+    "tjs-shutdown-tests-final-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs-shutdown-tests-final-tests.log",
+      "bytes": 313,
+      "sha256": "8078e24ed85a62461556336bba207c268577b65e14d50b1586024279543c74b1"
+    },
+    "tjs-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs-tests.log",
+      "bytes": 313,
+      "sha256": "4d48e323710a48b3c682106859f55edf9b308010178756278bd2a56c1b9af6fb"
+    },
+    "tjs.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs.after.last-test.log",
+      "bytes": 911,
+      "sha256": "18b3bd9a3e0df5a3d83c5ac7097afb49e01fe57e1f1689b35bd024816738b13c"
+    },
+    "tjs.before.last-test.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/tjs.before.last-test.log",
+      "bytes": 911,
+      "sha256": "20c08e9265fdad4dc701c870f4b6312eca1e36803d66036b7728c8166bcce33f"
+    },
+    "trace-strict-build.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/trace-strict-build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "trace-strict-tests.log": {
+      "path": "docs/native-metal-p2c-c2b-baseline/trace-strict-tests.log",
+      "bytes": 107,
+      "sha256": "802edd992f761a9b88524bfa0920222452e24f00fd0300b7bd16674041b802c4"
+    }
+  },
+  "localDiffs": {
+    "main": {
+      "path": "build/native-metal-p2c-c2b-baseline/main.after.patch",
+      "bytes": 50365,
+      "sha256": "a7b9fdba6939299608906a900d3e54a7012cac1f23f4dff2496055efa4fe29fa"
+    },
+    "runtime": {
+      "path": "build/native-metal-p2c-c2b-baseline/runtime.after.patch",
+      "bytes": 181,
+      "sha256": "5a93d7d433200aabaffbc9b8d9d02e046f2643205b879457a7c593a34be12a2e"
+    },
+    "core": {
+      "path": "build/native-metal-p2c-c2b-baseline/core.after.patch",
+      "bytes": 43579,
+      "sha256": "62c15714e7c8fa37721ddadef70110e5b3d818e2d59af1f270a7793dc6ddbc4e"
+    }
+  },
+  "localStatuses": {
+    "main": {
+      "path": "build/native-metal-p2c-c2b-baseline/main.after.status",
+      "bytes": 883,
+      "sha256": "2540608154edc888fd7a4366d6dfec33fbbb383ad0b705a1c68af0e09362c8f1"
+    },
+    "runtime": {
+      "path": "build/native-metal-p2c-c2b-baseline/runtime.after.status",
+      "bytes": 31,
+      "sha256": "19ffb09b2eadbf233d530cb18a21ddd43425f83a55d07b2c751a5c924f0b3e19"
+    },
+    "core": {
+      "path": "build/native-metal-p2c-c2b-baseline/core.after.status",
+      "bytes": 679,
+      "sha256": "139efe46171bbdd41dda6a15b1003a1591edd8c86b24789b92eb962a1df46b22"
+    }
+  },
+  "localSourceSnapshots": {
+    "main:Tests/MetalLayer/BitmapOverwriteTests.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/BitmapOverwriteTests.cpp",
+      "bytes": 35541,
+      "sha256": "5c50f18e9addaca40d1f85fdd1c4e36106afb573fccff6043c824bf59a634292"
+    },
+    "main:Tests/MetalLayer/C2ConsumerTraceTests.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/C2ConsumerTraceTests.cpp",
+      "bytes": 13127,
+      "sha256": "e845f723ddc20d08ffd6b2705991e18d137e14a868a44f112c86720e947a8288"
+    },
+    "main:Tests/MetalLayer/C2PlutovgOracle.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/C2PlutovgOracle.cpp",
+      "bytes": 8774,
+      "sha256": "f8c563b2738e7cf9f75b0440cc9de2e93e0a5e73caa9b09fa4aaf6b83d05ba62"
+    },
+    "main:Tests/MetalLayer/C2SpanBindingTests.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/C2SpanBindingTests.cpp",
+      "bytes": 18397,
+      "sha256": "6563fec3bc73d321cb19a813c3576f0ffd715815afac7e1b9908522a0d291466"
+    },
+    "main:Tests/MetalLayer/C2SpanShaderTests.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/C2SpanShaderTests.cpp",
+      "bytes": 7316,
+      "sha256": "524e30d04c136ed8eac175bb7b685a77ac19a7e3c261a1ccb6eb6558ee9eb3c4"
+    },
+    "main:Tests/MetalLayer/CMakeLists.txt": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/CMakeLists.txt",
+      "bytes": 12961,
+      "sha256": "0dba7c8be2e2c0ff30fc557c88e86b76fdceeda3b2a246aabc8b1afee89203df"
+    },
+    "main:Tests/MetalLayer/MetalLayerTests.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/MetalLayerTests.cpp",
+      "bytes": 170777,
+      "sha256": "31ed0a9d2b02262da7bd06b25669ff0e9da687a96c2b8e06f35bc5b26602860a"
+    },
+    "main:Tests/MetalLayer/Plutovg133SpanOracle.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/Plutovg133SpanOracle.h",
+      "bytes": 3336,
+      "sha256": "aec2039c8549d30777f274c76c2f2358ec1763a5e54dec24907800350e7ef949"
+    },
+    "main:Tests/MetalLayer/README.md": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/README.md",
+      "bytes": 15489,
+      "sha256": "84183c820e43dea02737597616a19d2a6f6b4063ad12af4f7df8b617a339b393"
+    },
+    "main:Tests/MetalLayer/compare-plutovg-oracle.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/compare-plutovg-oracle.py",
+      "bytes": 812,
+      "sha256": "f7045b18d96d13d000541b431b128838dc9e7c8777cdb77ccfeb8358b1808972"
+    },
+    "main:Tests/MetalLayer/extract-bitmap-overwrite.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/extract-bitmap-overwrite.py",
+      "bytes": 5039,
+      "sha256": "5bf2d3cdffc9860907108ca7d87087dbf936a3e8373e45ee625a7a4804829a0f"
+    },
+    "main:Tests/MetalLayer/extract-layerex-boundary.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/extract-layerex-boundary.py",
+      "bytes": 5341,
+      "sha256": "98061ee4d547216d6e4a31761c116d08bdf07b8f61d0bbda7ac0d7689b517c8f"
+    },
+    "main:Tests/MetalLayer/extract-span-math.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/extract-span-math.py",
+      "bytes": 1077,
+      "sha256": "97faedbb583381ff741ee499cab18e57a454cb816d6384594cdc8545ad58ad02"
+    },
+    "main:Tests/MetalLayer/plutovg-1.3.3-source-hashes.json": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/plutovg-1.3.3-source-hashes.json",
+      "bytes": 2262,
+      "sha256": "56f797c052f2bc13f2cade9ae07ac0e9568e31362d6475b2e75f7b9eb5735fb5"
+    },
+    "main:Tests/MetalLayer/prepare-plutovg-oracle.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/prepare-plutovg-oracle.py",
+      "bytes": 3429,
+      "sha256": "95728fde3a7f43f95fc98849d380a1f17434aec8601536544572e83508d9765b"
+    },
+    "main:Tests/MetalLayer/test-layer-diagnostics.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/Tests/MetalLayer/test-layer-diagnostics.py",
+      "bytes": 31696,
+      "sha256": "0da120dabb715a140e9bb668c1b617fa851440654cbf8867afbaf5bf8eea8458"
+    },
+    "main:docs/NATIVE-METAL-COMPATIBILITY-PLAN.md": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md",
+      "bytes": 92841,
+      "sha256": "022ab2b6ea183b0bfbeb487aaafa97cc194f8379131971feb6f326b8e9660f08"
+    },
+    "main:docs/NATIVE-METAL-P2C-C2B-BASELINE.md": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/docs/NATIVE-METAL-P2C-C2B-BASELINE.md",
+      "bytes": 8342,
+      "sha256": "bc35afa3a4774dd881288e0b653245d6c42505f22665f80c38c25ddc9133f312"
+    },
+    "main:scripts/analyze-layer-diagnostics.py": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/main/scripts/analyze-layer-diagnostics.py",
+      "bytes": 53209,
+      "sha256": "b043ade0481d0bd6792debcaef807babe6a28bb8ffc7a0ff35c23005dacd937b"
+    },
+    "runtime:vcpkg/ports/plutovg/portfile.cmake": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/runtime/vcpkg/ports/plutovg/portfile.cmake",
+      "bytes": 986,
+      "sha256": "9afb394b2430c2120587bbcf3833865365d1db5ca9cb15279b83bc387967b924"
+    },
+    "runtime:vcpkg/ports/plutovg/span-capture.patch": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/runtime/vcpkg/ports/plutovg/span-capture.patch",
+      "bytes": 24077,
+      "sha256": "07e985047496298a6f921df733ac4178ccb44a250876db33874786292a8e3f69"
+    },
+    "runtime:vcpkg/ports/plutovg/vcpkg.json": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/runtime/vcpkg/ports/plutovg/vcpkg.json",
+      "bytes": 463,
+      "sha256": "5ff8be8e1a5ac7f96bec91cd4d50eb99957351d089fd6a27773fe34949efd61e"
+    },
+    "core:core/render/CPUConsumerTrace.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/CPUConsumerTrace.h",
+      "bytes": 12279,
+      "sha256": "e8a3233164918bf0295208d7d41ef70e77d630ef3669bdda4a45e9eb1ff37d8e"
+    },
+    "core:core/render/LayerSpanComposite.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/LayerSpanComposite.h",
+      "bytes": 1319,
+      "sha256": "5ae6aee81a18107471534706866df1a6afc3fa9033407669665d9940b06f0914"
+    },
+    "core:core/render/LayerSpanCompositeDefinitions.def": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/LayerSpanCompositeDefinitions.def",
+      "bytes": 152,
+      "sha256": "d52441da993392ba7036168b28ede5c50132fc40619912c9d5d0dd705cdbb414"
+    },
+    "core:core/render/LayerSpanCompositeGeometry.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/LayerSpanCompositeGeometry.h",
+      "bytes": 5137,
+      "sha256": "770ccd6029e782a21b251f532ae0ae578e21d1678b56f8625157ea963b0b9315"
+    },
+    "core:core/render/LayerWorkDiagnostics.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/LayerWorkDiagnostics.h",
+      "bytes": 33402,
+      "sha256": "d0c419df78e914b4253c44404a8af5b64eba239ffd6e106980fcf7bb76b4ff77"
+    },
+    "core:core/render/MetalLayerRenderManager.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/MetalLayerRenderManager.cpp",
+      "bytes": 90205,
+      "sha256": "6da2d7b69c1b88fafbf6f8e22302d8ca650d7953e1710caa33f0d71a5155505f"
+    },
+    "core:core/render/TVPCompositor.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/TVPCompositor.h",
+      "bytes": 24945,
+      "sha256": "21842dd36e3f17bcac511d760f7eff0411b361e4d61f48833d6fd38751fb5636"
+    },
+    "core:core/render/backend/MetalRenderBackend.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/backend/MetalRenderBackend.h",
+      "bytes": 8083,
+      "sha256": "72811ee9e9363b5419a83c8f54a51280ac1aa5b4e1ea825e5e3871b4fd05cae9"
+    },
+    "core:core/render/backend/MetalRenderBackend.mm": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/backend/MetalRenderBackend.mm",
+      "bytes": 161135,
+      "sha256": "94a2be1f4024c80d520b07c9da681b8b60a33ec16ef5428b5233362d73cd405c"
+    },
+    "core:core/render/backend/MetalSpanComposite-LICENSE.txt": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/backend/MetalSpanComposite-LICENSE.txt",
+      "bytes": 1412,
+      "sha256": "bdaa840fe7c4459539754511c4684d1444c286f6bdcd3abf1470c2e5412fac0c"
+    },
+    "core:core/render/backend/MetalSpanCompositeShaders.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/render/backend/MetalSpanCompositeShaders.h",
+      "bytes": 3224,
+      "sha256": "d78ac2cdcb820e7946d088aa9c8f44cff5a3159eac7db4df84fda552fcc2c0ae"
+    },
+    "core:core/script/tjsNativeLayer.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/script/tjsNativeLayer.cpp",
+      "bytes": 387331,
+      "sha256": "4624954f5f7a4b08596755dcaf55c5e5ae29166053674ca76f63c6d4da559c6e"
+    },
+    "core:core/script/tjsNativeLayer.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/core/script/tjsNativeLayer.h",
+      "bytes": 45349,
+      "sha256": "eaf3e3f538468b75add873aa2d56d22494a640df536cfa42c5c080ef3529db6c"
+    },
+    "core:plugins/LayerExDraw/LayerExDraw.cpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/plugins/LayerExDraw/LayerExDraw.cpp",
+      "bytes": 119714,
+      "sha256": "e792bbe58fa7a65728e65f52e20330afa75e5bffabcda55507f0085a2768a0f0"
+    },
+    "core:plugins/LayerExDraw/LayerExDraw.hpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/plugins/LayerExDraw/LayerExDraw.hpp",
+      "bytes": 32041,
+      "sha256": "e3819269c05f052f7f1c5287c066773b8566bd80e1f09bc9d91a2427fe3999f3"
+    },
+    "core:plugins/LayerExDraw/SpanCapture.h": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/plugins/LayerExDraw/SpanCapture.h",
+      "bytes": 1934,
+      "sha256": "79babee4153cc891e0eae8424a3c2c086ec302f16f96d1d27de29bbfea3a5347"
+    },
+    "core:plugins/ncbind/ncbind.hpp": {
+      "path": "build/native-metal-p2c-c2b-baseline/snapshots/core/plugins/ncbind/ncbind.hpp",
+      "bytes": 120552,
+      "sha256": "0416edc1c98e0ad73e5144f03302b2bfb9f2fc3a85b8f5c3c3aaf30495568d4a"
+    }
+  }
+}

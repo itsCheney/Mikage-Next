@@ -1,0 +1,25 @@
+Internal ctest changing into directory: D:/vn-sim/build/metal-layer-tests
+Test project D:/vn-sim/build/metal-layer-tests
+    Start 1: plutovg-exact-capture
+1/1 Test #1: plutovg-exact-capture ............***Failed    0.13 sec
+scene=1 status=5 spans=19913 maxRow=661 sourcePixels=0
+CSR failed
+Traceback (most recent call last):
+  File "D:\vn-sim\Tests\MetalLayer\compare-plutovg-oracle.py", line 5, in <module>
+    capture=subprocess.check_output([sys.argv[2]],text=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ayach\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py", line 466, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ayach\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['D:/vn-sim/build/metal-layer-tests/plutovg-patched-pixels.exe']' returned non-zero exit status 1.
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.14 sec
+
+The following tests FAILED:
+	  1 - plutovg-exact-capture (Failed)
+Errors while running CTest

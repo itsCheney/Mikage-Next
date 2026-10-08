@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-08",
+  "heads": {
+    "main": "3cc3971f518c12dea81acdced04d8bda5f3826b8",
+    "runtime": "023673063436e72d352920002f88412ceac0533e",
+    "core": "cb387a6524f9423e9f563428ba69d0c440deb133"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "deviceDouble": true,
+  "inputLogHashes": {
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-817663D6-A389-4750-906E-FDE38B2ED55B.jsonl": "15d5f276b3557fa61a2c960cef128c223c233c80ac4a08899c00013b277ed4c7",
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-847178B0-D3E6-4105-A4B0-C9FB8610C654.jsonl": "3bedf4b741a937c9580efcea6a64e7622ab412d3493165d0f9ff077edd457259",
+    "perf_log/After_P2C_C2A/Mikage-diagnostics-B883B5DF-E115-45A8-8B5B-A6B60FB50D87.jsonl": "ce1bca00e35ced5ab2f3e72e4859c90fefe891e49ef9f65244e5f4d3846a23c9"
+  },
+  "note": "Three repos clean before edits; prior LastTest outputs preserved, not fresh native/device proof."
+}

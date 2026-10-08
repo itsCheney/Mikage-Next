@@ -48,6 +48,7 @@ public:
     tTVPNativeBaseBitmap* MainImage;
     bool ImageModified=false;
     iTVPTexture2D* GetMainImageTextureForCPUAccess(bool);
+    iTVPTexture2D* GetMainImageTextureForSpanComposite();
     bool CopyMainImageFromGPUTarget(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int);
     bool CopyMainImageFromGPUTargetRegion(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int,const tTVPRect&);
     bool CopyMainImageFromCPU(const void*,tjs_int,tjs_int,tjs_int);
@@ -196,6 +197,19 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     }
     // Native guards keep the original allocation alive without forcing COW
     // for a same-image read/write alias; real bitmap sharing still requires COW.
+    for(bool shared:{false,true}) {
+        TestBitmap bitmap(Create(oldPixels,width,height)); TestLayerCopy layer{&bitmap};
+        auto* original=bitmap.GetTexture(); TextureRef snapshot;
+        if(shared) {original->AddRef();snapshot.reset(original);}
+        const auto before=TVPGetMetalLayerRenderStats();
+        auto* target=layer.GetMainImageTextureForSpanComposite();
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require((target==original)!=shared && !layer.ImageModified,
+                "span target preparation changed COW or marked an uncommitted image modified");
+        Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+                "span COW target preparation acquired CPU pixels");
+        Equal(target,oldPixels);if(shared) Equal(snapshot.get(),oldPixels);
+    }
     for(bool shared:{false,true}) {
         TestBitmap bitmap(Create(oldPixels,width,height)); TestLayerCopy layer{&bitmap};
         auto* original=bitmap.GetTexture(); TextureRef snapshot;

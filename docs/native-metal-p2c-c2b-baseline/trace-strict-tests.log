@@ -1,0 +1,1 @@
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety

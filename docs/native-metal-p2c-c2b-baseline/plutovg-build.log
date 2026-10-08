@@ -1,0 +1,20 @@
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+Applied production span capture patch to pinned upstream source
+-- Configuring done (0.5s)
+-- Generating done (0.0s)
+-- Build files have been written to: D:/vn-sim/build/metal-layer-tests
+[0/4] Re-checking globbed directories...
+[1/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-matrix.c.obj
+[2/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-canvas.c.obj
+[3/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-paint.c.obj
+[4/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-rasterize.c.obj
+[5/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-font.c.obj
+[6/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-path.c.obj
+[7/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-blend.c.obj
+[8/16] Building CXX object CMakeFiles/plutovg-upstream-pixels.dir/C2PlutovgOracle.cpp.obj
+[9/16] Linking CXX executable plutovg-upstream-pixels.exe
+[10/16] Building CXX object CMakeFiles/plutovg-patched-pixels.dir/C2PlutovgOracle.cpp.obj
+[11/16] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-surface.c.obj
+[12/16] Linking C static library libplutovg-oracle-patched.a
+[13/16] Linking CXX executable plutovg-patched-pixels.exe

@@ -369,6 +369,89 @@ def cpu_consumers(rows, errors, origin=None, from_seconds=None, to_seconds=None)
         'correlationBasis': 'preceding shrink output with identical generation/session/texture/contentVersion; never infer from dimensions'}
 
 
+def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None):
+    """Bounded C2B routes. Packet/scratch bytes are not C0 pixel transfers."""
+    records, budgets, identities = [], [], set()
+    malformed = 0
+    for row in rows:
+        timestamp = row.get('unixTime')
+        if from_seconds is not None or to_seconds is not None:
+            if origin is None or not isinstance(timestamp, (int, float)):
+                continue
+            elapsed = timestamp - origin
+            if (from_seconds is not None and elapsed < from_seconds) or (to_seconds is not None and elapsed > to_seconds):
+                continue
+        for value in row['fields'].values():
+            if not isinstance(value, str):
+                continue
+            route = value.startswith('metal.layerSpan ')
+            budget = value.startswith('metal.cpuConsumer ')
+            if not route and not budget:
+                continue
+            try:
+                event = json.loads(value.split(' ', 1)[1])
+                if not isinstance(event, dict):
+                    raise ValueError('expected native object')
+                if budget:
+                    if event.get('phase') != 'budget' or 'spanRouteRecords' not in event:
+                        continue
+                    counts = {k: numeric(event.get(k), errors, 'layerSpans.' + k)
+                              for k in ('spanRouteRecords', 'spanRouteExceeded')}
+                    if any(v is None for v in counts.values()) or counts['spanRouteRecords'] > 32:
+                        raise ValueError('invalid route budget')
+                    budgets.append(counts)
+                    continue
+                if (len(value.encode('utf-8')) > 900 or type(event.get('version')) is not int or
+                        event['version'] != 1 or event.get('phase') != 'route'):
+                    raise ValueError('invalid bounded route version')
+                for key in ('generation', 'traceID', 'spanCount', 'sourceBytes', 'parameterBytes', 'scratchBytes'):
+                    event[key] = numeric(event.get(key), errors, 'layerSpans.' + key)
+                    if event[key] is None:
+                        raise ValueError('invalid route metric')
+                if not event['generation'] or not event['traceID']:
+                    raise ValueError('missing route identity')
+                for key in ('method', 'route', 'reason'):
+                    if not isinstance(event.get(key), str) or not event[key] or len(event[key].encode('utf-8')) > 48:
+                        raise ValueError('invalid route label')
+                if event['route'] not in ('gpu', 'cpu', 'noop'):
+                    raise ValueError('unknown route')
+                if event['sourceBytes'] > event['parameterBytes']:
+                    raise ValueError('source bytes exceed packet bytes')
+                if any(k not in event for k in ('sessionID', 'textureID', 'contentVersion')):
+                    raise ValueError('missing optional target identity')
+                present = [event.get(k) is not None for k in ('sessionID', 'textureID', 'contentVersion')]
+                if any(present) != all(present):
+                    raise ValueError('partial target identity')
+                if all(present):
+                    for key in ('sessionID', 'textureID', 'contentVersion'):
+                        event[key] = numeric(event[key], errors, 'layerSpans.' + key)
+                        if event[key] is None or (key != 'contentVersion' and not event[key]):
+                            raise ValueError('invalid target identity')
+                key = (event['generation'], event['traceID'], event['method'])
+                if key in identities:
+                    raise ValueError('duplicate route identity')
+                identities.add(key)
+                records.append({**event, 'unixTime': timestamp})
+            except (TypeError, ValueError) as error:
+                if route:
+                    malformed += 1
+                    problem(errors, 'layerSpans', str(error))
+    groups = {}
+    for record in records:
+        key = (record['method'], record['route'], record['reason'])
+        item = groups.setdefault(key, dict(zip(('method', 'route', 'reason'), key), calls=0,
+                                          spanCount=0, sourceBytes=0, parameterBytes=0, scratchBytes=0))
+        item['calls'] += 1
+        for metric in ('spanCount', 'sourceBytes', 'parameterBytes', 'scratchBytes'):
+            item[metric] += record[metric]
+    sampling = {k: sum(b[k] for b in budgets) for k in ('spanRouteRecords', 'spanRouteExceeded')} if budgets else None
+    complete = bool(sampling) and not malformed and not sampling['spanRouteExceeded'] and sampling['spanRouteRecords'] == len(records)
+    return {'version': 1 if records or budgets else None, 'records': records, 'byRoute': list(groups.values()),
+            'sampling': sampling, 'complete': complete, 'malformedRecords': malformed,
+            'transferBasis': 'sourceBytes are a subset of parameterBytes; scratchBytes are per-call GPU working footprint (allocation may be reused), not traffic or peak memory; never add to C0 transfers',
+            'coverageBasis': 'bounded per-invocation routes; absent or dropped evidence stays unknown'}
+
+
 def problem(errors, context, message):
     errors.append({'context': context, 'message': message})
 
@@ -739,6 +822,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
                 if w['possibleLegacyClippingKeys']], 'windows': transport_windows},
         'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
         'cpuConsumers': cpu_consumers(selected_rows, errors, origin, from_seconds, to_seconds),
+        'layerSpans': layer_spans(selected_rows, errors, origin, from_seconds, to_seconds),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,
             'legacyHandler': 'unknown' if transition_missing else None,

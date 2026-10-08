@@ -5,6 +5,7 @@
 #include "LayerPerspectiveGeometry.h"
 #include "LayerTransitionGeometry.h"
 #include "LayerShrinkGeometry.h"
+#include "LayerSpanCompositeGeometry.h"
 #include "PointReadTrace.h"
 #include "CPUConsumerTrace.h"
 #include "AsyncAlphaTileCache.h"
@@ -56,6 +57,9 @@ void ShrinkCopyFailureTests(const std::function<void(int,bool)>&);
 void ShrinkShaderContractTests();
 void RunC2ConsumerTraceTests();
 int RunC2LayerExBoundaryTests();
+void RunC2SpanShaderTests();
+int RunC2SpanBindingTests();
+void TVPTestSpanCompositeExecute(const TVPLayerSpanCompositePacket&,const uint8_t*,int,std::vector<uint8_t>&);
 void TVPTestShrinkExecute(const TVPLayerShrinkOperation&,const uint8_t*,int,std::vector<uint8_t>&,int);
 uint32_t TVPTestTransitionPixel(const TVPLayerTransitionOperation&,int,int,const uint8_t*,int,const uint8_t*,int);
 void P1AGammaTests(iTVPRenderBackend*);
@@ -107,6 +111,30 @@ public:
     bool shrinkWideAvailable=true;
     uint64_t shrinkCalls=0;
     TVPLayerShrinkResult shrinkResult=TVPLayerShrinkResult::Applied;
+    uint64_t spanCalls=0;
+    int spanFailure=-1;
+    TVPLayerSpanCompositeResult spanResult=TVPLayerSpanCompositeResult::Applied;
+    bool SupportsLayerSpanComposition() const override {return true;}
+    TVPLayerSpanCompositeResult LastLayerSpanCompositeResult() const override {return spanResult;}
+    bool OperateLayerSpanComposite(const TVPLayerSpanCompositePacket& packet,void* target) override {
+        ++spanCalls;
+        spanResult=TVPLayerSpanCompositeResult::BackendFailure;
+        auto found=resources.find(target);
+        if(found==resources.end() || found->second->bpp!=4) {
+            spanResult=TVPLayerSpanCompositeResult::Resource;return false;
+        }
+        auto& t=*found->second;
+        spanResult=TVPLayerSpanCompositeGeometry::Validate(packet,t.w,t.h);
+        if(spanResult!=TVPLayerSpanCompositeResult::Applied) return false;
+        if(spanFailure==0) {spanResult=TVPLayerSpanCompositeResult::BackendFailure;return false;}
+        std::vector<uint8_t> output;
+        TVPTestSpanCompositeExecute(packet,t.pixels.data(),t.w*4,output);
+        const auto& r=packet.destination;
+        for(int y=0;y<r.Height();++y) std::memcpy(t.pixels.data()+((r.top+y)*t.w+r.left)*4,
+            output.data()+size_t(y)*r.Width()*4,size_t(r.Width())*4);
+        if(spanFailure==1) throw std::bad_alloc();
+        return true;
+    }
     bool SupportsLayerShrinks() const override { return true; }
     bool SupportsLayerShrink64() const override { return shrinkWideAvailable; }
     TVPLayerShrinkResult LastLayerShrinkResult() const override { return shrinkResult; }
@@ -606,6 +634,81 @@ static void Compare(iTVPTexture2D* expected,iTVPTexture2D* actual,int tolerance,
 static void Operation(iTVPRenderManager* manager,iTVPRenderMethod* method,iTVPTexture2D* dst,const tTVPRect& dr,iTVPTexture2D* src,const tTVPRect& sr) {
     std::pair<iTVPTexture2D*,tTVPRect> input(src,sr);
     manager->OperateRect(method,dst,nullptr,dr,tRenderTexRectArray(src?&input:nullptr,src?1:0));
+}
+static void C2SpanFacade(iTVPRenderBackend* backend) {
+    using Result=TVPLayerSpanCompositeResult;
+    Require(TVPHasMetalLayerSpanCompositionSupport(),"C2B span pipeline unavailable");
+    TVPLayerSpanCompositePacket packet;packet.destination={2,1,7,4};
+    packet.spans={{2,1,5,173,uint32_t(TVPLayerSpanKind::SolidSourceOver),0x80503020u,0,0},
+                  {3,1,3,254,uint32_t(TVPLayerSpanKind::ArraySourceOver),0,0,0},
+                  {4,3,2,111,uint32_t(TVPLayerSpanKind::SolidSource),0x20305070u,0,0}};
+    packet.sourcePixels={0,0xff010203u,0x40102030u};
+    Require(TVPLayerSpanCompositeGeometry::PrepareRows(packet,9,5)==Result::Applied,"C2B packet preparation failed");
+    const auto original=Image(9,5,4,83);
+    std::vector<uint8_t> roi,expected=original;
+    TVPTestSpanCompositeExecute(packet,original.data(),36,roi);
+    for(int y=0;y<3;++y) std::memcpy(expected.data()+((y+1)*9+2)*4,roi.data()+y*20,20);
+    for(bool diagnostics:{false,true}) {
+        auto actual=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::RGBA,original);
+        auto reference=Create(TVPGetRenderManager(ttstr("software")),9,5,TVPTextureFormat::RGBA,expected);
+        actual->GetTextureHandle();
+        krkrsdl3::layer_work::SetEnabled(diagnostics);
+        const auto before=TVPGetMetalLayerRenderStats();
+#ifdef TEST_NATIVE_METAL
+        const auto waits=testMetalWaits;
+#endif
+        Require(TVPTryMetalLayerSpanComposite(packet,actual.get())==Result::Applied,"C2B resident span rejected");
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks &&
+            after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
+            "C2B resident spans acquired/uploaded pixels or changed routing with diagnostics");
+#ifdef TEST_NATIVE_METAL
+        Require(testMetalWaits==waits,"C2B resident spans added a synchronous wait");
+#endif
+        Compare(reference.get(),actual.get(),0,"C2B ordered ROI and untouched exterior");
+        auto invalid=packet;invalid.spans[0].kind=uint32_t(TVPLayerSpanKind::Count);
+        Require(TVPTryMetalLayerSpanComposite(invalid,actual.get())==Result::Unsupported,"C2B invalid kind accepted");
+        Compare(reference.get(),actual.get(),0,"C2B rejected kind changed target");
+        {
+            tTVPScopedTexturePixels lease;lease.Acquire(actual.get(),false,"test.span.lease");
+            Require(TVPTryMetalLayerSpanComposite(packet,actual.get())==Result::CPUAccess,"C2B active reader raced GPU");
+        }
+        auto empty=packet;empty.spans.clear();empty.sourcePixels.clear();
+        Require(TVPLayerSpanCompositeGeometry::PrepareRows(empty,9,5)==Result::Applied,"C2B empty packet rejected");
+        const auto settled=TVPGetMetalLayerRenderStats();
+        Require(TVPTryMetalLayerSpanComposite(empty,actual.get())==Result::Applied &&
+            TVPGetMetalLayerRenderStats().gpuOperations==settled.gpuOperations,"C2B empty packet dispatched work");
+        krkrsdl3::layer_work::SetEnabled(false);
+    }
+    auto dirty=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::RGBA,original);
+    dirty->GetTextureHandle();
+    {
+        tTVPScopedTexturePixels lease;lease.Acquire(dirty.get(),true,"test.span.dirty");
+        static_cast<uint32_t*>(lease.Data())[0]=0x12345678u;lease.Written(tTVPRect(0,0,1,1));
+    }
+    const auto beforeDirty=TVPGetMetalLayerRenderStats();
+    Require(TVPTryMetalLayerSpanComposite(packet,dirty.get())==Result::Applied,"C2B dirty input rejected");
+    const auto afterDirty=TVPGetMetalLayerRenderStats();
+    Require(afterDirty.uploadedBytes==beforeDirty.uploadedBytes+4 && afterDirty.readbackBytes==beforeDirty.readbackBytes,
+        "C2B dirty input expanded upload/readback");
+    auto format=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::Gray,Image(9,5,1,4));
+    Require(TVPTryMetalLayerSpanComposite(packet,format.get())==Result::Resource,"C2B non RGBA input accepted");
+#ifndef TEST_NATIVE_METAL
+    auto* device=static_cast<DeviceDouble*>(backend);
+    for(int failure:{0,1}) {
+        auto actual=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::RGBA,original);
+        auto reference=Create(TVPGetRenderManager(ttstr("software")),9,5,TVPTextureFormat::RGBA,failure?expected:original);
+        actual->GetTextureHandle();actual->GetScanLineForRead(0); // seed a stale CPU cache
+        device->spanFailure=failure;bool thrown=false;
+        try {Require(TVPTryMetalLayerSpanComposite(packet,actual.get())==Result::BackendFailure,"C2B precommit rejection lost");}
+        catch(const std::bad_alloc&) {thrown=true;}
+        device->spanFailure=-1;
+        Require(thrown==(failure==1),"C2B postcommit exception was replayable");
+        Compare(reference.get(),actual.get(),0,"C2B commit failure cache contract");
+    }
+#else
+    (void)backend;
+#endif
 }
 #ifndef TEST_NATIVE_METAL
 static void AsyncLayerAlpha(DeviceDouble& backend) {
@@ -2357,6 +2460,8 @@ int main(int argc,char** argv) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
             UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests(); ShrinkShaderContractTests();
             RunC2ConsumerTraceTests();
+            RunC2SpanShaderTests();
+            Require(RunC2SpanBindingTests()==0,"C2B production span binding tests failed");
             Require(RunC2LayerExBoundaryTests()==0,"C2A production LayerEx boundary tests failed");
         }
         std::unique_ptr<iTVPRenderBackend> backend;
@@ -2421,7 +2526,7 @@ int main(int argc,char** argv) {
             TVPSetMetalLayerTriangleDiagnostics(true);
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             CapabilityAuditTests(true);
-            if(session==0) InvalidOperationKinds(*backend);
+            if(session==0) {InvalidOperationKinds(*backend);C2SpanFacade(backend.get());}
             const auto newTriangleInterval=TVPTakeMetalLayerTriangleProfile();
             Require(newTriangleInterval.stats.calls==0 && newTriangleInterval.stats.maxCpuTimeNS==0 &&
                     newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");

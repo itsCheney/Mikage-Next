@@ -1,0 +1,103 @@
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+Applied production span capture patch to pinned upstream source
+-- Configuring done (0.5s)
+-- Generating done (0.0s)
+-- Build files have been written to: D:/vn-sim/build/metal-layer-tests
+[0/4] Re-checking globbed directories...
+[1/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-matrix.c.obj
+[2/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-canvas.c.obj
+[3/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-paint.c.obj
+[4/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-rasterize.c.obj
+[5/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-font.c.obj
+[6/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-path.c.obj
+[7/91] Building CXX object CMakeFiles/plutovg-upstream-pixels.dir/C2PlutovgOracle.cpp.obj
+[8/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-blend.c.obj
+[9/91] Linking CXX executable plutovg-upstream-pixels.exe
+[10/91] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-surface.c.obj
+[11/91] Linking C static library libplutovg-oracle-patched.a
+[12/91] Generating ProductionLayerExBoundary.inc, ProductionLayerExSpanBinding.inc
+[13/91] Building CXX object CMakeFiles/plutovg-patched-pixels.dir/C2PlutovgOracle.cpp.obj
+[14/91] Building CXX object CMakeFiles/metal-layer-tests.dir/TestPlatform.cpp.obj
+[15/91] Building CXX object CMakeFiles/metal-layer-tests.dir/CompilationFailureTests.cpp.obj
+[16/91] Building CXX object CMakeFiles/metal-layer-tests.dir/CapabilityAuditTests.cpp.obj
+[17/91] Building CXX object CMakeFiles/metal-layer-tests.dir/OperationContractTests.cpp.obj
+[18/91] Building CXX object CMakeFiles/metal-layer-tests.dir/TriangleProfileTests.cpp.obj
+[19/91] Building CXX object CMakeFiles/metal-layer-tests.dir/BitmapOverwriteTests.cpp.obj
+[20/91] Building CXX object CMakeFiles/metal-layer-tests.dir/P1AShaderTests.cpp.obj
+[21/91] Building CXX object CMakeFiles/metal-layer-tests.dir/TransitionShaderTests.cpp.obj
+[22/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C0ProfileTests.cpp.obj
+[23/91] Building CXX object CMakeFiles/metal-layer-tests.dir/TransitionHandlerTests.cpp.obj
+[24/91] Building CXX object CMakeFiles/metal-layer-tests.dir/ShrinkShaderTests.cpp.obj
+[25/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C4ProfileTests.cpp.obj
+[26/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C1ProfileTests.cpp.obj
+[27/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C2ConsumerTraceTests.cpp.obj
+[28/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C2SpanShaderTests.cpp.obj
+[29/91] Building CXX object CMakeFiles/metal-layer-tests.dir/ShrinkCopyTests.cpp.obj
+[30/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C2LayerExBoundaryTests.cpp.obj
+[31/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/mosaic.cpp.obj
+[32/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/turntrans_table.cpp.obj
+[33/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/wave.cpp.obj
+[34/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/ripple.cpp.obj
+[35/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/turn.cpp.obj
+[36/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/rotatebase.cpp.obj
+[37/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/rotatetrans.cpp.obj
+[38/91] Building CXX object CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj
+[39/91] Building CXX object CMakeFiles/metal-layer-tests.dir/P1BShaderTests.cpp.obj
+[40/91] Building CXX object CMakeFiles/metal-layer-tests.dir/P1AGammaTests.cpp.obj
+[41/91] Building CXX object CMakeFiles/metal-layer-tests.dir/UnivTransShaderTests.cpp.obj
+[42/91] Building CXX object CMakeFiles/metal-layer-tests.dir/MetalLayerTests.cpp.obj
+[43/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.cpp.obj
+[44/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.tab.cpp.obj
+[45/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsBinarySerializer.cpp.obj
+[46/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsCompileControl.cpp.obj
+[47/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsByteCodeLoader.cpp.obj
+[48/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsConfig.cpp.obj
+[49/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDate.cpp.obj
+[50/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDateParser.cpp.obj
+[51/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsConstArrayData.cpp.obj
+[52/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDictionary.cpp.obj
+[53/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsArray.cpp.obj
+[54/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsException.cpp.obj
+[55/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDisassemble.cpp.obj
+[56/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsError.cpp.obj
+[57/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDebug.cpp.obj
+[58/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsGlobalStringMap.cpp.obj
+[59/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterface.cpp.obj
+[60/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMT19937ar-cok.cpp.obj
+[61/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMath.cpp.obj
+[62/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsLex.cpp.obj
+[63/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMessage.cpp.obj
+[64/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeExec.cpp.obj
+[65/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNamespace.cpp.obj
+[66/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeGen.cpp.obj
+[67/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRegExp.cpp.obj
+[68/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObjectExtendable.cpp.obj
+[69/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNative.cpp.obj
+[70/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRandomGenerator.cpp.obj
+[71/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObject.cpp.obj
+[72/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsOctPack.cpp.obj
+[73/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp.obj
+[74/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsString.cpp.obj
+[75/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsUtils.cpp.obj
+[76/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptBlock.cpp.obj
+[77/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsdate.tab.cpp.obj
+[78/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjspp.tab.cpp.obj
+[79/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsVariant.cpp.obj
+[80/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsVariantString.cpp.obj
+[81/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/ComplexRect.cpp.obj
+[82/91] Linking CXX executable plutovg-patched-pixels.exe
+[83/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/media/image/BitmapInfomation.cpp.obj
+[84/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/gl/blend_function.cpp.obj
+[85/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/MetalLayerRenderManager.cpp.obj
+[86/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/RenderManager.cpp.obj
+[87/91] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/gl/tvpgl.cpp.obj
+[88/91] Linking CXX executable metal-layer-tests.exe
+FAILED: metal-layer-tests.exe 
+C:\Windows\system32\cmd.exe /C "cd . && C:\Strawberry\c\bin\c++.exe -O3 -DNDEBUG  CMakeFiles/metal-layer-tests.dir/MetalLayerTests.cpp.obj CMakeFiles/metal-layer-tests.dir/BitmapOverwriteTests.cpp.obj CMakeFiles/metal-layer-tests.dir/TriangleProfileTests.cpp.obj CMakeFiles/metal-layer-tests.dir/TestPlatform.cpp.obj CMakeFiles/metal-layer-tests.dir/CapabilityAuditTests.cpp.obj CMakeFiles/metal-layer-tests.dir/CompilationFailureTests.cpp.obj CMakeFiles/metal-layer-tests.dir/OperationContractTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C0ProfileTests.cpp.obj CMakeFiles/metal-layer-tests.dir/P1AShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/TransitionHandlerTests.cpp.obj CMakeFiles/metal-layer-tests.dir/TransitionShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C4ProfileTests.cpp.obj CMakeFiles/metal-layer-tests.dir/ShrinkCopyTests.cpp.obj CMakeFiles/metal-layer-tests.dir/ShrinkShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C1ProfileTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C2ConsumerTraceTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C2LayerExBoundaryTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C2SpanShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/mosaic.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/wave.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/ripple.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/turn.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/turntrans_table.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/rotatebase.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/extrans/rotatetrans.cpp.obj CMakeFiles/metal-layer-tests.dir/P1BShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/P1AGammaTests.cpp.obj CMakeFiles/metal-layer-tests.dir/UnivTransShaderTests.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.tab.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsArray.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsBinarySerializer.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsByteCodeLoader.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsCompileControl.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsConfig.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsConstArrayData.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDate.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDateParser.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDebug.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDictionary.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDisassemble.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsError.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsException.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsGlobalStringMap.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeExec.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeGen.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterface.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsLex.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMT19937ar-cok.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMath.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMessage.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNamespace.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNative.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObject.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObjectExtendable.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsOctPack.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRandomGenerator.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRegExp.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptBlock.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsString.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsUtils.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsVariant.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsVariantString.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsdate.tab.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjspp.tab.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/ComplexRect.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/RenderManager.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/MetalLayerRenderManager.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/gl/tvpgl.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/gl/blend_function.cpp.obj CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/media/image/BitmapInfomation.cpp.obj -o metal-layer-tests.exe -Wl,--out-implib,libmetal-layer-tests.dll.a -Wl,--major-image-version,0,--minor-image-version,0  libplutovg-oracle-patched.a  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 && cd ."
+C:/Strawberry/c/bin/../lib/gcc/x86_64-w64-mingw32/13.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj:C2SpanBindingTests.cpp:(.text+0xdd0): multiple definition of `span_shader::spanByteMul(unsigned int, unsigned int)'; CMakeFiles/metal-layer-tests.dir/C2SpanShaderTests.cpp.obj:C2SpanShaderTests.cpp:(.text+0x670): first defined here
+C:/Strawberry/c/bin/../lib/gcc/x86_64-w64-mingw32/13.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj:C2SpanBindingTests.cpp:(.text+0xe20): multiple definition of `span_shader::spanComposite(unsigned int, unsigned int, unsigned int, unsigned int)'; CMakeFiles/metal-layer-tests.dir/C2SpanShaderTests.cpp.obj:C2SpanShaderTests.cpp:(.text+0x6c0): first defined here
+C:/Strawberry/c/bin/../lib/gcc/x86_64-w64-mingw32/13.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj:C2SpanBindingTests.cpp:(.text+0x1050): multiple definition of `span_shader::spanComposePixel(unsigned int, int, int, unsigned int, TVPLayerSpan const*, unsigned int const*, unsigned int const*, unsigned int const*)'; CMakeFiles/metal-layer-tests.dir/C2SpanShaderTests.cpp.obj:C2SpanShaderTests.cpp:(.text+0x8f0): first defined here
+
+collect2.exe: error: ld returned 1 exit status
+ninja: build stopped: subcommand failed.

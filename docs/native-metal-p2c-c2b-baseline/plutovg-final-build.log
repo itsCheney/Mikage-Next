@@ -1,0 +1,5 @@
+[0/2] Re-checking globbed directories...
+[1/5] Building CXX object CMakeFiles/plutovg-upstream-pixels.dir/C2PlutovgOracle.cpp.obj
+[2/5] Linking CXX executable plutovg-upstream-pixels.exe
+[3/5] Building CXX object CMakeFiles/plutovg-patched-pixels.dir/C2PlutovgOracle.cpp.obj
+[4/5] Linking CXX executable plutovg-patched-pixels.exe

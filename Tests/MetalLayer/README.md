@@ -209,3 +209,21 @@ old-field compatibility. Parser fixtures validate v1 lower bounds, v2 reconcilia
 overflow/missing samples, complete windows and raw-sample nearest-rank quantiles.
 App metadata wiring checks run portably; SwiftUI/XCTest and real-device baselines
 remain separate Apple acceptance. No C1-C4 rendering optimization is implied.
+
+P2C C2B adds a separate ordered plutovg span compositor for `drawLine`,
+`drawPath` and `drawImageStretch`. The pinned plutovg 1.3.3 overlay retains CPU
+rasterization, clip history and paint sampling; Metal composes original packed
+bytes with the upstream integer rounding into scratch, then commits the ROI.
+Recording, borrowed/escaped surfaces, live leases, arbitrary argument conversion
+and resource limits retain named CPU routes. No ordinary Layer operation IDs
+or public settings are added.
+
+The tests compile both the unpatched upstream library and the production overlay.
+The capture oracle compares full pixels using extracted production MSL math,
+alongside original-C blend formulas and facade lifetime/dirty-ROI/failure tests.
+Configure downloads the SHA512-pinned source if needed; an existing pristine tree
+can be supplied with `-DPLUTOVG_ORACLE_SOURCE_DIR=/path/to/plutovg-1.3.3`.
+Native `metal.layerSpan` route samples are bounded to 32 per profile window and
+report overflow. Packet and scratch bytes are separate from C0 pixel transfers.
+Apple compilation, native kernel ordering and matching device log replay remain
+required; portable pixels do not establish a performance improvement.

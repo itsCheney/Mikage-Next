@@ -53,6 +53,7 @@ signatures = [
 layer_source = args.layer_source.read_text(encoding="utf-8")
 layer_signatures = [
     "iTVPTexture2D* tTJSNI_BaseLayer::GetMainImageTextureForCPUAccess(",
+    "iTVPTexture2D* tTJSNI_BaseLayer::GetMainImageTextureForSpanComposite(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTarget(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTargetRegion(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromCPU(",

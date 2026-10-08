@@ -92,6 +92,39 @@ def consumer_event(timestamp=102, phase='read', **overrides):
 
 
 class LayerDiagnosticsTests(unittest.TestCase):
+    def test_span_route_packet_metrics_are_not_transfers(self):
+        span = {'phase': 'route', 'version': 1, 'generation': 1, 'traceID': 40,
+                'method': 'drawLine', 'route': 'gpu', 'reason': 'applied',
+                'sessionID': 7, 'textureID': 441, 'contentVersion': 5,
+                'spanCount': 4, 'sourceBytes': 16, 'parameterBytes': 188, 'scratchBytes': 1024}
+        records = [row('game.begin', 100), row('native.log', 102, message='metal.layerSpan ' + json.dumps(span)),
+                   consumer_event(104, phase='budget', readRecords=0, callerRecords=0, producerRecords=0,
+                                  spanRouteRecords=1, spanRouteExceeded=0), work(), heart()]
+        summary = self.summarize(records)
+        result = summary['layerSpans']
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['byRoute'][0]['parameterBytes'], 188)
+        self.assertEqual(result['byRoute'][0]['calls'], 1)
+        self.assertEqual(summary['cpuConsumers']['sampledReadTotals']['bytes'], 0)
+        self.assertEqual(self.summarize([row('game.begin', 100), work(), heart()])['layerSpans']['version'], None)
+
+    def test_span_route_loss_unknown_target_and_validation(self):
+        span = {'phase': 'route', 'version': 1, 'generation': 1, 'traceID': 40,
+                'method': 'drawPath', 'route': 'cpu', 'reason': 'record',
+                'sessionID': None, 'textureID': None, 'contentVersion': None,
+                'spanCount': 0, 'sourceBytes': 0, 'parameterBytes': 0, 'scratchBytes': 0}
+        event = row('native.log', 102, message='metal.layerSpan ' + json.dumps(span))
+        budget = consumer_event(104, phase='budget', spanRouteRecords=1, spanRouteExceeded=3)
+        result = self.summarize([row('game.begin', 100), event, budget])['layerSpans']
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['sampling']['spanRouteExceeded'], 3)
+        self.assertIsNone(result['records'][0]['textureID'])
+        duplicate = self.summarize([row('game.begin', 100), event, event, budget])['layerSpans']
+        self.assertEqual(duplicate['malformedRecords'], 1)
+        span['textureID'] = 1
+        invalid = row('native.log', 103, message='metal.layerSpan ' + json.dumps(span))
+        self.assertEqual(self.summarize([row('game.begin', 100), invalid])['layerSpans']['malformedRecords'], 1)
+
     def summarize(self, records, **bounds):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'fixtures.jsonl'

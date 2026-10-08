@@ -1,0 +1,32 @@
+[0/2] Re-checking globbed directories...
+[1/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-ft-math.c.obj
+[2/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-ft-raster.c.obj
+[3/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-ft-stroker.c.obj
+[4/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-matrix.c.obj
+[5/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-canvas.c.obj
+[6/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-font.c.obj
+[7/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-rasterize.c.obj
+[8/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-paint.c.obj
+[9/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-blend.c.obj
+[10/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-ft-math.c.obj
+[11/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-path.c.obj
+[12/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-ft-raster.c.obj
+[13/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-ft-stroker.c.obj
+[14/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-matrix.c.obj
+[15/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-canvas.c.obj
+[16/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-font.c.obj
+[17/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-blend.c.obj
+[18/32] Generating ProductionLayerExBoundary.inc
+[19/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-paint.c.obj
+[20/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-rasterize.c.obj
+[21/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-path.c.obj
+[22/32] Building CXX object CMakeFiles/plutovg-upstream-pixels.dir/C2PlutovgOracle.cpp.obj
+[23/32] Building CXX object CMakeFiles/plutovg-patched-pixels.dir/C2PlutovgOracle.cpp.obj
+[24/32] Building C object CMakeFiles/plutovg-oracle-upstream.dir/D_/vn-sim/build/plutovg-c2b/plutovg-1.3.3/source/plutovg-surface.c.obj
+[25/32] Linking C static library libplutovg-oracle-upstream.a
+[26/32] Building CXX object CMakeFiles/metal-layer-tests.dir/C2LayerExBoundaryTests.cpp.obj
+[27/32] Linking CXX executable plutovg-upstream-pixels.exe
+[28/32] Linking CXX executable metal-layer-tests.exe
+[29/32] Building C object CMakeFiles/plutovg-oracle-patched.dir/plutovg-patched/source/plutovg-surface.c.obj
+[30/32] Linking C static library libplutovg-oracle-patched.a
+[31/32] Linking CXX executable plutovg-patched-pixels.exe

@@ -24,6 +24,7 @@ p.add_argument("--draw-source", required=True, type=Path)
 p.add_argument("--header-source", required=True, type=Path)
 p.add_argument("--scoped-source", required=True, type=Path)
 p.add_argument("--output", required=True, type=Path)
+p.add_argument("--capture-output", type=Path)
 a = p.parse_args()
 base = a.base_source.read_text(encoding="utf-8")
 draw = a.draw_source.read_text(encoding="utf-8")
@@ -60,3 +61,28 @@ output = "// Generated from production C2A boundary code.\n" + "\n".join(pieces)
 output = output.replace("tTJSNI_BaseLayer", "TestDrawNativeLayer").replace("tTJSNI_Layer", "TestDrawNativeLayer")
 output = output.replace("tTJSNC_Layer", "TestDrawClass")
 a.output.write_text(output, encoding="utf-8")
+if a.capture_output:
+    # Compile the same dispatch/policy and drawing functions with real pinned
+    # plutovg. Only the native Layer dependency is substituted, as in C2A.
+    extra=[block(header,"class Appearance\n{")+";",
+           block(header,"class GdipImage\n{")+";",block(header,"class Path\n{")+";"]
+    cap=output
+    cap=cap.replace("// Generated from production C2A boundary code.","// Generated production C2B policy/drawing with real plutovg.")
+    cap=cap.replace("class LayerExDraw :", "class LayerExDraw :",1)
+    # Add complete capture class before functions that use it.
+    insertion=cap.index("void LayerExDraw::updateRect(")
+    cap=cap[:insertion]+block(draw,"class LayerExDraw::InvocationSpanCapture")+";\n"+cap[insertion:]
+    cap="\n".join(extra)+"\n"+cap
+    more=["Appearance::Appearance(","Appearance::~Appearance(","Appearance* Appearance::Clone(",
+          "void Appearance::clear(","Path::Path(","Path::~Path(",
+          "GdipImage::~GdipImage(","GdipImage* GdipImage::Clone(",
+          "void LayerExDraw::deferCapturedUpdate(","bool LayerExDraw::spanCaptureStateSafe(",
+          "bool LayerExDraw::spanCaptureTargetAliased(","RectF LayerExDraw::drawPath(",
+          "RectF LayerExDraw::getPathExtents(","void LayerExDraw::draw(","void LayerExDraw::fill(",
+          "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(",
+          "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine("]
+    cap+="\n"+"\n".join(block(draw,signature) for signature in more)+"\n"
+    cap+="NCB_TYPECONV_DSTMAP_SET(const Appearance*, GdipTypeConvertor<const Appearance>, true);\n"
+    cap+="NCB_TYPECONV_DSTMAP_SET(const Path*, GdipTypeConvertor<const Path>, true);\n"
+    cap+="NCB_TYPECONV_DSTMAP_SET(GdipImage*, GdipTypeConvertor<GdipImage>, true);\n"
+    a.capture_output.write_text(cap,encoding="utf-8")

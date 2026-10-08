@@ -176,6 +176,37 @@ void RejectedNamesAndCallbackErrors() {
     Require(profile.transfers.empty() && messages.empty(),"C2 callback failure changed transfer totals");
     trace::SetCallbacks(Capture,Producer);
 }
+void SpanRoutes() {
+    Begin();
+    {
+        trace::ConsumerScope scope("drawLine",trace::Access::Write,"method",5);
+        for(unsigned i=0;i<35;++i) trace::ReportSpanRoute("drawLine","gpu","applied",
+            reinterpret_cast<void*>(uintptr_t(1)),4,16,188,1024);
+    }
+    Require(Count("metal.layerSpan ")==32 && producerCaptures==32,"C2B route budget queried or emitted excess records");
+    Require(messages[0].find("\"route\":\"gpu\",\"reason\":\"applied\"")!=std::string::npos &&
+            messages[0].find("\"sourceBytes\":16,\"parameterBytes\":188,\"scratchBytes\":1024")!=std::string::npos,
+            "C2B route and separate packet metrics missing");
+    const auto profile=work::Take();
+    Require(profile.transfers.empty() && messages.back().find("\"spanRouteRecords\":32,\"spanRouteExceeded\":3")!=std::string::npos,
+        "C2B routes changed C0 totals or hid sampling loss");
+    messages.clear();
+    {
+        trace::ConsumerScope scope("drawPath",trace::Access::Write,"method");
+        trace::ReportSpanRoute("drawPath","cpu","record",nullptr,0,0,0,0);
+        Require(messages.size()==1 && messages[0].find("\"sessionID\":null,\"textureID\":null,\"contentVersion\":null")!=std::string::npos,
+            "C2B unavailable CPU target identity fabricated zeros");
+        work::SetEnabled(false);work::SetEnabled(true);messages.clear();
+        trace::ReportSpanRoute("drawPath","gpu","applied",reinterpret_cast<void*>(uintptr_t(1)),1,0,100,200);
+        Require(messages.empty() && producerCaptures==32,"C2B stale route queried resources");
+    }
+    work::SetEnabled(false);
+    {
+        trace::ConsumerScope scope("drawLine",trace::Access::Write,"method");
+        trace::ReportSpanRoute("drawLine","cpu","unsupported",reinterpret_cast<void*>(uintptr_t(1)),0,0,0,0);
+    }
+    Require(messages.empty() && producerCaptures==32,"C2B disabled route queried resources");
+}
 }
 void RunC2ConsumerTraceTests() {
     const auto logger=trace::logMessage;const auto producer=trace::captureProducer;
@@ -184,6 +215,6 @@ void RunC2ConsumerTraceTests() {
         ~Restore() {work::SetEnabled(false);trace::SetCallbacks(logger,producer);}
     } restore{logger,producer};
     trace::SetCallbacks(Capture,Producer);
-    ContextAndAttribution();WindowBudgets();EpochsAndDisabled();UTF8AndWireLimits();ProducerSafety();RejectedNamesAndCallbackErrors();
+    ContextAndAttribution();WindowBudgets();EpochsAndDisabled();UTF8AndWireLimits();ProducerSafety();RejectedNamesAndCallbackErrors();SpanRoutes();
     std::cout<<"PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety\n";
 }
