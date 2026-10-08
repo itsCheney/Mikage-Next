@@ -69,6 +69,28 @@ def shrink_record(**overrides):
     return record
 
 
+def consumer_event(timestamp=102, phase='read', **overrides):
+    event = {'phase': phase, 'generation': 1, 'sessionID': 7, 'traceID': 11, 'readID': 21,
+        'textureID': 441, 'contentVersion': 4, 'method': 'Layer.saveLayerImage', 'access': 'read',
+        'nativeEntry': 'native.saveLayerImage', 'owner': 12, 'source': 'load', 'width': 2, 'height': 2,
+        'lastWriter': 'Layer.shrinkCopy', 'lastWrite': [0, 0, 2, 2],
+        'lastSubmittedID': None, 'renderFrame': None, 'calls': 1, 'bytes': 10, 'wallNS': 15, 'waitNS': 2}
+    if phase == 'caller':
+        event = {'phase': phase, 'generation': 1, 'sessionID': 7, 'traceID': 11, 'readID': 21,
+                 'traceState': 'captured', 'positions': 'unverified', 'trace': 'save.ks:23'}
+    if phase == 'shrink':
+        event = {'phase': phase, 'generation': 1, 'sessionID': 7, 'traceID': 10, 'textureID': 441,
+                 'contentVersion': 4, 'method': 'Layer.shrinkCopy', 'nativeEntry': 'native.shrinkCopy',
+                 'outputROI': [0, 0, 2, 2], 'width': 2, 'height': 2}
+    if phase == 'budget':
+        event = {'phase': phase, 'generation': 1, 'readRecords': 1, 'readExceeded': 0,
+                 'callerRecords': 1, 'callerExceeded': 0, 'producerRecords': 1,
+                 'producerExceeded': 0, 'oversizeRecords': 0}
+    event.update(overrides)
+    prefix = 'metal.cpuProducer ' if phase == 'shrink' else 'metal.cpuConsumer '
+    return row('native.log', timestamp, message=prefix + json.dumps(event, ensure_ascii=False))
+
+
 class LayerDiagnosticsTests(unittest.TestCase):
     def summarize(self, records, **bounds):
         with tempfile.TemporaryDirectory() as directory:
@@ -78,6 +100,77 @@ class LayerDiagnosticsTests(unittest.TestCase):
 
     def basic(self, *records):
         return [row('environment', 99, 'none', sourceRevision='abcdef012345'), row('game.begin', 100, folder='fixture'), *records]
+
+    def test_production_texture_lease_commas_and_other_reconcile(self):
+        event = work(transfers='read:bitmap.scanline@441(496x279,lease=0)=1/553536/13731833/11703750,'
+            'read:bitmap.scanline@8670(496x279,lease=1)=1/553536/6772375/6684167,'
+            'upload:bitmap.update@5(2x2,lease=0)=1/16/90/0,upload:other=2/32/100/0',
+            transferOrigins='read:bitmap.scanline=2/1107072/20504208/18387917,'
+                'upload:bitmap.update=3/48/190/0')
+        result = self.summarize(self.basic(event, heart(layerReadbackBytes='1107072', layerUploadedBytes='48')))
+        self.assertTrue(result['originTotalsComplete'])
+        self.assertEqual(result['originWindowReconciliation'][0]['status'], 'match')
+        self.assertEqual(result['transfersCallsBytesWallNSWaitNS']['read:bitmap.scanline'],
+            [2, 1107072, 20504208, 18387917])
+        self.assertEqual(result['heartbeatComparison']['read']['status'], 'match')
+        self.assertFalse(any('malformed transfer' in issue['message'] for issue in result['issues']))
+
+    def test_texture_metadata_malformed_tail_stays_incomplete(self):
+        errors = []
+        values, complete = analysis.parse_transfers('read:bitmap.scanline@1(2x2,lease=0)=1/16/5/2,'
+            'read:bitmap.scanline@2(2x2,lease=0)=1/16/5', errors, 'texture')
+        self.assertFalse(complete)
+        self.assertEqual(values['read:bitmap.scanline'], [1, 16, 5, 2])
+        self.assertTrue(errors)
+
+    def test_cpu_consumer_exact_version_link_and_subset_no_double_count(self):
+        result = self.summarize(self.basic(consumer_event(101, 'shrink'), consumer_event(),
+            consumer_event(102.1, 'caller'), consumer_event(104, 'budget'), work(), heart()))
+        detail = result['cpuConsumers']
+        self.assertTrue(detail['wholeTextureReadDetailsCovered'])
+        self.assertEqual(detail['correlatedShrinkReads'], 1)
+        self.assertEqual(detail['records'][0]['caller']['trace'], 'save.ks:23')
+        self.assertEqual(detail['records'][0]['shrinkProducer']['textureID'], 441)
+        self.assertEqual(detail['sampledReadTotals'], {'calls': 1, 'bytes': 10, 'wallNS': 15, 'waitNS': 2})
+        self.assertEqual(detail['byConsumer'][0]['method'], 'Layer.saveLayerImage')
+        self.assertEqual(result['transfersCallsBytesWallNSWaitNS']['read:load'], [2, 20, 30, 4])
+
+    def test_cpu_consumer_dimensions_do_not_prove_generation_session_or_version(self):
+        for key in ('generation', 'sessionID', 'contentVersion', 'textureID'):
+            result = self.summarize(self.basic(consumer_event(101, 'shrink', **{key: 99}), consumer_event(), work(), heart()))
+            self.assertEqual(result['cpuConsumers']['correlatedShrinkReads'], 0, key)
+        result = self.summarize(self.basic(consumer_event(103, 'shrink'), consumer_event(), work(), heart()))
+        self.assertEqual(result['cpuConsumers']['correlatedShrinkReads'], 0)
+
+    def test_cpu_consumer_sampling_loss_and_legacy_unknown_are_explicit(self):
+        result = self.summarize(self.basic(work(), heart()))
+        self.assertIsNone(result['cpuConsumers']['sampledReadTotals'])
+        self.assertEqual(result['cpuConsumers']['legacyConsumer'], 'unknown')
+        result = self.summarize(self.basic(consumer_event(), consumer_event(104, 'budget', readExceeded=3,
+            producerRecords=0, callerRecords=0, callerExceeded=1, oversizeRecords=2), work(), heart()))
+        detail = result['cpuConsumers']
+        self.assertFalse(detail['wholeTextureReadDetailsCovered'])
+        self.assertEqual(detail['sampling']['readExceeded'], 3)
+        self.assertEqual(detail['sampling']['oversizeRecords'], 2)
+        self.assertIsNone(detail['records'][0]['caller'])
+
+    def test_cpu_consumer_duplicates_malformed_and_orphan_callers_report(self):
+        result = self.summarize(self.basic(consumer_event(), consumer_event(), consumer_event(103, 'caller', readID=999),
+            row('native.log', 104, message='metal.cpuConsumer {bad'), work(), heart()))
+        self.assertEqual(len(result['cpuConsumers']['records']), 1)
+        self.assertEqual(result['cpuConsumers']['malformedRecords'], 2)
+        self.assertEqual(result['cpuConsumers']['orphanCallers'], 1)
+        self.assertTrue(any('duplicate native' in e['message'] for e in result['issues']))
+        bad = consumer_event(waitNS=-1)
+        result = self.summarize(self.basic(bad, work(), heart()))
+        self.assertEqual(result['cpuConsumers']['records'], [])
+
+    def test_cpu_consumer_bounds_and_caller_certainty_preserved(self):
+        result = self.summarize(self.basic(consumer_event(102), consumer_event(102.1, 'caller',
+            traceState='unavailable', positions='unavailable', trace=''), work(), heart()), from_seconds=2, to_seconds=5)
+        self.assertEqual(result['cpuConsumers']['records'][0]['caller']['positions'], 'unavailable')
+        result = self.summarize(self.basic(consumer_event(102), work(), heart()), from_seconds=3, to_seconds=5)
+        self.assertFalse(result['cpuConsumers']['observed'])
 
     def test_shrink_raw_wait_quantiles_and_subset_do_not_double_count(self):
         first = shrink_record(readCalls=99, readBytes=20, readWaitNS=99_000_000, parameterBytes=420)

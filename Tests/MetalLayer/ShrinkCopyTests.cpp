@@ -1,6 +1,8 @@
 #include "tjsCommHead.h"
 #include "tjsNative.h"
 #include "RenderManager.h"
+#include "CPUConsumerTrace.h"
+#include "PointReadTrace.h"
 #include "LayerBitmap.h"
 #include "LayerShrinkGeometry.h"
 #include "MetalLayerRenderManager.h"

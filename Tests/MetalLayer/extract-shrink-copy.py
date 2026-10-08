@@ -33,6 +33,6 @@ scoped = function(args.scoped_source.read_text(encoding="utf-8"), "class tTVPSco
 layer = args.layer_source.read_text(encoding="utf-8")
 bindings = function(layer, "struct ShrinkLayerBindings") + " shrinkLayerBindings;\n"
 gate = function(layer, "bool TVPGetCanonicalShrinkLayer(") + "\n"
-output = "// Generated from production shrinkCopy, scoped pixels, and callback gate.\n" + scoped + bindings + gate + plugin
+output = "// Generated from production shrinkCopy, scoped pixels, and callback gate.\n#include \"CPUConsumerTrace.h\"\n" + scoped + bindings + gate + plugin
 output = output.replace("tTJSNI_BaseLayer", "TestShrinkNativeLayer").replace("tTJSNC_Layer", "TestShrinkClass")
 args.output.write_text(output, encoding="utf-8")

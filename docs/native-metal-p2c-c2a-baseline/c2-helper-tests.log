@@ -1,0 +1,4 @@
+COMMAND ['D:\\vn-sim\\build\\native-metal-p2c-c2a-baseline\\c2a-helper-tests.exe']
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety
+
+EXIT 0

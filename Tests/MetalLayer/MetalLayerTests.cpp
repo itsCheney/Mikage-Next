@@ -6,6 +6,7 @@
 #include "LayerTransitionGeometry.h"
 #include "LayerShrinkGeometry.h"
 #include "PointReadTrace.h"
+#include "CPUConsumerTrace.h"
 #include "AsyncAlphaTileCache.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
 #include <SDL3/SDL.h>
@@ -53,6 +54,8 @@ void C1ProfileTests();
 void ShrinkCopyTests(iTVPRenderBackend*);
 void ShrinkCopyFailureTests(const std::function<void(int,bool)>&);
 void ShrinkShaderContractTests();
+void RunC2ConsumerTraceTests();
+int RunC2LayerExBoundaryTests();
 void TVPTestShrinkExecute(const TVPLayerShrinkOperation&,const uint8_t*,int,std::vector<uint8_t>&,int);
 uint32_t TVPTestTransitionPixel(const TVPLayerTransitionOperation&,int,int,const uint8_t*,int,const uint8_t*,int);
 void P1AGammaTests(iTVPRenderBackend*);
@@ -1203,6 +1206,7 @@ static void WorkDiagnostics() {
 }
 
 #include "C0ProductionDiagnostics.inc"
+#include "C2ProductionDiagnostics.inc"
 static void AlphaConversionReference() {
     auto* gpu=TVPGetRenderManager(); auto* sw=TVPGetSoftwareRenderManager();
     auto image=Image(17,13,4,33),destination=Image(17,13,4,9);
@@ -2352,6 +2356,8 @@ int main(int argc,char** argv) {
         if(!sessionCachesOnly) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
             UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests(); ShrinkShaderContractTests();
+            RunC2ConsumerTraceTests();
+            Require(RunC2LayerExBoundaryTests()==0,"C2A production LayerEx boundary tests failed");
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2403,6 +2409,7 @@ int main(int argc,char** argv) {
 #endif
         TVPUnbindMetalLayerRenderManager();
         Require(TVPBindMetalLayerRenderManager(backend.get()),"shrink session init failed");
+        C2ProductionDiagnostics(backend.get());
         ShrinkCopyTests(backend.get()); C1ProfileTests();
 #ifndef TEST_NATIVE_METAL
         auto& shrinkDevice=*static_cast<DeviceDouble*>(backend.get());

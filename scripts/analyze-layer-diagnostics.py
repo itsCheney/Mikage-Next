@@ -239,6 +239,136 @@ def transition_lifecycles(rows, errors):
     return result
 
 
+def cpu_consumers(rows, errors, origin=None, from_seconds=None, to_seconds=None):
+    """Sampled native evidence only; never add these subset metrics to C0."""
+    reads, callers, producers, budgets = {}, {}, [], []
+    found = malformed = 0
+    for row in rows:
+        timestamp = row.get('unixTime')
+        if from_seconds is not None or to_seconds is not None:
+            if origin is None or not isinstance(timestamp, (int, float)):
+                continue
+            elapsed = timestamp - origin
+            if (from_seconds is not None and elapsed < from_seconds) or (to_seconds is not None and elapsed > to_seconds):
+                continue
+        for value in row['fields'].values():
+            if not isinstance(value, str):
+                continue
+            prefix = next((p for p in ('metal.cpuConsumer ', 'metal.cpuProducer ') if value.startswith(p)), None)
+            if prefix is None:
+                continue
+            found += 1
+            context = 'cpuConsumer[%d]' % found
+            try:
+                event = json.loads(value[len(prefix):])
+                if not isinstance(event, dict) or len(value.encode('utf-8')) > 900:
+                    raise ValueError('expected bounded native object')
+                phase = event.get('phase')
+                allowed = ('shrink',) if prefix == 'metal.cpuProducer ' else ('read', 'caller', 'budget')
+                if phase not in allowed:
+                    raise ValueError('unknown native phase')
+                fields = ('generation',)
+                if phase == 'budget':
+                    fields += ('readRecords', 'readExceeded', 'callerRecords', 'callerExceeded',
+                               'producerRecords', 'producerExceeded', 'oversizeRecords')
+                else:
+                    fields += ('sessionID', 'traceID')
+                    if phase in ('read', 'caller'):
+                        fields += ('readID',)
+                    if phase in ('read', 'shrink'):
+                        fields += ('textureID', 'contentVersion', 'width', 'height')
+                    if phase == 'read':
+                        fields += ('owner', 'calls', 'bytes', 'wallNS', 'waitNS')
+                for key in fields:
+                    event[key] = numeric(event.get(key), errors, context + '.' + key)
+                    if event[key] is None:
+                        raise ValueError('missing or invalid numeric field')
+                if not event['generation'] or (phase != 'budget' and any(not event[k] for k in ('sessionID', 'traceID'))):
+                    raise ValueError('missing native identity')
+                if phase in ('read', 'shrink'):
+                    for key in ('method', 'nativeEntry') + (('access', 'source', 'lastWriter') if phase == 'read' else ()):
+                        if not isinstance(event.get(key), str) or not event[key] or len(event[key].encode('utf-8')) > 48:
+                            raise ValueError('missing or oversized label')
+                    rect = event.get('lastWrite' if phase == 'read' else 'outputROI')
+                    if not isinstance(rect, list) or len(rect) != 4 or any(not isinstance(v, int) or isinstance(v, bool) for v in rect):
+                        raise ValueError('invalid native rectangle')
+                    if phase == 'read':
+                        if event['calls'] != 1 or event['access'] not in ('metadata', 'read', 'write'):
+                            raise ValueError('invalid successful-read detail')
+                        for key in ('lastSubmittedID', 'renderFrame'):
+                            if key not in event:
+                                raise ValueError('missing optional timing identity')
+                            if event[key] is not None and numeric(event[key], errors, context + '.' + key) is None:
+                                raise ValueError('invalid optional timing identity')
+                if phase == 'caller':
+                    if event.get('traceState') not in ('captured', 'unavailable') or event.get('positions') not in ('unverified', 'unavailable'):
+                        raise ValueError('invalid caller certainty')
+                    if not isinstance(event.get('trace'), str) or len(event['trace'].encode('utf-8')) > 512:
+                        raise ValueError('missing or oversized caller trace')
+                if phase == 'budget' and (event['readRecords'] > 32 or event['producerRecords'] > 32 or event['callerRecords'] > 8):
+                    raise ValueError('native sampling budget exceeded')
+                event = {**event, 'unixTime': timestamp}
+                if phase in ('read', 'caller'):
+                    key = (event['generation'], event['sessionID'], event['readID'])
+                    target = reads if phase == 'read' else callers
+                    if key in target:
+                        raise ValueError('duplicate native read/caller identity')
+                    target[key] = event
+                elif phase == 'shrink':
+                    producers.append(event)
+                else:
+                    budgets.append(event)
+            except (TypeError, ValueError) as error:
+                malformed += 1
+                problem(errors, context, 'invalid native consumer JSON: ' + str(error))
+    sampled_totals = {k: sum(r[k] for r in reads.values()) for k in ('calls', 'bytes', 'wallNS', 'waitNS')}
+    ordered_reads = []
+    correlated = 0
+    for key, record in reads.items():
+        record = dict(record)
+        caller = callers.get(key)
+        if caller and caller['traceID'] == record['traceID']:
+            record['caller'] = caller
+        else:
+            record['caller'] = None
+            if caller:
+                malformed += 1; problem(errors, 'cpuConsumer.caller', 'caller traceID disagrees with read')
+        matching = [p for p in producers if all(p[k] == record[k] for k in ('generation', 'sessionID', 'textureID', 'contentVersion'))
+                    and isinstance(p['unixTime'], (int, float)) and isinstance(record['unixTime'], (int, float))
+                    and p['unixTime'] <= record['unixTime']]
+        record['shrinkProducer'] = max(matching, key=lambda p: p['unixTime']) if matching else None
+        correlated += bool(matching)
+        ordered_reads.append(record)
+    orphan_callers = sum(key not in reads for key in callers)
+    if orphan_callers:
+        problem(errors, 'cpuConsumer.caller', 'caller without selected read; loss or coverage mismatch')
+    sampling = None
+    if budgets:
+        sampling = {k: sum(b[k] for b in budgets) for k in ('readRecords', 'readExceeded', 'callerRecords',
+                     'callerExceeded', 'producerRecords', 'producerExceeded', 'oversizeRecords')}
+        sampling['selectedWindowCount'] = len(budgets)
+        sampling['admittedRecordsWithoutDetail'] = max(0, sampling['readRecords'] + sampling['producerRecords'] - len(reads) - len(producers))
+    unknown = not found
+    groups = {}
+    for record in ordered_reads:
+        key = (record['method'], record['access'], record['nativeEntry'])
+        target = groups.setdefault(key, {'method': key[0], 'access': key[1], 'nativeEntry': key[2],
+                                       **{k: 0 for k in ('calls', 'bytes', 'wallNS', 'waitNS')}})
+        for metric in ('calls', 'bytes', 'wallNS', 'waitNS'):
+            target[metric] += record[metric]
+    return {'schemaVersion': 1 if found else None, 'observed': bool(found), 'records': ordered_reads,
+        'producers': producers, 'budgets': budgets, 'sampling': sampling, 'sampledReadTotals': sampled_totals if found else None,
+        'byConsumer': list(groups.values()),
+        'correlatedShrinkReads': correlated, 'malformedRecords': malformed, 'orphanCallers': orphan_callers,
+        'legacyConsumer': 'unknown' if unknown else None,
+        'sampled': True, 'wholeTextureReadDetailsCovered': bool(sampling) and not malformed and not orphan_callers and
+            not sampling['readExceeded'] and not sampling['producerExceeded'] and not sampling['oversizeRecords'] and
+            sampling['readRecords'] == len(reads) and sampling['producerRecords'] == len(producers),
+        'transferBasis': 'sampled subset of same-session C0 transfers, never added to overall totals',
+        'coverageBasis': 'successful whole-texture Read calls; point-read details have a separate tracer',
+        'correlationBasis': 'preceding shrink output with identical generation/session/texture/contentVersion; never infer from dimensions'}
+
+
 def problem(errors, context, message):
     errors.append({'context': context, 'message': message})
 
@@ -297,7 +427,10 @@ def parse_transfers(value, errors, context, origins=False):
         problem(errors, context, 'missing transfer field')
         return result, False
     complete = True
-    for item in str(value).split(','):
+    # Texture metadata includes `(WxH,lease=N)`. Only commas outside its
+    # parentheses separate records; v2 origins percent-escape commas instead.
+    items = str(value).split(',') if origins else re.split(r',(?![^()]*\))', str(value))
+    for item in items:
         if not item:
             continue
         pattern = r'(read|upload):([^=,]+)=([^=]+)' if origins else r'(read|upload):([^@=,]+)(?:@\d+\([^)]*\))?=([^=]+)'
@@ -605,6 +738,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
             'possibleLegacyClipping': [{'index': i, 'keys': w['possibleLegacyClippingKeys']} for i, w in enumerate(transport_windows)
                 if w['possibleLegacyClippingKeys']], 'windows': transport_windows},
         'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
+        'cpuConsumers': cpu_consumers(selected_rows, errors, origin, from_seconds, to_seconds),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,
             'legacyHandler': 'unknown' if transition_missing else None,

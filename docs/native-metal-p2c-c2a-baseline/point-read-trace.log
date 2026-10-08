@@ -1,0 +1,5 @@
+COMMAND ['C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe', 'scripts/check-krkr-point-read-trace.py']
+PointReadTrace (debug): PASS disabled, nested/unwind, backend handoff, TLS, unique IDs
+PointReadTrace (release): PASS disabled, nested/unwind, backend handoff, TLS, unique IDs
+
+EXIT 0

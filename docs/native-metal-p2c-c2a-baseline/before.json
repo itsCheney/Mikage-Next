@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-08",
+  "heads": {
+    "main": "349f8945d6052f30e259fca0741cb8efad22ca6f",
+    "runtime": "ddf2b44fb926b4d10c1d1b5b348bad7c2cdce50c",
+    "core": "5de79e271ba73eee3fec884d634b53cc23fa269b"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "deviceDouble": true,
+  "skip": 0,
+  "planSHA256": "1f89c72dc073c90923dc3e1777654ebc97388e0104dbebaef806c882ac6ad9b0",
+  "inputLogs": {
+    "perf_log/After_C1/Mikage-diagnostics-229C6FE2-D579-4FDD-A647-D5642EDFBB58.jsonl": "d19c079ab69a90dad6895cbd72f2b598c150bd5f2908c749f791f26cd423ae3f",
+    "perf_log/After_C1/Mikage-diagnostics-5470997D-02F4-461E-AB19-42DA3E6DB926.jsonl": "fa0b53c8d6b8f4faebf029a933fb88136dc3f6be03af12141c5bd5b83c881d82",
+    "perf_log/After_C1/Mikage-diagnostics-615CE754-8261-4E1A-97EA-E3E349D658C5.jsonl": "3be8c799c5e154e588ef0668cdf4242e25814deac0ced6cb90b13e2becc6b1cc",
+    "perf_log/After_C1/Mikage-diagnostics-875D465E-2026-434A-9E67-16DC13C215AC.jsonl": "b5e4263cd72032ab77ce2ecce98abeb0a1fc8728cde3848ba5e8ede40d1d421c"
+  },
+  "note": "Main has only the accepted eight-line C2 plan addition; preserve it. Nested source repositories clean. Prior LastTest outputs copied before any source edits."
+}

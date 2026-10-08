@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-08。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 归因对账通过；C4 已有三款 iPhone 实际场景 GPU/零 CPU 证据；C1 两种 shrinkCopy、安全自别名、诊断及日志闭环已提交，本地 portable 验证通过，Apple/Swift及同条件真机配对待验。C2A 消费端归因与安全访问边界已完成本地实现和 portable 验证、未提交；C2 剩余 GPU 化/完整签收、C3、P2D、P3–P5 尚未完成。C4 未覆盖原生矩阵和受控配对继续按原门槛验收。**
+日期：2026-10-05；更新：2026-10-08。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 归因对账通过；C4 已有三款 iPhone 实际场景 GPU/零 CPU 证据；C1 两种 shrinkCopy、安全自别名、诊断及日志闭环已完成本地实现和 portable 验证，未提交，Apple/Swift及同条件真机配对待验。C2–C3、P2D、P3–P5 尚未实施；C4 未覆盖原生矩阵和受控配对继续按原门槛验收。**
 
 ## 1. 决策与完成目标
 
@@ -366,8 +366,6 @@
 
 #### C2. LayerEx/raw-pixel：收敛 GPU↔CPU ping-pong，而非假定插件可自动 GPU 化
 
-2026-10-08 C2A 本地签收：已完成有界消费端/shrink 输出 identity 归因、LayerExDraw 元数据构造和按需像素租约，以及 NCBind 参数/错误顺序、raw-first、外部重入/COW/resize 的兼容修复。MetalLayer 4/4、Backend/TJS 各1/1、32项解析、frame/point-trace及六个生产 TU syntax通过；诊断开关真实 facade 事务的精确像素与计数一致。Draw 边界使用真实 NCBind/TJS 和 canvas double，真实 plutovg/Apple/App及新真机链路待验，不宣称性能改善或全部 C2 完成。详见 [C2A 基线](NATIVE-METAL-P2C-C2A-BASELINE.md)。既有 CPU 保存同步语义、plutovg算法和实际绘制写域保持；新 GPU 算子/异步保存留待消费端证据选定。
-
 **C1 后的新增归因样例：缩放结果的 CPU 消费者。**2026-10-08、`sourceRevision=349f8945d605` 的 [After_C1 千恋原始日志](../perf_log/After_C1/Mikage-diagnostics-229C6FE2-D579-4FDD-A647-D5642EDFBB58.jsonl)中，两次 `shrinkCopy` 均为 GPU、无 shrink 归因像素读回/等待/上传，但同窗口仍有两次 496×279 `bitmap.scanline` 读回，合计 1,107,072 bytes / 18.387917 ms wait。对应 texture ID 分别为 441、8670，发生在开局与退出附近；不能视为同一有效内容被重复读回。尺寸和窗口关联提示缩放后的 CPU 消费，尚不能证明调用者是保存缩略图、图片编码或某个插件。
 
 - [ ] 在真实成功的 scanline 读回处增加有界、采样式消费端归因：texture ID、会话/资源与内容版本、最后写入者、原生调用入口及 TJS 调用栈，并关联 shrink 的输出 texture ID/版本。沿 `saveLayerImage`、图片编码、插件和 raw-pointer 入口确认实际调用链；字节码缺少 source map 时明确标记位置未知。复用既有传输和等待测量，不新增 readback、submit、wait 或资源强引用，关闭诊断时不抓栈。
@@ -375,7 +373,6 @@
 - [ ] 对必须 CPU 编码/保存的消费者，保留 GPU 缩放，只对实际需要的小图做一次读回，并复用同一内容版本的有效 CPU 缓存。现有缓存已避免有效内容重复读取；不同纹理或 GPU 修改后的新版本不得合并为缓存命中，也不得以失效像素填补同步读取。
 - [ ] 仅在消费协议允许延后完成、且存在合适的既有提交时机时，评估提前准备不可变版本的读回及后台编码；保持脚本返回时的像素/文件完成与错误语义、场景退出和跨会话寿命。同步指针或立即要求保存完成的调用保留必要同步边界；异步准备不得新增强制提交或将等待转移到另一未计量路径。
 - [ ] 将 `LayerExBase`、`LayerExDraw`、`ScopedLayerPixels` 等调用按只读、完整覆盖写、局部读改写和真 CPU 算法分类，并捕获调用栈/功能样例。每类明确 CPU cache、dirty ROI、lease、COW、alpha cache 和跨会话资源语义。
-- [x] C2A 本地：LayerExDraw 构造、纯属性/测量及无 record 的状态操作不获取像素；实际绘制、record及保存保持保守租约，内部重绘共享一次，外部更换目标的重入挂起/恢复正确，原拒绝顺序保持。消费端事件、预算/代际、版本精确关联和分析器已实现，未提交；上面的真机调用链/GPU化及原生门槛继续待验。
 - [ ] 对有已知 GPU 等价实现的功能接入专用 GPU 路径；对 ABI 必须提供 raw pointer 的功能，设计单次、区域化的 acquire/release 与上传边界。不能通过延迟 dirty、复用失效 CPU buffer 或虚构 full overwrite 改变插件可见像素。
 - [ ] 以天使纷扰的 1052×900 `layerExDraw.write` → `layerExBase` 交替访问为主回归，并加入千恋的 960×863、186×936 LayerEx 样例。重构前先证明两次完整往返由同一调用序列造成；重构后要么消除其中可 GPU 化的一段，要么记录为何 ABI/算法必须保留边界。
 
@@ -466,7 +463,7 @@
 | G0 | P2C origin 聚合、无同步诊断和场景基线；真机归因已签收 | F、现有 `metal.layerWork` | 中；原生开关开销与正式性能配对仍待验 |
 | G4 | 高频 CPU transition GPU 保留路径；已有本地实现及实际场景证据 | G0、千恋/DRACU 实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
 | G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决；本地实现及 portable 验证完成 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取；Apple/配对待验 |
-| G2 | LayerEx/raw-pixel 边界收敛；C2A 本地完成，后续由消费端证据选定 GPU 化 | G0、插件样例 | 高；ABI 可见性、COW/lease、CPU cache；原生/新真机待验 |
+| G2 | LayerEx/raw-pixel 边界收敛 | G0、插件样例 | 高；ABI 可见性、COW/lease、CPU cache |
 | G3 | `bitmap.update` staging/encoder 批处理 | G0、调用点证据 | 高；更新顺序、可见时序、资源寿命 |
 | H | P2D hot-layer 关联、滚动背景 overdraw/pass 优化与 backpressure 配对 | G0、天使纷扰道路重放 | 高；顺序/alias/clip 正确性、诊断零同步、热状态配对 |
 | I | 通用三角形与安全支持域 | D、独立参照 | 高；软件回退不通用 |
@@ -570,8 +567,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [ ] P2：常用 affine 混合及单输入 perspective 留在 GPU，几何边界裁决完成。
 - [x] P2C C0 真机归因：`4943c0e47665` 的 8 份日志 origin bytes/calls/wait 精确对账，overflow 为零；已足以安排 C4 → C1 → C2 → C3。
 - [x] P2C C4 本地与实际场景：七种真实 handler 1962 精确案例、拒绝/异常/COW/lease、诊断与原回归通过；`56b2799f8068` 的千恋、DRACU、天使纷扰实测 transition 均为 GPU/0 CPU/零像素往返。全 handler 原生矩阵、受控同热状态配对和提交仍待验，见第 2.6 节与 C4 独立基线。
-- [x] P2C C1 本地：两种 shrinkCopy 的精确整数算法、安全自别名、COW/resize/lease、事务拒绝与诊断日志闭环已实现；60 个真实插件精确对照、2048 组依赖证明、12 个故障事务和原 portable 回归通过。签收时未提交，当前 C1 包已提交；Apple/Swift/App、真实 GPU 同步和同条件真机配对仍待验，见 [C1 独立基线](NATIVE-METAL-P2C-C1-BASELINE.md)。
-- [x] P2C C2A 本地：消费端/shrink 输出有界关联、元数据操作零像素访问、绘制/record租约及原错误顺序、外部重入目标替换/resize通过生产边界测试；32项解析和原回归通过。真实plutovg/Apple/App及新真机链路待验，未提交；见 [C2A 独立基线](NATIVE-METAL-P2C-C2A-BASELINE.md)，不替代全部C2验收。
+- [x] P2C C1 本地：两种 shrinkCopy 的精确整数算法、安全自别名、COW/resize/lease、事务拒绝与诊断日志闭环已实现；60 个真实插件精确对照、2048 组依赖证明、12 个故障事务和原 portable 回归通过。Apple/Swift/App、真实 GPU 同步和同条件真机配对待验，未提交或推送，见 [C1 独立基线](NATIVE-METAL-P2C-C1-BASELINE.md)。
 - [ ] P2C C0 剩余验证：Apple 原生诊断开关无额外 submit/wait、App XCTest/界面、统计开销及同热状态性能配对有独立证据；不由对账签收替代。
 - [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
 - [ ] P2D：天使纷扰道路滚动完成 D0 asset→Layer→operation 归因；严格保持 Layer 像素/顺序/alias 语义的优化在 nominal/same-thermal 重复样本中降低 GPU fragment/command、`nextDrawable` backpressure、pass 或冗余像素与长帧。C1/C4 的传输改善不得冒充 P2D 收益。
@@ -587,7 +583,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 的诊断、逐帧、解析与版本 HEAD 已提交；独立 [C0 记录](NATIVE-METAL-P2C-C0-BASELINE.md)保留 simulator 大数组 Swift importer 失败、只读 C accessor 补修及当时待验状态。当前主仓库 HEAD 为 `4943c0e47665433ef0c1d139d9043c408ef5c33a`，新增 8 份同短 revision 真机日志已验证 origin 对账；该证据不自动签收全部 Apple CI、App XCTest 或诊断开关开销。
 
-仍未完成：C0 剩余 Apple 专项与同热状态性能对照、C4 全 handler 原生 GPU/App/受控配对签收、C1 Apple/Swift/原生和真机配对、C2A 原生/新真机验证及 C2 剩余 GPU 化、C3、P2D、P3–P5，以及新原生像素/性能基线和旧 GL 实际运行。C1 已提交，C2A 本地实现和 portable 验证已完成、未提交，详见各自独立基线。第 2.6 节已确认实际触发 transition 的 GPU/零 CPU/零像素往返，不替代 C4 全矩阵；后续以 C2A 的消费端证据安排剩余 C2，并继续 C3 tiny update。P2D 独立处理 ordinary Layer overdraw/fragment/drawable backpressure；P5 保留 Emote GPU 与 scanline/queue 调查。正式性能结论仍以同热状态配对实测为准。
+仍未完成：C0 剩余 Apple 专项与同热状态性能对照、C4 全 handler 原生 GPU/App/受控配对签收、C1 Apple/Swift/原生和真机配对、C2–C3、P2D、P3–P5，以及新原生像素/性能基线和旧 GL 实际运行。C1 的本地实现和 portable 验证已完成、未提交，详见独立基线。第 2.6 节已确认实际触发 transition 的 GPU/零 CPU/零像素往返，不替代 C4 全矩阵；后续实现项为 C2 LayerEx、C3 tiny update。P2D 独立处理 ordinary Layer overdraw/fragment/drawable backpressure；P5 保留 Emote GPU 与 scanline/queue 调查。正式性能结论仍以同热状态配对实测为准。
 
 ## 附录 A：完整名称对照
 

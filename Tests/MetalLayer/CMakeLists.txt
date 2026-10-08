@@ -21,6 +21,19 @@ set(UNIV_SHADER_SOURCE "${CORE}/core/render/backend/MetalLayerShaders.h")
 set(GENERATED_UNIV_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionUnivTransMath.inc")
 set(GENERATED_SHRINK_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionShrinkMath.inc")
 set(GENERATED_SHRINK_COPY "${CMAKE_CURRENT_BINARY_DIR}/ProductionShrinkCopy.inc")
+set(GENERATED_LAYEREX_BOUNDARY "${CMAKE_CURRENT_BINARY_DIR}/ProductionLayerExBoundary.inc")
+add_custom_command(OUTPUT "${GENERATED_LAYEREX_BOUNDARY}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-layerex-boundary.py"
+            --base-source "${CORE}/plugins/LayerExBase.hpp"
+            --draw-source "${CORE}/plugins/LayerExDraw/LayerExDraw.cpp"
+            --header-source "${CORE}/plugins/LayerExDraw/LayerExDraw.hpp"
+            --scoped-source "${CORE}/plugins/ScopedLayerPixels.h"
+            --output "${GENERATED_LAYEREX_BOUNDARY}"
+    DEPENDS "${CORE}/plugins/LayerExBase.hpp" "${CORE}/plugins/LayerExDraw/LayerExDraw.cpp"
+            "${CORE}/plugins/LayerExDraw/LayerExDraw.hpp" "${CORE}/plugins/ScopedLayerPixels.h"
+            "${CORE}/plugins/ncbind/ncbind.hpp" "${CORE}/plugins/ncbind/ncb_invoke.hpp"
+            "${CORE}/core/render/CPUConsumerTrace.h" "${CORE}/core/render/RenderManager.h"
+            "${CMAKE_CURRENT_LIST_DIR}/extract-layerex-boundary.py" VERBATIM)
 add_custom_command(OUTPUT "${GENERATED_SHRINK_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-math.py"
             --source "${CORE}/core/render/backend/MetalShrinkShaders.h" --output "${GENERATED_SHRINK_MATH}"
@@ -31,7 +44,8 @@ add_custom_command(OUTPUT "${GENERATED_SHRINK_COPY}"
             --source "${CORE}/plugins/shrinkCopy.cpp" --scoped-source "${CORE}/plugins/ScopedLayerPixels.h"
             --layer-source "${CORE}/core/script/tjsNativeLayer.cpp" --output "${GENERATED_SHRINK_COPY}"
     DEPENDS "${CORE}/plugins/shrinkCopy.cpp" "${CORE}/plugins/ScopedLayerPixels.h"
-            "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/tjs2/tjsNative.h" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-copy.py" VERBATIM)
+            "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/tjs2/tjsNative.h"
+            "${CORE}/core/render/CPUConsumerTrace.h" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-copy.py" VERBATIM)
 set(GENERATED_TRANSITION_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionTransitionMath.inc")
 add_custom_command(OUTPUT "${GENERATED_TRANSITION_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-math.py"
@@ -64,6 +78,7 @@ add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp Tr
     P1AShaderTests.cpp
     TransitionHandlerTests.cpp TransitionShaderTests.cpp C4ProfileTests.cpp "${GENERATED_TRANSITION_MATH}"
     ShrinkCopyTests.cpp ShrinkShaderTests.cpp C1ProfileTests.cpp "${GENERATED_SHRINK_MATH}" "${GENERATED_SHRINK_COPY}"
+    C2ConsumerTraceTests.cpp C2LayerExBoundaryTests.cpp "${GENERATED_LAYEREX_BOUNDARY}"
     "${CORE}/plugins/extrans/mosaic.cpp" "${CORE}/plugins/extrans/wave.cpp"
     "${CORE}/plugins/extrans/ripple.cpp" "${CORE}/plugins/extrans/turn.cpp"
     "${CORE}/plugins/extrans/turntrans_table.cpp" "${CORE}/plugins/extrans/rotatebase.cpp"

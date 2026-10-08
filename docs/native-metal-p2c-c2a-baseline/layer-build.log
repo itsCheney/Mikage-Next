@@ -1,0 +1,5 @@
+COMMAND ['cmake', '--build', 'build/metal-layer-tests', '--parallel', '3']
+[0/2] Re-checking globbed directories...
+ninja: no work to do.
+
+EXIT 0

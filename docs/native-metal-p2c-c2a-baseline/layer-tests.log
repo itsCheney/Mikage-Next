@@ -1,0 +1,17 @@
+COMMAND ['ctest', '--test-dir', 'build/metal-layer-tests', '--output-on-failure']
+Internal ctest changing into directory: D:/vn-sim/build/metal-layer-tests
+Test project D:/vn-sim/build/metal-layer-tests
+    Start 1: metal-layer-tests
+1/4 Test #1: metal-layer-tests ................   Passed   23.70 sec
+    Start 2: metal-layer-capability-audit
+2/4 Test #2: metal-layer-capability-audit .....   Passed    0.04 sec
+    Start 3: layer-diagnostics-parser
+3/4 Test #3: layer-diagnostics-parser .........   Passed    0.21 sec
+    Start 4: app-build-info-wiring
+4/4 Test #4: app-build-info-wiring ............   Passed    0.06 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =  24.02 sec
+
+EXIT 0
