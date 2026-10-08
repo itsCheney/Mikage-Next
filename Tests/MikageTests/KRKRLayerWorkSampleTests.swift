@@ -67,4 +67,37 @@ final class KRKRLayerWorkSampleTests: XCTestCase {
         profile.transitionProfileVersion = 99
         XCTAssertEqual(KRKRLayerWorkSample(profile: &profile).transitionProfiles, "")
     }
+    func testShrinkViewsAndWaitsRemainOwnedAndRejectInvalidCount() {
+        var profile = MikageKRKRLayerWorkProfile()
+        profile.shrinkProfileVersion = 1
+        profile.shrinkReadWaitSampleCount = 2048
+        let shrinks = "[\"" + String(repeating: "x", count: 60000) + "\"]"
+        let overflow = "{\"capacityRecords\":0}"
+        withUnsafePointer(to: &profile) { pointer in
+            let destination = UnsafeMutablePointer(mutating: MikageKRKRLayerWorkProfileShrinks(pointer)!)
+            shrinks.utf8CString.withUnsafeBufferPointer { bytes in
+                destination.update(from: bytes.baseAddress!, count: bytes.count)
+            }
+            let folded = UnsafeMutablePointer(mutating: MikageKRKRLayerWorkProfileShrinkOverflow(pointer)!)
+            overflow.utf8CString.withUnsafeBufferPointer { bytes in
+                folded.update(from: bytes.baseAddress!, count: bytes.count)
+            }
+            let waits = UnsafeMutablePointer(mutating: MikageKRKRLayerWorkProfileShrinkReadWait(pointer)!)
+            waits[0] = 0
+            waits[2047] = UInt64.max
+        }
+        let copied = KRKRLayerWorkSample(profile: &profile)
+        profile = MikageKRKRLayerWorkProfile()
+        XCTAssertEqual(copied.shrinkProfiles, shrinks)
+        XCTAssertEqual(copied.shrinkOverflow, overflow)
+        let waits = copied.shrinkReadWaitSamplesNS.split(separator: ",")
+        XCTAssertEqual(waits.count, 2048)
+        XCTAssertEqual(waits.first.map(String.init), "0")
+        XCTAssertEqual(waits.last.map(String.init), String(UInt64.max))
+        profile.shrinkProfileVersion = 1
+        profile.shrinkReadWaitSampleCount = 2049
+        XCTAssertEqual(KRKRLayerWorkSample(profile: &profile).shrinkReadWaitSamplesNS, "")
+        profile.shrinkProfileVersion = 99
+        XCTAssertEqual(KRKRLayerWorkSample(profile: &profile).shrinkProfiles, "")
+    }
 }

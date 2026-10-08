@@ -19,6 +19,19 @@ add_custom_command(OUTPUT "${GENERATED_OVERWRITE}" "${GENERATED_CACHES}"
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
 set(UNIV_SHADER_SOURCE "${CORE}/core/render/backend/MetalLayerShaders.h")
 set(GENERATED_UNIV_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionUnivTransMath.inc")
+set(GENERATED_SHRINK_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionShrinkMath.inc")
+set(GENERATED_SHRINK_COPY "${CMAKE_CURRENT_BINARY_DIR}/ProductionShrinkCopy.inc")
+add_custom_command(OUTPUT "${GENERATED_SHRINK_MATH}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-math.py"
+            --source "${CORE}/core/render/backend/MetalShrinkShaders.h" --output "${GENERATED_SHRINK_MATH}"
+    DEPENDS "${CORE}/core/render/backend/MetalShrinkShaders.h" "${CORE}/core/render/LayerShrink.h"
+            "${CORE}/core/render/LayerShrinkDefinitions.def" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-math.py" VERBATIM)
+add_custom_command(OUTPUT "${GENERATED_SHRINK_COPY}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-copy.py"
+            --source "${CORE}/plugins/shrinkCopy.cpp" --scoped-source "${CORE}/plugins/ScopedLayerPixels.h"
+            --layer-source "${CORE}/core/script/tjsNativeLayer.cpp" --output "${GENERATED_SHRINK_COPY}"
+    DEPENDS "${CORE}/plugins/shrinkCopy.cpp" "${CORE}/plugins/ScopedLayerPixels.h"
+            "${CORE}/core/script/tjsNativeLayer.cpp" "${CORE}/tjs2/tjsNative.h" "${CMAKE_CURRENT_LIST_DIR}/extract-shrink-copy.py" VERBATIM)
 set(GENERATED_TRANSITION_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionTransitionMath.inc")
 add_custom_command(OUTPUT "${GENERATED_TRANSITION_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-math.py"
@@ -50,6 +63,7 @@ add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp Tr
     CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp C0ProfileTests.cpp
     P1AShaderTests.cpp
     TransitionHandlerTests.cpp TransitionShaderTests.cpp C4ProfileTests.cpp "${GENERATED_TRANSITION_MATH}"
+    ShrinkCopyTests.cpp ShrinkShaderTests.cpp C1ProfileTests.cpp "${GENERATED_SHRINK_MATH}" "${GENERATED_SHRINK_COPY}"
     "${CORE}/plugins/extrans/mosaic.cpp" "${CORE}/plugins/extrans/wave.cpp"
     "${CORE}/plugins/extrans/ripple.cpp" "${CORE}/plugins/extrans/turn.cpp"
     "${CORE}/plugins/extrans/turntrans_table.cpp" "${CORE}/plugins/extrans/rotatebase.cpp"

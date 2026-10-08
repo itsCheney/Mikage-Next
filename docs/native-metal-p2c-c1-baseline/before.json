@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-07",
+  "heads": {
+    "main": "e17c15526feaab202032f3850492f3166e591187",
+    "runtime": "172154210fb26611977c807ff2438f5ead8b0f35",
+    "core": "f77b2c9338e05379a46666e2a6a24b7182954887"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "planSHA256": "fc61754d40f825e7c6895da6aa915ad53e954d9950a947b709ddde5fa129dbfa",
+  "logs": {
+    "perf_log\\After_C4\\Mikage-diagnostics-07CBA6E4-19FE-4934-AC63-38B1A103A112.jsonl": "be53a91621ec5b6ccdbb223c46984a7def8ce69f0ef5ace7882f58f70e195b01",
+    "perf_log\\After_C4\\Mikage-diagnostics-31B23C61-8B05-4FA1-9B10-6C867A7E6B38.jsonl": "536d215bd3d11805e3ca495305a7a704992f459001362a95f5f5c2b37d18ba3f",
+    "perf_log\\After_C4\\Mikage-diagnostics-8E2A0EEA-7296-43FB-99DC-6ECCE75AE855.jsonl": "866c0d463aeb278316ddda616066091dad11d583597126cc8505923ee46c4b4d"
+  },
+  "note": "Clean three repositories at start. Saved historical local pre-change test output; Windows portable/device-double, not native Metal proof."
+}

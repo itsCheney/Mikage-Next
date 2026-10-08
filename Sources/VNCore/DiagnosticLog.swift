@@ -25,6 +25,16 @@ public final class DiagnosticLog: @unchecked Sendable {
     /// Maximum fields retained per record. Generous enough for the diagnostic
     /// heartbeats (dozens of counters); per-record size is bounded separately.
     static let fieldLimit = 128
+    // UTF-8 byte caps mirror the bounded production C work-profile buffers.
+    // Preserve structured values whole: cutting JSON or sample arrays destroys
+    // their meaning. The encoded-record maxBytes guard still applies below.
+    static let layerWorkFieldByteLimits: [String: Int] = [
+        "stages": 1023, "transfers": 2047, "transferOrigins": 16383,
+        "originOverflow": 511, "frameSamplesNS": 86016,
+        "transitionProfiles": 131071, "transitionOverflow": 1023,
+        "shrinkProfiles": 65535, "shrinkOverflow": 1023,
+        "shrinkReadWaitSamplesNS": 43008
+    ]
 
     public init(directory: URL, maxBytes: Int = 2 * 1024 * 1024, fileCount: Int = 4) {
         self.directory = directory
@@ -82,8 +92,22 @@ public final class DiagnosticLog: @unchecked Sendable {
         // maxBytes checks below, not by this limit.
         var fieldSnapshot: [String: String] = [:]
         let ordered = fields.sorted { $0.key < $1.key }
+        let structuredWork = event == "layerWorkProfile"
+        var valueOmitted: [String] = []
         for (key, value) in ordered.prefix(Self.fieldLimit) {
-            fieldSnapshot[Self.clipped(key, to: 128)] = Self.clipped(value, to: 1024)
+            if structuredWork, let limit = Self.layerWorkFieldByteLimits[key] {
+                guard value.utf8.count <= limit else { valueOmitted.append(key); continue }
+                fieldSnapshot[key] = value
+            } else {
+                fieldSnapshot[Self.clipped(key, to: 128)] = Self.clipped(value, to: 1024)
+            }
+        }
+        if structuredWork {
+            fieldSnapshot["structuredFieldLimitsVersion"] = "1"
+            if !valueOmitted.isEmpty {
+                fieldSnapshot["fieldsValueOmitted"] = String(valueOmitted.count)
+                fieldSnapshot["fieldsValueOmittedKeys"] = valueOmitted.joined(separator: ",")
+            }
         }
         if ordered.count > Self.fieldLimit {
             let omitted = ordered.dropFirst(Self.fieldLimit).map(\.key)

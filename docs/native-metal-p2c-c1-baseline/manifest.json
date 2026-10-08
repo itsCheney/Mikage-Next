@@ -1,0 +1,471 @@
+{
+  "schemaVersion": 1,
+  "stage": "P2C C1",
+  "date": "2026-10-08",
+  "archivedAtUTC": "2026-10-08T00:19:55.011212+00:00",
+  "heads": {
+    "main": "e17c15526feaab202032f3850492f3166e591187",
+    "runtime": "172154210fb26611977c807ff2438f5ead8b0f35",
+    "core": "f77b2c9338e05379a46666e2a6a24b7182954887"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "compiler": "MinGW GCC 13.2",
+  "buildTypes": {
+    "metalLayer": "Release",
+    "metalBackend": "unspecified",
+    "tjsShutdown": "unspecified"
+  },
+  "deviceDouble": true,
+  "skip": 0,
+  "committed": false,
+  "pushed": false,
+  "scope": "Local implementation, source audit and portable tests; C2/C3/P2D not implemented.",
+  "baselineQualification": {
+    "originalBeforeJsonPreserved": true,
+    "originalBeforeStatusPreserved": true,
+    "note": "before.status was captured after the first two new C1 contract files were written. Core lists untracked LayerShrink.h/LayerShrinkDefinitions.def, parents list submodule untracked markers. All before tracked diffs are empty. The earlier clean state was the user-confirmed starting baseline, not the captured status snapshot.",
+    "beforeTests": "Preserved historical local LastTest outputs; not rerun at the starting HEAD."
+  },
+  "tests": {
+    "metalLayer": "4/4",
+    "metalBackend": "1/1",
+    "tjsShutdown": "1/1",
+    "productionPluginExactComparisons": 60,
+    "axisAliasProofComparisons": 2048,
+    "failureTransactions": 12,
+    "oldC4ExactCases": 1962,
+    "oldSurfaceComparisons": 78628,
+    "oldSessions": 3,
+    "parserFixtures": 25,
+    "frameTiming": "PASS",
+    "productionTUSyntax": [
+      "plugins/shrinkCopy.cpp",
+      "core/script/tjsNativeLayer.cpp"
+    ],
+    "strictProfileAndCBridge": "PASS; -std=c++17 -Wall -Wextra -Werror",
+    "bridgeSizeBytes": 267864,
+    "swiftLoggerExportTests": "4 added, UNRUN on Windows",
+    "swiftImporterAndAppTests": "UNRUN on Windows"
+  },
+  "buildAndTestCommands": [
+    "cmake --build build/metal-layer-tests --parallel",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "cmake --build build/metal-render-tests --parallel",
+    "ctest --test-dir build/metal-render-tests --output-on-failure",
+    "cmake --build build/tjs-shutdown-tests --parallel",
+    "ctest --test-dir build/tjs-shutdown-tests --output-on-failure",
+    "python scripts/check-krkr-frame-times.py",
+    "python Tests/MetalLayer/test-layer-diagnostics.py",
+    "Production TU syntax commands and exact include/define arguments: production-syntax.log",
+    "Strict standalone profile/bridge commands: c1-diagnostics-validation.md"
+  ],
+  "configuration": {
+    "reusedExistingBuildDirectories": true,
+    "metalLayer": "Ninja / Release",
+    "metalBackend": "MinGW Makefiles",
+    "tjsShutdown": "Ninja",
+    "compilerPath": "C:/Strawberry/c/bin/c++.exe",
+    "pythonPath": "C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+    "TEMPandTMP": "Workspace build/tmp during sandboxed Python compile checks",
+    "cacheSnapshots": {
+      "layer": {
+        "path": "build/native-metal-p2c-c1-baseline/layer.cmake-cache.txt",
+        "bytes": 15786,
+        "sha256": "290d26999123f010c78af254908b15445fe625819b4bb9926435961938a96a44"
+      },
+      "backend": {
+        "path": "build/native-metal-p2c-c1-baseline/backend.cmake-cache.txt",
+        "bytes": 14520,
+        "sha256": "8e8a0d8d47c3641667237317613dcc69fbd2b8be166fffb5ed3995a5566d8ce0"
+      },
+      "tjs": {
+        "path": "build/native-metal-p2c-c1-baseline/tjs.cmake-cache.txt",
+        "bytes": 15788,
+        "sha256": "c9c944e6e257b0ae787ed56184e173c91fe883f09e728f63cbfc3ac0b244f520"
+      }
+    }
+  },
+  "historicalInputs": {
+    "perf_log\\After_C4\\Mikage-diagnostics-07CBA6E4-19FE-4934-AC63-38B1A103A112.jsonl": "be53a91621ec5b6ccdbb223c46984a7def8ce69f0ef5ace7882f58f70e195b01",
+    "perf_log\\After_C4\\Mikage-diagnostics-31B23C61-8B05-4FA1-9B10-6C867A7E6B38.jsonl": "536d215bd3d11805e3ca495305a7a704992f459001362a95f5f5c2b37d18ba3f",
+    "perf_log\\After_C4\\Mikage-diagnostics-8E2A0EEA-7296-43FB-99DC-6ECCE75AE855.jsonl": "866c0d463aeb278316ddda616066091dad11d583597126cc8505923ee46c4b4d"
+  },
+  "historicalInputLimits": "After_C4 path/transfer evidence only. No paired C1 performance result; old logs do not identify both shrink entrypoints and may contain 1024-byte structured-field clipping. Thermal conditions differ.",
+  "pending": [
+    "Apple Objective-C++ and production MSL compilation, both integer pipelines",
+    "Native Metal default/forced compute, device/simulator, faults and staging lifetimes",
+    "Native no-extra-submit/wait and exact GPU output/counter validation",
+    "Swift/C importer, App XCTest and four DiagnosticLog production export tests",
+    "DRACU, Tenshi and 9-nine matched device/OS/scenes/settings/thermal/duration, three repeats per group"
+  ],
+  "performanceImprovementClaimed": false,
+  "localArtifactsNote": "Full binary tracked diffs plus all modified and new source snapshots are under ignored build/native-metal-p2c-c1-baseline. Evidence directory excluded from diffs/source snapshots to avoid self-reference. No Git mutations.",
+  "diffs": {
+    "main": {
+      "path": "build/native-metal-p2c-c1-baseline/main.after.patch",
+      "bytes": 69428,
+      "sha256": "e296d520c57112605a5c0d733054e6559b87c1e214511b71b8b255383144d23b"
+    },
+    "runtime": {
+      "path": "build/native-metal-p2c-c1-baseline/runtime.after.patch",
+      "bytes": 5447,
+      "sha256": "ad5acd3e6a92800a6a01e82be1abe2373aea99564a9ca8cd8cd7d66465dd26fa"
+    },
+    "core": {
+      "path": "build/native-metal-p2c-c1-baseline/core.after.patch",
+      "bytes": 65552,
+      "sha256": "ad9104aefcebb978aea0e352e64f062c9f08c76dd453ac7bce8f0a7b1bd75e53"
+    }
+  },
+  "statuses": {
+    "main": {
+      "path": "build/native-metal-p2c-c1-baseline/main.after.status",
+      "bytes": 863,
+      "sha256": "dce0c2d8b2f3bb440c581378f4193ce5868f79d1d4473ba99ea13fb3cda06f45"
+    },
+    "runtime": {
+      "path": "build/native-metal-p2c-c1-baseline/runtime.after.status",
+      "bytes": 64,
+      "sha256": "fa8f32f852ac5d9ffbe790e5a52ab0fc63d3ab9fc948964cfc9492c3b69285bc"
+    },
+    "core": {
+      "path": "build/native-metal-p2c-c1-baseline/core.after.status",
+      "bytes": 465,
+      "sha256": "6f3144118cb8ae3f5de8d0e3fbb5e156507335b2f1516fad3b94fd5736b19694"
+    }
+  },
+  "sourceSnapshots": {
+    "main:App/Engine/KRKRLayerWorkSample.swift": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/App/Engine/KRKRLayerWorkSample.swift",
+      "bytes": 2195,
+      "sha256": "ba227ba862e2e31928d336c0427f9c5d6933db23416962f972b6a8dd5782581c"
+    },
+    "main:App/Engine/KRKRSession.swift": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/App/Engine/KRKRSession.swift",
+      "bytes": 52972,
+      "sha256": "f963cca84e7c8a0dc227ceb24db3ad2efcd98f65e607d7ae7946268dbbc8ca1e"
+    },
+    "main:Sources/VNCore/DiagnosticLog.swift": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Sources/VNCore/DiagnosticLog.swift",
+      "bytes": 11829,
+      "sha256": "28d671db035c359428fcaf62b89809163dbd7fdfdc0871995d37d2e1d5ae3dfa"
+    },
+    "main:Tests/MetalLayer/C1ProfileTests.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/C1ProfileTests.cpp",
+      "bytes": 6108,
+      "sha256": "6d258b3719218fc344c199e120d30689b08d9bbdf8c6dbdd2a0d312abe264e80"
+    },
+    "main:Tests/MetalLayer/CMakeLists.txt": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/CMakeLists.txt",
+      "bytes": 8367,
+      "sha256": "bd3d6b4dd1460a535646833a9fedd0e18ba238069f72b85593106a441609ff51"
+    },
+    "main:Tests/MetalLayer/MetalLayerTests.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/MetalLayerTests.cpp",
+      "bytes": 163734,
+      "sha256": "7eaf924c1bd9312548dc6f00c487fc5982bb0a3cda224931071a764daa13bd50"
+    },
+    "main:Tests/MetalLayer/ShrinkCopyTests.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/ShrinkCopyTests.cpp",
+      "bytes": 25774,
+      "sha256": "9672cffacfff4f00f7bfaa306330f71ce545a01ab86aff90c23fb910581a2740"
+    },
+    "main:Tests/MetalLayer/ShrinkShaderTests.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/ShrinkShaderTests.cpp",
+      "bytes": 2913,
+      "sha256": "2469cdccc7e9e7bb59da21d11dd9d4d02f94c6b2c72b349d643cf393573cf461"
+    },
+    "main:Tests/MetalLayer/TriangleProfileTests.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/TriangleProfileTests.cpp",
+      "bytes": 25107,
+      "sha256": "eed2b5e3b5ebb8642751edd71aa6c2f39b685054a9e959612d732285307f4bd5"
+    },
+    "main:Tests/MetalLayer/extract-shrink-copy.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/extract-shrink-copy.py",
+      "bytes": 1981,
+      "sha256": "6f33e3d7c1c08bc9af91210dbfd20d91ea22e91a044f9dae8f72eeea55d2d80f"
+    },
+    "main:Tests/MetalLayer/extract-shrink-math.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/extract-shrink-math.py",
+      "bytes": 1861,
+      "sha256": "49673ec16fb9583678554c4c6928b5bd87eddb50de3187d25f1aa32c16e6537f"
+    },
+    "main:Tests/MetalLayer/extract-triangle-profile.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/extract-triangle-profile.py",
+      "bytes": 1757,
+      "sha256": "7c8516b831980a387ae5c3c7a34a7a60a5f4a6d23fc56fcc59abf09544f9d128"
+    },
+    "main:Tests/MetalLayer/test-layer-diagnostics.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MetalLayer/test-layer-diagnostics.py",
+      "bytes": 22663,
+      "sha256": "68775a56a9613729e05f7592e27dd756aa289f9ccffc8d281aa57f92c05467cd"
+    },
+    "main:Tests/MikageTests/KRKRLayerWorkSampleTests.swift": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/MikageTests/KRKRLayerWorkSampleTests.swift",
+      "bytes": 5387,
+      "sha256": "4d44bad626d6e8007287204ea59215157b42e0fdecada095da58d2e2fe00ebf9"
+    },
+    "main:Tests/VNCoreTests/DiagnosticLogTests.swift": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/Tests/VNCoreTests/DiagnosticLogTests.swift",
+      "bytes": 16058,
+      "sha256": "e0a10392b960e4e8a277774058b8a593c726467167fe0465a4df23ee6ba7382d"
+    },
+    "main:docs/NATIVE-METAL-COMPATIBILITY-PLAN.md": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md",
+      "bytes": 86287,
+      "sha256": "e87d1edcc94313ce06e13442de4fd8113802b864b13b634a1a3d740d7d114b58"
+    },
+    "main:docs/NATIVE-METAL-P2C-C1-BASELINE.md": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/docs/NATIVE-METAL-P2C-C1-BASELINE.md",
+      "bytes": 8184,
+      "sha256": "7b4bc9b876bfb440a8c26f157ff3004da79ff06c3db8450f8f4f2d3e23f964a5"
+    },
+    "main:scripts/analyze-layer-diagnostics.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/scripts/analyze-layer-diagnostics.py",
+      "bytes": 38762,
+      "sha256": "8180ef4554e57ea23870c8eee2961796914f66da8e58ef41258e8a53d8b38ce0"
+    },
+    "main:scripts/check-krkr-work-profile-swift.py": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/main/scripts/check-krkr-work-profile-swift.py",
+      "bytes": 2968,
+      "sha256": "e07bffa6d96f7d73fa3258967290caabbf9829eb183000d43e4612675fcd01ef"
+    },
+    "runtime:host/MikageKRKRRuntime.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/runtime/host/MikageKRKRRuntime.h",
+      "bytes": 14255,
+      "sha256": "5b74a99727ee2b560e85786457beae3a21c56fcf1966884bd338e4f61dc45743"
+    },
+    "runtime:host/MikageKRKRRuntime.mm": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/runtime/host/MikageKRKRRuntime.mm",
+      "bytes": 51287,
+      "sha256": "99d671e6e76fad9a3d785bf7a330cd2bec25cc6000d598615be335a4f915618e"
+    },
+    "core:core/render/LayerShrink.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/LayerShrink.h",
+      "bytes": 1301,
+      "sha256": "07bde1eb3cc5c2225c755f3463fa651cb44ac5b3d10050a01d1dcf4233319083"
+    },
+    "core:core/render/LayerShrinkDefinitions.def": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/LayerShrinkDefinitions.def",
+      "bytes": 111,
+      "sha256": "e534d194a1da52c06eec28fb8f86a5c4b1bbf7e93dd43d4d29a231e6ed174418"
+    },
+    "core:core/render/LayerShrinkGeometry.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/LayerShrinkGeometry.h",
+      "bytes": 8718,
+      "sha256": "585c64cb681daa387dd521ded4a2f97a684e5a4c6fd8714399c16b72cc1a81d0"
+    },
+    "core:core/render/LayerWorkDiagnostics.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/LayerWorkDiagnostics.h",
+      "bytes": 32734,
+      "sha256": "8db3579aaab0a6ebc5ce4f1ee895c4ffc382f5601940421f2c78689bc31e048a"
+    },
+    "core:core/render/MetalLayerRenderManager.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/MetalLayerRenderManager.cpp",
+      "bytes": 85934,
+      "sha256": "dcd3c82154b5b93d30080b9eee8ff93c839378b4c01357e5006acf44c968ddb8"
+    },
+    "core:core/render/TVPCompositor.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/TVPCompositor.h",
+      "bytes": 24601,
+      "sha256": "9e34f41afbfa1c9ff8481be52cf54a4a2eb5483a89a74e9d81e9f15a47a6c238"
+    },
+    "core:core/render/backend/MetalRenderBackend.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/backend/MetalRenderBackend.h",
+      "bytes": 7858,
+      "sha256": "17ef0e2344169441a34c0afd59bdf28663a6c85fbbfa434b7d57e6a2a7f2720d"
+    },
+    "core:core/render/backend/MetalRenderBackend.mm": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/backend/MetalRenderBackend.mm",
+      "bytes": 153768,
+      "sha256": "88962881b2910c37950dcdf5cd70fb973ec0f07762faaa033007e145a5288497"
+    },
+    "core:core/render/backend/MetalShrinkShaders.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/render/backend/MetalShrinkShaders.h",
+      "bytes": 4446,
+      "sha256": "c9a1c5094eccd1cb2cd172248023bf1864135398dc8b8ecf7e63f691dc089973"
+    },
+    "core:core/script/tjsNativeLayer.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/script/tjsNativeLayer.cpp",
+      "bytes": 385717,
+      "sha256": "eecca4fc5e17826684d6175ed4c245ecbd3c481fb644b74999dcf88fe46eef56"
+    },
+    "core:core/script/tjsNativeLayer.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/core/script/tjsNativeLayer.h",
+      "bytes": 45133,
+      "sha256": "0d831fb333607a01037aa30a495504027c06831d325a418a3d30361a450ec193"
+    },
+    "core:plugins/shrinkCopy.cpp": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/plugins/shrinkCopy.cpp",
+      "bytes": 35005,
+      "sha256": "914c162c93bdcfdbe9f3c15095e2cc3ce356ab070b6955cb26d6534ea262487f"
+    },
+    "core:tjs2/tjsNative.h": {
+      "path": "build/native-metal-p2c-c1-baseline/snapshots/core/tjs2/tjsNative.h",
+      "bytes": 17888,
+      "sha256": "0cf47742b711180e7397de4cd4cf1fcff1e816139d8f8c9f09519112ad43307b"
+    }
+  },
+  "evidence": {
+    "backend-build.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/backend-build.log",
+      "bytes": 334,
+      "sha256": "4d63532662f6023935530d2222d932fc54a9f19113fff67d02c4ccc729082d72"
+    },
+    "backend-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/backend-tests.log",
+      "bytes": 313,
+      "sha256": "43f5994cea1b63be92a68f32e4381909c358386d8fe6a45c8e223e3af2732486"
+    },
+    "backend.before.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/backend.before.log",
+      "bytes": 870,
+      "sha256": "07870b5c162f2b3cbafdba22724956711430022b856a97c583d8a1531161dad6"
+    },
+    "before.json": {
+      "path": "docs/native-metal-p2c-c1-baseline/before.json",
+      "bytes": 994,
+      "sha256": "6e42e39f7879255bee79e44fbea35219ca02f22cad75e21915cb54162dd15d74"
+    },
+    "c1-bridge-main.cpp": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-bridge-main.cpp",
+      "bytes": 6762,
+      "sha256": "1f29e46aacb9b72b5b83b29bded0fb9837c77f45e7497712a04f55ccac993463"
+    },
+    "c1-bridge-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-bridge-tests.log",
+      "bytes": 80,
+      "sha256": "71de2fc401e4a650dc5538e36131f985ec5d67c47107fc13b43747f14648d48d"
+    },
+    "c1-diagnostics-validation.md": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-diagnostics-validation.md",
+      "bytes": 3610,
+      "sha256": "3f6cfc4de5433231096657c1afa8daa9a9eda63b3b11a1f652db99cddf1302c3"
+    },
+    "c1-frame-times.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-frame-times.log",
+      "bytes": 91,
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123"
+    },
+    "c1-logger-swift-pending.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-logger-swift-pending.log",
+      "bytes": 279,
+      "sha256": "181beb5f513c7a35f75865e749ea0eb56490a4565055c72e6027548246cd8fbb"
+    },
+    "c1-parser-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-parser-tests.log",
+      "bytes": 129,
+      "sha256": "a8c54a60d9042e73984c58b810a3f2ad5a95fdc018bfa28203a211ddd67652b2"
+    },
+    "c1-production-profile-bridge.inc": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-production-profile-bridge.inc",
+      "bytes": 7151,
+      "sha256": "bca14f4518df9da7f50bcea77bd5269e9c1948aaae619d523e5d64d3f69e8612"
+    },
+    "c1-profile-main.cpp": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-profile-main.cpp",
+      "bytes": 55,
+      "sha256": "69275c37880092acfbccb65af728ce4c0d19113671cb0ba4d9405f14aae77cca"
+    },
+    "c1-profile-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-profile-tests.log",
+      "bytes": 122,
+      "sha256": "dfb09ca1404737fb25b88b151110046ee5299e7b3345fff37544803271250ea4"
+    },
+    "c1-swift-environment.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/c1-swift-environment.log",
+      "bytes": 261,
+      "sha256": "4f666aeedea92913b71c68aa204c4bbcaceb441e7cb0a097a89197ba2036a901"
+    },
+    "core.before.patch": {
+      "path": "docs/native-metal-p2c-c1-baseline/core.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core.before.status": {
+      "path": "docs/native-metal-p2c-c1-baseline/core.before.status",
+      "bytes": 71,
+      "sha256": "f27b04633fbecc65740543286ba3178e5c5e23e28cf1e2a00980f2b8048c9d7d"
+    },
+    "frame-times.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/frame-times.log",
+      "bytes": 91,
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123"
+    },
+    "layer-build.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/layer-build.log",
+      "bytes": 221,
+      "sha256": "1eb23fb2e8f7be1a7362e8baea1077b22f625ea0669980024ed2a452bc663f19"
+    },
+    "layer-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/layer-tests.log",
+      "bytes": 638,
+      "sha256": "8af3e5280d5a9f344c104203e774ca55b4b0fa4edde6c1646a1e10f2223c4066"
+    },
+    "layer.before.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/layer.before.log",
+      "bytes": 154548,
+      "sha256": "713494631b50bbfd84b8b9f61cfd2c2a960eb5d1e7415edd3e0021421257b51b"
+    },
+    "main.before.patch": {
+      "path": "docs/native-metal-p2c-c1-baseline/main.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "main.before.status": {
+      "path": "docs/native-metal-p2c-c1-baseline/main.before.status",
+      "bytes": 29,
+      "sha256": "3e73583a10cdcb919a7e94af2f97fc8161d05a74c4dfe991c9bcc387786882bf"
+    },
+    "plan.before.md": {
+      "path": "docs/native-metal-p2c-c1-baseline/plan.before.md",
+      "bytes": 85165,
+      "sha256": "fc61754d40f825e7c6895da6aa915ad53e954d9950a947b709ddde5fa129dbfa"
+    },
+    "production-syntax.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/production-syntax.log",
+      "bytes": 3034,
+      "sha256": "4172cc430bbdce4e57002a5b5a5645e81ea4a74f12c11d8c6c5b0565d620feb4"
+    },
+    "runtime.before.patch": {
+      "path": "docs/native-metal-p2c-c1-baseline/runtime.before.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime.before.status": {
+      "path": "docs/native-metal-p2c-c1-baseline/runtime.before.status",
+      "bytes": 7,
+      "sha256": "6b50e41100b711571f991a45b28e9ab426920e983d8b1805ba352ed1f6ed9e07"
+    },
+    "tjs-build.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/tjs-build.log",
+      "bytes": 1825,
+      "sha256": "be069951745bbae239c84ade5fc6b5dde368a05d2483eedf7c7e04c1f8a8e756"
+    },
+    "tjs-tests.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/tjs-tests.log",
+      "bytes": 313,
+      "sha256": "8ea7f14d72e6ff683184aac129513bdbdcad521985c87d9ef307ac15c7b44de2"
+    },
+    "tjs.before.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/tjs.before.log",
+      "bytes": 911,
+      "sha256": "7364cca05c3eecde36d6dbd472ac3ff613f8170765d2561abafbcbc372879d2f"
+    },
+    "layer.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/layer.after.last-test.log",
+      "bytes": 154857,
+      "sha256": "976ab8c43edc0fab06faccbd27ffc0c6e636a3b9f0d7b56b1b8814aada2cf22e"
+    },
+    "backend.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/backend.after.last-test.log",
+      "bytes": 870,
+      "sha256": "1e607bc89c88daddde03bb30c8b4e98ac79a0041011366f4495208e653870fc5"
+    },
+    "tjs.after.last-test.log": {
+      "path": "docs/native-metal-p2c-c1-baseline/tjs.after.last-test.log",
+      "bytes": 911,
+      "sha256": "860d3fa9e5b43847a194f64faa8f0192f3e9795d178bdecd3f4c72acd9305dcf"
+    }
+  }
+}

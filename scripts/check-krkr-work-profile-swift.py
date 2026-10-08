@@ -28,12 +28,20 @@ def main():
         smoke.write_text('''import KRKRRuntime
 func smoke() {
   var profile = MikageKRKRLayerWorkProfile()
+  profile.shrinkProfileVersion = 1
+  profile.shrinkReadWaitSampleCount = 2048
   profile.transitionProfileVersion = 1
   profile.transitionProfilesDropped = 0
   let copied = KRKRLayerWorkSample(profile: &profile)
   let _: String = copied.transitionProfiles
   let _: String = copied.transitionOverflow
+  let _: String = copied.shrinkProfiles
+  let _: String = copied.shrinkOverflow
+  let _: String = copied.shrinkReadWaitSamplesNS
   withUnsafePointer(to: &profile) { pointer in
+    let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileShrinks(pointer)
+    let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileShrinkOverflow(pointer)
+    let _: UnsafePointer<UInt64>? = MikageKRKRLayerWorkProfileShrinkReadWait(pointer)
     let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileTransitions(pointer)
     let _: UnsafePointer<CChar>? = MikageKRKRLayerWorkProfileTransitionOverflow(pointer)
   }

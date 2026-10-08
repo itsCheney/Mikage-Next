@@ -1,0 +1,19 @@
+Start testing: Oct 07 18:57 中国标准时间
+----------------------------------------------------------
+1/1 Testing: metal-render-tests
+1/1 Test: metal-render-tests
+Command: "D:/vn-sim/build/metal-render-tests/metal-render-tests.exe"
+Directory: D:/vn-sim/build/metal-render-tests
+"metal-render-tests" start time: Oct 07 18:57 中国标准时间
+Output:
+----------------------------------------------------------
+PASS: diagnostic attribution/sampling/stage timing and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"metal-render-tests" end time: Oct 07 18:57 中国标准时间
+"metal-render-tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 07 18:57 中国标准时间

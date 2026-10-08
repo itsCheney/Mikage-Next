@@ -70,6 +70,157 @@ def parse_transition_profile(fields, errors, context):
     return {'records': parsed, 'overflow': folded, 'dropped': dropped, 'complete': complete and dropped == 0}
 
 
+SHRINK_METRICS = ('gpuCalls', 'cpuCalls', 'noopCalls', 'pixels', 'wallNS', 'prepCPUNS',
+    'parameterUploads', 'parameterBytes', 'temporaryBytes', 'readCalls', 'readBytes', 'readWallNS', 'readWaitNS',
+    'uploadCalls', 'uploadBytes', 'uploadWallNS', 'uploadWaitNS')
+
+
+def parse_shrink_profile(fields, errors, context):
+    if 'shrinkProfileVersion' not in fields:
+        return None
+    if str(fields['shrinkProfileVersion']) != '1':
+        problem(errors, context, 'unknown shrink profile version')
+        return None
+    complete = True
+    try:
+        rows = json.loads(fields['shrinkProfiles'])
+        overflow = json.loads(fields['shrinkOverflow'])
+        if not isinstance(rows, list) or len(rows) > 32 or not isinstance(overflow, dict):
+            raise ValueError('expected bounded shrink rows and overflow object')
+    except (KeyError, TypeError, ValueError) as error:
+        problem(errors, context, 'invalid shrink JSON: ' + str(error))
+        return {'records': [], 'overflow': None, 'dropped': None, 'samples': [], 'sampleDrops': None, 'complete': False, 'samplesComplete': False}
+    parsed = []
+    for index, row in enumerate(rows):
+        detail = context + '[%d]' % index
+        if not isinstance(row, dict) or any(not isinstance(row.get(key), str) or not row[key]
+                for key in ('method', 'reason', 'aliasClass', 'metadata')):
+            problem(errors, detail, 'missing shrink method/reason/alias/metadata'); complete = False; continue
+        try:
+            metadata = json.loads(row['metadata'])
+            if not isinstance(metadata, dict):
+                raise ValueError('metadata is not an object')
+        except ValueError:
+            problem(errors, detail, 'invalid shrink metadata'); complete = False; continue
+        metrics = {key: numeric(row.get(key), errors, detail + '.' + key) for key in SHRINK_METRICS}
+        if any(value is None for value in metrics.values()):
+            complete = False; continue
+        parsed.append({**{key: row[key] for key in ('method', 'reason', 'aliasClass')}, 'metadata': metadata, **metrics})
+    folded = {key: numeric(overflow.get(key), errors, context + '.overflow.' + key)
+        for key in (*SHRINK_METRICS, 'capacityRecords', 'oversizeRecords')}
+    dropped = numeric(fields.get('shrinkProfilesDropped'), errors, context + '.dropped')
+    if dropped is None or any(value is None for value in folded.values()):
+        complete = False
+    elif dropped != folded['capacityRecords'] + folded['oversizeRecords']:
+        problem(errors, context, 'shrink dropped count disagrees with overflow causes'); complete = False
+    count = numeric(fields.get('shrinkReadWaitSampleCount'), errors, context + '.sampleCount')
+    sample_drops = numeric(fields.get('shrinkReadWaitSamplesDropped'), errors, context + '.sampleDrops')
+    encoded = fields.get('shrinkReadWaitSamplesNS')
+    samples = []
+    samples_complete = encoded is not None and count is not None and count <= 2048 and sample_drops is not None
+    if samples_complete:
+        values = str(encoded).split(',') if encoded else []
+        if len(values) != count:
+            problem(errors, context, 'shrink wait sample count disagrees with array'); samples_complete = False
+        else:
+            values = [numeric(value, errors, context + '.waitSample') for value in values]
+            if any(value is None for value in values):
+                samples_complete = False
+            else:
+                samples = values
+                reads = sum(row['readCalls'] for row in parsed) + (folded['readCalls'] or 0)
+                if complete and reads != count + sample_drops:
+                    problem(errors, context, 'shrink read calls disagree with sampled plus dropped reads'); samples_complete = False
+    else:
+        problem(errors, context, 'missing or invalid bounded shrink wait samples')
+    return {'records': parsed, 'overflow': folded, 'dropped': dropped, 'samples': samples, 'sampleDrops': sample_drops,
+        'complete': complete and dropped == 0, 'samplesComplete': samples_complete and sample_drops == 0}
+
+
+def shrink_summary(windows, missing, have_work, file_complete):
+    records, overflow = {}, collections.defaultdict(int)
+    samples, sample_drops = [], 0
+    for window in windows:
+        for row in window['records']:
+            key = (row['method'], row['reason'], row['aliasClass'])
+            if key not in records:
+                records[key] = {**row, **{metric: 0 for metric in SHRINK_METRICS}}
+            target = records[key]
+            target['metadata'] = row['metadata']
+            for metric in SHRINK_METRICS:
+                target[metric] += row[metric]
+        if window['overflow']:
+            for key, value in window['overflow'].items():
+                if value is not None:
+                    overflow[key] += value
+        samples.extend(window['samples']); sample_drops += window['sampleDrops'] or 0
+    def route_groups(field):
+        groups = {}
+        for row in records.values():
+            target = groups.setdefault(row[field], {key: 0 for key in ('gpuCalls', 'cpuCalls', 'noopCalls', 'pixels')})
+            for key in target:
+                target[key] += row[key]
+        return groups
+    complete = have_work and not missing and file_complete and all(w['complete'] for w in windows)
+    wait_complete = have_work and not missing and file_complete and all(w['samplesComplete'] for w in windows)
+    ordered = sorted(samples)
+    return {'profileVersion': 1 if windows else None, 'records': list(records.values()),
+        'byMethod': route_groups('method'), 'byReason': route_groups('reason'), 'byAliasClass': route_groups('aliasClass'),
+        'complete': complete, 'lowerBound': not complete, 'missingWindows': missing, 'legacyMethod': 'unknown' if missing else None,
+        'knownDropped': sum(w['dropped'] or 0 for w in windows), 'overflowKnownTotals': dict(overflow),
+        'readWait': {'count': len(ordered), 'p50MS': ordered[math.ceil(len(ordered)*.50)-1]/1e6 if ordered else None,
+            'p95MS': ordered[math.ceil(len(ordered)*.95)-1]/1e6 if ordered else None, 'complete': wait_complete,
+            'knownSamplesDropped': sample_drops, 'source': 'raw successful reads within ShrinkScope; nearest rank'},
+        'timingBasis': 'wallNS is inclusive scope wall time; prepCPUNS is CPU preparation wall time; neither is GPU execution time',
+        'transferBasis': 'subset of same-window C0 totals; parameter and temporary bytes separate; never add detail to overall transfers'}
+
+
+STRUCTURED_FIELD_BYTE_LIMITS = {'stages': 1023, 'transfers': 2047, 'transferOrigins': 16383,
+    'originOverflow': 511, 'frameSamplesNS': 86016, 'transitionProfiles': 131071,
+    'transitionOverflow': 1023, 'shrinkProfiles': 65535, 'shrinkOverflow': 1023,
+    'shrinkReadWaitSamplesNS': 43008}
+
+
+def parse_field_transport(row, errors, context):
+    fields = row['fields']
+    version = fields.get('structuredFieldLimitsVersion')
+    omitted = []
+    possible = []
+    valid = str(version) == '1'
+    if version is not None and not valid:
+        problem(errors, context, 'unknown structured field limits version')
+    if 'fieldsValueOmitted' in fields or 'fieldsValueOmittedKeys' in fields:
+        count = numeric(fields.get('fieldsValueOmitted'), errors, context + '.valueOmitted')
+        encoded = fields.get('fieldsValueOmittedKeys')
+        omitted = str(encoded).split(',') if encoded else []
+        if count is None or count != len(omitted) or len(set(omitted)) != len(omitted) or any(
+                key not in STRUCTURED_FIELD_BYTE_LIMITS for key in omitted):
+            problem(errors, context, 'invalid oversized structured field omission metadata')
+        problem(errors, context, 'structured values omitted after UTF-8 cap: ' + ','.join(omitted))
+        valid = False
+    for key, limit in STRUCTURED_FIELD_BYTE_LIMITS.items():
+        value = fields.get(key)
+        if not isinstance(value, str):
+            continue
+        length = len(value.encode('utf-8'))
+        if str(version) == '1' and length > limit:
+            problem(errors, context + '.' + key, 'structured value exceeds declared UTF-8 cap')
+            omitted.append(key); valid = False
+        elif version is None and length == 1024:
+            # Old logger clipped every value at exactly 1024 UTF-8 bytes.
+            # Equality is a risk indicator, not proof that this value was cut.
+            possible.append(key)
+            problem(errors, context + '.' + key, 'unmarked legacy value at 1024-byte clipping boundary; possible truncation')
+    truncated = 'truncated' in fields
+    if truncated:
+        problem(errors, context, 'whole logger record truncated: ' + str(fields['truncated'])); valid = False
+    lost = numeric(row['droppedRecords'], errors, context + '.droppedRecords') if 'droppedRecords' in row else 0
+    if lost:
+        problem(errors, context, 'logger reports dropped preceding records; event types unknown'); valid = False
+    return {'version': version, 'complete': valid and not possible, 'omittedKeys': omitted,
+        'possibleLegacyClippingKeys': possible, 'wholeRecordTruncated': truncated, 'knownDroppedRecords': lost or 0}
+
+
 def transition_lifecycles(rows, errors):
     result = []
     for row in rows:
@@ -279,17 +430,34 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
     textures = {'read': [0, 0, 0, 0], 'upload': [0, 0, 0, 0]}
     folded_totals = {'read': [0, 0, 0, 0], 'upload': [0, 0, 0, 0], 'capacityRecords': 0, 'oversizeRecords': 0}
     v2_count = legacy_count = overflow_missing = texture_missing = 0
-    frames, frame_missing, drops_missing, dropped, bad_frames = [], 0, 0, 0, 0
+    frames, frame_missing, drops_missing, dropped, bad_frames, count_bad = [], 0, 0, 0, 0, 0
     reconciliations, formats, peaks = [], set(), []
     amv = {'amvDecodedFrames': [], 'amvDecodedBytes': []}
     origins_valid = True
     transition_windows, transition_missing = [], 0
+    shrink_windows, shrink_missing = [], 0
+    transport_windows = []
     for index, row in enumerate(work):
         fields = row['fields']; context = 'work[%d]' % index
+        transport = parse_field_transport(row, errors, context + '.fieldTransport')
+        transport_windows.append(transport)
+        suspect = set(transport['omittedKeys'] + transport['possibleLegacyClippingKeys'])
+        all_suspect = transport['wholeRecordTruncated'] or bool(transport['knownDroppedRecords'])
+        shrink = parse_shrink_profile(fields, errors, context + '.shrinks')
+        if shrink is None:
+            shrink_missing += 1
+        else:
+            if all_suspect or suspect.intersection(('shrinkProfiles', 'shrinkOverflow')):
+                shrink['complete'] = False
+            if all_suspect or suspect.intersection(('shrinkReadWaitSamplesNS',)):
+                shrink['samplesComplete'] = False
+            shrink_windows.append(shrink)
         transition = parse_transition_profile(fields, errors, context + '.transitions')
         if transition is None:
             transition_missing += 1
         else:
+            if all_suspect or suspect.intersection(('transitionProfiles', 'transitionOverflow')):
+                transition['complete'] = False
             transition_windows.append(transition)
         stage_values = stages(fields.get('stages'), errors, context + '.stages')
         for name, values in stage_values.items():
@@ -297,6 +465,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
         if 'script' in stage_values:
             peaks.append((stage_values['script'][2], row))
         old, old_ok = parse_transfers(fields.get('transfers'), errors, context + '.transfers')
+        old_ok = old_ok and not all_suspect and 'transfers' not in suspect
         old_total = transfer_totals(old)
         if old_ok:
             for direction in textures:
@@ -311,7 +480,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
             v2_count += 1
             named, named_ok = parse_transfers(fields.get('transferOrigins'), errors, context + '.transferOrigins', True)
             folded, folded_ok = parse_overflow(fields.get('originOverflow'), errors, context + '.originOverflow')
-            origins_valid &= named_ok and folded_ok
+            origins_valid &= named_ok and folded_ok and not all_suspect and not suspect.intersection(('transferOrigins', 'originOverflow'))
             overflow_missing += int(not folded_ok)
             for key, values in named.items():
                 accumulate(origins[key], values)
@@ -336,6 +505,9 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
                 accumulate(origins[key], values)
         for key in amv:
             amv[key].append(numeric(fields.get(key), errors, context + '.' + key))
+        frame_begin = len(frames)
+        if all_suspect or 'frameSamplesNS' in suspect:
+            count_bad += 1
         if 'frameSamplesNS' not in fields:
             frame_missing += 1
         else:
@@ -347,6 +519,11 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
                     bad_frames += 1
                 else:
                     frames.append(pair)
+        if 'frameSampleCount' in fields:
+            count = numeric(fields['frameSampleCount'], errors, context + '.frameSampleCount')
+            if count is None or count > 2048 or count != len(frames) - frame_begin:
+                problem(errors, context, 'frameSampleCount disagrees with bounded parsed frame sample pairs')
+                count_bad += 1
         drop = numeric(fields.get('frameSamplesDropped'), errors, context + '.frameSamplesDropped')
         if drop is None:
             drops_missing += 1
@@ -354,7 +531,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
             dropped += drop
     runtime = [v[0] for v in frames if v[0] > 0]; cpu = [v[1] for v in frames]
     file_complete = not any(e['context'].startswith('line ') for e in errors)
-    frames_complete = bool(work) and file_complete and not (frame_missing or drops_missing or dropped or bad_frames)
+    frames_complete = bool(work) and file_complete and not (frame_missing or drops_missing or dropped or bad_frames or count_bad)
     origin_complete = bool(work) and not legacy_count and origins_valid and not texture_missing and all(r['status'] == 'match' for r in reconciliations)
     origin_complete &= file_complete
     named_complete = origin_complete and not any(folded_totals['read'] + folded_totals['upload']) and not (
@@ -412,12 +589,22 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
             'cpuWall': {**frame_statistics(cpu), 'complete': frames_complete}, 'complete': frames_complete, 'partial': not frames_complete,
             'samplesDropped': dropped if not drops_missing and work else None, 'knownSamplesDropped': dropped,
             'missingSampleWindows': frame_missing, 'missingDropWindows': drops_missing, 'malformedSamples': bad_frames,
+            'invalidCountOrTransportWindows': count_bad,
             'unknownRuntimeIntervalSamples': len(frames) - len(runtime), 'source': 'merged raw frameSamplesNS; nearest rank'},
         'coverage': {'fromSeconds': from_seconds, 'toSeconds': to_seconds, 'relativeTo': 'game.begin unixTime',
             'selection': 'whole interval [event.unixTime - intervalMS/1000, event.unixTime] contained in requested bounds',
             'availableWorkWindows': len(all_work), 'selectedWorkWindows': len(work), 'windows': windows, 'v2Windows': v2_count,
             'legacyWindows': legacy_count, 'missingTextureWindows': texture_missing, 'missingOverflowWindows': overflow_missing,
             'fileDataComplete': file_complete}, 'heartbeatComparison': comparison, 'issues': errors,
+        'structuredFields': {'version': 1 if any(str(w['version']) == '1' for w in transport_windows) else None,
+            'complete': bool(work) and all(w['complete'] for w in transport_windows),
+            'unmarkedLegacyWindows': sum(w['version'] is None for w in transport_windows),
+            'valueOmittedWindows': sum(bool(w['omittedKeys']) for w in transport_windows),
+            'wholeRecordTruncatedWindows': sum(w['wholeRecordTruncated'] for w in transport_windows),
+            'knownLoggerDroppedRecords': sum(w['knownDroppedRecords'] for w in transport_windows),
+            'possibleLegacyClipping': [{'index': i, 'keys': w['possibleLegacyClippingKeys']} for i, w in enumerate(transport_windows)
+                if w['possibleLegacyClippingKeys']], 'windows': transport_windows},
+        'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,
             'legacyHandler': 'unknown' if transition_missing else None,

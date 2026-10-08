@@ -124,6 +124,37 @@ void TriangleProfileTests() {
             !MikageKRKRLayerWorkProfileTransitionOverflow(&workProfile),"work bridge exposed unknown transition schema");
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && std::string(workProfile.transitionProfiles)=="[]",
             "work bridge retained transition rows across Take");
+    Require(!MikageKRKRLayerWorkProfileShrinks(nullptr) && !MikageKRKRLayerWorkProfileShrinkOverflow(nullptr) &&
+            !MikageKRKRLayerWorkProfileShrinkReadWait(nullptr),"C1 accessor accepted null");
+    {
+        work::ShrinkScope shrink("shrinkCopy","{\"targetROI\":[1,2,7,5]}","safeAlias");
+        work::RecordShrinkResult(true,"applied",35);work::RecordShrinkParameters(2,192,448);
+        for(uint64_t i=0;i<work::MaxReadWaitSamples+2;++i) work::Record(false,88,7,5,140,13,i);
+    }
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.shrinkProfileVersion==1 &&
+            workProfile.shrinkProfilesDropped==0 && std::strstr(workProfile.shrinkProfiles,"safeAlias") &&
+            std::strstr(workProfile.shrinkProfiles,"\"parameterBytes\":192,\"temporaryBytes\":448") &&
+            workProfile.shrinkReadWaitSampleCount==2048 && workProfile.shrinkReadWaitSamplesNS[0]==0 &&
+            workProfile.shrinkReadWaitSamplesNS[2047]==2047 && workProfile.shrinkReadWaitSamplesDropped==2,
+            "C1 bridge lost bounded shrink/wait profile tail");
+    Require(MikageKRKRLayerWorkProfileShrinks(&workProfile)==workProfile.shrinkProfiles &&
+            MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile)==workProfile.shrinkOverflow &&
+            MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile)==workProfile.shrinkReadWaitSamplesNS,
+            "C1 bridge returned incorrect backing view");
+    workProfile.shrinkReadWaitSampleCount=2049;
+    Require(!MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile),"C1 bridge exposes out-of-bounds waits");
+    workProfile.shrinkProfileVersion=99;
+    Require(!MikageKRKRLayerWorkProfileShrinks(&workProfile) && !MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile) &&
+            !MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile),"C1 bridge exposes unknown schema");
+    workProfile.shrinkProfileVersion=1;
+    std::memset(workProfile.shrinkProfiles,'x',sizeof(workProfile.shrinkProfiles));
+    std::memset(workProfile.shrinkOverflow,'x',sizeof(workProfile.shrinkOverflow));
+    Require(!MikageKRKRLayerWorkProfileShrinks(&workProfile) && !MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile),
+            "C1 bridge exposes unterminated strings");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && std::string(workProfile.shrinkProfiles)=="[]" &&
+            !workProfile.shrinkReadWaitSampleCount && !workProfile.shrinkReadWaitSamplesNS[2047] &&
+            !workProfile.shrinkReadWaitSamplesDropped,"C1 bridge did not clear reused profile tail");
+    static_assert(sizeof(MikageKRKRLayerWorkProfile)<300000,"C1 bridge profile stack exceeds bounded 300k budget");
     work::RecordFrame(170,47);
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
             workProfile.frameIntervalNS[0]==40 && workProfile.frameCpuWallNS[0]==47,

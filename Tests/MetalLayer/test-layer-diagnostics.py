@@ -53,6 +53,22 @@ def transition_record(**overrides):
     return record
 
 
+def shrink_fields(records=(), samples=(), sample_drops=0, dropped=0, **overflow_overrides):
+    overflow = {key: 0 for key in (*analysis.SHRINK_METRICS, 'capacityRecords', 'oversizeRecords')}
+    overflow.update(overflow_overrides)
+    return {'shrinkProfileVersion': '1', 'shrinkProfiles': json.dumps(list(records)),
+        'shrinkProfilesDropped': str(dropped), 'shrinkOverflow': json.dumps(overflow),
+        'shrinkReadWaitSampleCount': str(len(samples)), 'shrinkReadWaitSamplesNS': ','.join(map(str, samples)),
+        'shrinkReadWaitSamplesDropped': str(sample_drops)}
+
+
+def shrink_record(**overrides):
+    record = {key: 0 for key in analysis.SHRINK_METRICS}
+    record.update(method='shrinkCopy', reason='applied', aliasClass='distinct', metadata='{"sourceROI":[1,2,3,4]}', gpuCalls=1, pixels=35)
+    record.update(overrides)
+    return record
+
+
 class LayerDiagnosticsTests(unittest.TestCase):
     def summarize(self, records, **bounds):
         with tempfile.TemporaryDirectory() as directory:
@@ -62,6 +78,98 @@ class LayerDiagnosticsTests(unittest.TestCase):
 
     def basic(self, *records):
         return [row('environment', 99, 'none', sourceRevision='abcdef012345'), row('game.begin', 100, folder='fixture'), *records]
+
+    def test_shrink_raw_wait_quantiles_and_subset_do_not_double_count(self):
+        first = shrink_record(readCalls=99, readBytes=20, readWaitNS=99_000_000, parameterBytes=420)
+        last = shrink_record(readCalls=1, readBytes=20, readWaitNS=100_000_000, aliasClass='safeAlias')
+        result = self.summarize(self.basic(work(**shrink_fields([first], [1_000_000]*99)),
+            work(110, **shrink_fields([last], [100_000_000])), heart(111)))
+        shrinks = result['shrinks']
+        self.assertTrue(shrinks['complete']); self.assertTrue(shrinks['readWait']['complete'])
+        self.assertEqual(shrinks['readWait']['count'], 100)
+        self.assertEqual(shrinks['readWait']['p50MS'], 1); self.assertEqual(shrinks['readWait']['p95MS'], 1)
+        self.assertEqual(shrinks['byAliasClass']['safeAlias']['gpuCalls'], 1)
+        self.assertEqual(shrinks['byMethod']['shrinkCopy']['gpuCalls'], 2)
+        self.assertEqual(result['transfersCallsBytesWallNSWaitNS']['read:load'], [4, 40, 60, 8])
+        self.assertEqual(result['frameStats']['runtimeInterval']['count'], 4)
+
+    def test_shrink_legacy_is_unknown_and_malformed_samples_stay_partial(self):
+        result = self.summarize(self.basic(work(), heart()))
+        self.assertEqual(result['shrinks']['legacyMethod'], 'unknown')
+        self.assertIsNone(result['shrinks']['readWait']['p95MS'])
+        event = work(**shrink_fields([shrink_record(readCalls=2)], [0], sample_drops=1))
+        result = self.summarize(self.basic(event, heart()))
+        self.assertFalse(result['shrinks']['readWait']['complete'])
+        self.assertEqual(result['shrinks']['readWait']['p50MS'], 0)
+        self.assertEqual(result['shrinks']['readWait']['knownSamplesDropped'], 1)
+        event['fields']['shrinkReadWaitSampleCount'] = '2049'
+        result = self.summarize(self.basic(event, heart()))
+        self.assertEqual(result['shrinks']['readWait']['count'], 0)
+        self.assertTrue(any('bounded shrink wait' in i['message'] for i in result['issues']))
+
+    def test_shrink_geometry_is_last_metadata_not_aggregate_key(self):
+        first = shrink_record(reason='aliasDependency', aliasClass='unsafeAlias', cpuCalls=1, gpuCalls=0)
+        last = shrink_record(reason='aliasDependency', aliasClass='unsafeAlias', cpuCalls=1, gpuCalls=0, metadata='{"sourceROI":[5,6,7,8]}')
+        result = self.summarize(self.basic(work(**shrink_fields([first])), work(110, **shrink_fields([last])), heart(111)))
+        self.assertEqual(len(result['shrinks']['records']), 1)
+        self.assertEqual(result['shrinks']['byReason']['aliasDependency']['cpuCalls'], 2)
+        self.assertEqual(result['shrinks']['records'][0]['metadata'], {'sourceROI': [5, 6, 7, 8]})
+
+    def test_shrink_overflow_preserves_metrics_and_quantile_samples(self):
+        event = work(**shrink_fields([], [7], dropped=1, capacityRecords=1, cpuCalls=1, readCalls=1, readWaitNS=7))
+        result = self.summarize(self.basic(event, heart()))
+        self.assertFalse(result['shrinks']['complete'])
+        self.assertTrue(result['shrinks']['readWait']['complete'])
+        self.assertEqual(result['shrinks']['overflowKnownTotals']['readWaitNS'], 7)
+        self.assertEqual(result['shrinks']['knownDropped'], 1)
+
+    def test_optional_frame_count_validates_pairs_without_changing_legacy(self):
+        result = self.summarize(self.basic(work(frameSampleCount='2', structuredFieldLimitsVersion='1'), heart()))
+        self.assertTrue(result['frameStats']['complete'])
+        self.assertTrue(result['structuredFields']['complete'])
+        result = self.summarize(self.basic(work(frameSampleCount='3'), heart()))
+        self.assertFalse(result['frameStats']['complete'])
+        self.assertEqual(result['frameStats']['cpuWall']['count'], 2)
+        self.assertTrue(any('frameSampleCount disagrees' in item['message'] for item in result['issues']))
+
+    def test_logger_omission_and_whole_record_guard_are_explicit(self):
+        event = work(structuredFieldLimitsVersion='1', fieldsValueOmitted='1', fieldsValueOmittedKeys='frameSamplesNS')
+        del event['fields']['frameSamplesNS']
+        result = self.summarize(self.basic(event, heart()))
+        self.assertEqual(result['structuredFields']['valueOmittedWindows'], 1)
+        self.assertFalse(result['frameStats']['complete'])
+        self.assertEqual(result['frameStats']['missingSampleWindows'], 1)
+        self.assertTrue(any('values omitted' in item['message'] for item in result['issues']))
+        event = row('layerWorkProfile', 105, intervalMS='5000', truncated='record exceeded segment limit')
+        result = self.summarize(self.basic(event, heart()))
+        self.assertEqual(result['structuredFields']['wholeRecordTruncatedWindows'], 1)
+        self.assertFalse(result['originTotalsComplete'])
+        self.assertFalse(result['frameStats']['complete'])
+
+    def test_unmarked_1024_boundary_is_possible_clipping_not_asserted_corruption(self):
+        fields = shrink_fields()
+        fields['shrinkProfiles'] = '[]' + ' ' * 1022
+        result = self.summarize(self.basic(work(**fields), heart()))
+        self.assertEqual(result['structuredFields']['possibleLegacyClipping'][0]['keys'], ['shrinkProfiles'])
+        self.assertFalse(result['shrinks']['complete'])
+        self.assertTrue(result['shrinks']['readWait']['complete'])
+        self.assertTrue(any('possible truncation' in item['message'] for item in result['issues']))
+        result = self.summarize(self.basic(work(structuredFieldLimitsVersion='1', **fields), heart()))
+        self.assertTrue(result['shrinks']['complete'])
+        self.assertFalse(result['structuredFields']['possibleLegacyClipping'])
+
+    def test_logger_drops_and_bad_transport_cap_are_visible(self):
+        event = work(structuredFieldLimitsVersion='1')
+        event['droppedRecords'] = 2
+        result = self.summarize(self.basic(event, heart()))
+        self.assertEqual(result['structuredFields']['knownLoggerDroppedRecords'], 2)
+        self.assertFalse(result['frameStats']['complete'])
+        event = work(structuredFieldLimitsVersion='1', shrinkProfiles='[]' + ' ' * 65534, **{
+            key: value for key, value in shrink_fields().items() if key != 'shrinkProfiles'})
+        result = self.summarize(self.basic(event, heart()))
+        self.assertFalse(result['structuredFields']['complete'])
+        self.assertFalse(result['shrinks']['complete'])
+        self.assertTrue(any('declared UTF-8 cap' in item['message'] for item in result['issues']))
 
     def test_v2_origin_is_not_counted_again_as_texture(self):
         result = self.summarize(self.basic(work(), heart()))

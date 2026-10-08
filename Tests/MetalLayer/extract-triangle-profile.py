@@ -28,4 +28,7 @@ args.output.write_text("// Generated from MikageKRKRRuntime.mm; do not edit.\n"
     + extract("MikageKRKRLayerWorkProfileTransitions", "const char *") + "\n"
     + extract("MikageKRKRLayerWorkProfileTransitionOverflow", "const char *") + "\n"
     + extract("MikageKRKRLayerWorkProfileFrameIntervals", "const uint64_t *") + "\n"
+    + extract("MikageKRKRLayerWorkProfileShrinks", "const char *") + "\n"
+    + extract("MikageKRKRLayerWorkProfileShrinkOverflow", "const char *") + "\n"
+    + extract("MikageKRKRLayerWorkProfileShrinkReadWait", "const uint64_t *") + "\n"
     + extract("MikageKRKRLayerWorkProfileFrameCpuWall", "const uint64_t *") + "\n", encoding="utf-8")

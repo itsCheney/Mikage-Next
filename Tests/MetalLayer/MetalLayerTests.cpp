@@ -4,6 +4,7 @@
 #include "TVPCompositor.h"
 #include "LayerPerspectiveGeometry.h"
 #include "LayerTransitionGeometry.h"
+#include "LayerShrinkGeometry.h"
 #include "PointReadTrace.h"
 #include "AsyncAlphaTileCache.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
@@ -48,6 +49,11 @@ void TransitionContractTests();
 void TransitionHandlerDispatchFailureTests(const std::function<void(bool)>&);
 void TransitionHandlerPipelineFailureTests(const std::function<void(bool)>&);
 void C4ProfileTests();
+void C1ProfileTests();
+void ShrinkCopyTests(iTVPRenderBackend*);
+void ShrinkCopyFailureTests(const std::function<void(int,bool)>&);
+void ShrinkShaderContractTests();
+void TVPTestShrinkExecute(const TVPLayerShrinkOperation&,const uint8_t*,int,std::vector<uint8_t>&,int);
 uint32_t TVPTestTransitionPixel(const TVPLayerTransitionOperation&,int,int,const uint8_t*,int,const uint8_t*,int);
 void P1AGammaTests(iTVPRenderBackend*);
 uint32_t TVPTestP1AGammaPixel(uint32_t,const TVPLayerOperation&,const uint8_t*);
@@ -94,6 +100,38 @@ public:
     bool rejectTripleSource=false;
     bool throwAfterTransitionDispatch=false;
     bool rejectTransition=false;
+    int shrinkFailureStage=-1;
+    bool shrinkWideAvailable=true;
+    uint64_t shrinkCalls=0;
+    TVPLayerShrinkResult shrinkResult=TVPLayerShrinkResult::Applied;
+    bool SupportsLayerShrinks() const override { return true; }
+    bool SupportsLayerShrink64() const override { return shrinkWideAvailable; }
+    TVPLayerShrinkResult LastLayerShrinkResult() const override { return shrinkResult; }
+    bool OperateLayerShrink(const TVPLayerShrinkOperation& op,void* target,void* source) override {
+        ++shrinkCalls;shrinkResult=TVPLayerShrinkResult::BackendFailure;
+        auto t=resources.find(target),s=resources.find(source);
+        if(t==resources.end() || s==resources.end() || t->second->bpp!=4 || s->second->bpp!=4) {
+            shrinkResult=TVPLayerShrinkResult::Resource;return false;
+        }
+        const auto valid=TVPLayerShrinkGeometry::Validate(op,t->second->w,t->second->h,s->second->w,s->second->h,target==source);
+        if(valid!=TVPLayerShrinkResult::Applied) {shrinkResult=valid;return false;}
+        if(op.avgBits==64 && !TVPLayerShrinkGeometry::CanUse32(op) && !shrinkWideAvailable) {
+            shrinkResult=TVPLayerShrinkResult::Arithmetic;return false;
+        }
+        if(shrinkFailureStage==0) {shrinkResult=TVPLayerShrinkResult::ParameterBudget;return false;}
+        std::vector<uint8_t> scratch;
+        TVPTestShrinkExecute(op,s->second->pixels.data(),s->second->w*4,scratch,shrinkFailureStage);
+        if(shrinkFailureStage>=1 && shrinkFailureStage<=3) {shrinkResult=TVPLayerShrinkResult::BackendFailure;return false;}
+        const int w=op.destination.Width(),h=op.destination.Height();
+        for(int y=0;y<h;++y) std::memcpy(t->second->pixels.data()+((op.destination.top+y)*t->second->w+op.destination.left)*4,
+                                      scratch.data()+size_t(y)*w*4,size_t(w)*4);
+        shrinkResult=TVPLayerShrinkResult::Applied;
+        if(shrinkFailureStage==4) throw std::bad_alloc();
+        const uint32_t bits=op.avgBits==32 || TVPLayerShrinkGeometry::CanUse32(op) ? 32 : 64;
+        krkrsdl3::layer_work::RecordShrinkParameters(4,(size_t(w)+h)*(bits==32?28:48)+56,
+            TVPLayerShrinkGeometry::TemporaryBytes(op,bits));
+        return true;
+    }
     TVPLayerTransitionResult transitionResult=TVPLayerTransitionResult::Applied;
     TVPLayerTransitionResult LastLayerTransitionResult() const override { return transitionResult; }
     bool rejectGamma=false;
@@ -2313,7 +2351,7 @@ int main(int argc,char** argv) {
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
         if(!sessionCachesOnly) {
             CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
-            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests();
+            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests(); ShrinkShaderContractTests();
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2362,6 +2400,13 @@ int main(int argc,char** argv) {
         auto& transitionDevice=*static_cast<DeviceDouble*>(backend.get());
         TransitionHandlerDispatchFailureTests([&](bool value){transitionDevice.throwAfterTransitionDispatch=value;});
         TransitionHandlerPipelineFailureTests([&](bool value){transitionDevice.rejectTransition=value;});
+#endif
+        TVPUnbindMetalLayerRenderManager();
+        Require(TVPBindMetalLayerRenderManager(backend.get()),"shrink session init failed");
+        ShrinkCopyTests(backend.get()); C1ProfileTests();
+#ifndef TEST_NATIVE_METAL
+        auto& shrinkDevice=*static_cast<DeviceDouble*>(backend.get());
+        ShrinkCopyFailureTests([&](int stage,bool wide){shrinkDevice.shrinkFailureStage=stage;shrinkDevice.shrinkWideAvailable=wide;});
 #endif
         TVPUnbindMetalLayerRenderManager();
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");

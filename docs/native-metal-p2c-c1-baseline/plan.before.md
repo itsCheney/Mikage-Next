@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-08。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 归因对账通过；C4 已有三款 iPhone 实际场景 GPU/零 CPU 证据；C1 两种 shrinkCopy、安全自别名、诊断及日志闭环已完成本地实现和 portable 验证，未提交，Apple/Swift及同条件真机配对待验。C2–C3、P2D、P3–P5 尚未实施；C4 未覆盖原生矩阵和受控配对继续按原门槛验收。**
+日期：2026-10-05；更新：2026-10-07。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 归因对账通过；C4 七种内置 extrans 已完成本地实现、审计与 portable 精确回归，且 `sourceRevision=56b2799f8068` 的三款 iPhone 场景确认实际 transition 为 GPU/零 CPU 调用；全七种原生矩阵、可复现同热状态配对和提交仍待验。C1–C3、P2D（普通 Layer overdraw/滚动背景）、P3–P5 尚未实施。**
 
 ## 1. 决策与完成目标
 
@@ -234,7 +234,7 @@
 
 ## 6. 实施阶段与验收门槛
 
-建议顺序：**P0 → P1A → P2A → P1B → P2B → P2C（C0 已签收、C4 已获得实际场景证据 → C1 → C2 → C3）→ P2D → P3 → P5**。P4 是按调用需求启用的兼容分支。第 2.6 节已确认千恋和 DRACU 的实际 transition 走 GPU，C4 从“优先实施”进入“补齐全域原生/配对验收”；C1 本地实现与 portable 验证已完成，Apple/真机配对待验，后续实现项为 C2。P2D 与 P2C 的 C1–C3 没有语义依赖：D0 诊断可在 C0 之后立即开展，D1/D2 的优化和专项签收在 P3 前独立完成。Emote GPU 工作量和 command queue 的独立调查仍归 P5，不以 P2C/P2D 完成为解决承诺。
+建议顺序：**P0 → P1A → P2A → P1B → P2B → P2C（C0 已签收、C4 已获得实际场景证据 → C1 → C2 → C3）→ P2D → P3 → P5**。P4 是按调用需求启用的兼容分支。第 2.6 节已确认千恋和 DRACU 的实际 transition 走 GPU，C4 从“优先实施”进入“补齐全域原生/配对验收”；C1 是当前 CPU/GPU 边界的第一实现项。P2D 与 P2C 的 C1–C3 没有语义依赖：D0 诊断可在 C0 之后立即开展，D1/D2 的优化和专项签收在 P3 前独立完成。Emote GPU 工作量和 command queue 的独立调查仍归 P5，不以 P2C/P2D 完成为解决承诺。
 
 ### P0：把能力契约和测试基线固定下来
 
@@ -355,12 +355,9 @@
 
 #### C1. `shrinkCopy`：第二实施项，消除同步 lock 路径
 
-2026-10-08 本地签收：两个入口已接入专用两 pass 整数计算与事务输出；Area 保留原 double 权重、32/64 位模算术、分数边缘和 alpha 规则，Fast 保留逐轴 floor/alpha=255。源在 COW/resize 前保留，O(W+H) 证明安全自别名，其余顺序依赖仍 CPU；callback/ObjThis、lease、预算与故障拒绝有回归。60 个真实插件精确对照、2048 组别名证明、12 个故障事务、两套 CTest 4/4和1/1、TJS 1/1、25 个解析 fixtures、frame及完整生产TU syntax通过。新增 bounded per-read wait 与只读 C/Swift桥，并修复 logger 的 1024-byte 结构化字段剪裁；新增 Swift export 测试未在本机执行。详见 [C1 基线](NATIVE-METAL-P2C-C1-BASELINE.md)，不由 portable 结果宣称真机收益。
-
-- [x] 两种入口、原权重/裁剪/源捕获和目标写域已审计，按方法/原因/别名及原 origin 同时归因；历史日志不能分辨的方法由新版本重采确认。
-- [x] 同会话 RGBA8、无租约的支持域及可证明等价自别名已接 GPU；完整覆盖和部分 ROI 分开提交，不改滤镜、边缘/alpha或区域外像素。
-- [x] 顺序相关 alias、custom binding、资源/管线/整数能力/预算失败正确 CPU 续跑；Fast resize 仅一次，提交后异常不得 CPU replay。CPU table 分配和采样/算术安全边界已修复。
-- [ ] Apple Objective-C++/MSL、Swift/App/真实logger、原生GPU资源/submit/wait及三款游戏同条件配对有新证据。
+- [ ] 从 `shrinkCopy.read` 和 `shrinkCopy.write` 反查全部调用链、ROI、filter、源/目标驻留、读旧目标需求和调用频率。将“名称为 write”与“可以完整覆盖目标”分开：前者并不自动允许 overwrite。
+- [ ] 对已有 GPU-resident 源/目标且语义等价的 resize/copy，走 GPU blit/render/compute 路径，保留当前像素、边缘、clip、alias/COW 和操作顺序。只在**证明整个写入区域完全定义**时使用 overwrite contract；部分 read-modify-write 禁止借此跳过旧目标读取。
+- [ ] GPU 路径不可用时保留正确 CPU fallback，并以 origin 记录其数据量与同步等待；不得为消除 readback 改变缩放滤镜、区域外像素或重叠顺序。
 
 验收：对可重放的、源和目标均已驻留的 `shrinkCopy` 支持域，`shrinkCopy` 归因的 readback calls/bytes/sync wait 均为零，且无整图 CPU upload；完整覆盖写不会先读旧目标。DRACU-RIOT!、天使纷扰和 9-nine 的同条件日志分别报告次数、bytes、p50/p95 wait 与长帧数；仍需 CPU 的调用有明确原因，不能混入 `other`。
 
@@ -453,8 +450,8 @@
 | E | Ps 11 项及 affine 中适用的像素族 | A、D 的接口 | 中；表函数、变体差异 |
 | F | 单源 perspective | D、语义裁决样例 | 高；坐标/多 quad/退化输入 |
 | G0 | P2C origin 聚合、无同步诊断和场景基线；真机归因已签收 | F、现有 `metal.layerWork` | 中；原生开关开销与正式性能配对仍待验 |
-| G4 | 高频 CPU transition GPU 保留路径；已有本地实现及实际场景证据 | G0、千恋/DRACU 实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
-| G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决；本地实现及 portable 验证完成 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取；Apple/配对待验 |
+| G4 | 高频 CPU transition GPU 保留路径；当前第一实施包 | G0、千恋/DRACU 实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
+| G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取 |
 | G2 | LayerEx/raw-pixel 边界收敛 | G0、插件样例 | 高；ABI 可见性、COW/lease、CPU cache |
 | G3 | `bitmap.update` staging/encoder 批处理 | G0、调用点证据 | 高；更新顺序、可见时序、资源寿命 |
 | H | P2D hot-layer 关联、滚动背景 overdraw/pass 优化与 backpressure 配对 | G0、天使纷扰道路重放 | 高；顺序/alias/clip 正确性、诊断零同步、热状态配对 |
@@ -464,7 +461,7 @@
 
 每包均包括必要的 production scalar 对照、路由与资源测试、原生 GPU 测试和文档更新。不要把所有 Metal 修改合成一个大提交，再补测试。
 
-P2C 的 G1 本地实现及 portable 验证已完成，仍待 Apple/配对验收；后续实现优先级为 **G2 → G3**。G4 已有本地实现和第 2.6 节实际场景证据，仍待完整原生/配对验收。H 的 D0 可以在 G0 之后立即开展，不等待 G1–G3；D1/D2 的优化提交独立签收，并在 I（P3）之前完成。保留包编号与 C4/C1/C2/C3 对应，独立依赖仍为 G0，不人为增加串行实现依赖。
+P2C 当前剩余提交优先级为 **G1 → G2 → G3**；G4 已有本地实现和第 2.6 节实际场景证据，仍待完整原生/配对验收。H 的 D0 可以在 G0 之后立即开展，不等待 G1–G3；D1/D2 的优化提交独立签收，并在 I（P3）之前完成。保留包编号与 C4/C1/C2/C3 对应，独立依赖仍为 G0，不人为增加串行实现依赖。
 
 跨仓库位置：主要实现属于 core；host 只在新增诊断/配置确有需要时变更；测试/CI/计划属于主仓库。实现完成后的提交和 submodule 指针更新按 core → runtime/host → 主仓库顺序处理。本计划不执行提交或推送。
 
@@ -559,7 +556,6 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [ ] P2：常用 affine 混合及单输入 perspective 留在 GPU，几何边界裁决完成。
 - [x] P2C C0 真机归因：`4943c0e47665` 的 8 份日志 origin bytes/calls/wait 精确对账，overflow 为零；已足以安排 C4 → C1 → C2 → C3。
 - [x] P2C C4 本地与实际场景：七种真实 handler 1962 精确案例、拒绝/异常/COW/lease、诊断与原回归通过；`56b2799f8068` 的千恋、DRACU、天使纷扰实测 transition 均为 GPU/0 CPU/零像素往返。全 handler 原生矩阵、受控同热状态配对和提交仍待验，见第 2.6 节与 C4 独立基线。
-- [x] P2C C1 本地：两种 shrinkCopy 的精确整数算法、安全自别名、COW/resize/lease、事务拒绝与诊断日志闭环已实现；60 个真实插件精确对照、2048 组依赖证明、12 个故障事务和原 portable 回归通过。Apple/Swift/App、真实 GPU 同步和同条件真机配对待验，未提交或推送，见 [C1 独立基线](NATIVE-METAL-P2C-C1-BASELINE.md)。
 - [ ] P2C C0 剩余验证：Apple 原生诊断开关无额外 submit/wait、App XCTest/界面、统计开销及同热状态性能配对有独立证据；不由对账签收替代。
 - [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
 - [ ] P2D：天使纷扰道路滚动完成 D0 asset→Layer→operation 归因；严格保持 Layer 像素/顺序/alias 语义的优化在 nominal/same-thermal 重复样本中降低 GPU fragment/command、`nextDrawable` backpressure、pass 或冗余像素与长帧。C1/C4 的传输改善不得冒充 P2D 收益。
@@ -575,7 +571,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 的诊断、逐帧、解析与版本 HEAD 已提交；独立 [C0 记录](NATIVE-METAL-P2C-C0-BASELINE.md)保留 simulator 大数组 Swift importer 失败、只读 C accessor 补修及当时待验状态。当前主仓库 HEAD 为 `4943c0e47665433ef0c1d139d9043c408ef5c33a`，新增 8 份同短 revision 真机日志已验证 origin 对账；该证据不自动签收全部 Apple CI、App XCTest 或诊断开关开销。
 
-仍未完成：C0 剩余 Apple 专项与同热状态性能对照、C4 全 handler 原生 GPU/App/受控配对签收、C1 Apple/Swift/原生和真机配对、C2–C3、P2D、P3–P5，以及新原生像素/性能基线和旧 GL 实际运行。C1 的本地实现和 portable 验证已完成、未提交，详见独立基线。第 2.6 节已确认实际触发 transition 的 GPU/零 CPU/零像素往返，不替代 C4 全矩阵；后续实现项为 C2 LayerEx、C3 tiny update。P2D 独立处理 ordinary Layer overdraw/fragment/drawable backpressure；P5 保留 Emote GPU 与 scanline/queue 调查。正式性能结论仍以同热状态配对实测为准。
+仍未完成：C0 剩余 Apple 专项与同热状态性能对照、C4 全 handler 原生 GPU/App/受控配对签收、C1–C3、P2D、P3–P5，以及新原生像素/性能基线和旧 GL 实际运行。C4 七种内置 handler 的本地实现和 portable 验证已完成、尚未提交；第 2.6 节的千恋/DRACU/天使纷扰 iPhone 日志已确认实际触发 transition 为 GPU/零 CPU/零像素往返，但不替代全矩阵和受控配对。后续实现项为 C1 shrinkCopy、C2 LayerEx、C3 tiny update；P2D 独立处理天使纷扰道路滚动的 ordinary Layer overdraw、fragment 时间和 drawable backpressure；P5 分别调查 NEKOPARA Emote GPU 负载与冥契 scanline/队列等待。普通 Layer fallback 为零不排除 scanline/lock/raw-pointer 边界，也不排除 GPU fragment 过载；正式性能结论以同热状态配对实测为准。
 
 ## 附录 A：完整名称对照
 
