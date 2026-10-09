@@ -1,0 +1,2 @@
+local mapping byte offset=32114 before=228 after=179
+PASS static known bytecode: length=35064 changedBytes=1 beforeSHA256=17f0154ed6f2640e40d5219f2757c2ab51c27dc042099bd3fc4fc1d8e9c69528 afterSHA256=2bed2a724398f70e15f9a4daafca4332c871b4f65628207e1630e8a07646707b; no VM or TopLevel execution

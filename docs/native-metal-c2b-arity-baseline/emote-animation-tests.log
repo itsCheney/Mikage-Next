@@ -1,0 +1,16 @@
+Internal ctest changing into directory: D:/vn-sim/build/emote-animation-tests
+Test project D:/vn-sim/build/emote-animation-tests
+    Start 1: emote-animation-tests
+1/5 Test #1: emote-animation-tests .............   Passed    0.02 sec
+    Start 2: emote-integration-tests
+2/5 Test #2: emote-integration-tests ...........   Passed    0.03 sec
+    Start 3: emote-animation-trajectories
+3/5 Test #3: emote-animation-trajectories ......   Passed    0.14 sec
+    Start 4: emote-host-mode-tests
+4/5 Test #4: emote-host-mode-tests .............   Passed    0.02 sec
+    Start 5: emote-host-simulator-mode-tests
+5/5 Test #5: emote-host-simulator-mode-tests ...   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.25 sec

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(EmoteAnimationTests LANGUAGES CXX)
+project(EmoteAnimationTests LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 get_filename_component(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp" REALPATH)
@@ -31,6 +31,8 @@ add_custom_command(OUTPUT ${GENERATED}
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
 add_executable(emote-integration-tests EmoteIntegrationTests.cpp ${GENERATED}
     "${CORE}/plugins/emoteplayer/emoteanimation.cpp" "${CORE}/plugins/ncbind/ncbind.cpp" ${TJS_SOURCES})
+include("${CMAKE_CURRENT_LIST_DIR}/../TJSBytecodeHash.cmake")
+mikage_add_tjs_bytecode_hash(emote-integration-tests "${CORE}")
 target_include_directories(emote-integration-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
     "${CORE}/plugins/emoteplayer" "${CORE}/plugins" "${CORE}/core/script"
     "${CORE}/core/msg" "${CORE}/tjs2" "${CORE}/environ")

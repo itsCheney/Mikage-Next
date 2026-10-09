@@ -1,0 +1,544 @@
+{
+  "date": "2026-10-09",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "headsAndDiffs": {
+    "main": {
+      "head": "5987acb274a7c4d581253393e60a1f8a1794e5c9",
+      "status": " m Engine/KRKRRuntime/Source\n M Tests/EmoteAnimation/CMakeLists.txt\n M Tests/EmoteMetadata/CMakeLists.txt\n M Tests/KRKRRuntime/CMakeLists.txt\n M Tests/KRKRRuntime/TJSShutdownTests.cpp\n M Tests/MetalLayer/C2SpanBindingTests.cpp\n M Tests/MetalLayer/CMakeLists.txt\n M Tests/TJSNativeFactories/CMakeLists.txt\n M Tests/TJSStackTrace/CMakeLists.txt\n M docs/NATIVE-METAL-COMPATIBILITY-PLAN.md\n?? Tests/KRKRRuntime/ByteCodeCompatibilityTests.cpp\n?? Tests/TJSBytecodeHash.cmake\n?? docs/NATIVE-METAL-C2B-ARITY-BASELINE.md\n?? docs/native-metal-c2b-arity-baseline/\n",
+      "diff": "build/native-metal-c2b-arity-baseline/main.after.patch",
+      "diffSHA256": "5edc641f4563a22d2d02ee6d094653680ccfd2763c72b3226ef4c2f2dc4aead7"
+    },
+    "runtime": {
+      "head": "1f8c04839d2bf1eec5805ec8c80190799d22f681",
+      "status": " M cmake/cmake_console.txt\n M cmake/cmake_tjs2.txt\n m cpp\n",
+      "diff": "build/native-metal-c2b-arity-baseline/runtime.after.patch",
+      "diffSHA256": "78c6a4a2cf64e14a6e61bfdd36b5561cd0bfaa19593ab6507c0950508af0bc13"
+    },
+    "core": {
+      "head": "e3302bed3d4f6f65d1acba10bdce383dea48c41d",
+      "status": " M plugins/LayerExDraw/LayerExDraw.cpp\n M tjs2/tjsScriptCache.cpp\n?? tjs2/tjsKnownByteCodeCompatibility.cpp\n?? tjs2/tjsKnownByteCodeCompatibility.h\n",
+      "diff": "build/native-metal-c2b-arity-baseline/core.after.patch",
+      "diffSHA256": "de605cce8add1557436625e94ede6c09c7f58bf4cdb02dd1dd60c523c9722c94"
+    }
+  },
+  "initialStatus": "three repos observed clean before delegation; empty diffs recorded from that observation",
+  "execution": "GPU device-double, original plutovg oracle, production MSL C++ extraction; no game initialization/TopLevel execution",
+  "testResults": {
+    "MetalLayer": "6/6 PASS",
+    "Backend": "1/1 PASS",
+    "TJSShutdown": "1/1 PASS incl. new compiled synthetic compatibility tests",
+    "TJSStackTrace": "1/1 PASS",
+    "TJSNativeFactories": "1/1 PASS",
+    "EmoteAnimation": "5/5 PASS",
+    "EmoteMetadata": "2/2 PASS",
+    "parser": "51 PASS",
+    "frame": "PASS",
+    "point": "debug/release PASS",
+    "productionSyntax": "3 full TUs PASS",
+    "knownBytecode": "actual fixed SHA gate/static input: 1 byte local mapping changed; disassembly only 2 names changed; no VM/TopLevel"
+  },
+  "localSkipCount": 0,
+  "sourceSnapshots": {
+    "Tests/EmoteAnimation/CMakeLists.txt": {
+      "sha256": "159983fc543b4c3505d8621bf4023d97e261f0e554c5aec5b9ec36a39247a5f6",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/EmoteAnimation/CMakeLists.txt"
+    },
+    "Tests/EmoteMetadata/CMakeLists.txt": {
+      "sha256": "e2cd2489182c5a1cf64ed80577051575e9360243fa3de5ee7daeddcc57b519e1",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/EmoteMetadata/CMakeLists.txt"
+    },
+    "Tests/KRKRRuntime/CMakeLists.txt": {
+      "sha256": "f8c2c72c64d3934cea9defc5b3a4fef89ad87cebdd6ba5e9746bfce953dc6048",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/KRKRRuntime/CMakeLists.txt"
+    },
+    "Tests/KRKRRuntime/TJSShutdownTests.cpp": {
+      "sha256": "24a1cdecaa7d791a47b3fca2c62a5b8854f2706dce2a0d4c83bfa39a16f5962f",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/KRKRRuntime/TJSShutdownTests.cpp"
+    },
+    "Tests/KRKRRuntime/ByteCodeCompatibilityTests.cpp": {
+      "sha256": "ca2780131831efd481fa6b7e6fd0481b0f7f5f6409947bb163cc2a404378c5ab",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/KRKRRuntime/ByteCodeCompatibilityTests.cpp"
+    },
+    "Tests/MetalLayer/C2SpanBindingTests.cpp": {
+      "sha256": "87dd0a62adb6d58ad3cff902f25b70ae6d2f2187c919825f48cf9caa2dfbc52d",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/MetalLayer/C2SpanBindingTests.cpp"
+    },
+    "Tests/MetalLayer/CMakeLists.txt": {
+      "sha256": "b6899b3e34c37146819fdc3c7b82559e1825730c069f9bfad9afc8be9f006480",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/MetalLayer/CMakeLists.txt"
+    },
+    "Tests/TJSNativeFactories/CMakeLists.txt": {
+      "sha256": "a5064f8e0afdb10b5c1390790de65996e369b6c696c0ac712df251aaf60c17f0",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/TJSNativeFactories/CMakeLists.txt"
+    },
+    "Tests/TJSStackTrace/CMakeLists.txt": {
+      "sha256": "5efc2bae5df8db89bd7c9fd094bdd5871205a12dcc5e3774e1f2c946cc21f24f",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/TJSStackTrace/CMakeLists.txt"
+    },
+    "Tests/TJSBytecodeHash.cmake": {
+      "sha256": "50e51922b57eb02469a34438579bb27047d73be7d77d7a043901cd43e574836d",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Tests/TJSBytecodeHash.cmake"
+    },
+    "Engine/KRKRRuntime/Source/cmake/cmake_console.txt": {
+      "sha256": "13eeca5049bd2c0e63d9b830672f35d5e81dfd111df80e55ccdecbb1032dca67",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cmake/cmake_console.txt"
+    },
+    "Engine/KRKRRuntime/Source/cmake/cmake_tjs2.txt": {
+      "sha256": "0507121add5fb98703a3568bb7413b115e5e87f47ce77f382db8f3e4aff01798",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cmake/cmake_tjs2.txt"
+    },
+    "Engine/KRKRRuntime/Source/cpp/plugins/LayerExDraw/LayerExDraw.cpp": {
+      "sha256": "5efbb69b7fbf6b6e8ab53a88975d16da4fbcef3a9563967956fda4f1507ef8d9",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/plugins/LayerExDraw/LayerExDraw.cpp"
+    },
+    "Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp": {
+      "sha256": "5af91e895f4a4a08f2165fee55af51ce2d10d4857481beec2608c88a4d6f389f",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp"
+    },
+    "Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.h": {
+      "sha256": "8579e3a310d8cb007c665254d8f47175580b7fe3a36ea283a1c71b274a048c53",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.h"
+    },
+    "Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp": {
+      "sha256": "8f2d5feb8b80dea31aa38694a78a83300b5e41be6a94b41e697ab6c98ce0f2d2",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp"
+    },
+    "docs/NATIVE-METAL-COMPATIBILITY-PLAN.md": {
+      "sha256": "a09b43ad82104d0060d871056d5050bdf947202cff3f28925ab1b55cb6c1356e",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md"
+    },
+    "docs/NATIVE-METAL-C2B-ARITY-BASELINE.md": {
+      "sha256": "6f493a2a8f22470cc6fee812ef1d8c04bc20df29ee72bbe607eb1b12695736d6",
+      "snapshot": "build/native-metal-c2b-arity-baseline/source-snapshots/docs/NATIVE-METAL-C2B-ARITY-BASELINE.md"
+    }
+  },
+  "artifacts": {
+    "before.json": {
+      "sha256": "7348eb18166fe3f0a25431a717e1646c544057fc3c6ebcbb79abda5fa6ed5708",
+      "bytes": 1539
+    },
+    "game-input-hashes.json": {
+      "sha256": "434b7afdcbf9d075184a665da26d24832646fc3d3ea6f4d5cce96be4489bb4df",
+      "bytes": 352
+    },
+    "layer.before.last-test.log": {
+      "sha256": "5b4e3e6907b431d7e162b5621e331fd4ed4de566138c8909c3d904225d0611a6",
+      "bytes": 157246
+    },
+    "backend.before.last-test.log": {
+      "sha256": "51ce301befeefb1d226db38f09a60f21190790dd1585208ea5bad7c95e66895e",
+      "bytes": 870
+    },
+    "tjs.before.last-test.log": {
+      "sha256": "4941766770d6532421c57e8904ff18af550bbc2ca7124be793aa6ed12e57c338",
+      "bytes": 911
+    },
+    "arity-repro.log": {
+      "sha256": "96641c9508b6dcd4c6c196350909f6e8baae24dace0ce43fe4f5d2b6417ebda2",
+      "bytes": 1534
+    },
+    "arity-fixed.log": {
+      "sha256": "ffa3a57caa89a7be858304eb090e78b8c2ec5b556640b81b2ab52fa385cad375",
+      "bytes": 8175
+    },
+    "repro-build.log": {
+      "sha256": "0178d495530ac6a8720d167c633eee59c6459d04a93d4b7d85663d05619d63c8",
+      "bytes": 234
+    },
+    "fixed-build.log": {
+      "sha256": "cc66ff4671c41624ddbf97ca05558189a88b8f0dda80f0e7d207146ce3e4c04f",
+      "bytes": 407
+    },
+    "layer-final-build.log": {
+      "sha256": "663049908846658b4c0698a48f170203767b0f584bf7fd5cce09ea1b41a3093e",
+      "bytes": 2231
+    },
+    "layer-final-tests.log": {
+      "sha256": "170ddbc4288ccf08ebfc52e67fbefa5e12af5a81df615cb1f255cde0685f235a",
+      "bytes": 854
+    },
+    "backend-build.log": {
+      "sha256": "7c11a7fdd50c38b225e28ee6d5c43bb002e5e754ffe77271b15c95e2dc7ed800",
+      "bytes": 40
+    },
+    "backend-tests.log": {
+      "sha256": "43f5994cea1b63be92a68f32e4381909c358386d8fe6a45c8e223e3af2732486",
+      "bytes": 313
+    },
+    "tjs-final-configure.log": {
+      "sha256": "85c14f4d3d93833485414f02ee68acb12ca4064e617be28fa11b56ef61fe62ae",
+      "bytes": 396
+    },
+    "tjs-final-build.log": {
+      "sha256": "7c9ad73904cffbcb232fc0497c900a1d6824b7178c533495053f50e85014f997",
+      "bytes": 965
+    },
+    "tjs-final-tests.log": {
+      "sha256": "4d48e323710a48b3c682106859f55edf9b308010178756278bd2a56c1b9af6fb",
+      "bytes": 313
+    },
+    "stack-configure.log": {
+      "sha256": "886a243cc96689bd62fde3301a8d2bfb11ef585a60a5809894c4d28055309f1b",
+      "bytes": 399
+    },
+    "stack-build.log": {
+      "sha256": "5c8be436346138941f3efa5e303747b0ddb37a23a3be32dd210eea3ed7df3c82",
+      "bytes": 2763
+    },
+    "stack-tests.log": {
+      "sha256": "29366a15c0a7c869ea3c16ed97e1d5c1fb24566a7b99da2b2f3dd18296c7e968",
+      "bytes": 322
+    },
+    "factories-configure.log": {
+      "sha256": "5a7c5e39963f0475259207f45a4fa0be2842ab8333acf74cf7589ed7c60cbc47",
+      "bytes": 402
+    },
+    "factories-build.log": {
+      "sha256": "8ff92075db2c6b58f11352b13e61584e6b8dcdfb452ccb789175df49c77cf9f8",
+      "bytes": 2784
+    },
+    "factories-tests.log": {
+      "sha256": "331c2aef859ea884dbc8d2f35e2e85fd4cebd4b915458050ea1b976f4363df50",
+      "bytes": 331
+    },
+    "emote-animation-configure.log": {
+      "sha256": "4961d9071eaa3e8840b21a9f28f4b47938cb62045ed78ef3ff866c2b273f6065",
+      "bytes": 399
+    },
+    "emote-animation-build.log": {
+      "sha256": "bf8d6e9206a9fa0336518953c3616efa5727c3f638dda272a550ad41bd015971",
+      "bytes": 3510
+    },
+    "emote-animation-tests.log": {
+      "sha256": "c4bf3655733f172a232fad01dc62aa2bbd7b8aeb425feec971a0b31b1ecd6621",
+      "bytes": 770
+    },
+    "emote-metadata-configure.log": {
+      "sha256": "d0eb1d57ef8f36678a75c0c58473fa93f48cfa657625e45a774923b3b5cd7a6d",
+      "bytes": 398
+    },
+    "emote-metadata-build.log": {
+      "sha256": "a1ca22d0987f124c9cc434f3267b47789f16c45c68e86f0936f5919440937156",
+      "bytes": 5935
+    },
+    "emote-metadata-tests.log": {
+      "sha256": "5c33c166b7691013d5bb50e5feb2643a9ec9c04b6bf649ea5b9c83886f43a4b0",
+      "bytes": 429
+    },
+    "parser-final-tests.log": {
+      "sha256": "6e83c318d75d129fb39bed18dabd25432af22460e1d0365eaf35f8f992a3a148",
+      "bytes": 155
+    },
+    "frame-check.log": {
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123",
+      "bytes": 91
+    },
+    "point-check.log": {
+      "sha256": "d29b50a21d35f30e24e5ce0230f14e3641f0fd437f069438a198f56f6f4fab0f",
+      "bytes": 178
+    },
+    "production-syntax.log": {
+      "sha256": "8b5df5414929ac4c8a38cf95096031340e732ec2ea22bb3cd4662ea20fa0e550",
+      "bytes": 4762
+    },
+    "compat-final-syntax.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "static-production-test.log": {
+      "sha256": "afc25f4a681fa6f538a8ad46d728e0231f45126739543ff739b22b09cf8df3f0",
+      "bytes": 295
+    },
+    "real-bytecode-check.log": {
+      "sha256": "68744f54f0c62ba7f7c8a2a91ec69f76c3159dc0dd3723651db70e2e4fb5e75b",
+      "bytes": 199
+    },
+    "real-disassembly-check.log": {
+      "sha256": "9ac2dd932caae80f773be7e98ee05496cef82fb0701f47a7be4a3c0397c1967a",
+      "bytes": 160
+    },
+    "direct-synthetic.log": {
+      "sha256": "27a14e7721a5e544d1388a0dd2678c4c9bc6348bb17e190b5c6c9596fc0cfad2",
+      "bytes": 132
+    },
+    "nonconsole-tjs-syntax.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "localOnlyArtifacts": {
+    "plan.before.md": {
+      "path": "build/native-metal-c2b-arity-baseline/plan.before.md",
+      "sha256": "746676eb60aa757266bdd3e20f466d53f415ca6bdd9339f8bca5f54a27e76186"
+    },
+    "draw.before.cpp": {
+      "path": "build/native-metal-c2b-arity-baseline/draw.before.cpp",
+      "sha256": "8cf10b6f5202352b2107b4b63a87fe6a56606f38ce2bd41c515a45a498ea6aaf"
+    },
+    "bindings.before.cpp": {
+      "path": "build/native-metal-c2b-arity-baseline/bindings.before.cpp",
+      "sha256": "183d1126f467efc03cb479e88a8c0f70aff9dfbf2ce2ef7e6032f5a951c63c1b"
+    },
+    "main.before.patch": {
+      "path": "build/native-metal-c2b-arity-baseline/main.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime.before.patch": {
+      "path": "build/native-metal-c2b-arity-baseline/runtime.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core.before.patch": {
+      "path": "build/native-metal-c2b-arity-baseline/core.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "direct-investigation.md": {
+      "path": "build/native-metal-c2b-arity-baseline/direct-investigation.md",
+      "sha256": "ae5fe17ea6bfb2cde2c36c30fdf442aa2e16d534a42001c8563c5d5d73676d48"
+    },
+    "check-real-bytecode.cpp": {
+      "path": "build/native-metal-c2b-arity-baseline/check-real-bytecode.cpp",
+      "sha256": "6b0811bfcb3a131abefd6c7af7b036617c476e1a47f8a2058b120121184d5e0c"
+    },
+    "inspect_xp3_scripts.py": {
+      "path": "build/native-metal-c2b-arity-baseline/inspect_xp3_scripts.py",
+      "sha256": "c1cd1a4fed54653c184b717667f34e3f2edd60661a74fcbb8915f229d0e4fe25"
+    },
+    "inspect_garbro.ps1": {
+      "path": "build/native-metal-c2b-arity-baseline/inspect_garbro.ps1",
+      "sha256": "7e3d7ea660c10aaf2025d13fe9da0db73cfab06d79257b21db09ade94d7254d2"
+    },
+    "extract_garbro_scripts.ps1": {
+      "path": "build/native-metal-c2b-arity-baseline/extract_garbro_scripts.ps1",
+      "sha256": "068de1554f2026121d91265999ee87621c9ae92f81e34c454473e136816870ca"
+    },
+    "static_tjs_disassemble.cpp": {
+      "path": "build/native-metal-c2b-arity-baseline/static_tjs_disassemble.cpp",
+      "sha256": "c2744b4fb7ed997267fed64c66e3da985a38aa2d7347ca0cd84d69f5bbd16d0e"
+    },
+    "check-production-syntax.py": {
+      "path": "build/native-metal-c2b-arity-baseline/check-production-syntax.py",
+      "sha256": "b340fe5cd3b136013384aae487a48a824d8b0a5d567464ed8d4ac32f0cf8b290"
+    },
+    "archive-evidence.py": {
+      "path": "build/native-metal-c2b-arity-baseline/archive-evidence.py",
+      "sha256": "b23199236b87272ec3fa7e997a3fe4cb413a883c15250410f111d6fb3210cff3"
+    },
+    "parser-tests.log": {
+      "path": "build/native-metal-c2b-arity-baseline/parser-tests.log",
+      "sha256": "ba86ee37e4e69bcae2d01196b4677c9fe00427b36c9601c86f80a5d1cdd399d7"
+    },
+    "compat-syntax.log": {
+      "path": "build/native-metal-c2b-arity-baseline/compat-syntax.log",
+      "sha256": "c70432baab0e5ae12049ef071d9cd71c74cb9a46deb94d5213da366f6dda4f1d"
+    }
+  },
+  "privateGameArtifacts": {
+    "hsvcpick.getColor.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.getColor.disasm.txt",
+      "sha256": "77f006335bdd4a40c30eb3cefa174e1e395c39ff779036f533f96b98575156f1",
+      "bytes": 788
+    },
+    "hsvcpick.hsvDirectSysButton.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.hsvDirectSysButton.disasm.txt",
+      "sha256": "f6b2271c463206c7b7f72496241493aba55c5d226f75cb992ecc5ea606ff920d",
+      "bytes": 478
+    },
+    "hsvcpick.OptionHSVPickerModule.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.OptionHSVPickerModule.disasm.txt",
+      "sha256": "ebd56722bb581703ce7ec56418754edd4cdf02f7ff41536786de1400d3ec5abd",
+      "bytes": 2109
+    },
+    "hsvcpick.patched.tjs": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.patched.tjs",
+      "sha256": "2bed2a724398f70e15f9a4daafca4332c871b4f65628207e1630e8a07646707b",
+      "bytes": 35064
+    },
+    "hsvcpick.setupColorPicker.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.setupColorPicker.disasm.txt",
+      "sha256": "4b8e74dbda74df63ad40c2ef896275c6467e07633155d06b83a54d169a753521",
+      "bytes": 3427
+    },
+    "hsvcpick.termColorPicker.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.termColorPicker.disasm.txt",
+      "sha256": "7b18edc49573b98a9b268f08861236238adeec88ff48a6bb21affba929f24c76",
+      "bytes": 723
+    },
+    "hsvcpick.tjs": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.tjs",
+      "sha256": "17f0154ed6f2640e40d5219f2757c2ab51c27dc042099bd3fc4fc1d8e9c69528",
+      "bytes": 35064
+    },
+    "hsvcpick.updateColorDirectSysButton.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.updateColorDirectSysButton.disasm.txt",
+      "sha256": "013434583352d8d22231beee665f256a5f2738159476b4293e6a45a8ca206536",
+      "bytes": 1171
+    },
+    "hsvcpick.updateColorSelect.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.updateColorSelect.disasm.txt",
+      "sha256": "b5d32954317fdbd9ceebea15da0078a0e7e0deaf9990f8beaa4d81c86c091d1b",
+      "bytes": 3718
+    },
+    "hsvcpick.updateColorSelect.patched.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/hsvcpick.updateColorSelect.patched.disasm.txt",
+      "sha256": "03d024651dd18890642d1343485cdbee0bcb8b68dccac2e014db2a382edd1202",
+      "bytes": 3742
+    },
+    "mixinclass.createSkeltonClass.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.createSkeltonClass.disasm.txt",
+      "sha256": "ee70cc8dfd17797987ff4ce184b38c7433cb41a73688535706f6e1154f71e6e0",
+      "bytes": 1893
+    },
+    "mixinclass.mergeClassObject.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.mergeClassObject.disasm.txt",
+      "sha256": "30e781dca49dbc4eca61cc7f3800bf564797b6ca26ff8e92b67c9427405561cc",
+      "bytes": 3365
+    },
+    "mixinclass.missing.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.missing.disasm.txt",
+      "sha256": "9ff6121f5bf8b2aa4b4039d36d9bcfdfeb68b68d9af4b9580d7a1a32e3b2af66",
+      "bytes": 396
+    },
+    "mixinclass.mixinModule.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.mixinModule.disasm.txt",
+      "sha256": "a712e0886dd32db3ab9c5940cf96fae073b0fdbe8520597900b534b6dbfafed4",
+      "bytes": 1448
+    },
+    "mixinclass.tjs": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.tjs",
+      "sha256": "b1d801c2215204f64b864ab9d51ca104a50825af6a8aebf14220a91dfc91bfe2",
+      "bytes": 13764
+    },
+    "mixinclass.__call.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.__call.disasm.txt",
+      "sha256": "89784a0bf71ac37f361e9ce7c84779b13b75ab1daf29a0da65d9881a1d045f03",
+      "bytes": 557
+    },
+    "mixinclass.__entry.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.__entry.disasm.txt",
+      "sha256": "77b931292089388b53c3beb612368f323cadbc9499febd5c62a8a694adf7ef86",
+      "bytes": 2283
+    },
+    "mixinclass.__gettable.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.__gettable.disasm.txt",
+      "sha256": "8f195a6a716872f9e997fc2771de5461b5d5761e6c283ea0ac33a6be603aaf15",
+      "bytes": 776
+    },
+    "mixinclass.__init__.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/mixinclass.__init__.disasm.txt",
+      "sha256": "2059b66c0a8f34a6c0360717fc0e2cf0ecff774c0db9b36378c76a2f71aad597",
+      "bytes": 300
+    },
+    "option.ks": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/option.ks",
+      "sha256": "f81f1fbed320c0a9649e0d0e5a3f509ba74bc228b52e1c3124908e69329402ae",
+      "bytes": 3060
+    },
+    "option.ModulableOptionBase.disasm.txt": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/option.ModulableOptionBase.disasm.txt",
+      "sha256": "10b5730005c22f7e5875c9ac861a11a49984c017dc31e23bf0b9cc20ed7c3af5",
+      "bytes": 1222
+    },
+    "option.tjs": {
+      "path": "build/native-metal-c2b-arity-baseline/game-scripts/option.tjs",
+      "sha256": "2aa7082bd7333b72053674413b35b243f8bb42d934eb1c4fedf07860c5caa234",
+      "bytes": 116376
+    }
+  },
+  "unmodifiedLogHashes": {
+    "Mikage-diagnostics-2C2A12F0-8450-4AAF-87A5-44AB35CCF1D2.jsonl": "964789f0ec84840dafef1cf338786c67a4152d90981332238713a65e2f6cd835",
+    "Mikage-diagnostics-3E01C282-86C6-4A57-AB7F-9B40BFDD2409.jsonl": "2c8a87b6d877ce36fda86c212890acf63f9c941b4ef7d63432093e8bc8f958a1",
+    "Mikage-diagnostics-47FEAB38-F40D-4D76-B169-2C67194727F0.jsonl": "9902f8ea6519a14229a22c4f7345fe00fa35e8477433a96a236429ae8554b40f",
+    "Mikage-diagnostics-818E8101-99A0-4500-9AD9-9287C971BDB4.jsonl": "3791dae7452d94fdeec8dbe97e54a6f4a10c682be61a7cbc05baa5962b14e045",
+    "Mikage-diagnostics-A900E8F2-83F8-4E37-8486-E73DBF6EFC64.jsonl": "4e6501e19ca81fb213dd29cd9e0f9b2c1093bb33683a4e53d0e0e0faa3ad51a7",
+    "Mikage-diagnostics-AD75BC95-128D-4B18-BACE-6D26B8A97FFF.jsonl": "5548a8f476fc06d24fb52822fb1c0ec8a2b3fa904d1246efd3142198f31d8418",
+    "Mikage-diagnostics-AD92ABD4-59E7-4921-BF62-4C55738A95CF.jsonl": "7cee75844c3ae9b84c17bc0a2d11b2a5cada6c298845082f57756bedaf9d054a",
+    "天使纷扰-进入设置报错Mikage-diagnostics-289D86D5-FCB7-4C20-B4EE-793A0783204F.jsonl": "0004864488e9aaf18cbcf2e232c7aaad8c2e3a90a01bb617dbf5c17d421dcdfe"
+  },
+  "gameInputs": [
+    {
+      "path": "perf_log/Game/天使纷扰/data.xp3",
+      "bytes": 343075290,
+      "sha256": "dfb90386824eb507a67456fbba5859e94e92c50cb022f164b890c009fab7f733"
+    },
+    {
+      "path": "perf_log/Game/天使纷扰/sysscn/hsvcpick.tjs",
+      "bytes": 35064,
+      "sha256": "17f0154ed6f2640e40d5219f2757c2ab51c27dc042099bd3fc4fc1d8e9c69528"
+    }
+  ],
+  "knownRule": {
+    "basename": "hsvcpick.tjs",
+    "bytes": 35064,
+    "sha256": "17f0154ed6f2640e40d5219f2757c2ab51c27dc042099bd3fc4fc1d8e9c69528",
+    "parent": "OptionHSVPickerModule",
+    "method": "updateColorSelect",
+    "codeWords": 334,
+    "localConstants": 27,
+    "readIPs": [
+      206,
+      218
+    ],
+    "slot": 16,
+    "mappingByteOffset": 32114,
+    "oldIndex": 228,
+    "newIndex": 179,
+    "replacement": "hsvDirectSysButton",
+    "patchedSHA256": "2bed2a724398f70e15f9a4daafca4332c871b4f65628207e1630e8a07646707b"
+  },
+  "environment": {
+    "CC": "C:/Strawberry/c/bin/gcc.exe",
+    "CXX": "C:/Strawberry/c/bin/c++.exe",
+    "Python": "C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+    "TEMP": "D:/vn-sim/build/tmp",
+    "TMP": "D:/vn-sim/build/tmp",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "commands": [
+    "ninja -C build/metal-layer-tests metal-layer-tests (old/fixed arity reproduction)",
+    "build/metal-layer-tests/metal-layer-tests.exe (old expected failure, fixed pass)",
+    "cmake --build build/metal-layer-tests --parallel 6; ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "cmake --build build/metal-render-tests --parallel 6; ctest --test-dir build/metal-render-tests --output-on-failure",
+    "cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests -D CMAKE_C_COMPILER=C:/Strawberry/c/bin/gcc.exe",
+    "cmake --build build/tjs-shutdown-tests --parallel 6; ctest --test-dir build/tjs-shutdown-tests --output-on-failure",
+    "cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -D CMAKE_C_COMPILER=C:/Strawberry/c/bin/gcc.exe",
+    "cmake --build build/tjs-stack-trace-tests --parallel 6; ctest --test-dir build/tjs-stack-trace-tests --output-on-failure",
+    "cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -D CMAKE_C_COMPILER=C:/Strawberry/c/bin/gcc.exe",
+    "cmake --build build/tjs-native-factory-tests --parallel 6; ctest --test-dir build/tjs-native-factory-tests --output-on-failure",
+    "cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -D CMAKE_C_COMPILER=C:/Strawberry/c/bin/gcc.exe",
+    "cmake --build build/emote-animation-tests --parallel 6; ctest --test-dir build/emote-animation-tests --output-on-failure",
+    "cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -D CMAKE_C_COMPILER=C:/Strawberry/c/bin/gcc.exe",
+    "cmake --build build/emote-metadata-tests --parallel 6; ctest --test-dir build/emote-metadata-tests --output-on-failure",
+    "build/tjs-shutdown-tests/tjs-shutdown-tests.exe --bytecode-static-compat perf_log/Game/天使纷扰/sysscn/hsvcpick.tjs",
+    "python Tests/MetalLayer/test-layer-diagnostics.py",
+    "python scripts/check-krkr-frame-times.py",
+    "python scripts/check-krkr-point-read-trace.py",
+    "python build/native-metal-c2b-arity-baseline/check-production-syntax.py (compiler args in log)",
+    "c++ -std=c++17 -fsyntax-only -DTJS_NO_REGEXP=1 -D_KRKRSDL3_WINDOWS=1 -IEngine/KRKRRuntime/Source/cpp/tjs2 -IEngine/KRKRRuntime/Source/cpp/environ Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp (non-console)",
+    "c++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -D_ONLYCONSOLE=1 -DTJS_NO_REGEXP=1 -D_KRKRSDL3_WINDOWS=1 -IEngine/KRKRRuntime/Source/cpp/tjs2 -IEngine/KRKRRuntime/Source/cpp/environ -c Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp -o build/native-metal-c2b-arity-baseline/compat-strict.o",
+    "static_tjs_disassemble.exe <private original/patched hsvcpick> updateColorSelect; independent output comparison",
+    "git diff --check (all three repos)"
+  ],
+  "notes": [
+    "arity-repro.log is intentional old-policy failure; fixed and final CTests pass",
+    "parser-tests.log failed default sandbox TEMP; workspace TEMP run is 51 PASS",
+    "compat-syntax.log used Werror on old unused-parameter headers; final strict check suppresses only those historical parameters",
+    "Game scripts and disassembly stay ignored local; tracked tests are original synthetic source",
+    "headsAndDiffs describe the pre-publication local acceptance snapshot; source documentation updated with publication note, tested code unchanged"
+  ],
+  "pending": [
+    "Apple host/App joint build and native kernel tests",
+    "new Angel GPU route/reduced readback capture with exact counts",
+    "iPhone settings enter/change/exit/re-enter and compat applied log",
+    "matched three-repeat performance baseline"
+  ],
+  "scope": "C2B minimum arity + exact known-bytecode optional UI repair; no generic VM missing change, no renderer math, Nekopara deferred; local no-commit state superseded by publication record",
+  "publication": {
+    "date": "2026-10-09",
+    "core": "5e54d4678119c79848f6aab9d759550c8ff0a663",
+    "runtime": "b6f31a2f892a0f4e20641471a6c361d2b899ac37",
+    "main": "commit containing this publication record",
+    "branch": "metal_dev",
+    "coreAndRuntimeRemoteVerified": true,
+    "ciMonitoring": "not requested; user will report failures"
+  }
+}

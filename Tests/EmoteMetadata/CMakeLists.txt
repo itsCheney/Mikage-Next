@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(EmoteMetadataTests LANGUAGES CXX)
+project(EmoteMetadataTests LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 get_filename_component(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp" REALPATH)
@@ -15,6 +15,8 @@ add_custom_command(OUTPUT "${GENERATED_READER}"
 file(GLOB TJS_SOURCES CONFIGURE_DEPENDS "${CORE}/tjs2/*.cpp")
 add_executable(emote-metadata-tests EmoteMetadataTests.cpp "${GENERATED_READER}"
     "${CORE}/plugins/psbfile/PSBData.cpp" ${TJS_SOURCES})
+include("${CMAKE_CURRENT_LIST_DIR}/../TJSBytecodeHash.cmake")
+mikage_add_tjs_bytecode_hash(emote-metadata-tests "${CORE}")
 set(GENERATED_LOADER
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionFileClass.inc"
     "${CMAKE_CURRENT_BINARY_DIR}/ProductionDecode.inc"
@@ -36,6 +38,7 @@ add_executable(emote-shared-loader-tests EmoteSharedLoaderTests.cpp
     "${GENERATED_READER}" ${GENERATED_LOADER}
     "${CORE}/plugins/psbfile/PSBData.cpp" ${TJS_SOURCES})
 target_link_libraries(emote-shared-loader-tests PRIVATE ZLIB::ZLIB)
+mikage_add_tjs_bytecode_hash(emote-shared-loader-tests "${CORE}")
 foreach(TEST_TARGET emote-metadata-tests emote-shared-loader-tests)
 target_include_directories(${TEST_TARGET} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
     "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins")

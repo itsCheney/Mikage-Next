@@ -195,6 +195,20 @@ public:
         ++propertyGets;return tTJSCustomObject::PropGet(flag,name,hint,result,object);
     }
 };
+class UnusedArgumentObject:public GuardedNativeObject {
+public:
+    int conversionCalls=0;
+    tjs_error FuncCall(tjs_uint32 flag,const tjs_char* name,tjs_uint32* hint,tTJSVariant* result,
+            tjs_int count,tTJSVariant** params,iTJSDispatch2* object) override {
+        // VM lifecycle finalization is independent of argument conversion.
+        if(name && !std::strcmp(name,"finalize"))
+            return tTJSCustomObject::FuncCall(flag,name,hint,result,count,params,object);
+        ++conversionCalls;throw std::runtime_error("unused argument conversion invoked");
+    }
+    tjs_error PropGet(tjs_uint32,const tjs_char*,tjs_uint32*,tTJSVariant*,iTJSDispatch2*) override {
+        ++propertyGets;throw std::runtime_error("unused argument getter invoked");
+    }
+};
 int C2BDiagnosticProducerCaptures=0;
 void C2BDiscardDiagnostic(const char*) {}
 bool C2BUnknownDiagnosticIdentity(void*,krkrsdl3::cpu_consumer_trace::Producer&) {
@@ -283,6 +297,82 @@ int RunC2SpanBindingTests() {
             Support=true;call(gpu,"drawImageStretch",values);ImageLoadSurface=nullptr;
             Check(ImageLoads==before+2 && Attempts==attempts && gpu.native->texture->counts->writes==1 &&
                 cpu.native->texture->pixels==gpu.native->texture->pixels,"filename image conversion skipped eager CPU or executed twice");
+        }
+        {
+            namespace trace=krkrsdl3::cpu_consumer_trace;
+            namespace work=krkrsdl3::layer_work;
+            struct RestoreDiagnostics {
+                bool enabled=work::enabled.load(std::memory_order_relaxed);
+                void (*logger)(const char*)=trace::logMessage;
+                bool (*producer)(void*,trace::Producer&)=trace::captureProducer;
+                void (*taken)(const work::CPUConsumerBudget&,uint64_t)=work::cpuConsumerWindowTaken;
+                ~RestoreDiagnostics() {
+                    work::SetEnabled(false);trace::SetCallbacks(logger,producer);work::cpuConsumerWindowTaken=taken;
+                    if(enabled) work::SetEnabled(true);
+                }
+            } restore;
+            trace::SetCallbacks(C2BDiscardDiagnostic,C2BUnknownDiagnosticIdentity);
+            auto* unused=new UnusedArgumentObject;
+            tTJSVariant unusedArgument(unused,unused);unused->Release();
+            auto sameResult=[](const tTJSVariant& a,const tTJSVariant& b) {
+                auto* x=ncbInstanceAdaptor<RectF>::GetNativeInstance(a.AsObjectNoAddRef());
+                auto* y=ncbInstanceAdaptor<RectF>::GetNativeInstance(b.AsObjectNoAddRef());
+                return x && y && x->x==y->x && x->y==y->y && x->w==y->w && x->h==y->h;
+            };
+            bool allExtraCallsGPU=true;
+            for(const auto& op:operations) {
+                LayerFixture baseline;tTJSVariant expected;Support=false;work::SetEnabled(false);
+                Check(call(baseline,op.first,op.second,&expected)==TJS_S_OK,"normal arity CPU binding failed");
+                for(int extraCount:{1,4}) {
+                    auto values=op.second;values.push_back(unusedArgument);
+                    if(extraCount>1) {values.push_back(TJS_N("unused nonnumeric"));
+                        values.push_back(std::numeric_limits<double>::infinity());values.emplace_back();}
+                    LayerFixture cpu,gpu;tTJSVariant cpuResult,gpuResult;
+                    Support=false;work::SetEnabled(false);const int cpuConstructors=ResultConstructors;
+                    Check(call(cpu,op.first,values,&cpuResult)==TJS_S_OK && ResultConstructors==cpuConstructors+1 &&
+                        cpu.native->texture->pixels==baseline.native->texture->pixels && sameResult(cpuResult,expected),
+                        "extra arguments changed legacy CPU pixels, result or boxing count");
+                    Support=true;work::SetEnabled(true);const int attempts=Attempts,constructors=ResultConstructors;
+                    Check(call(gpu,op.first,values,&gpuResult)==TJS_S_OK && ResultConstructors==constructors+1 &&
+                        gpu.native->texture->pixels==baseline.native->texture->pixels && sameResult(gpuResult,expected),
+                        "extra arguments changed bound pixels, typed result or boxing count");
+                    krkrsdl3::span_route::Window window;
+                    {std::lock_guard<std::mutex> lock(work::mutex);window=work::profile.cpuConsumerBudget.spanWindow;}
+                    const bool captured=Attempts==attempts+1 && gpu.native->texture->counts->reads==0 &&
+                        gpu.native->texture->counts->writes==0 && gpu.native->updates==baseline.native->updates &&
+                        gpu.native->modified && window.totals.calls==1 && window.routes[0]==1 && window.routes[1]==0;
+                    allExtraCallsGPU=allExtraCallsGPU && captured;
+                    const size_t argumentGroup=(krkrsdl3::span_route::Find(krkrsdl3::span_route::Methods,op.first)*
+                        krkrsdl3::span_route::Routes.size()+krkrsdl3::span_route::Find(krkrsdl3::span_route::Routes,"cpu"))*
+                        krkrsdl3::span_route::Reasons.size()+krkrsdl3::span_route::Find(krkrsdl3::span_route::Reasons,"arguments");
+                    std::cout<<"C2B extra arity method="<<op.first<<" required="<<op.second.size()<<" passed="<<values.size()
+                        <<" gpu="<<window.routes[0]<<" cpu="<<window.routes[1]<<" cpuArguments="<<window.groups[argumentGroup].metrics.calls
+                        <<" attempts="<<Attempts-attempts<<" cpuWrites="<<gpu.native->texture->counts->writes<<'\n';
+                    work::Take();
+                    if(captured) {
+                        LayerFixture rejected;tTJSVariant rejectedResult;RejectSubmit=true;
+                        const int rejectAttempts=Attempts,rejectConstructors=ResultConstructors;
+                        const auto hr=call(rejected,op.first,values,&rejectedResult);RejectSubmit=false;
+                        Check(hr==TJS_S_OK && Attempts==rejectAttempts+1 && ResultConstructors==rejectConstructors+1 &&
+                            rejected.native->texture->counts->writes==1 && rejected.native->texture->counts->reads==0 &&
+                            rejected.native->updates==baseline.native->updates && rejected.native->texture->pixels==baseline.native->texture->pixels &&
+                            sameResult(rejectedResult,expected),"extra arity rejection duplicated CPU replay/result boxing or changed pixels");
+                    }
+                    Check(unused->nativeGets==0 && unused->propertyGets==0 && unused->conversionCalls==0,
+                        "unused extra argument triggered native conversion or getter");
+                }
+                for(int supported=0;supported<2;++supported) {
+                    LayerFixture shortCall;Support=supported!=0;auto values=op.second;values.pop_back();
+                    tTJSVariant result(123);const auto pixels=shortCall.native->texture->pixels;
+                    const int attempts=Attempts,constructors=ResultConstructors;
+                    Check(call(shortCall,op.first,values,&result)==TJS_E_BADPARAMCOUNT && result.Type()==tvtInteger && result.AsInteger()==123 &&
+                        Attempts==attempts && ResultConstructors==constructors && shortCall.native->texture->counts->reads==0 &&
+                        shortCall.native->texture->counts->writes==0 && shortCall.native->updates==0 && !shortCall.native->modified &&
+                        shortCall.native->texture->pixels==pixels,"too few arguments changed legacy error, eager access or result");
+                }
+            }
+            Check(allExtraCallsGPU,"NCBind accepts unused extra arguments but GPU preflight incorrectly rejects them");
+            std::cout<<"PASS C2B minimum arity: three methods accept one/multiple untouched extra arguments; exact pixels/results, zero CPU acquire, sole replay/boxing, unchanged short-call errors\n";
         }
         for(const auto& op:operations) {
             LayerFixture cpu,gpu;tTJSVariant cpuResult,gpuResult;

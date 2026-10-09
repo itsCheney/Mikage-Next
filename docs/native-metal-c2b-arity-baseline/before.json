@@ -1,0 +1,20 @@
+{
+  "heads": {
+    "main": "5987acb274a7c4d581253393e60a1f8a1794e5c9",
+    "runtime": "1f8c04839d2bf1eec5805ec8c80190799d22f681",
+    "core": "e3302bed3d4f6f65d1acba10bdce383dea48c41d"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "date": "2026-10-09",
+  "initialStatus": "three repos observed clean before delegation; empty diffs recorded from that observation",
+  "inputHashes": {
+    "Mikage-diagnostics-2C2A12F0-8450-4AAF-87A5-44AB35CCF1D2.jsonl": "964789f0ec84840dafef1cf338786c67a4152d90981332238713a65e2f6cd835",
+    "Mikage-diagnostics-3E01C282-86C6-4A57-AB7F-9B40BFDD2409.jsonl": "2c8a87b6d877ce36fda86c212890acf63f9c941b4ef7d63432093e8bc8f958a1",
+    "Mikage-diagnostics-47FEAB38-F40D-4D76-B169-2C67194727F0.jsonl": "9902f8ea6519a14229a22c4f7345fe00fa35e8477433a96a236429ae8554b40f",
+    "Mikage-diagnostics-818E8101-99A0-4500-9AD9-9287C971BDB4.jsonl": "3791dae7452d94fdeec8dbe97e54a6f4a10c682be61a7cbc05baa5962b14e045",
+    "Mikage-diagnostics-A900E8F2-83F8-4E37-8486-E73DBF6EFC64.jsonl": "4e6501e19ca81fb213dd29cd9e0f9b2c1093bb33683a4e53d0e0e0faa3ad51a7",
+    "Mikage-diagnostics-AD75BC95-128D-4B18-BACE-6D26B8A97FFF.jsonl": "5548a8f476fc06d24fb52822fb1c0ec8a2b3fa904d1246efd3142198f31d8418",
+    "Mikage-diagnostics-AD92ABD4-59E7-4921-BF62-4C55738A95CF.jsonl": "7cee75844c3ae9b84c17bc0a2d11b2a5cada6c298845082f57756bedaf9d054a",
+    "天使纷扰-进入设置报错Mikage-diagnostics-289D86D5-FCB7-4C20-B4EE-793A0783204F.jsonl": "0004864488e9aaf18cbcf2e232c7aaad8c2e3a90a01bb617dbf5c17d421dcdfe"
+  }
+}

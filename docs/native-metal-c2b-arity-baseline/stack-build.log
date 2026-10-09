@@ -1,0 +1,23 @@
+[0/2] Re-checking globbed directories...
+[1/23] Generating ProductionTraceOwner.inc
+[2/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDate.cpp.obj
+[3/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsBinarySerializer.cpp.obj
+[4/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/StackTraceTests.cpp.obj
+[5/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.tab.cpp.obj
+[6/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.cpp.obj
+[7/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsException.cpp.obj
+[8/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDictionary.cpp.obj
+[9/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp.obj
+[10/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMath.cpp.obj
+[11/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsLex.cpp.obj
+[12/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNative.cpp.obj
+[13/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeExec.cpp.obj
+[14/23] Building C object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256.c.obj
+[15/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsArray.cpp.obj
+[16/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRandomGenerator.cpp.obj
+[17/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObject.cpp.obj
+[18/23] Building C object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256Opt.c.obj
+[19/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp.obj
+[20/23] Building CXX object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsOctPack.cpp.obj
+[21/23] Building C object CMakeFiles/tjs-stack-trace-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/CpuArch.c.obj
+[22/23] Linking CXX executable tjs-stack-trace-tests.exe

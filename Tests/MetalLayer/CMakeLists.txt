@@ -159,6 +159,8 @@ foreach(variant upstream patched)
     target_link_libraries(plutovg-${variant}-pixels PRIVATE plutovg-oracle-${variant})
 endforeach()
 target_link_libraries(metal-layer-tests PRIVATE plutovg-oracle-patched)
+include("${CMAKE_CURRENT_LIST_DIR}/../TJSBytecodeHash.cmake")
+mikage_add_tjs_bytecode_hash(metal-layer-tests "${CORE}")
 target_include_directories(metal-layer-tests PRIVATE "${CORE}/plugins/LayerExDraw")
 target_compile_definitions(plutovg-patched-pixels PRIVATE TVP_PLUTOVG_CAPTURE_ORACLE=1)
 target_include_directories(plutovg-patched-pixels PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"

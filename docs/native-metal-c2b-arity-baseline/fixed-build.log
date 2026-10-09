@@ -1,0 +1,6 @@
+ninja: Entering directory `build/metal-layer-tests'
+[0/2] Re-checking globbed directories...
+[1/5] Generating ProductionLayerExBoundary.inc, ProductionLayerExSpanBinding.inc
+[2/5] Building CXX object CMakeFiles/metal-layer-tests.dir/C2LayerExBoundaryTests.cpp.obj
+[3/5] Building CXX object CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj
+[4/5] Linking CXX executable metal-layer-tests.exe

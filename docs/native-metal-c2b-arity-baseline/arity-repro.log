@@ -1,0 +1,17 @@
+PASS Layer operation contract: stable IDs, traits, shared MSL variants, test-only Count extension
+PASS production UnivTrans MSL integer helpers vs tvpgl: 3145728 exact pixels
+PASS production additive/PS/conversion MSL vs tvpgl: 1835008 exact pixels
+PASS P1A extracted production MSL vs initialized software bindings: 21757036 exact pixels
+PASS P1B production MSL vs initialized PS HDA bindings: 46137346 exact pixels
+PASS transition contract and production blend: 32768 exact pixels
+PASS shrink IDs and unsigned modular divisor preflight
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety
+PASS C2B production integer MSL vs original plutovg1.3.3 C, ordered overlaps, CSR and checked budgets
+C2B extra arity method=drawLine required=5 passed=6 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B extra arity method=drawLine required=5 passed=9 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B extra arity method=drawPath required=2 passed=3 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B extra arity method=drawPath required=2 passed=6 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B extra arity method=drawImageStretch required=9 passed=10 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B extra arity method=drawImageStretch required=9 passed=13 gpu=0 cpu=1 cpuArguments=1 attempts=0 cpuWrites=1
+C2B binding: NCBind accepts unused extra arguments but GPU preflight incorrectly rejects them
+FAIL: C2B production span binding tests failed

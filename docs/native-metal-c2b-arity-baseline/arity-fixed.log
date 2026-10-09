@@ -1,0 +1,89 @@
+PASS Layer operation contract: stable IDs, traits, shared MSL variants, test-only Count extension
+PASS production UnivTrans MSL integer helpers vs tvpgl: 3145728 exact pixels
+PASS production additive/PS/conversion MSL vs tvpgl: 1835008 exact pixels
+PASS P1A extracted production MSL vs initialized software bindings: 21757036 exact pixels
+PASS P1B production MSL vs initialized PS HDA bindings: 46137346 exact pixels
+PASS transition contract and production blend: 32768 exact pixels
+PASS shrink IDs and unsigned modular divisor preflight
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety
+PASS C2B production integer MSL vs original plutovg1.3.3 C, ordered overlaps, CSR and checked budgets
+C2B extra arity method=drawLine required=5 passed=6 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+C2B extra arity method=drawLine required=5 passed=9 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+C2B extra arity method=drawPath required=2 passed=3 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+C2B extra arity method=drawPath required=2 passed=6 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+C2B extra arity method=drawImageStretch required=9 passed=10 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+C2B extra arity method=drawImageStretch required=9 passed=13 gpu=1 cpu=0 cpuArguments=0 attempts=1 cpuWrites=0
+PASS C2B minimum arity: three methods accept one/multiple untouched extra arguments; exact pixels/results, zero CPU acquire, sole replay/boxing, unchanged short-call errors
+PASS C2B diagnostics on/off: three bound methods preserve exact pixels, typed results, submission/update/acquisition counts; one GPU group/sample, no C0 transfers or repeats
+C2B real plutovg production binding transaction checks passed
+PASS C2A production LayerEx/NCBind boundaries (canvas double; native plutovg pending)
+PASS real seven extrans handlers: 1962 exact CPU / production shader frame-region cases
+PASS C4 transition diagnostics: provider names, partition frames, routing, transfer detail, epochs and bounded wire rows
+PASS C4 real bitmap COW, dirty overwrite, alias, lease, invalid kinds and diagnostic toggle
+PASS all seven real extrans propagate post-dispatch bad_alloc without CPU replay
+PASS all seven real extrans pipeline rejection: exact CPU fallback and unchanged ROI exterior
+PASS C2A real renderer diagnostics: exact pixels/counters, one producer/read and cached-read suppression
+C1 production shrinkCopy CPU oracle: 60 exact comparisons
+PASS C1 shrink diagnostics: entrypoint/routing/alias grouping, transfer subsets, raw waits, epochs and bounded wire rows
+C1 production shrinkCopy failures: 12 transactions verified
+PASS P2B perspective alpha table provisioning failures before writes
+PASS P2A affine alpha tables: provisioning failure before writes
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS P1A resident rectangles, ROI, mask rejection, alias order and failure routing
+PASS P1A Gamma: target/reference ROI, alpha cache, A/A/B/A snapshots, immutable parameter uploads, missing-LUT rejection
+PASS P2B perspective PS table provisioning failures before writes
+PASS P2A affine PS tables: 3 injected provisioning failures
+PASS P1B residency, immutable PS tables, ROI, alias order, mirrors and CPU leases
+PASS C0 collector: origin/overflow totals, protected capacity, escaping, epochs and runtime frame windows
+PASS C0 production origins: 7 read/write tags, cache hits, tiny ROI, deferred oversized names, disabled/on exact work
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS P2A affine blends: 17280 exact comparisons, 72 boundary comparisons, 9 fallback comparisons, 9 COW/cache cases and 24-operation queued blend batch
+PASS P2B software rectangle repairs and 1300 exact production perspective coordinates
+PASS P2B perspectives: 6912 exact surfaces and 30 mixed ordered batches
+PASS P2B safety: 16 atomic invalid batches, 9 software fallbacks and 6 COW/cache cases
+PASS P2B queued batches: 20 two-quad calls, two targets, varying clip/source and mixed alias order
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=13.6458 GPU encoding=10.2709 (120 operations)
+glyph CPU wall ms: software=0.159 GPU encoding=0.1991 (320 glyphs)
+PASS P2B perspective alpha table provisioning failures before writes
+PASS P2A affine alpha tables: provisioning failure before writes
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS P1A resident rectangles, ROI, mask rejection, alias order and failure routing
+PASS P1A Gamma: target/reference ROI, alpha cache, A/A/B/A snapshots, immutable parameter uploads, missing-LUT rejection
+PASS P2B perspective PS table provisioning failures before writes
+PASS P2A affine PS tables: 3 injected provisioning failures
+PASS P1B residency, immutable PS tables, ROI, alias order, mirrors and CPU leases
+PASS C0 collector: origin/overflow totals, protected capacity, escaping, epochs and runtime frame windows
+PASS C0 production origins: 7 read/write tags, cache hits, tiny ROI, deferred oversized names, disabled/on exact work
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS P2A affine blends: 17280 exact comparisons, 72 boundary comparisons, 9 fallback comparisons, 9 COW/cache cases and 24-operation queued blend batch
+PASS P2B software rectangle repairs and 1300 exact production perspective coordinates
+PASS P2B perspectives: 6912 exact surfaces and 30 mixed ordered batches
+PASS P2B safety: 16 atomic invalid batches, 9 software fallbacks and 6 COW/cache cases
+PASS P2B queued batches: 20 two-quad calls, two targets, varying clip/source and mixed alias order
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=10.2497 GPU encoding=9.9017 (120 operations)
+glyph CPU wall ms: software=0.1231 GPU encoding=0.1871 (320 glyphs)
+PASS P2B perspective alpha table provisioning failures before writes
+PASS P2A affine alpha tables: provisioning failure before writes
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS P1A resident rectangles, ROI, mask rejection, alias order and failure routing
+PASS P1A Gamma: target/reference ROI, alpha cache, A/A/B/A snapshots, immutable parameter uploads, missing-LUT rejection
+PASS P2B perspective PS table provisioning failures before writes
+PASS P2A affine PS tables: 3 injected provisioning failures
+PASS P1B residency, immutable PS tables, ROI, alias order, mirrors and CPU leases
+PASS C0 collector: origin/overflow totals, protected capacity, escaping, epochs and runtime frame windows
+PASS C0 production origins: 7 read/write tags, cache hits, tiny ROI, deferred oversized names, disabled/on exact work
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS P2A affine blends: 17280 exact comparisons, 72 boundary comparisons, 9 fallback comparisons, 9 COW/cache cases and 24-operation queued blend batch
+PASS P2B software rectangle repairs and 1300 exact production perspective coordinates
+PASS P2B perspectives: 6912 exact surfaces and 30 mixed ordered batches
+PASS P2B safety: 16 atomic invalid batches, 9 software fallbacks and 6 COW/cache cases
+PASS P2B queued batches: 20 two-quad calls, two targets, varying clip/source and mixed alias order
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=9.3962 GPU encoding=9.6396 (120 operations)
+glyph CPU wall ms: software=0.1421 GPU encoding=0.1877 (320 glyphs)
+PASS device-double synchronization/lifetime (native pixel checks run on macOS): 78634 comparisons, 3 sessions

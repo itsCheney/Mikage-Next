@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(TJSShutdownTests LANGUAGES CXX)
+project(TJSShutdownTests LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -15,6 +15,9 @@ add_custom_command(OUTPUT "${XP3_SESSION}"
     DEPENDS "${CORE}/plugins/xp3filter.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-xp3-session.py"
     VERBATIM)
 add_executable(tjs-shutdown-tests TJSShutdownTests.cpp ${TJS_SOURCES} "${XP3_SESSION}")
+include("${CMAKE_CURRENT_LIST_DIR}/../TJSBytecodeHash.cmake")
+mikage_add_tjs_bytecode_hash(tjs-shutdown-tests "${CORE}")
+target_sources(tjs-shutdown-tests PRIVATE ByteCodeCompatibilityTests.cpp)
 target_include_directories(tjs-shutdown-tests PRIVATE "${CORE}/tjs2" "${CORE}/environ" "${CMAKE_CURRENT_BINARY_DIR}")
 # The shutdown regression needs no regular-expression engine/third-party deps.
 target_compile_definitions(tjs-shutdown-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)

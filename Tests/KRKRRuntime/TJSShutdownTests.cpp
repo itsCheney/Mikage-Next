@@ -176,9 +176,14 @@ void OverlappingEngines(bool deleteGameFirst)
     }
 }
 }
-int main()
+void RunByteCodeCompatibilityTests();
+int RunByteCodeCompatibilityStaticTest(const char* path);
+int main(int argc,char** argv)
 {
     try {
+        if(argc==3 && std::string(argv[1])=="--bytecode-static-compat")
+            return RunByteCodeCompatibilityStaticTest(argv[2]);
+        RunByteCodeCompatibilityTests();
         delete new tTJS(); // No script/register allocation: null pool free is safe.
         XP3SessionLifetime();
         for (int i = 0; i < 25; ++i) {
