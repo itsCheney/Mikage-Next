@@ -9,9 +9,13 @@ namespace {
 namespace trace=krkrsdl3::cpu_consumer_trace;
 namespace work=krkrsdl3::layer_work;
 std::vector<std::string> messages;
+std::vector<std::string> spanMessages;
 unsigned producerCaptures=0;
 void Require(bool value,const char* reason) {if(!value) throw std::runtime_error(reason);}
-void Capture(const char* value) {messages.emplace_back(value);}
+void Capture(const char* value) {
+    if(std::strncmp(value,"metal.layerSpan ",16)==0) spanMessages.emplace_back(value);
+    else messages.emplace_back(value);
+}
 void ThrowingLog(const char*) {throw std::runtime_error("diagnostic callback");}
 bool ThrowingProducer(void*,trace::Producer&) {throw std::runtime_error("diagnostic resource capture");}
 bool Producer(void* resource,trace::Producer& p) {
@@ -19,7 +23,15 @@ bool Producer(void* resource,trace::Producer& p) {
     if(!resource) return false;
     p={77,123,5,17,13};return true;
 }
-void Begin() {work::SetEnabled(true);messages.clear();producerCaptures=0;}
+bool ProducerTakesWindow(void* resource,trace::Producer& p) {
+    const bool result=Producer(resource,p);
+    work::Take();return result;
+}
+bool ProducerResetsSession(void* resource,trace::Producer& p) {
+    const bool result=Producer(resource,p);
+    work::SetEnabled(false);work::SetEnabled(true);return result;
+}
+void Begin() {work::SetEnabled(true);messages.clear();spanMessages.clear();producerCaptures=0;}
 trace::Read Read(uint64_t session=77) {
     auto read=trace::BeginRead(work::CaptureGeneration(),session);
     read.textureID=123;read.contentVersion=5;read.width=17;read.height=13;
@@ -180,32 +192,97 @@ void SpanRoutes() {
     Begin();
     {
         trace::ConsumerScope scope("drawLine",trace::Access::Write,"method",5);
-        for(unsigned i=0;i<35;++i) trace::ReportSpanRoute("drawLine","gpu","applied",
+        for(unsigned i=0;i<71;++i) trace::ReportSpanRoute("drawLine","gpu","applied",
             reinterpret_cast<void*>(uintptr_t(1)),4,16,188,1024);
     }
-    Require(Count("metal.layerSpan ")==32 && producerCaptures==32,"C2B route budget queried or emitted excess records");
-    Require(messages[0].find("\"route\":\"gpu\",\"reason\":\"applied\"")!=std::string::npos &&
-            messages[0].find("\"sourceBytes\":16,\"parameterBytes\":188,\"scratchBytes\":1024")!=std::string::npos,
-            "C2B route and separate packet metrics missing");
+    Require(spanMessages.empty() && producerCaptures==1,"C2B repeated routes queried identities or emitted per-call logs");
     const auto profile=work::Take();
-    Require(profile.transfers.empty() && messages.back().find("\"spanRouteRecords\":32,\"spanRouteExceeded\":3")!=std::string::npos,
-        "C2B routes changed C0 totals or hid sampling loss");
-    messages.clear();
+    Require(profile.transfers.empty() && spanMessages.size()==3,"C2B aggregate/sample/window missing or changed C0");
+    Require(spanMessages[0].find("\"calls\":71,\"spanCount\":284,\"sourceBytes\":1136,\"parameterBytes\":13348,\"scratchBytes\":72704")!=std::string::npos,
+        "C2B 71-call totals lost or double-counted");
+    Require(spanMessages[1].find("\"sessionID\":77,\"textureID\":123,\"contentVersion\":5")!=std::string::npos &&
+        spanMessages.back().find("\"samples\":1,\"repeatedOmitted\":70,\"capacityOmitted\":0")!=std::string::npos,
+        "C2B representative or repeated-call accounting failed");
+    const auto firstID=profile.spanRouteWindowID;
+    Require(firstID!=0,"C2B window ID missing");
+    spanMessages.clear();
+    const auto empty=work::Take();
+    Require(empty.spanRouteWindowID>firstID && spanMessages.size()==1 && spanMessages[0].find("\"calls\":0")!=std::string::npos,
+        "C2B zero-call window missing or window ID repeated");
+    // Force a window handoff inside the metadata callback. The old admission
+    // may emit unknown identity, but must never populate the new window.
+    Begin();trace::SetCallbacks(Capture,ProducerTakesWindow);
+    {
+        trace::ConsumerScope scope("drawLine",trace::Access::Write,"method");
+        trace::ReportSpanRoute("drawLine","gpu","none",reinterpret_cast<void*>(uintptr_t(1)),1,4,48,512);
+    }
+    Require(spanMessages.size()==3 && producerCaptures==1 && spanMessages[1].find("\"sessionID\":null")!=std::string::npos,
+        "C2B metadata handoff fabricated identity for the already-taken window");
+    work::Take();
+    Require(spanMessages.size()==4 && spanMessages.back().find("\"calls\":0")!=std::string::npos &&
+        spanMessages.back().find("\"samples\":0")!=std::string::npos,
+        "C2B metadata from a taken window leaked into the next window");
+    Begin();trace::SetCallbacks(Capture,ProducerResetsSession);
+    {
+        trace::ConsumerScope scope("drawPath",trace::Access::Write,"method");
+        trace::ReportSpanRoute("drawPath","gpu","none",reinterpret_cast<void*>(uintptr_t(1)),1,0,48,512);
+    }
+    work::Take();
+    Require(producerCaptures==1 && spanMessages.size()==1 && spanMessages[0].find("\"calls\":0")!=std::string::npos &&
+        spanMessages[0].find("\"samples\":0")!=std::string::npos,
+        "C2B metadata from the previous generation leaked after session reset");
+    trace::SetCallbacks(Capture,Producer);
+    Begin();
     {
         trace::ConsumerScope scope("drawPath",trace::Access::Write,"method");
         trace::ReportSpanRoute("drawPath","cpu","record",nullptr,0,0,0,0);
-        Require(messages.size()==1 && messages[0].find("\"sessionID\":null,\"textureID\":null,\"contentVersion\":null")!=std::string::npos,
+        work::Take();
+        Require(spanMessages.size()==3 && spanMessages[1].find("\"sessionID\":null,\"textureID\":null,\"contentVersion\":null")!=std::string::npos,
             "C2B unavailable CPU target identity fabricated zeros");
-        work::SetEnabled(false);work::SetEnabled(true);messages.clear();
+        work::SetEnabled(false);work::SetEnabled(true);spanMessages.clear();
         trace::ReportSpanRoute("drawPath","gpu","applied",reinterpret_cast<void*>(uintptr_t(1)),1,0,100,200);
-        Require(messages.empty() && producerCaptures==32,"C2B stale route queried resources");
+        Require(spanMessages.empty() && producerCaptures==0,"C2B stale route queried resources");
     }
     work::SetEnabled(false);
     {
         trace::ConsumerScope scope("drawLine",trace::Access::Write,"method");
         trace::ReportSpanRoute("drawLine","cpu","unsupported",reinterpret_cast<void*>(uintptr_t(1)),0,0,0,0);
     }
-    Require(messages.empty() && producerCaptures==32,"C2B disabled route queried resources");
+    Require(spanMessages.empty() && producerCaptures==0,"C2B disabled route queried resources");
+    Begin();
+    {
+        trace::ConsumerScope scope("drawPath",trace::Access::Write,"method");
+        for(unsigned i=0;i<5000;++i) trace::ReportSpanRoute("drawPath","cpu","record",nullptr,0,0,0,0);
+        trace::ReportSpanRoute("drawPath","gpu","none",reinterpret_cast<void*>(uintptr_t(1)),1,0,48,512);
+    }
+    work::Take();
+    Require(spanMessages.size()==5 && producerCaptures==1 &&
+        spanMessages.back().find("\"gpuCalls\":1,\"cpuCalls\":5000")!=std::string::npos,
+        "C2B CPU burst hid the later GPU route");
+    Begin();
+    {
+        trace::ConsumerScope scope("drawLine",trace::Access::Write,"method");
+        for(const auto* method:krkrsdl3::span_route::Methods)
+            for(const auto* route:krkrsdl3::span_route::Routes)
+                for(const auto* reason:krkrsdl3::span_route::Reasons)
+                    trace::ReportSpanRoute(method,route,reason,reinterpret_cast<void*>(uintptr_t(1)),1,4,48,512);
+    }
+    work::Take();
+    Require(producerCaptures==32 && spanMessages.size()==krkrsdl3::span_route::GroupCount+33 &&
+        spanMessages.back().find("\"samples\":32,\"repeatedOmitted\":0,\"capacityOmitted\":193")!=std::string::npos,
+        "C2B fixed aggregation or 9+23 representative bound failed");
+    for(const auto& message:spanMessages) Require(message.size()<=900,"C2B v2 native line exceeded 900 bytes");
+    Begin();
+    {
+        trace::ConsumerScope scope("drawLine",trace::Access::Write,"method");
+        trace::ReportSpanRoute("drawLine","gpu","none",nullptr,UINT64_MAX,UINT64_MAX,UINT64_MAX,UINT64_MAX);
+        trace::ReportSpanRoute("drawLine","gpu","none",nullptr,1,1,1,1);
+        trace::ReportSpanRoute("unknown","gpu","none",nullptr,0,0,0,0);
+    }
+    work::Take();
+    Require(spanMessages.back().find("\"invalidRecords\":1,\"overflow\":true")!=std::string::npos,
+        "C2B overflow or unknown dictionary entry was silent");
+    for(const auto& message:spanMessages) Require(message.size()<=900,"C2B max uint64 wire width exceeded bound");
 }
 }
 void RunC2ConsumerTraceTests() {

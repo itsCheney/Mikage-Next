@@ -91,7 +91,252 @@ def consumer_event(timestamp=102, phase='read', **overrides):
     return row('native.log', timestamp, message=prefix + json.dumps(event, ensure_ascii=False))
 
 
+def span_event(phase, timestamp=106, **overrides):
+    event = {'version': 2, 'phase': phase, 'generation': 1, 'windowID': 50}
+    if phase in ('aggregate', 'sample'):
+        event.update(method='drawLine', route='gpu', reason='applied', spanCount=4,
+                     sourceBytes=16, parameterBytes=188, scratchBytes=1024)
+    if phase == 'aggregate':
+        event['calls'] = 1
+    elif phase == 'sample':
+        event.update(sampleIndex=0, traceID=40, sessionID=None, textureID=None, contentVersion=None)
+    else:
+        event.update(calls=1, gpuCalls=1, cpuCalls=0, noopCalls=0, spanCount=4,
+                     sourceBytes=16, parameterBytes=188, scratchBytes=1024, aggregateRows=1,
+                     samples=1, repeatedOmitted=0, capacityOmitted=0, overflow=False, invalidRecords=0)
+    event.update(overrides)
+    return row('native.log', timestamp, message='metal.layerSpan ' + json.dumps(event))
+
+
 class LayerDiagnosticsTests(unittest.TestCase):
+    def span_summary(self, events, **bounds):
+        return self.summarize(self.basic(work(spanRouteWindowID='50'), *events, heart()), **bounds)['layerSpans']
+
+    def test_span_v2_71_calls_have_totals_without_adding_representative(self):
+        metrics = {name: value * 71 for name, value in
+                   dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}
+        result = self.span_summary([span_event('aggregate', calls=71, **metrics), span_event('sample'),
+                                    span_event('window', calls=71, gpuCalls=71, repeatedOmitted=70, **metrics)])
+        self.assertTrue(result['totalsComplete'])
+        self.assertTrue(result['breakdownComplete'])
+        self.assertTrue(result['representativeCoverageComplete'])
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['totals']['calls'], 71)
+        self.assertEqual(result['byRoute'][0]['calls'], 71)
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['detailOmissions']['repeatedOmitted'], 70)
+
+    def test_span_v2_thousand_gpu_calls_after_cpu_keep_both_routes(self):
+        gpu = dict(spanCount=4000, sourceBytes=16000, parameterBytes=188000, scratchBytes=1024000)
+        result = self.span_summary([
+            span_event('aggregate', route='cpu', reason='record', calls=1, spanCount=0, sourceBytes=0, parameterBytes=0, scratchBytes=0),
+            span_event('aggregate', calls=1000, **gpu),
+            # Both route decisions may share an enclosing ConsumerScope trace.
+            span_event('sample', route='cpu', reason='record', sampleIndex=1, traceID=40,
+                       spanCount=0, sourceBytes=0, parameterBytes=0, scratchBytes=0),
+            span_event('sample'),
+            span_event('window', calls=1001, gpuCalls=1000, cpuCalls=1, aggregateRows=2, samples=2,
+                       repeatedOmitted=999, **gpu)])
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['totals']['gpuCalls'], 1000)
+        self.assertEqual(result['totals']['cpuCalls'], 1)
+        self.assertEqual({r['route']: r['calls'] for r in result['byRoute']}, {'cpu': 1, 'gpu': 1000})
+
+    def test_span_v2_capacity_omissions_leave_aggregation_complete(self):
+        events = [span_event('aggregate', reason='reason%d' % i) for i in range(35)]
+        # One protected method/route slot and 23 first-other-reason slots.
+        events += [span_event('sample', reason='reason%d' % i, traceID=40 + i,
+                              sampleIndex=0 if i == 0 else i + 8) for i in range(24)]
+        metrics = {name: value * 35 for name, value in
+                   dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}
+        events.append(span_event('window', calls=35, gpuCalls=35, aggregateRows=35, samples=24,
+                                 capacityOmitted=11, **metrics))
+        result = self.span_summary(events)
+        self.assertTrue(result['totalsComplete'])
+        self.assertTrue(result['breakdownComplete'])
+        self.assertTrue(result['complete'])
+        self.assertFalse(result['representativeCoverageComplete'])
+        self.assertEqual(result['detailOmissions']['unrepresentedGroups'], 11)
+        self.assertEqual(result['detailOmissions']['capacityOmitted'], 11)
+        self.assertEqual(result['totals']['calls'], 35)
+
+    def test_span_v2_empty_window_is_known_zero(self):
+        result = self.span_summary([span_event('window', calls=0, gpuCalls=0, spanCount=0,
+                                   sourceBytes=0, parameterBytes=0, scratchBytes=0,
+                                   aggregateRows=0, samples=0)])
+        self.assertTrue(result['complete'])
+        self.assertTrue(result['representativeCoverageComplete'])
+        self.assertEqual(result['totals']['calls'], 0)
+        self.assertEqual(result['records'], [])
+
+    def test_span_v2_all_nine_protected_slots_and_23_reason_slots(self):
+        keys = [(method, route, 'applied') for method in analysis.SPAN_METHODS for route in analysis.SPAN_ROUTES]
+        keys += [('drawLine', 'gpu', 'extra%d' % i) for i in range(23)]
+        events = []
+        for index, (method, route, reason) in enumerate(keys):
+            events += [span_event('aggregate', method=method, route=route, reason=reason),
+                       span_event('sample', method=method, route=route, reason=reason,
+                                  sampleIndex=index, traceID=100 + index)]
+        metrics = {name: value * 32 for name, value in
+                   dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}
+        events.append(span_event('window', calls=32, gpuCalls=26, cpuCalls=3, noopCalls=3,
+                                 aggregateRows=32, samples=32, **metrics))
+        result = self.span_summary(events)
+        self.assertTrue(result['complete'])
+        self.assertTrue(result['representativeCoverageComplete'])
+        self.assertEqual(len(result['records']), 32)
+        self.assertEqual(result['totals']['calls'], 32)
+
+    def test_span_v2_missing_footer_and_work_id_are_unknown(self):
+        result = self.span_summary([span_event('aggregate'), span_event('sample')])
+        self.assertFalse(result['totalsComplete'])
+        self.assertIsNone(result['totals'])
+        self.assertIsNone(result['knownTotals'])
+        self.assertIsNone(result['windows'][0]['totals'])
+        self.assertTrue(any('missing native window footer' in i['message'] for i in result['issues']))
+        result = self.summarize(self.basic(work(), span_event('window')))['layerSpans']
+        self.assertFalse(result['totalsComplete'])
+        self.assertEqual(result['coverage']['missingWorkWindowIDs'], 1)
+        self.assertIsNone(result['totals'])
+        result = self.span_summary([])
+        self.assertEqual(result['version'], 2)
+        self.assertIsNone(result['totals'])
+
+    def test_span_v2_sample_loss_is_separate_from_totals_and_breakdown(self):
+        result = self.span_summary([span_event('aggregate'), span_event('window')])
+        self.assertTrue(result['totalsComplete'])
+        self.assertTrue(result['breakdownComplete'])
+        self.assertFalse(result['representativeCoverageComplete'])
+        self.assertEqual(result['detailOmissions']['missingSamples'], 1)
+        self.assertTrue(any('missing sample' in i['message'] for i in result['issues']))
+
+    def test_span_v2_aggregate_loss_and_metric_mismatch_are_explicit(self):
+        for events in ([span_event('sample'), span_event('window')],
+                       [span_event('aggregate', spanCount=3), span_event('sample'), span_event('window')],
+                       [span_event('aggregate', route='cpu'), span_event('sample'), span_event('window')]):
+            result = self.span_summary(events)
+            self.assertTrue(result['totalsComplete'])
+            self.assertFalse(result['breakdownComplete'])
+            self.assertTrue(result['issues'])
+        result = self.span_summary([span_event('aggregate'), span_event('sample'),
+                                    span_event('window', gpuCalls=0)])
+        self.assertFalse(result['totalsComplete'])
+        self.assertTrue(any('route counts' in i['message'] for i in result['issues']))
+
+    def test_span_v2_duplicate_footer_group_sample_and_work_id(self):
+        base = [span_event('aggregate'), span_event('sample'), span_event('window')]
+        for phase, field in (('window', 'totalsComplete'), ('aggregate', 'breakdownComplete'),
+                             ('sample', 'representativeCoverageComplete')):
+            result = self.span_summary([*base, span_event(phase)])
+            self.assertFalse(result[field])
+            self.assertTrue(any('duplicate' in i['message'] for i in result['issues']))
+            self.assertEqual(result['byRoute'][0]['calls'], 1)
+        result = self.summarize(self.basic(work(spanRouteWindowID='50'), work(spanRouteWindowID='50'), *base))['layerSpans']
+        self.assertFalse(result['totalsComplete'])
+        self.assertEqual(result['coverage']['duplicateWorkWindowIDs'], [50])
+
+    def test_span_v2_duplicate_sample_slot_and_missing_protected_slot(self):
+        metrics = {name: value * 2 for name, value in
+                   dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}
+        result = self.span_summary([span_event('aggregate'), span_event('aggregate', reason='other'),
+            span_event('sample'), span_event('sample', reason='other', traceID=41),
+            span_event('window', calls=2, gpuCalls=2, aggregateRows=2, samples=2, **metrics)])
+        self.assertFalse(result['representativeCoverageComplete'])
+        self.assertTrue(result['breakdownComplete'])
+        self.assertTrue(any('duplicate sample' in i['message'] for i in result['issues']))
+        result = self.span_summary([span_event('aggregate'), span_event('sample', sampleIndex=9), span_event('window')])
+        self.assertFalse(result['representativeCoverageComplete'])
+        self.assertTrue(any('protected' in i['message'] for i in result['issues']))
+
+    def test_span_v1_old_39_record_budget_stays_unknown(self):
+        result = self.summarize(self.basic(work(), consumer_event(phase='budget'), heart()))['layerSpans']
+        self.assertIsNone(result['version'])
+        self.assertFalse(result['complete'])
+        self.assertTrue(result['lowerBound'])
+
+    def test_span_v2_malformed_fields_overflow_invalid_and_omissions(self):
+        base = [span_event('aggregate'), span_event('sample')]
+        for override in ({'overflow': True}, {'invalidRecords': 1}, {'repeatedOmitted': 1},
+                         {'samples': 33}, {'overflow': 'false'}, {'calls': -1}):
+            result = self.span_summary([*base, span_event('window', **override)])
+            self.assertFalse(result['totalsComplete'])
+            self.assertIsNone(result['totals'])
+            self.assertTrue(result['issues'])
+        for override in ({'sampleIndex': 32}, {'sampleIndex': 1}, {'textureID': 1},
+                         {'reason': 'x' * 49}, {'sourceBytes': 200}, {'traceID': False}):
+            result = self.span_summary([span_event('aggregate'), span_event('sample', **override), span_event('window')])
+            self.assertFalse(result['representativeCoverageComplete'])
+            self.assertTrue(result['totalsComplete'])
+            self.assertGreater(result['malformedRecords'], 0)
+        sample = json.loads(span_event('sample')['fields']['message'].split(' ', 1)[1])
+        del sample['sessionID']
+        result = self.span_summary([span_event('aggregate'),
+            row('native.log', 106, message='metal.layerSpan ' + json.dumps(sample)), span_event('window')])
+        self.assertFalse(result['representativeCoverageComplete'])
+
+    def test_span_v2_native_invalid_label_keeps_footer_totals_and_invalid_count(self):
+        # Native Record counts an invocation in totals before dictionary lookup;
+        # an invalid label has no route/group/sample or omission attribution.
+        metrics = {name: value * 2 for name, value in
+                   dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}
+        result = self.span_summary([span_event('aggregate', calls=2, **metrics), span_event('sample'),
+            span_event('window', calls=3, gpuCalls=2, repeatedOmitted=1, invalidRecords=1, **metrics)])
+        self.assertFalse(result['totalsComplete'])
+        self.assertIsNone(result['totals'])
+        self.assertEqual(result['knownTotals']['calls'], 3)
+        self.assertEqual(result['detailOmissions']['invalidRecords'], 1)
+        self.assertEqual(result['windows'][0]['footer']['calls'], 3)
+        self.assertTrue(any('invalidRecords' in i['message'] for i in result['issues']))
+
+    def test_span_v2_overflow_preserves_raw_footer_even_with_inconsistent_byte_ratio(self):
+        maximum = (1 << 64) - 1
+        result = self.span_summary([span_event('aggregate'), span_event('sample'),
+            span_event('window', calls=maximum, gpuCalls=maximum, sourceBytes=maximum,
+                       parameterBytes=1, overflow=True)])
+        self.assertFalse(result['totalsComplete'])
+        self.assertFalse(result['breakdownComplete'])
+        self.assertIsNone(result['totals'])
+        self.assertEqual(result['knownTotals']['sourceBytes'], maximum)
+        self.assertEqual(result['knownTotals']['parameterBytes'], 1)
+        self.assertTrue(result['windows'][0]['footer']['overflow'])
+        self.assertTrue(any('countersOverflow' in i['message'] for i in result['issues']))
+
+    def test_span_v2_whole_window_selection_ignores_emission_timestamps(self):
+        events = [span_event('aggregate', timestamp=109), span_event('sample', timestamp=99),
+                  span_event('window', timestamp=109)]
+        result = self.span_summary(events, from_seconds=0, to_seconds=5)
+        self.assertTrue(result['totalsComplete'])
+        self.assertEqual(result['totals']['calls'], 1)
+        self.assertEqual(len(result['records']), 1)
+        result = self.span_summary(events, from_seconds=1, to_seconds=5)
+        self.assertFalse(result['totalsComplete'])
+        self.assertEqual(result['windows'], [])
+        self.assertEqual(result['records'], [])
+        self.assertIsNone(result['totals'])
+
+    def test_span_v2_multiple_windows_do_not_mix_generations_or_unselected_details(self):
+        first = [span_event('aggregate'), span_event('sample'), span_event('window')]
+        second = [span_event(phase, windowID=51, generation=2, timestamp=115)
+                  for phase in ('aggregate', 'sample', 'window')]
+        result = self.summarize(self.basic(work(spanRouteWindowID='50'), *first,
+            work(timestamp=110, spanRouteWindowID='51'), *second), from_seconds=5, to_seconds=10)['layerSpans']
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['totals']['calls'], 1)
+        self.assertEqual(result['windows'][0]['generation'], 2)
+        self.assertEqual(result['windows'][0]['windowID'], 51)
+        result = self.span_summary([span_event('aggregate', generation=2), span_event('sample'), span_event('window')])
+        self.assertFalse(result['breakdownComplete'])
+        self.assertTrue(any('generation' in i['message'] for i in result['issues']))
+
+    def test_span_v2_file_loss_and_oversize_are_incomplete(self):
+        result = self.summarize(self.basic(work(spanRouteWindowID='50'), span_event('aggregate'),
+            span_event('sample'), span_event('window'), '{truncated json'))['layerSpans']
+        self.assertFalse(result['totalsComplete'])
+        oversized = span_event('sample', ignored='x' * 900)
+        result = self.span_summary([span_event('aggregate'), oversized, span_event('window')])
+        self.assertFalse(result['representativeCoverageComplete'])
+        self.assertEqual(result['malformedRecords'], 1)
+
     def test_span_route_packet_metrics_are_not_transfers(self):
         span = {'phase': 'route', 'version': 1, 'generation': 1, 'traceID': 40,
                 'method': 'drawLine', 'route': 'gpu', 'reason': 'applied',

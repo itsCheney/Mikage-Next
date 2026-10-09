@@ -773,6 +773,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
                 var workProfile = MikageKRKRLayerWorkProfile()
                 if MikageKRKRTakeLayerWorkProfile(&workProfile) {
+                    let spanRouteWindowID = MikageKRKRLastLayerWorkProfileWindowID()
                     let stages = withUnsafePointer(to: &workProfile.stages) {
                         $0.withMemoryRebound(to: CChar.self, capacity: 1024) { String(cString: $0) }
                     }
@@ -785,6 +786,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     }
                     AppDiagnostics.shared.event("session", "layerWorkProfile", [
                         "workProfileVersion": String(workProfile.workProfileVersion),
+                        "spanRouteWindowID": String(spanRouteWindowID),
                         "intervalMS": String(Double(workProfile.intervalNS) / 1_000_000),
                         "displayTicks": String(displayTicks),
                         "stages": stages,

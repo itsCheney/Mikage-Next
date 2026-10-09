@@ -12,11 +12,15 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <typeinfo>
+#include <type_traits>
 #include <vector>
+// Platform logging is the only extra service used by real NCBind registration.
+void TVPAddLog(const ttstr&) {}
 #define LayerExDraw C2BLayerExDraw
 #define layerExBase_GL C2BLayerExBase
 #define tTVPScopedLayerPixels C2BScopedLayerPixels
@@ -25,6 +29,7 @@
 #define GdipImage C2BGdipImage
 #define GdipWrapper C2BGdipWrapper
 #define GdipTypeConvertor C2BGdipTypeConvertor
+#define ImageConvertor C2BImageConvertor
 #define MatrixConvertor C2BMatrixConvertor
 #define IsArray C2BIsArray
 #define GdipMatrix C2BGdipMatrix
@@ -108,11 +113,20 @@ struct GdipMatrix {plutovg_matrix_t _core;GdipMatrix(){plutovg_matrix_init_ident
     explicit GdipMatrix(plutovg_matrix_t v):_core(v){} GdipMatrix* Clone() const {return new GdipMatrix(_core);}};
 struct FontInfo {plutovg_font_face_t* getFontFace() const {return nullptr;} float getEmSize() const {return 10;}};
 NCB_TYPECONV_SRCMAP_SET(RectF,ncbNativeObjectBoxing::Boxing,true);
+int ImageLoads=0;
+plutovg_surface_t* ImageLoadSurface=nullptr;
+// File loading is a dependency double; the production ImageConvertor below
+// must invoke it only on the legacy route, exactly once per call.
+static plutovg_surface_t* loadImage(const tjs_char*) {++ImageLoads;return ImageLoadSurface;}
 #define TVPHasMetalLayerSpanCompositionSupport TestSpanSupport
 #define TVPTryMetalLayerSpanComposite TestSpanSubmit
 #include "ProductionLayerExSpanBinding.inc"
 #undef TVPTryMetalLayerSpanComposite
 #undef TVPHasMetalLayerSpanCompositionSupport
+static_assert(std::is_same<ncbTypeConvertor::SelectConvertorType<tTJSVariant,const Appearance*>::Type,
+    ncbNativeObjectBoxing::Unboxing>::value,"Appearance must use production direct-native unboxing");
+static_assert(std::is_same<ncbTypeConvertor::SelectConvertorType<tTJSVariant,const Path*>::Type,
+    ncbNativeObjectBoxing::Unboxing>::value,"Path must use production direct-native unboxing");
 struct LayerFixture {
     iTJSDispatch2* object=new tTJSCustomObject;
     TestDrawNativeLayer* native;
@@ -143,18 +157,54 @@ public:
         *result=object;return TJS_S_OK;
     }
 };
-template<class T> tTJSVariant Box(T* value) {
+// Image alone uses the production Gdip wrapper native type.
+tTJSVariant BoxImage(GdipImage* value) {
     auto* obj=new tTJSCustomObject;
-    iTJSNativeInstance* adp=ncbInstanceAdaptor<GdipWrapper<T>>::CreateEmptyAdaptor();
-    obj->NativeInstanceSupport(TJS_NIS_REGISTER,ncbClassInfo<GdipWrapper<T>>::GetID(),&adp);
-    ncbInstanceAdaptor<GdipWrapper<T>>::SetNativeInstance(obj,new GdipWrapper<T>(value));
+    iTJSNativeInstance* adp=ncbInstanceAdaptor<GdipWrapper<GdipImage>>::CreateEmptyAdaptor();
+    obj->NativeInstanceSupport(TJS_NIS_REGISTER,ncbClassInfo<GdipWrapper<GdipImage>>::GetID(),&adp);
+    ncbInstanceAdaptor<GdipWrapper<GdipImage>>::SetNativeInstance(obj,new GdipWrapper<GdipImage>(value));
     tTJSVariant result(obj,obj);obj->Release();return result;
+}
+template<class T> tTJSVariant ConstructDirect() {
+    iTJSDispatch2* object=nullptr;
+    Check(TJS_SUCCEEDED(ncbClassInfo<T>::GetClassObject()->CreateNew(0,nullptr,nullptr,&object,0,nullptr,nullptr)) && object,
+        "registered direct-native constructor failed");
+    tTJSVariant result(object,object);object->Release();return result;
+}
+template<class T> T* UnboxDirect(const tTJSVariant& value) {
+    typename ncbTypeConvertor::SelectConvertorType<tTJSVariant,T*>::Type converter;
+    T* result=nullptr;converter(result,value);return result;
+}
+template<class T> tTJSVariant BoxDirect(T* value) {
+    typename ncbTypeConvertor::SelectConvertorType<T*,tTJSVariant>::Type converter;
+    tTJSVariant result;converter(result,value,ncbTypedefs::Tag<T*>());return result;
+}
+template<class T> struct DirectRegistration {
+    const tjs_char* name;
+    DirectRegistration(const tjs_char* value):name(value) {Check(ncbSubClassItem<T>::Setup(name,true),"direct subclass registration failed");}
+    ~DirectRegistration() {ncbSubClassItem<T>::Setup(name,false);}
+};
+class GuardedNativeObject:public tTJSCustomObject {
+public:
+    int nativeGets=0,propertyGets=0;
+    tjs_error NativeInstanceSupport(tjs_uint32 flag,tjs_int32 id,iTJSNativeInstance** instance) override {
+        if(flag==TJS_NIS_GETINSTANCE) ++nativeGets;
+        return tTJSCustomObject::NativeInstanceSupport(flag,id,instance);
+    }
+    tjs_error PropGet(tjs_uint32 flag,const tjs_char* name,tjs_uint32* hint,tTJSVariant* result,iTJSDispatch2* object) override {
+        ++propertyGets;return tTJSCustomObject::PropGet(flag,name,hint,result,object);
+    }
+};
+int C2BDiagnosticProducerCaptures=0;
+void C2BDiscardDiagnostic(const char*) {}
+bool C2BUnknownDiagnosticIdentity(void*,krkrsdl3::cpu_consumer_trace::Producer&) {
+    ++C2BDiagnosticProducerCaptures;return false;
 }
 int RunC2SpanBindingTests() {
     try {
         ncbClassInfo<LayerExDraw>::Set(TJS_N("C2BLayer"),0x421357,nullptr);
-        ncbClassInfo<GdipWrapper<Appearance>>::Set(TJS_N("C2BApp"),0x421358,nullptr);
-        ncbClassInfo<GdipWrapper<Path>>::Set(TJS_N("C2BPath"),0x421359,nullptr);
+        DirectRegistration<Appearance> appearanceClass(TJS_N("C2BApp"));
+        DirectRegistration<Path> pathClass(TJS_N("C2BPath"));
         ncbClassInfo<GdipWrapper<GdipImage>>::Set(TJS_N("C2BImage"),0x42135a,nullptr);
         std::unique_ptr<C2BResultClass,void(*)(C2BResultClass*)> resultClass(new C2BResultClass,
             [](C2BResultClass* p){ncbClassInfo<RectF>::Clear();p->Release();});
@@ -167,19 +217,73 @@ int RunC2SpanBindingTests() {
             std::vector<tTJSVariant*> args;for(auto& v:values)args.push_back(&v);
             return registration.methods.at(name)->FuncCall(0,nullptr,nullptr,result,args.size(),args.data(),f.object);
         };
-        auto* app=new Appearance;
+        auto appearance=ConstructDirect<Appearance>();
+        auto* app=UnboxDirect<Appearance>(appearance);
         app->drawInfos.emplace_back();app->drawInfos.back().info=new SoftPen(0x9162a430u,4.3);app->drawInfos.back().type=0;
         app->drawInfos.emplace_back();app->drawInfos.back().info=new SoftBrush(0x635080a0u);app->drawInfos.back().type=1;
-        auto appearance=Box(app);
-        auto* path=new Path;plutovg_path_add_ellipse(const_cast<plutovg_path_t*>(path->spanCapturePath()),30.2f,17.4f,18.3f,10.1f);
-        auto pathArg=Box(path);
+        auto pathArg=ConstructDirect<Path>();
+        auto* path=UnboxDirect<Path>(pathArg);plutovg_path_add_ellipse(const_cast<plutovg_path_t*>(path->spanCapturePath()),30.2f,17.4f,18.3f,10.1f);
+        {
+            auto* boxedApp=new Appearance;
+            auto boxed=BoxDirect(boxedApp);
+            Check(UnboxDirect<Appearance>(boxed)==boxedApp,"default Appearance boxing/unboxing changed native type");
+            auto* boxedPath=new Path;
+            auto boxedP=BoxDirect(boxedPath);
+            Check(UnboxDirect<Path>(boxedP)==boxedPath,"default Path boxing/unboxing changed native type");
+        }
         auto* srcSurface=plutovg_surface_create(9,7);
         std::fill_n(reinterpret_cast<uint32_t*>(plutovg_surface_get_data(srcSurface)),63,0x80402010u);
-        auto imageArg=Box(new GdipImage(srcSurface));plutovg_surface_destroy(srcSurface);
+        auto imageArg=BoxImage(new GdipImage(srcSurface));plutovg_surface_destroy(srcSurface);
         std::vector<std::pair<const char*,std::vector<tTJSVariant>>> operations={
             {"drawLine",{appearance,5.3,8.2,59.4,28.7}},
             {"drawPath",{appearance,pathArg}},
             {"drawImageStretch",{7.3,4.2,48.7,27.4,imageArg,-2.1,0.0,13.3,7.8}}};
+        {
+            using Policy=ncbInvocationPolicy<LayerExDraw>;
+            Check(Policy::DirectNative<Appearance>(&appearance)==app && Policy::DirectNative<Path>(&pathArg)==path,
+                "direct production native probe did not match registered argument");
+            Check(Policy::ImageNative(&imageArg)!=nullptr && !Policy::ImageNative(&appearance),
+                "image wrapper probe changed native type");
+            LayerFixture target;
+            auto reason=[&](const char* method,std::vector<tTJSVariant> values) {
+                std::vector<tTJSVariant*> params;for(auto& v:values)params.push_back(&v);
+                const char* value=Policy::Preflight(method,params.size(),params.data(),target.Draw());
+                return std::string(value?value:"");
+            };
+            for(const auto& op:operations) Check(reason(op.first,op.second).empty(),"registered arguments failed preflight");
+            Check(reason("drawLine",{})=="arguments","argument count reason changed");
+            Check(reason("drawLine",{1,0.0,1.0,2.0,3.0})=="appearanceType","primitive Appearance admitted capture");
+            Check(reason("drawPath",{appearance,tTJSVariant(static_cast<iTJSDispatch2*>(nullptr))})=="pathType",
+                "null Path admitted capture");
+            Check(reason("drawLine",{pathArg,0.0,1.0,2.0,3.0})=="appearanceType","Appearance type reason missing");
+            Check(reason("drawPath",{appearance,appearance})=="pathType","Path type reason missing");
+            auto imageValues=operations[2].second;imageValues[4]=appearance;
+            Check(reason("drawImageStretch",imageValues)=="imageType","image type reason missing");
+            auto lineValues=operations[0].second;lineValues[1]=TJS_N("5.3");
+            Check(reason("drawLine",lineValues)=="numeric","numeric reason missing");
+            lineValues[1]=std::numeric_limits<double>::infinity();
+            Check(reason("drawLine",lineValues)=="numeric","nonfinite numeric probe admitted capture");
+            auto malformedApp=ConstructDirect<Appearance>();auto* bad=UnboxDirect<Appearance>(malformedApp);
+            bad->drawInfos.emplace_back();bad->drawInfos.back().type=3;bad->drawInfos.back().info=new SoftBrush(tjs_uint32(0));
+            Check(reason("drawLine",{malformedApp,0.0,1.0,2.0,3.0})=="paint","paint reason missing");
+            // Do not change legacy ownership handling while supplying a malformed paint.
+            delete static_cast<SoftBrush*>(bad->drawInfos.back().info);bad->drawInfos.back().info=nullptr;
+            auto malformedPath=ConstructDirect<Path>();auto* badPath=UnboxDirect<Path>(malformedPath);
+            plutovg_path_move_to(const_cast<plutovg_path_t*>(badPath->spanCapturePath()),std::numeric_limits<float>::infinity(),0);
+            Check(reason("drawPath",{appearance,malformedPath})=="path","path data reason missing");
+            imageValues[4]=BoxImage(new GdipImage(9,7));
+            Check(reason("drawImageStretch",imageValues)=="vectorSource","vector image reason missing");
+            imageValues[4]=BoxImage(new GdipImage(static_cast<plutovg_surface_t*>(nullptr)));
+            Check(reason("drawImageStretch",imageValues)=="source","missing image surface reason missing");
+        }
+        {
+            LayerFixture cpu,gpu;auto values=operations[2].second;values[4]=TJS_N("oracle-image.png");
+            ImageLoadSurface=srcSurface;const int before=ImageLoads,attempts=Attempts;
+            Support=false;call(cpu,"drawImageStretch",values);
+            Support=true;call(gpu,"drawImageStretch",values);ImageLoadSurface=nullptr;
+            Check(ImageLoads==before+2 && Attempts==attempts && gpu.native->texture->counts->writes==1 &&
+                cpu.native->texture->pixels==gpu.native->texture->pixels,"filename image conversion skipped eager CPU or executed twice");
+        }
         for(const auto& op:operations) {
             LayerFixture cpu,gpu;tTJSVariant cpuResult,gpuResult;
             Support=false;call(cpu,op.first,op.second,&cpuResult);
@@ -199,6 +303,75 @@ int RunC2SpanBindingTests() {
                 cpuRect->w==gpuRect->w && cpuRect->h==gpuRect->h,"GPU typed drawing result differs from CPU");
             LayerFixture rejected;RejectSubmit=true;call(rejected,op.first,op.second);RejectSubmit=false;
             Check(rejected.native->texture->pixels==cpu.native->texture->pixels && rejected.native->texture->counts->writes==1 && rejected.native->updates==1,"precommit rejection did not replay CPU exactly once");
+        }
+        {
+            namespace trace=krkrsdl3::cpu_consumer_trace;
+            namespace work=krkrsdl3::layer_work;
+            struct RestoreDiagnostics {
+                bool enabled=work::enabled.load(std::memory_order_relaxed);
+                void (*logger)(const char*)=trace::logMessage;
+                bool (*producer)(void*,trace::Producer&)=trace::captureProducer;
+                void (*taken)(const work::CPUConsumerBudget&,uint64_t)=work::cpuConsumerWindowTaken;
+                ~RestoreDiagnostics() {
+                    work::SetEnabled(false);trace::SetCallbacks(logger,producer);work::cpuConsumerWindowTaken=taken;
+                    if(enabled) work::SetEnabled(true);
+                }
+            } restore;
+            trace::SetCallbacks(C2BDiscardDiagnostic,C2BUnknownDiagnosticIdentity);
+            auto window=[] {
+                std::lock_guard<std::mutex> lock(work::mutex);
+                return work::profile.cpuConsumerBudget.spanWindow;
+            };
+            for(const auto& op:operations) {
+                LayerFixture off,on;tTJSVariant offResult,onResult;Support=true;
+                work::SetEnabled(false);const int offAttempts=Attempts,offConstructors=ResultConstructors;
+                call(off,op.first,op.second,&offResult);
+                Check(Attempts==offAttempts+1 && ResultConstructors==offConstructors+1 && window().totals.calls==0,
+                    "disabled diagnostics changed submission/boxing or recorded span work");
+                const auto offProfile=work::Take();
+                work::SetEnabled(true);C2BDiagnosticProducerCaptures=0;
+                const int onAttempts=Attempts,onConstructors=ResultConstructors;
+                call(on,op.first,op.second,&onResult);
+                Check(Attempts==onAttempts+1 && ResultConstructors==onConstructors+1 &&
+                    off.native->texture->pixels==on.native->texture->pixels &&
+                    off.native->texture->counts->reads==on.native->texture->counts->reads &&
+                    off.native->texture->counts->writes==on.native->texture->counts->writes &&
+                    off.native->texture->counts->unlocks==on.native->texture->counts->unlocks &&
+                    off.native->texture->counts->dirty==on.native->texture->counts->dirty &&
+                    off.native->updates==on.native->updates && off.native->modified==on.native->modified,
+                    "diagnostics changed bound GPU pixels, acquisitions, updates, submission or boxing");
+                Check(on.native->texture->counts->reads==0 && on.native->texture->counts->writes==0,
+                    "enabled diagnostics acquired target CPU pixels");
+                auto* offRect=ncbInstanceAdaptor<RectF>::GetNativeInstance(offResult.AsObjectNoAddRef());
+                auto* onRect=ncbInstanceAdaptor<RectF>::GetNativeInstance(onResult.AsObjectNoAddRef());
+                Check(offRect && onRect && offRect->x==onRect->x && offRect->y==onRect->y &&
+                    offRect->w==onRect->w && offRect->h==onRect->h,"diagnostics changed typed bound result");
+                const auto recorded=window();
+                const auto method=krkrsdl3::span_route::Find(krkrsdl3::span_route::Methods,op.first);
+                const auto group=(method*krkrsdl3::span_route::Routes.size())*krkrsdl3::span_route::Reasons.size();
+                size_t groups=0,samples=0;
+                for(const auto& value:recorded.groups) if(value.metrics.calls) ++groups;
+                for(const auto& value:recorded.samples) if(value.used) {
+                    ++samples;Check(value.group==group && value.metrics.calls==1 && value.traceID!=0,
+                        "enabled binding sampled wrong method/group or repeated call");
+                }
+                Check(recorded.totals.calls==1 && recorded.routes[0]==1 && recorded.routes[1]==0 && recorded.routes[2]==0 &&
+                    recorded.groups[group].metrics.calls==1 && groups==1 && samples==1 && C2BDiagnosticProducerCaptures==1 &&
+                    recorded.repeatedOmitted==0 && recorded.capacityOmitted==0 && recorded.invalidRecords==0 && !recorded.overflow,
+                    "enabled binding did not record exactly one GPU aggregate and representative");
+                const auto onProfile=work::Take();const auto reset=window();
+                Check(offProfile.transfers.empty() && onProfile.transfers.empty() &&
+                    offProfile.transferOrigins.empty() && onProfile.transferOrigins.empty(),
+                    "binding route diagnostics changed C0 transfer totals");
+                Check(onProfile.spanRouteWindowID==recorded.id && reset.id>recorded.id && reset.totals.calls==0,
+                    "binding diagnostic take did not reset window counts");
+                const auto emptyProfile=work::Take();const auto empty=window();
+                for(const auto& value:empty.samples) Check(!value.used,"empty take replayed binding representative");
+                Check(empty.totals.calls==0 && empty.routes[0]==0 && empty.routes[1]==0 && empty.routes[2]==0 &&
+                    emptyProfile.transfers.empty() && C2BDiagnosticProducerCaptures==1,
+                    "empty take repeated bound route counts or identity capture");
+            }
+            std::cout<<"PASS C2B diagnostics on/off: three bound methods preserve exact pixels, typed results, submission/update/acquisition counts; one GPU group/sample, no C0 transfers or repeats\n";
         }
         {
             LayerFixture cpu,gpu;Support=false;call(cpu,"drawPath",operations[1].second);
@@ -224,7 +397,7 @@ int RunC2SpanBindingTests() {
         }
         {
             LayerFixture target;Support=true;const int attempts=Attempts;
-            auto empty=Box(new Appearance);
+            auto empty=ConstructDirect<Appearance>();
             call(target,"drawLine",{empty,2.0,4.0,40.0,16.0});
             Check(Attempts==attempts && target.native->texture->counts->writes==0 && target.native->updates==1 && target.native->modified,
                 "empty span noop acquired CPU or missed legacy Update/ImageModified");
@@ -233,9 +406,13 @@ int RunC2SpanBindingTests() {
             LayerFixture target;Support=true;const int attempts=Attempts;
             std::vector<uint32_t> borrowedPixels(63,0x80402010u);
             auto* borrowed=plutovg_surface_create_for_data(reinterpret_cast<unsigned char*>(borrowedPixels.data()),9,7,36);
-            auto borrowedArg=Box(new GdipImage(borrowed));plutovg_surface_destroy(borrowed);
+            auto borrowedArg=BoxImage(new GdipImage(borrowed));plutovg_surface_destroy(borrowed);
             call(target,"drawImageStretch",{7.3,4.2,48.7,27.4,borrowedArg,0.0,0.0,9.0,7.0});
             Check(Attempts==attempts && target.native->texture->counts->writes==1,"borrowed image source skipped CPU acquisition");
+            std::vector<tTJSVariant> values={7.3,4.2,48.7,27.4,borrowedArg,0.0,0.0,9.0,7.0};
+            std::vector<tTJSVariant*> params;for(auto& v:values)params.push_back(&v);
+            Check(!std::strcmp(ncbInvocationPolicy<LayerExDraw>::Preflight("drawImageStretch",9,params.data(),target.Draw()),"borrowedSource"),
+                "borrowed source route reason missing");
         }
         {
             LayerFixture target;Support=true;const int attempts=Attempts;
@@ -251,6 +428,8 @@ int RunC2SpanBindingTests() {
             LayerFixture target;Support=true;const int attempts=Attempts;
             auto values=operations[0].second;values[1]=TJS_N("5.3");call(target,"drawLine",values);
             Check(Attempts==attempts && target.native->texture->counts->writes==1,"nonprimitive numeric converter skipped legacy eager acquisition");
+            LayerFixture cpu;Support=false;call(cpu,"drawLine",values);Support=true;
+            Check(cpu.native->texture->pixels==target.native->texture->pixels,"numeric fallback changed legacy pixels");
             Check(call(target,"drawLine",{})==TJS_E_BADPARAMCOUNT && target.native->texture->counts->writes==1,
                 "malformed argument count acquired pixels or changed error");
         }
@@ -286,6 +465,36 @@ int RunC2SpanBindingTests() {
             ThrowResultConstructor=false;
             Check(threw && target.native->texture->counts->writes==0 && target.native->updates==1,
                 "postcommit result constructor exception replayed CPU/Update");
+        }
+        {
+            // Failed speculative probes preserve the sole eager legacy lease
+            // and its original throwing unbox conversion.
+            for(const char* method:{"drawLine","drawPath"}) {
+                auto values=operations[!std::strcmp(method,"drawLine")?0:1].second;values[0]=pathArg;
+                std::string errors[2];
+                for(int mode=0;mode<2;++mode) {
+                    LayerFixture target;Support=mode!=0;const int attempts=Attempts;
+                    try {call(target,method,values);}catch(const std::exception& error){errors[mode]=error.what();}
+                    Check(target.native->texture->counts->writes==1 && target.native->texture->counts->reads==0 && Attempts==attempts,
+                        "malformed Appearance changed eager lease or reached submission");
+                }
+                Check(!errors[0].empty() && errors[0]==errors[1],"malformed Appearance changed CPU conversion error");
+            }
+            LayerFixture target;Support=true;const int attempts=Attempts;
+            bool threw=false;try {call(target,"drawPath",{appearance,appearance});}catch(...){threw=true;}
+            Check(threw && Attempts==attempts && target.native->texture->counts->writes==1,
+                "malformed Path changed eager legacy conversion");
+        }
+        {
+            auto* object=new GuardedNativeObject;
+            Check(ncbInstanceAdaptor<Appearance>::SetAdaptorWithNativeInstance(object,app->Clone()),"guarded Appearance setup failed");
+            tTJSVariant guarded(object,object);object->Release();object->nativeGets=object->propertyGets=0;
+            Check(!ncbInvocationPolicy<LayerExDraw>::DirectNative<Appearance>(&guarded) && object->nativeGets==0 && object->propertyGets==0,
+                "speculative native probe observed guarded dispatch");
+            LayerFixture target;Support=true;const int attempts=Attempts;
+            auto values=operations[0].second;values[0]=guarded;call(target,"drawLine",values);
+            Check(Attempts==attempts && target.native->texture->counts->writes==1 && object->nativeGets==1 && object->propertyGets==0,
+                "guarded argument skipped eager lease or repeated legacy conversion/getter");
         }
         std::cout<<"C2B real plutovg production binding transaction checks passed\n";Support=false;return 0;
     }catch(const std::exception& error){std::cerr<<"C2B binding: "<<error.what()<<'\n';return 1;}

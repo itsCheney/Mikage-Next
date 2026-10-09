@@ -24,6 +24,7 @@ def extract(name, return_type='bool'):
 args.output.write_text("// Generated from MikageKRKRRuntime.mm; do not edit.\n"
     + extract("MikageKRKRTakeLayerTriangleProfile") + "\n"
     + extract("MikageKRKRTakeLayerWorkProfile") + "\n"
+    + extract("MikageKRKRLastLayerWorkProfileWindowID", "uint64_t") + "\n"
     + extract("MikageKRKRLayerWorkProfileOrigins", "const char *") + "\n"
     + extract("MikageKRKRLayerWorkProfileTransitions", "const char *") + "\n"
     + extract("MikageKRKRLayerWorkProfileTransitionOverflow", "const char *") + "\n"

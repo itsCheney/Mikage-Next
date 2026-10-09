@@ -369,7 +369,7 @@ def cpu_consumers(rows, errors, origin=None, from_seconds=None, to_seconds=None)
         'correlationBasis': 'preceding shrink output with identical generation/session/texture/contentVersion; never infer from dimensions'}
 
 
-def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None):
+def legacy_layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None):
     """Bounded C2B routes. Packet/scratch bytes are not C0 pixel transfers."""
     records, budgets, identities = [], [], set()
     malformed = 0
@@ -450,6 +450,256 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None):
             'sampling': sampling, 'complete': complete, 'malformedRecords': malformed,
             'transferBasis': 'sourceBytes are a subset of parameterBytes; scratchBytes are per-call GPU working footprint (allocation may be reused), not traffic or peak memory; never add to C0 transfers',
             'coverageBasis': 'bounded per-invocation routes; absent or dropped evidence stays unknown'}
+
+
+SPAN_METRICS = ('calls', 'spanCount', 'sourceBytes', 'parameterBytes', 'scratchBytes')
+SPAN_ROUTES = ('gpu', 'cpu', 'noop')
+SPAN_METHODS = ('drawLine', 'drawPath', 'drawImageStretch')
+SPAN_WINDOW_METRICS = (*SPAN_METRICS, 'gpuCalls', 'cpuCalls', 'noopCalls')
+
+
+def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
+                selected_work=None, file_complete=True):
+    """V2 totals use whole work-window IDs; representatives never contribute totals."""
+    work_rows = selected_work if selected_work is not None else [r for r in rows if r['event'] == 'layerWorkProfile']
+    native = []
+    for row in rows:
+        for value in row['fields'].values():
+            if isinstance(value, str) and value.startswith('metal.layerSpan '):
+                try:
+                    event = json.loads(value.split(' ', 1)[1])
+                except (TypeError, ValueError):
+                    event = None
+                native.append((row.get('unixTime'), value, event))
+    have_v2 = any(isinstance(e, dict) and e.get('version') == 2 for _, _, e in native)
+    have_v2 |= any('spanRouteWindowID' in r['fields'] for r in work_rows)
+    if not have_v2:
+        legacy = legacy_layer_spans(rows, errors, origin, from_seconds, to_seconds)
+        legacy.update(totalsComplete=legacy['complete'], breakdownComplete=legacy['complete'],
+                      representativeCoverageComplete=legacy['complete'], lowerBound=not legacy['complete'])
+        return legacy
+
+    issues = []
+    malformed = 0
+    def issue(message, window_id=None):
+        detail = {'message': message}
+        if window_id is not None:
+            detail['windowID'] = window_id
+        issues.append(detail)
+        problem(errors, 'layerSpans' + ('.window[%s]' % window_id if window_id is not None else ''), message)
+
+    def number(event, name, positive=False):
+        value = event.get(name)
+        if isinstance(value, bool) or not re.fullmatch(r'\d+', str(value)):
+            raise ValueError('missing or malformed field ' + name)
+        value = int(value)
+        if value > (1 << 64) - 1 or (positive and not value):
+            raise ValueError('invalid field ' + name)
+        event[name] = value
+        return value
+
+    selected = {}
+    missing_work_ids = 0
+    duplicate_work_ids = set()
+    for work_row in work_rows:
+        try:
+            fields = dict(work_row['fields'])
+            # The bridge serializes this as a numeric string.
+            if not isinstance(fields.get('spanRouteWindowID'), str):
+                raise ValueError('missing or malformed work spanRouteWindowID')
+            window_id = number(fields, 'spanRouteWindowID', True)
+            if window_id in selected:
+                duplicate_work_ids.add(window_id)
+                issue('duplicate work spanRouteWindowID', window_id)
+            selected[window_id] = work_row
+        except ValueError as error:
+            missing_work_ids += 1
+            issue(str(error))
+
+    states = {window_id: {'footers': [], 'aggregates': [], 'samples': [], 'invalidPhases': set()}
+              for window_id in selected}
+    unidentified = False
+    for timestamp, value, original in native:
+        # Old bounded records can coexist in a session; they are not v2 window evidence.
+        if isinstance(original, dict) and original.get('version') == 1:
+            continue
+        event = dict(original) if isinstance(original, dict) else {}
+        window_id = None
+        try:
+            window_id = number(event, 'windowID', True)
+            if window_id not in selected:
+                continue
+            if len(value.encode('utf-8')) > 900 or type(event.get('version')) is not int or event['version'] != 2:
+                raise ValueError('invalid bounded route version or size')
+            phase = event.get('phase')
+            if phase not in ('aggregate', 'sample', 'window'):
+                raise ValueError('unknown v2 phase')
+            number(event, 'generation', True)
+            if phase == 'window':
+                for name in (*SPAN_WINDOW_METRICS, 'aggregateRows', 'samples', 'repeatedOmitted',
+                             'capacityOmitted', 'invalidRecords'):
+                    number(event, name)
+                if type(event.get('overflow')) is not bool:
+                    raise ValueError('missing or malformed field overflow')
+                if event['samples'] > 32:
+                    raise ValueError('window samples exceed capacity')
+                if event['sourceBytes'] > event['parameterBytes'] and not event['overflow']:
+                    raise ValueError('window source bytes exceed packet bytes')
+                if (sum(event[route + 'Calls'] for route in SPAN_ROUTES) != event['calls'] and
+                        not event['overflow'] and not event['invalidRecords']):
+                    raise ValueError('window route counts do not equal calls')
+                if (not event['overflow'] and not event['invalidRecords'] and
+                        event['samples'] + event['repeatedOmitted'] + event['capacityOmitted'] != event['calls']):
+                    raise ValueError('window sample and omission counts do not equal calls')
+                states[window_id]['footers'].append(event)
+            else:
+                if event.get('method') not in SPAN_METHODS or event.get('route') not in SPAN_ROUTES:
+                    raise ValueError('unknown method or route')
+                reason = event.get('reason')
+                if not isinstance(reason, str) or not reason or len(reason.encode('utf-8')) > 48:
+                    raise ValueError('invalid opaque reason')
+                for name in SPAN_METRICS if phase == 'aggregate' else SPAN_METRICS[1:]:
+                    number(event, name, name == 'calls')
+                if event['sourceBytes'] > event['parameterBytes']:
+                    raise ValueError('source bytes exceed packet bytes')
+                if phase == 'sample':
+                    if number(event, 'sampleIndex') > 31:
+                        raise ValueError('sampleIndex exceeds capacity')
+                    number(event, 'traceID', True)
+                    targets = ('sessionID', 'textureID', 'contentVersion')
+                    if any(name not in event for name in targets):
+                        raise ValueError('missing nullable target identity')
+                    present = [event[name] is not None for name in targets]
+                    if any(present) != all(present):
+                        raise ValueError('partial target identity')
+                    if all(present):
+                        for name in targets:
+                            number(event, name, name != 'contentVersion')
+                    index = event['sampleIndex']
+                    slot = SPAN_METHODS.index(event['method']) * 3 + SPAN_ROUTES.index(event['route'])
+                    if index < 9 and index != slot:
+                        raise ValueError('sample uses wrong protected slot')
+                states[window_id]['aggregates' if phase == 'aggregate' else 'samples'].append({**event, 'unixTime': timestamp})
+        except (TypeError, ValueError) as error:
+            malformed += 1
+            issue(str(error), window_id)
+            if window_id in states:
+                states[window_id]['invalidPhases'].add(event.get('phase', 'unknown'))
+            elif window_id is None:
+                unidentified = True
+
+    windows, aggregates, samples = [], [], []
+    known_totals = dict.fromkeys(SPAN_WINDOW_METRICS, 0)
+    groups = {}
+    omissions = dict(repeatedOmitted=0, capacityOmitted=0, invalidRecords=0,
+                     missingSamples=0, unrepresentedGroups=0)
+    for window_id, state in states.items():
+        footers = state['footers']
+        footer = footers[0] if len(footers) == 1 else None
+        if not footers:
+            issue('missing native window footer', window_id)
+        elif len(footers) > 1:
+            issue('duplicate native window footer', window_id)
+        totals_complete = footer is not None and not state['invalidPhases'].intersection(('window', 'unknown'))
+        breakdown_complete = totals_complete and 'aggregate' not in state['invalidPhases']
+        representatives_complete = totals_complete and 'sample' not in state['invalidPhases']
+        if footer:
+            for name in SPAN_WINDOW_METRICS:
+                known_totals[name] += footer[name]
+            for name in ('repeatedOmitted', 'capacityOmitted', 'invalidRecords'):
+                omissions[name] += footer[name]
+            if footer['overflow']:
+                issue('countersOverflow: native window overflow', window_id)
+                totals_complete = breakdown_complete = representatives_complete = False
+            if footer['invalidRecords']:
+                issue('native invalidRecords: omitted invalid calls', window_id)
+                totals_complete = breakdown_complete = representatives_complete = False
+
+        window_groups = {}
+        for event in state['aggregates']:
+            key = tuple(event[name] for name in ('method', 'route', 'reason'))
+            if key in window_groups:
+                issue('duplicate aggregate group', window_id)
+                breakdown_complete = False
+                continue
+            window_groups[key] = event
+            aggregates.append(event)
+            target = groups.setdefault(key, dict(zip(('method', 'route', 'reason'), key), **dict.fromkeys(SPAN_METRICS, 0)))
+            for name in SPAN_METRICS:
+                target[name] += event[name]
+        sample_groups, sample_indices = set(), set()
+        for event in state['samples']:
+            key = tuple(event[name] for name in ('method', 'route', 'reason'))
+            if key in sample_groups or event['sampleIndex'] in sample_indices:
+                issue('duplicate sample group or slot', window_id)
+                representatives_complete = False
+                continue
+            sample_groups.add(key); sample_indices.add(event['sampleIndex'])
+            samples.append(event)
+            aggregate = window_groups.get(key)
+            if aggregate is None:
+                issue('sample without aggregate group', window_id)
+                representatives_complete = False
+            elif any(event[name] > aggregate[name] for name in SPAN_METRICS[1:]):
+                issue('sample metrics exceed aggregate group', window_id)
+                representatives_complete = False
+        if footer:
+            generation_mismatch = any(event['generation'] != footer['generation']
+                                      for event in (*state['aggregates'], *state['samples']))
+            if generation_mismatch:
+                issue('group or sample generation differs from footer', window_id)
+                breakdown_complete = representatives_complete = False
+            if len(state['aggregates']) != footer['aggregateRows']:
+                issue('expected aggregate row count mismatch', window_id)
+                breakdown_complete = False
+            if len(state['samples']) != footer['samples']:
+                issue('missing sample or expected sample count mismatch', window_id)
+                representatives_complete = False
+            omissions['missingSamples'] += max(0, footer['samples'] - len(sample_groups))
+            for name in SPAN_METRICS:
+                if sum(event[name] for event in window_groups.values()) != footer[name]:
+                    issue('aggregate sums differ from footer: ' + name, window_id)
+                    breakdown_complete = False
+            for route in SPAN_ROUTES:
+                if sum(event['calls'] for event in window_groups.values() if event['route'] == route) != footer[route + 'Calls']:
+                    issue('aggregate route count mismatch: ' + route, window_id)
+                    breakdown_complete = False
+        unrepresented = len(set(window_groups) - sample_groups)
+        omissions['unrepresentedGroups'] += unrepresented
+        if unrepresented:
+            issue('aggregate groups lack representative samples', window_id)
+            representatives_complete = False
+        protected_slots = {SPAN_METHODS.index(key[0]) * 3 + SPAN_ROUTES.index(key[1]) for key in window_groups}
+        if protected_slots - sample_indices:
+            issue('missing protected method/route representative slot', window_id)
+            representatives_complete = False
+        windows.append({'windowID': window_id, 'generation': footer['generation'] if footer else None,
+                        'footer': footer, 'totals': {name: footer[name] for name in SPAN_WINDOW_METRICS} if footer else None,
+                        'aggregateRowsObserved': len(state['aggregates']), 'samplesObserved': len(state['samples']),
+                        'unrepresentedGroups': unrepresented, 'totalsComplete': totals_complete,
+                        'breakdownComplete': breakdown_complete, 'representativeCoverageComplete': representatives_complete})
+    missing_native_ids = [window_id for window_id, state in states.items() if not state['footers']]
+    duplicate_native_ids = [window_id for window_id, state in states.items() if len(state['footers']) > 1]
+    coverage_complete = (bool(work_rows) and not missing_work_ids and not duplicate_work_ids and
+                         not missing_native_ids and not duplicate_native_ids and file_complete and not unidentified)
+    totals_complete = coverage_complete and all(window['totalsComplete'] for window in windows)
+    breakdown_complete = coverage_complete and all(window['breakdownComplete'] for window in windows)
+    representatives_complete = coverage_complete and all(window['representativeCoverageComplete'] for window in windows)
+    return {'version': 2, 'records': samples, 'aggregates': aggregates, 'byRoute': list(groups.values()),
+            'windows': windows, 'totals': known_totals if totals_complete else None,
+            'knownTotals': known_totals if any(window['footer'] is not None for window in windows) else None,
+            'totalsComplete': totals_complete, 'breakdownComplete': breakdown_complete,
+            'representativeCoverageComplete': representatives_complete,
+            'complete': totals_complete and breakdown_complete, 'lowerBound': not (totals_complete and breakdown_complete),
+            'sampling': {'spanRouteRecords': len(samples), 'spanRouteExceeded': omissions['repeatedOmitted'] + omissions['capacityOmitted']},
+            'detailOmissions': omissions, 'malformedRecords': malformed,
+            'coverage': {'selectedWorkWindows': len(work_rows), 'matchedNativeWindows': sum(w['footer'] is not None for w in windows),
+                         'missingWorkWindowIDs': missing_work_ids, 'duplicateWorkWindowIDs': sorted(duplicate_work_ids),
+                         'missingNativeWindowIDs': missing_native_ids, 'duplicateNativeWindowIDs': duplicate_native_ids,
+                         'complete': coverage_complete, 'fileDataComplete': file_complete},
+            'issues': issues,
+            'transferBasis': 'sourceBytes are a subset of parameterBytes; scratchBytes are accumulated per-call GPU working footprint, not traffic or peak memory; never add to C0 transfers',
+            'coverageBasis': 'whole selected layerWorkProfile windows matched by spanRouteWindowID; footer totals, aggregate breakdown, samples only as representatives'}
 
 
 def problem(errors, context, message):
@@ -822,7 +1072,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
                 if w['possibleLegacyClippingKeys']], 'windows': transport_windows},
         'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
         'cpuConsumers': cpu_consumers(selected_rows, errors, origin, from_seconds, to_seconds),
-        'layerSpans': layer_spans(selected_rows, errors, origin, from_seconds, to_seconds),
+        'layerSpans': layer_spans(selected_rows, errors, origin, from_seconds, to_seconds, work, file_complete),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,
             'legacyHandler': 'unknown' if transition_missing else None,

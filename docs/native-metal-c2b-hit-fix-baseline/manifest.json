@@ -1,0 +1,329 @@
+{
+  "date": "2026-10-09",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "gpu": "device-double; production MSL C++ extraction",
+  "localSkippedTests": 0,
+  "headsAndDiffs": {
+    "main": {
+      "head": "0b557122fca5dfabafb2993af00a09507e24d975",
+      "status": " M App/Engine/KRKRSession.swift\n m Engine/KRKRRuntime/Source\n M Tests/MetalLayer/C2ConsumerTraceTests.cpp\n M Tests/MetalLayer/C2SpanBindingTests.cpp\n M Tests/MetalLayer/CMakeLists.txt\n M Tests/MetalLayer/TriangleProfileTests.cpp\n M Tests/MetalLayer/extract-layerex-boundary.py\n M Tests/MetalLayer/extract-triangle-profile.py\n M Tests/MetalLayer/test-layer-diagnostics.py\n M docs/NATIVE-METAL-COMPATIBILITY-PLAN.md\n M scripts/analyze-layer-diagnostics.py\n?? docs/NATIVE-METAL-C2B-HIT-FIX-BASELINE.md\n?? docs/native-metal-c2b-hit-fix-baseline/\n?? scripts/check-c2b-profile-window.py\n",
+      "diffStat": " App/Engine/KRKRSession.swift                 |   2 +\n Engine/KRKRRuntime/Source                    |   0\n Tests/MetalLayer/C2ConsumerTraceTests.cpp    | 105 +++++++++--\n Tests/MetalLayer/C2SpanBindingTests.cpp      | 235 +++++++++++++++++++++++--\n Tests/MetalLayer/CMakeLists.txt              |   2 +\n Tests/MetalLayer/TriangleProfileTests.cpp    |  19 +-\n Tests/MetalLayer/extract-layerex-boundary.py |  23 ++-\n Tests/MetalLayer/extract-triangle-profile.py |   1 +\n Tests/MetalLayer/test-layer-diagnostics.py   | 245 ++++++++++++++++++++++++++\n docs/NATIVE-METAL-COMPATIBILITY-PLAN.md      |  12 +-\n scripts/analyze-layer-diagnostics.py         | 254 ++++++++++++++++++++++++++-\n 11 files changed, 861 insertions(+), 37 deletions(-)\n",
+      "diff": "build/native-metal-c2b-hit-fix-baseline/main.after.patch",
+      "diffSHA256": "7637c05b2d44b744bb582a08c9c9a01c0e4b1c8c79e3a255cc326abec3cf8b63"
+    },
+    "runtime": {
+      "head": "860d3de7e804def1f2dce195c7d754a678e8cb86",
+      "status": " m cpp\n M host/MikageKRKRRuntime.h\n M host/MikageKRKRRuntime.mm\n",
+      "diffStat": " cpp                       |  0\n host/MikageKRKRRuntime.h  |  3 +++\n host/MikageKRKRRuntime.mm | 12 ++++++++++++\n 3 files changed, 15 insertions(+)\n",
+      "diff": "build/native-metal-c2b-hit-fix-baseline/runtime.after.patch",
+      "diffSHA256": "37d6f6d6691d7f5fd91452d2c5ae7cbacc17f86e410ff3bba0fa0fae37cecca8"
+    },
+    "core": {
+      "head": "6e75bbb32739a7ea8e2d851a88b8acb82c7179a3",
+      "status": " M core/render/CPUConsumerTrace.h\n M core/render/LayerWorkDiagnostics.h\n M plugins/LayerExDraw/LayerExDraw.cpp\n?? core/render/LayerSpanRouteDiagnostics.h\n",
+      "diffStat": " core/render/CPUConsumerTrace.h      | 67 +++++++++++++++++++++++++++++--------\n core/render/LayerWorkDiagnostics.h  | 23 ++++++++++++-\n plugins/LayerExDraw/LayerExDraw.cpp | 35 ++++++++++++++-----\n 3 files changed, 101 insertions(+), 24 deletions(-)\n",
+      "diff": "build/native-metal-c2b-hit-fix-baseline/core.after.patch",
+      "diffSHA256": "38f285bb68694d38d6d5226478a3e5b08d9ded77ebde708e27245f1604139441"
+    }
+  },
+  "startingState": "All three repos observed clean before delegation; preserve HEAD source as original baseline",
+  "sourceSnapshots": {
+    "App/Engine/KRKRSession.swift": {
+      "sha256": "f04214a414a80b691e963aace3c0df246b2e6b0ef1407e1dfa6b846ff0a7c696",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/App/Engine/KRKRSession.swift"
+    },
+    "Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.h": {
+      "sha256": "1852779cff3b99e966b2313d24e753ac80ff61d4cdedd0cd4e23b8032b085e33",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.h"
+    },
+    "Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.mm": {
+      "sha256": "f3a6b075ca1206926f907fef2fe7cb9729d22bc585aef3218bc50512f182c474",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.mm"
+    },
+    "Engine/KRKRRuntime/Source/cpp/core/render/LayerSpanRouteDiagnostics.h": {
+      "sha256": "11a75429d852b0b809f54fea72c466e84efd9548a3bc7828f133b643b58aaf04",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/core/render/LayerSpanRouteDiagnostics.h"
+    },
+    "Engine/KRKRRuntime/Source/cpp/core/render/CPUConsumerTrace.h": {
+      "sha256": "92dbe741688a3eb11ec57f7001c58f40b2f06f4a6eb89b183676f84d23d990ae",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/core/render/CPUConsumerTrace.h"
+    },
+    "Engine/KRKRRuntime/Source/cpp/core/render/LayerWorkDiagnostics.h": {
+      "sha256": "847853d3a89b17ab83f619ec800ff445df0401d9839ad1c0f24ba9bc07806bff",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/core/render/LayerWorkDiagnostics.h"
+    },
+    "Engine/KRKRRuntime/Source/cpp/plugins/LayerExDraw/LayerExDraw.cpp": {
+      "sha256": "4b095ef989ba0c6710b7b2e721250723de8b8b8017e0c71965523f434a869aaa",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Engine/KRKRRuntime/Source/cpp/plugins/LayerExDraw/LayerExDraw.cpp"
+    },
+    "Tests/MetalLayer/C2ConsumerTraceTests.cpp": {
+      "sha256": "679fea55bb08fdb2fcc4ba54423887eb0121adc1c938f763e7ef78c7c97c86e7",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/C2ConsumerTraceTests.cpp"
+    },
+    "Tests/MetalLayer/C2SpanBindingTests.cpp": {
+      "sha256": "27e78e0785ba2bf8079e768d2350bb73510b325ba08cbd297685f1985b5655ed",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/C2SpanBindingTests.cpp"
+    },
+    "Tests/MetalLayer/TriangleProfileTests.cpp": {
+      "sha256": "a107816bb4e6f5f3a0329fcf1c9564835cbdb20599edb902f7762eefa9bbfd55",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/TriangleProfileTests.cpp"
+    },
+    "Tests/MetalLayer/CMakeLists.txt": {
+      "sha256": "69c11e102441382927ea173823cc021d97f426ee953f811fbb61410a414fbc9d",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/CMakeLists.txt"
+    },
+    "Tests/MetalLayer/extract-layerex-boundary.py": {
+      "sha256": "2a8b65dcfa32a320e769d40c03e31db884964de338a6eed3743c1ab1d8eee659",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/extract-layerex-boundary.py"
+    },
+    "Tests/MetalLayer/extract-triangle-profile.py": {
+      "sha256": "37e00b75ebc5182fcad3d492a12897820481fa4e5a9469b35b150aa2c104421f",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/extract-triangle-profile.py"
+    },
+    "Tests/MetalLayer/test-layer-diagnostics.py": {
+      "sha256": "b7797252918ebeeef83bf0fd6a704f58f92fabc2ea780873a47c6de20251a778",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/Tests/MetalLayer/test-layer-diagnostics.py"
+    },
+    "scripts/analyze-layer-diagnostics.py": {
+      "sha256": "bf4aadd7c08b5059c023886219e8c78508a6c79d2373323a6ec313d876f1a627",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/scripts/analyze-layer-diagnostics.py"
+    },
+    "scripts/check-c2b-profile-window.py": {
+      "sha256": "0d3465bc42943907864ba6a8398f4b3a73783cd3e97f9fb336da41a8618eb10e",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/scripts/check-c2b-profile-window.py"
+    },
+    "docs/NATIVE-METAL-COMPATIBILITY-PLAN.md": {
+      "sha256": "60e381c1cd65e92b1eea7292ebe04216de51a255c94dfb62725bb26a9969a804",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md"
+    },
+    "docs/NATIVE-METAL-C2B-HIT-FIX-BASELINE.md": {
+      "sha256": "cbcf55a57f67bac66d94b7190b5a8192654be76f55482ad079c239e0c6637883",
+      "snapshot": "build/native-metal-c2b-hit-fix-baseline/source-snapshots/docs/NATIVE-METAL-C2B-HIT-FIX-BASELINE.md"
+    }
+  },
+  "testResults": {
+    "MetalLayer": "6/6 PASS",
+    "MetalRenderBackend": "1/1 PASS",
+    "TJS": "1/1 PASS",
+    "parser": "51 PASS",
+    "frame": "PASS",
+    "point": "debug/release PASS",
+    "syntax": "3 complete production TUs PASS",
+    "bridge": "C11 signature, extracted C implementation, same-thread/failed/generation and static App wiring PASS",
+    "legacy": "8 hashes unchanged; 43 known CPU, 39 omitted unknown; C profile typedef unchanged",
+    "emitterParser": "5071 exact calls; 2 representatives; 2 windows including empty"
+  },
+  "cmakeCache": {
+    "metal-layer-tests": [
+      "CMAKE_BUILD_TYPE:STRING=Release",
+      "CMAKE_CXX_COMPILER:FILEPATH=C:/Strawberry/c/bin/c++.exe",
+      "CMAKE_C_COMPILER:FILEPATH=C:/Strawberry/c/bin/gcc.exe",
+      "Python3_EXECUTABLE:UNINITIALIZED=C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+      "CMAKE_GENERATOR:INTERNAL=Ninja"
+    ],
+    "metal-render-tests": [
+      "CMAKE_BUILD_TYPE:STRING=",
+      "CMAKE_CXX_COMPILER:FILEPATH=C:/Strawberry/c/bin/c++.exe",
+      "CMAKE_GENERATOR:INTERNAL=MinGW Makefiles"
+    ],
+    "tjs-shutdown-tests": [
+      "CMAKE_BUILD_TYPE:STRING=",
+      "CMAKE_CXX_COMPILER:STRING=C:/Strawberry/c/bin/c++.exe",
+      "Python3_EXECUTABLE:UNINITIALIZED=C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+      "CMAKE_GENERATOR:INTERNAL=Ninja"
+    ]
+  },
+  "environment": {
+    "CXX": "C:/Strawberry/c/bin/c++.exe",
+    "CC": "C:/Strawberry/c/bin/gcc.exe",
+    "Python": "C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+    "TEMP": "D:/vn-sim/build/tmp",
+    "TMP": "D:/vn-sim/build/tmp",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "commands": [
+    "cmake --build build/metal-layer-tests --parallel 6",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "cmake --build build/metal-render-tests --parallel 6",
+    "ctest --test-dir build/metal-render-tests --output-on-failure",
+    "cmake --build build/tjs-shutdown-tests --parallel 6",
+    "ctest --test-dir build/tjs-shutdown-tests --output-on-failure",
+    "python Tests/MetalLayer/test-layer-diagnostics.py",
+    "python scripts/check-krkr-frame-times.py",
+    "python scripts/check-krkr-point-read-trace.py",
+    "python scripts/check-c2b-profile-window.py",
+    "python build/native-metal-c2b-hit-fix-baseline/check-production-syntax.py (exact compiler commands in log)",
+    "c++ -std=c++17 -Wall -Wextra -Werror -IEngine/KRKRRuntime/Source/cpp/core/render -c Tests/MetalLayer/C2ConsumerTraceTests.cpp -o build/native-metal-c2b-hit-fix-baseline/trace-strict.o",
+    "c++ -std=c++17 -Wall -Wextra -Werror -IEngine/KRKRRuntime/Source/cpp/core/render build/native-metal-c2b-hit-fix-baseline/emit-route-fixture.cpp -o build/native-metal-c2b-hit-fix-baseline/emit-route-fixture.exe",
+    "emit-route-fixture.exe > route-fixture.jsonl; python check-emitter-parser.py (under baseline directory)",
+    "python scripts/analyze-layer-diagnostics.py perf_log/After_P2C_C2B/*.jsonl --output build/native-metal-c2b-hit-fix-baseline/legacy-analysis.json (PowerShell expanded eight paths)",
+    "python build/native-metal-c2b-hit-fix-baseline/validate-legacy.py",
+    "python build/native-metal-c2b-hit-fix-baseline/check-extractor-drift.py",
+    "git diff --check (all three repos)"
+  ],
+  "expectedFailure": "hit-repro.log is old wrapped policy against truthful registration, not a final suite failure",
+  "unmodifiedInputHashes": {
+    "Mikage-diagnostics-10936578-45D2-4F97-BE92-9E42B880D330.jsonl": "d39275193a888b30fe8aa2d5ab613b74432701f4ea7e769c797cd70cade9c1fb",
+    "Mikage-diagnostics-29A892D5-1B75-46D7-8147-8E8B306696A1.jsonl": "56691f0a807ef40f75f2abe7cf78cfe1393db83743deef5960b72a335bc4149b",
+    "Mikage-diagnostics-A7F9D807-8F2E-47C9-828F-31B3BDE72287.jsonl": "82592dc1a7ebfd9af0fa02fb5bde33f01c9c35382d29176db96588f86b9936aa",
+    "Mikage-diagnostics-ABE010E1-E219-47F4-AAFE-9F5F4A4A2ABC.jsonl": "64f950d8d3f5e69fcc96091bc34a18be1eed24f46926e9cbedae7727a802209f",
+    "Mikage-diagnostics-B0A4043F-DEDC-44F1-B211-614C6E37905D.jsonl": "5071dee47adfa1d1520aa233703bdad8f518bdd6f35eb10bb582fa2814d762fd",
+    "Mikage-diagnostics-B80B92C5-90E2-4E13-851E-819CFC8272AD.jsonl": "10e63406cc8e519a18f77274d73bea977a1f4039d045a01165aeb4f5e74ba76c",
+    "Mikage-diagnostics-BB8DECFE-18DF-4DE0-BB39-191070F8AA44.jsonl": "15ac6fe16b48b5c66800d11cfc495a43a28e2b32c384127d7b14dbb9b648f562",
+    "Mikage-diagnostics-E2A3D968-9944-42BB-B427-39CC771F390F.jsonl": "8162a3b0568c9acd58efe14a263b09da7701cb707c298bc405d68eb7e46dc75f"
+  },
+  "artifacts": {
+    "before.json": {
+      "sha256": "48eb55b3e7fe2771b36db6bb53119f8f42cf77871d9d40b326e28bee804547fd",
+      "bytes": 1507
+    },
+    "layer.before.last-test.log": {
+      "sha256": "4763f336c3856d171e0b9b4f12831a1200368fbaebc1591c7a60477e66fe667f",
+      "bytes": 156223
+    },
+    "backend.before.last-test.log": {
+      "sha256": "c3aaa6b651dd8918af941862be1a8dd97b709b8ae753ddfa6f660c501958d299",
+      "bytes": 870
+    },
+    "tjs.before.last-test.log": {
+      "sha256": "18b3bd9a3e0df5a3d83c5ac7097afb49e01fe57e1f1689b35bd024816738b13c",
+      "bytes": 911
+    },
+    "hit-repro.log": {
+      "sha256": "d13d60eb0cd5c8fe89111bde0b900690e7c86214f8d5ca22033ff1fa57dc799a",
+      "bytes": 861
+    },
+    "hit-final-diagnostics.log": {
+      "sha256": "998ea435341d21b26943a922e5e1d340006776bde2edcbf03895695e2ae33b73",
+      "bytes": 7363
+    },
+    "extractor-drift.log": {
+      "sha256": "d30f7ee7800c717822b1a0417eb437534d1471b748111018ac32fd38a1c7434f",
+      "bytes": 210
+    },
+    "layer-final-build.log": {
+      "sha256": "07759ae1558ecf1dd4032582b9d7744d536432ac13ea1720be3a6a1f5e928bf9",
+      "bytes": 183
+    },
+    "layer-final-tests.log": {
+      "sha256": "25857299c9fc38d6fd3218eb1078dfd7d058ab284c1e069a0ce90852428f861d",
+      "bytes": 854
+    },
+    "backend-final-build.log": {
+      "sha256": "7c11a7fdd50c38b225e28ee6d5c43bb002e5e754ffe77271b15c95e2dc7ed800",
+      "bytes": 40
+    },
+    "backend-final-tests.log": {
+      "sha256": "72ad34dbc2475d09c75c774d1d70bd65ce9ef16a5996c4c3cf2edec8ee00c4eb",
+      "bytes": 313
+    },
+    "tjs-final-build.log": {
+      "sha256": "7f98e970a28428eaf95f5c8f23157d2627b917d4b2e2eeaa78eca755c1042d6d",
+      "bytes": 299
+    },
+    "tjs-final-tests.log": {
+      "sha256": "45eeb5a3785976e5bcc3b86366669b33ff5b2d5aab99b2a7f717b815869d11ea",
+      "bytes": 313
+    },
+    "parser-final-tests.log": {
+      "sha256": "c50e45a210bafa102ee510ae12ed8d8dbb1bc5c9d047bab0cbd6d5cabef90030",
+      "bytes": 155
+    },
+    "frame-final-check.log": {
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123",
+      "bytes": 91
+    },
+    "point-final-check.log": {
+      "sha256": "d29b50a21d35f30e24e5ce0230f14e3641f0fd437f069438a198f56f6f4fab0f",
+      "bytes": 178
+    },
+    "production-syntax.log": {
+      "sha256": "8b5df5414929ac4c8a38cf95096031340e732ec2ea22bb3cd4662ea20fa0e550",
+      "bytes": 4762
+    },
+    "trace-final-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "importer-wiring.log": {
+      "sha256": "4a917d756886a0ddffc4fcd7a9d9cf8e152bd078f89b0b4907092cceb84f1765",
+      "bytes": 112
+    },
+    "legacy-abi-check.log": {
+      "sha256": "66444f6a8e8e81a3f34914db4f7db9e80955f41dec876d1989eb26765f10d473",
+      "bytes": 204
+    },
+    "legacy-summary.json": {
+      "sha256": "25afe8ad4a106479278c9f9e8c1a3f08001dc4de1e7bbabb01227f11da20fe40",
+      "bytes": 4405
+    },
+    "emitter-parser.log": {
+      "sha256": "5b94a86826bcab9a9c341fa2bee5b24b3ec5a0e27cfd94d38932e972fbee7975",
+      "bytes": 105
+    },
+    "route-fixture.jsonl": {
+      "sha256": "11acb3e53d2d3d42e33fe3c41db0830f2eb03d314862ddf431fcdb94427ce88c",
+      "bytes": 2698
+    }
+  },
+  "localOnlyArtifacts": {
+    "plan.before.md": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/plan.before.md",
+      "sha256": "8d977a2de16a98dde112362924a40496a021ca0dc3e72e0045b7209462926398"
+    },
+    "main.before.patch": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/main.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime.before.patch": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/runtime.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "core.before.patch": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/core.before.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime-header.before.h": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/runtime-header.before.h",
+      "sha256": "5b74a99727ee2b560e85786457beae3a21c56fcf1966884bd338e4f61dc45743"
+    },
+    "legacy-analysis.json": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/legacy-analysis.json",
+      "sha256": "a512423bf33299552cbd4a1621534c670f6cf04254778ac690f0a4fde253ab35"
+    },
+    "emit-route-fixture.cpp": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/emit-route-fixture.cpp",
+      "sha256": "2d154c8129ac29560e7f2caa90ce29a1e2fd4ef820220b8e16de030924d33c5f"
+    },
+    "check-emitter-parser.py": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/check-emitter-parser.py",
+      "sha256": "5a32ab81c79b59d40cfc0d200252d62ae9ad9616b684227c604e1fe78e76148b"
+    },
+    "check-production-syntax.py": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/check-production-syntax.py",
+      "sha256": "9d71297c1dfa87b9a413104ef1f9494d1bbccc2b1e346dcc6bcee553bbf7c7d2"
+    },
+    "check-extractor-drift.py": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/check-extractor-drift.py",
+      "sha256": "6a55a1f5ea50a15fa6a5f5e3bd5b86bcdc7d27705d3cbe11813c5e9e999a34d9"
+    },
+    "validate-legacy.py": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/validate-legacy.py",
+      "sha256": "476f9b625433cdc29db492cd0533036149a0bd1a45af13c6b4276a03731fa9d1"
+    },
+    "archive-evidence.py": {
+      "path": "build/native-metal-c2b-hit-fix-baseline/archive-evidence.py",
+      "sha256": "4d2d9846ae8e95858fbdc0d52fcfb9f50cb18467232937f20d5ad56103bbd652"
+    }
+  },
+  "pending": [
+    "Apple Objective-C++ / actual MSL",
+    "host/App joint build and Swift importer",
+    "default/forced compute device/simulator",
+    "App tests",
+    "native diagnostic on/off submit/wait",
+    "new matched 千恋/天使 GPU route/window logs",
+    "controlled three-repeat performance pairing"
+  ],
+  "scope": "Three C2B methods; no shader/renderer math change, Nekopara deferred, no commit/push"
+}

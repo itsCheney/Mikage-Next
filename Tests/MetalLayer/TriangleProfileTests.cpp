@@ -13,6 +13,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <thread>
 
 // Compile the exact production bridge. Only host lifecycle/log registration
 // globals are substituted; every field copy and interval reset is production.
@@ -220,7 +221,23 @@ void TriangleProfileTests() {
     Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==0 &&
             workProfile.frameSamplesDropped==0 && workProfile.frameIntervalNS[2047]==0,
             "work bridge maximum-width frame window did not clear after Take");
-    running=false; Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled outside session"); running=true;
+    work::SetEnabled(true);
+    const auto expectedWindowID=work::profile.cpuConsumerBudget.spanWindow.id;
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && expectedWindowID!=0 &&
+        MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID,"C2B window accessor did not match captured work window");
+    const auto nextWindowID=work::profile.cpuConsumerBudget.spanWindow.id;
+    Require(MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID &&
+        work::profile.cpuConsumerBudget.spanWindow.id==nextWindowID,"C2B readonly accessor drained profile");
+    uint64_t otherThreadID=99;
+    std::thread other([&]{otherThreadID=MikageKRKRLastLayerWorkProfileWindowID();});other.join();
+    Require(otherThreadID==0 && MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID,
+        "C2B window accessor leaked across threads");
+    std::thread toggle([]{work::SetEnabled(false);work::SetEnabled(true);});toggle.join();
+    Require(MikageKRKRLastLayerWorkProfileWindowID()==0,"C2B window accessor reused ID after another thread changed generation");
+    Require(!MikageKRKRTakeLayerWorkProfile(nullptr) && MikageKRKRLastLayerWorkProfileWindowID()==0,
+        "C2B failed Take reused stale window ID");
+    running=false; Require(!MikageKRKRTakeLayerWorkProfile(&workProfile) &&
+        MikageKRKRLastLayerWorkProfileWindowID()==0,"work bridge sampled outside session"); running=true;
     diagnosticCallback.store(nullptr); Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled with recording off");
     diagnosticCallback.store(TestLog); work::SetEnabled(false);
     work::Record(false,1,1,1,1);work::RecordFrame(30000,77);

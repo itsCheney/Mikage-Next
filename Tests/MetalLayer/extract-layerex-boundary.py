@@ -6,6 +6,7 @@ rewritten; actual plutovg raster fidelity belongs to the native device checks.
 """
 import argparse
 from pathlib import Path
+import re
 
 
 def block(source, signature):
@@ -82,7 +83,23 @@ if a.capture_output:
           "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(",
           "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine("]
     cap+="\n"+"\n".join(block(draw,signature) for signature in more)+"\n"
-    cap+="NCB_TYPECONV_DSTMAP_SET(const Appearance*, GdipTypeConvertor<const Appearance>, true);\n"
-    cap+="NCB_TYPECONV_DSTMAP_SET(const Path*, GdipTypeConvertor<const Path>, true);\n"
-    cap+="NCB_TYPECONV_DSTMAP_SET(GdipImage*, GdipTypeConvertor<GdipImage>, true);\n"
+    # Keep the production native type, constructor and default NCBind boxing.
+    # Other subclass methods are outside this binding oracle's scope. Refuse
+    # extraction if the production registration/conversion shape changes.
+    for cls in ("Appearance", "Path"):
+        signature="NCB_REGISTER_SUBCLASS("+cls+")"
+        registration=block(draw,signature)
+        constructor=re.search(r"NCB_CONSTRUCTOR\s*\(\s*\(\s*\)\s*\)\s*;",registration)
+        if not constructor:
+            raise ValueError(cls+" no longer uses a default direct-native constructor")
+        if not re.search(r"NCB_SUBCLASS\s*\(\s*"+cls+r"\s*,\s*"+cls+r"\s*\)",draw):
+            raise ValueError(cls+" is no longer exposed as its direct native subclass")
+        if re.search(r"NCB_(?:SET_(?:CONVERTOR|TOVALUE_CONVERTOR|TOVARIANT_CONVERTOR)|TYPECONV_(?:SRCMAP_SET|DSTMAP_SET)|GDIP_CONVERTOR|REGISTER_GDIP_SUBCLASS2?)\s*\([^;]*\b"+cls+r"\b",draw):
+            raise ValueError(cls+" has a custom/wrapped production conversion")
+        cap+=signature+"\n{\n    "+constructor.group()+"\n};\n"
+    if "NCB_REGISTER_GDIP_SUBCLASS2(GdipImage, ImageConvertor)" not in draw:
+        raise ValueError("GdipImage no longer uses its production wrapper registration")
+    cap+="template<class T>\n"+block(draw,"struct ImageConvertor")+";\n"
+    cap+="NCB_SET_CONVERTOR(GdipImage*, ImageConvertor<GdipImage>);\n"
+    cap+="NCB_SET_CONVERTOR(const GdipImage*, ImageConvertor<const GdipImage>);\n"
     a.capture_output.write_text(cap,encoding="utf-8")

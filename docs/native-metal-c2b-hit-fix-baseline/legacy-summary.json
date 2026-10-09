@@ -1,0 +1,161 @@
+[
+  {
+    "file": "Mikage-diagnostics-10936578-45D2-4F97-BE92-9E42B880D330.jsonl",
+    "sha256": "d39275193a888b30fe8aa2d5ab613b74432701f4ea7e769c797cd70cade9c1fb",
+    "game": "KR_官中_少女领域",
+    "revision": "0b557122fca5",
+    "workProfileCount": 44,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 0,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-29A892D5-1B75-46D7-8147-8E8B306696A1.jsonl",
+    "sha256": "56691f0a807ef40f75f2abe7cf78cfe1393db83743deef5960b72a335bc4149b",
+    "game": "DRACU-RIOT!(全汉)",
+    "revision": "0b557122fca5",
+    "workProfileCount": 90,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 0,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-A7F9D807-8F2E-47C9-828F-31B3BDE72287.jsonl",
+    "sha256": "82592dc1a7ebfd9af0fa02fb5bde33f01c9c35382d29176db96588f86b9936aa",
+    "game": "9-nine-天色天音天歌",
+    "revision": "0b557122fca5",
+    "workProfileCount": 54,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 0,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-ABE010E1-E219-47F4-AAFE-9F5F4A4A2ABC.jsonl",
+    "sha256": "64f950d8d3f5e69fcc96091bc34a18be1eed24f46926e9cbedae7727a802209f",
+    "game": "纸上的魔法使",
+    "revision": "0b557122fca5",
+    "workProfileCount": 32,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 0,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-B0A4043F-DEDC-44F1-B211-614C6E37905D.jsonl",
+    "sha256": "5071dee47adfa1d1520aa233703bdad8f518bdd6f35eb10bb582fa2814d762fd",
+    "game": "千恋万花",
+    "revision": "0b557122fca5",
+    "workProfileCount": 82,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 11,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [
+      {
+        "method": "drawLine",
+        "route": "cpu",
+        "reason": "arguments",
+        "calls": 1,
+        "spanCount": 0,
+        "sourceBytes": 0,
+        "parameterBytes": 0,
+        "scratchBytes": 0
+      },
+      {
+        "method": "drawPath",
+        "route": "cpu",
+        "reason": "arguments",
+        "calls": 10,
+        "spanCount": 0,
+        "sourceBytes": 0,
+        "parameterBytes": 0,
+        "scratchBytes": 0
+      }
+    ],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-B80B92C5-90E2-4E13-851E-819CFC8272AD.jsonl",
+    "sha256": "10e63406cc8e519a18f77274d73bea977a1f4039d045a01165aeb4f5e74ba76c",
+    "game": "青空下的加缪",
+    "revision": "0b557122fca5",
+    "workProfileCount": 44,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 0,
+      "spanRouteExceeded": 0
+    },
+    "byRoute": [],
+    "complete": true,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-BB8DECFE-18DF-4DE0-BB39-191070F8AA44.jsonl",
+    "sha256": "15ac6fe16b48b5c66800d11cfc495a43a28e2b32c384127d7b14dbb9b648f562",
+    "game": "天使纷扰 RE-BOOT！",
+    "revision": "0b557122fca5",
+    "workProfileCount": 69,
+    "version": 1,
+    "sampling": {
+      "spanRouteRecords": 32,
+      "spanRouteExceeded": 39
+    },
+    "byRoute": [
+      {
+        "method": "drawLine",
+        "route": "cpu",
+        "reason": "arguments",
+        "calls": 4,
+        "spanCount": 0,
+        "sourceBytes": 0,
+        "parameterBytes": 0,
+        "scratchBytes": 0
+      },
+      {
+        "method": "drawPath",
+        "route": "cpu",
+        "reason": "arguments",
+        "calls": 28,
+        "spanCount": 0,
+        "sourceBytes": 0,
+        "parameterBytes": 0,
+        "scratchBytes": 0
+      }
+    ],
+    "complete": false,
+    "issues": []
+  },
+  {
+    "file": "Mikage-diagnostics-E2A3D968-9944-42BB-B427-39CC771F390F.jsonl",
+    "sha256": "8162a3b0568c9acd58efe14a263b09da7701cb707c298bc405d68eb7e46dc75f",
+    "game": "NEKOPARA Vol. 4",
+    "revision": "0b557122fca5",
+    "workProfileCount": 59,
+    "version": null,
+    "sampling": null,
+    "byRoute": [],
+    "complete": false,
+    "issues": []
+  }
+]
