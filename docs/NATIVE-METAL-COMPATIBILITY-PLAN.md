@@ -398,6 +398,17 @@
 
 新增缩放消费者样例按 **shrink → scanline → 消费者** 的整条链路验收：同条件报告总 readback calls/bytes、sync wait、CPU 消费/编码时间与逐帧长帧数，不能仅因 `shrinkCopy` 栏为零或 origin 改名而签收。可 GPU 化的消费者要求该链路像素读回为零；确需 CPU 保存的小图允许具名的一次必要读回，并验证保存结果、同步返回/异常、同版本缓存及版本变化后的正确失效。当前两次小图读回不作为 C1 算法失败，也不由其字节量较小推断等待可忽略。
 
+**C2 后续范围：CPU 消费链（2026-10-09 After_P2C_C2B-3）。**详细范围、依赖、原始输入哈希与验收见 [CPU 消费链专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md)。BD7898C1的82窗口/320路由完整对账，原71调用中的arguments33已转GPU；但同构窗口仍有3次/8,029,788bytes回读，首次CPU消费者移到drawRectangle。整段继续滚动/再次绘制的LayerEx完整C0总量为66read＋66upload、每方向243,585,196bytes，read wait486.163046ms。CPU路线为record126、vectorSource62；已采到56次drawImageStretch回读212,083,200bytes，另6条read详情未采，不能补给任何方法，也不能按CPU调用数推算readback。
+
+- [x] 参数补修样例：首个71次窗口GPU4/CPU67→GPU37/CPU34，arguments拒绝消除；该签收只覆盖实际支持域，不代表完整C2或整链路零往返。
+- [ ] 优先设计 **vectorSource安全重放/捕获与GPU合成**；录制元数据可继续CPU，保持原plutovg、不可变源版本/寿命、Clip/变换/alpha和顺序。无法证明的借用/逃逸或动态资源继续具名回退。
+- [ ] 拆分 **record纯命令构建与实际像素写入**，并扩展 **drawRectangle** 的可证明span支持域；保留录制导出/重绘、事务恢复、返回/装箱/更新次数及租约/COW语义。整条drawLine/drawPath→drawRectangle→record/vector重放链计量，避免仅移动CPU边界。
+- [ ] 为设置构造的 **clear＋紧随绘制** 选定子域：证明完整覆盖与旧值依赖后，分别评估CPU overwrite租约或连续GPU方案，保留Clip/区域外内容和同步指针。千恋5次clear wait63.780792ms、天使10次233.886794ms来自不同场景样例，不作性能配对。
+- [ ] 按需补齐 **C2A消费者有界聚合/代表覆盖**：read/caller/producer省略显式报告，不混同已完整的C2B路由和C0总量；无新增GPU查询/同步或无界dump。必要CPU的alphaToProvince与缩略图保存按真实通道/ROI/版本、同步返回与异常另验。
+- [ ] **saveDataPack系统变量保存缺失** 单列功能兼容修复；不以跳过保存、空实现或吞异常降低CPU统计。Nekopara仍延后，C3/P2D仍保持各自范围。
+
+专项验收同时要求精确像素/脚本/record与raw-pointer语义、整链路read/upload/wait及参数分账、诊断开关无副作用、GPU前失败唯一CPU续跑/后失败不重放，以及相同设备/场景/热状态每组三次真机原始帧样本配对。GPU命中增加、origin改名或缺失样本补零均不替代传输/同步改善证明。
+
 #### C3. `bitmap.update`：按帧聚合小更新与 encoder 生命周期
 
 - [ ] 先用 C0 origin、调用点和 dirty-rect/texture 数据验证 `bitmap.update` 与 blit encoder 的关系；沿 `UpdateLayerTexture()` → staging → `blitCommandEncoder` → `endEncoding()` 审计 encoder 生命周期。第 2.5 节的 interval 相关性是调查依据，不是充分的调用链证据；区分启动资源加载、字形/文本、小 UI、movie frame 与普通 bitmap 写入。
@@ -481,7 +492,7 @@
 | G0 | P2C origin 聚合、无同步诊断和场景基线；真机归因已签收 | F、现有 `metal.layerWork` | 中；原生开关开销与正式性能配对仍待验 |
 | G4 | 高频 CPU transition GPU 保留路径；已有本地实现及实际场景证据 | G0、千恋/DRACU 实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
 | G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决；本地实现及 portable 验证完成 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取；Apple/配对待验 |
-| G2 | LayerEx/raw-pixel 边界收敛；C2A 归因及 C2B 三个流程图入口本地完成 | G0、插件样例 | 高；ABI 可见性、COW/lease、CPU cache；C2B 原生/新真机与其余域待验 |
+| G2 | LayerEx/raw-pixel 边界收敛；C2A/C2B后续按[CPU消费链专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md)扩展vectorSource、record、drawRectangle、clear | G0、插件样例；vector重放可先消费已有CPU录制产物 | 高；ABI可见性、录制事务、COW/lease、CPU cache；必须签收整链路传输，原生/配对与其余域待验 |
 | G3 | `bitmap.update` staging/encoder 批处理 | G0、调用点证据 | 高；更新顺序、可见时序、资源寿命 |
 | H | P2D hot-layer 关联、滚动背景 overdraw/pass 优化与 backpressure 配对 | G0、天使纷扰道路重放 | 高；顺序/alias/clip 正确性、诊断零同步、热状态配对 |
 | I | 通用三角形与安全支持域 | D、独立参照 | 高；软件回退不通用 |
@@ -590,6 +601,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [x] P2C C2B 本地：流程图三个绘制入口、原 plutovg CPU/采样与 GPU 整数组合、真实完整像素 oracle 和生产绑定事务通过；首批与类型/统计修复已提交，5987acb样例支持部分实际GPU及626窗口对账。本轮最小参数和已知HSV字节码补修后，MetalLayer6/6、Backend/TJS各1/1、其它TJS依赖回归和51解析通过；本轮未提交，设备重采、完整Apple及C2签收待验，见 [C2B 基线](NATIVE-METAL-P2C-C2B-BASELINE.md)、[类型/统计记录](NATIVE-METAL-C2B-HIT-FIX-BASELINE.md)及[本轮记录](NATIVE-METAL-C2B-ARITY-BASELINE.md)。
 - [ ] P2C C0 剩余验证：Apple 原生诊断开关无额外 submit/wait、App XCTest/界面、统计开销及同热状态性能配对有独立证据；不由对账签收替代。
 - [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
+- [ ] P2C C2 后续CPU消费链：vectorSource/record/drawRectangle/clear各自支持域与事务已证明，整链路可避免readback/整图CPU output upload消除；必要CPU边界和诊断缺口具名，保存兼容单独通过，见CPU消费链专项。当前仅完成规划与样例归因。
 - [ ] P2D：天使纷扰道路滚动完成 D0 asset→Layer→operation 归因；严格保持 Layer 像素/顺序/alias 语义的优化在 nominal/same-thermal 重复样本中降低 GPU fragment/command、`nextDrawable` backpressure、pass 或冗余像素与长帧。C1/C4 的传输改善不得冒充 P2D 收益。
 - [ ] P3：通用三角形域有独立参照与安全拒绝/回退。
 - [ ] P4：逐项标明“未触发/延后/已验收”，不作为当前核心功能完成的隐含条件。
