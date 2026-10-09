@@ -307,8 +307,9 @@ void SpanRoutes() {
     }
     work::Take();
     Require(producerCaptures==32 && spanMessages.size()==krkrsdl3::span_route::GroupCount+33 &&
-        spanMessages.back().find("\"samples\":32,\"repeatedOmitted\":0,\"capacityOmitted\":193")!=std::string::npos,
-        "C2B fixed aggregation or 9+23 representative bound failed");
+        spanMessages.back().find("\"samples\":32,\"repeatedOmitted\":0,\"capacityOmitted\":"+
+            std::to_string(krkrsdl3::span_route::GroupCount-32))!=std::string::npos,
+        "C2 fixed aggregation or 15+17 representative bound failed");
     for(const auto& message:spanMessages) Require(message.size()<=900,"C2B v2 native line exceeded 900 bytes");
     Begin();
     {

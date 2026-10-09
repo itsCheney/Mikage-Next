@@ -20,6 +20,12 @@ Appearance/brush/pen 克隆增加异常清理；plutovg overlay 增加独立 che
 
 真实绑定覆盖成功、后端拒绝、checked clone 失败、提交后异常、装箱异常；精确像素和导出命令/重复项/变换一致，导出后再次 vector 重放与原 CPU 相同。原测试中普通 record transform 的“必须 acquire”断言改为本批明确要求的纯元数据零 acquire，更新副作用保持。证据见 [第二批 manifest](native-metal-c2-remainder-baseline/batch2/manifest.json)。
 
+## 第三批：drawRectangle 与五入口路由
+
+drawRectangle 使用原 path_add_rect/_drawPath，复用原 paint、历史 Clip、录制事务、最小参数契约及一次 RectF 装箱。真实生产绑定加入该方法；原诊断开关/额外参数/拒绝续跑/像素对照同时覆盖四个绘制入口，另有24组变换/裁剪/record精确矩形对照。
+
+metal.layerSpan 输出v3：五个固定方法、15个方法/路由保护位＋17个原因位，共32代表；clear 在第四批接入。所有方法/路由/原因聚合仍完整、有界，旧v1/v2分析兼容；v3按本版本保护位验证，混合版本或代际缺口显式报错。证据见 [第三批 manifest](native-metal-c2-remainder-baseline/batch3/manifest.json)。
+
 ## 待验与范围
 
 Windows portable 使用原 plutovg、生产 NCBind/TJS、生产 shader 数学抽取及 GPU device double。Apple Objective-C++/MSL、Swift/App、default/forced compute、device/simulator、原生 submit/wait 及同设备/场景/热状态三次配对未验。历史日志保持原样，不宣称性能改善。record、drawRectangle、clear 尚待后续批次；必要 CPU 保存/alphaToProvince、saveDataPack 独立兼容、C3、P2D、Nekopara 不因本批签收。

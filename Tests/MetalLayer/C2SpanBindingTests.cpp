@@ -236,7 +236,7 @@ int RunC2SpanBindingTests() {
         Registration registration;
         {ncbRegistClass<Registration> r(registration,true);r.Method(TJS_N("drawLine"),&LayerExDraw::drawLine);
             r.Method(TJS_N("drawPath"),&LayerExDraw::drawPath);r.Method(TJS_N("drawImageStretch"),&LayerExDraw::drawImageStretch);
-            r.Method(TJS_N("clear"),&LayerExDraw::clear);}
+            r.Method(TJS_N("clear"),&LayerExDraw::clear);r.Method(TJS_N("drawRectangle"),&LayerExDraw::drawRectangle);}
         auto call=[&](LayerFixture& f,const char* name,std::vector<tTJSVariant> values,tTJSVariant* result=nullptr) {
             std::vector<tTJSVariant*> args;for(auto& v:values)args.push_back(&v);
             return registration.methods.at(name)->FuncCall(0,nullptr,nullptr,result,args.size(),args.data(),f.object);
@@ -261,7 +261,8 @@ int RunC2SpanBindingTests() {
         std::vector<std::pair<const char*,std::vector<tTJSVariant>>> operations={
             {"drawLine",{appearance,5.3,8.2,59.4,28.7}},
             {"drawPath",{appearance,pathArg}},
-            {"drawImageStretch",{7.3,4.2,48.7,27.4,imageArg,-2.1,0.0,13.3,7.8}}};
+            {"drawImageStretch",{7.3,4.2,48.7,27.4,imageArg,-2.1,0.0,13.3,7.8}},
+            {"drawRectangle",{appearance,5.3,8.2,48.4,18.7}}};
         {
             using Policy=ncbInvocationPolicy<LayerExDraw>;
             Check(Policy::DirectNative<Appearance>(&appearance)==app && Policy::DirectNative<Path>(&pathArg)==path,
@@ -428,6 +429,15 @@ int RunC2SpanBindingTests() {
                 cpuRect->w==gpuRect->w && cpuRect->h==gpuRect->h,"GPU typed drawing result differs from CPU");
             LayerFixture rejected;RejectSubmit=true;call(rejected,op.first,op.second);RejectSubmit=false;
             Check(rejected.native->texture->pixels==cpu.native->texture->pixels && rejected.native->texture->counts->writes==1 && rejected.native->updates==1,"precommit rejection did not replay CPU exactly once");
+        }
+        for(int variant=0;variant<24;++variant) {
+            LayerFixture cpu,gpu;cpu.native->clip=gpu.native->clip=tTVPRect(7,3,60,34);
+            cpu.Draw()->rotateTransform(0.05*variant);gpu.Draw()->rotateTransform(0.05*variant);
+            if(variant%2) {cpu.Draw()->setRecord(true);gpu.Draw()->setRecord(true);}
+            auto values=operations[3].second;values[1]=-2.3+variant;values[3]=30.25;values[4]=15.75;
+            Support=false;call(cpu,"drawRectangle",values);Support=true;call(gpu,"drawRectangle",values);
+            Check(cpu.native->texture->pixels==gpu.native->texture->pixels && gpu.native->texture->counts->writes==0,
+                "rectangle transform/clip/record changed exact pixels or acquired target");
         }
         {
             namespace trace=krkrsdl3::cpu_consumer_trace;

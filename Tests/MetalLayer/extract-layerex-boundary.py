@@ -81,7 +81,7 @@ if a.capture_output:
           "void LayerExDraw::stageCapturedRecord(",
           "bool LayerExDraw::spanCaptureTargetAliased(","RectF LayerExDraw::drawPath(",
           "RectF LayerExDraw::getPathExtents(","void LayerExDraw::draw(","void LayerExDraw::fill(",
-          "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(",
+          "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(","RectF LayerExDraw::drawRectangle(",
           "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine("]
     cap+="\n"+"\n".join(block(draw,signature) for signature in more)+"\n"
     # Keep the production native type, constructor and default NCBind boxing.

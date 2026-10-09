@@ -151,6 +151,21 @@ class LayerDiagnosticsTests(unittest.TestCase):
     def span_summary(self, events, **bounds):
         return self.summarize(self.basic(work(spanRouteWindowID='50'), *events, heart()), **bounds)['layerSpans']
 
+    def test_span_v3_five_methods_and_protected_slots(self):
+        events=[]
+        for index,method in enumerate(analysis.SPAN_METHODS_V3):
+            events += [span_event('aggregate',version=3,method=method),
+                       span_event('sample',version=3,method=method,sampleIndex=index*3)]
+        events += [span_event('window',version=3,calls=5,gpuCalls=5,aggregateRows=5,samples=5,
+                             spanCount=20,sourceBytes=80,parameterBytes=940,scratchBytes=5120)]
+        result=self.span_summary(events)
+        self.assertTrue(result['complete'])
+        self.assertTrue(result['representativeCoverageComplete'])
+        self.assertEqual(result['version'],3)
+        self.assertEqual(result['totals']['calls'],5)
+        events[3]['fields']['message']=events[3]['fields']['message'].replace('"sampleIndex": 3','"sampleIndex": 9')
+        self.assertFalse(self.span_summary(events)['representativeCoverageComplete'])
+
     def test_span_v2_71_calls_have_totals_without_adding_representative(self):
         metrics = {name: value * 71 for name, value in
                    dict(spanCount=4, sourceBytes=16, parameterBytes=188, scratchBytes=1024).items()}

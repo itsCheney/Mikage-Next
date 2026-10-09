@@ -578,6 +578,7 @@ def legacy_layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=
 SPAN_METRICS = ('calls', 'spanCount', 'sourceBytes', 'parameterBytes', 'scratchBytes')
 SPAN_ROUTES = ('gpu', 'cpu', 'noop')
 SPAN_METHODS = ('drawLine', 'drawPath', 'drawImageStretch')
+SPAN_METHODS_V3 = (*SPAN_METHODS, 'drawRectangle', 'clear')
 SPAN_WINDOW_METRICS = (*SPAN_METRICS, 'gpuCalls', 'cpuCalls', 'noopCalls')
 
 
@@ -594,7 +595,7 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
                 except (TypeError, ValueError):
                     event = None
                 native.append((row.get('unixTime'), value, event))
-    have_v2 = any(isinstance(e, dict) and e.get('version') == 2 for _, _, e in native)
+    have_v2 = any(isinstance(e, dict) and e.get('version') in (2, 3) for _, _, e in native)
     have_v2 |= any('spanRouteWindowID' in r['fields'] for r in work_rows)
     if not have_v2:
         legacy = legacy_layer_spans(rows, errors, origin, from_seconds, to_seconds)
@@ -652,12 +653,13 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
             window_id = number(event, 'windowID', True)
             if window_id not in selected:
                 continue
-            if len(value.encode('utf-8')) > 900 or type(event.get('version')) is not int or event['version'] != 2:
+            if len(value.encode('utf-8')) > 900 or type(event.get('version')) is not int or event['version'] not in (2, 3):
                 raise ValueError('invalid bounded route version or size')
             phase = event.get('phase')
             if phase not in ('aggregate', 'sample', 'window'):
                 raise ValueError('unknown v2 phase')
             number(event, 'generation', True)
+            methods = SPAN_METHODS_V3 if event['version'] == 3 else SPAN_METHODS
             if phase == 'window':
                 for name in (*SPAN_WINDOW_METRICS, 'aggregateRows', 'samples', 'repeatedOmitted',
                              'capacityOmitted', 'invalidRecords'):
@@ -676,7 +678,7 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
                     raise ValueError('window sample and omission counts do not equal calls')
                 states[window_id]['footers'].append(event)
             else:
-                if event.get('method') not in SPAN_METHODS or event.get('route') not in SPAN_ROUTES:
+                if event.get('method') not in methods or event.get('route') not in SPAN_ROUTES:
                     raise ValueError('unknown method or route')
                 reason = event.get('reason')
                 if not isinstance(reason, str) or not reason or len(reason.encode('utf-8')) > 48:
@@ -699,8 +701,8 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
                         for name in targets:
                             number(event, name, name != 'contentVersion')
                     index = event['sampleIndex']
-                    slot = SPAN_METHODS.index(event['method']) * 3 + SPAN_ROUTES.index(event['route'])
-                    if index < 9 and index != slot:
+                    slot = methods.index(event['method']) * 3 + SPAN_ROUTES.index(event['route'])
+                    if index < len(methods)*3 and index != slot:
                         raise ValueError('sample uses wrong protected slot')
                 states[window_id]['aggregates' if phase == 'aggregate' else 'samples'].append({**event, 'unixTime': timestamp})
         except (TypeError, ValueError) as error:
@@ -767,7 +769,7 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
                 issue('sample metrics exceed aggregate group', window_id)
                 representatives_complete = False
         if footer:
-            generation_mismatch = any(event['generation'] != footer['generation']
+            generation_mismatch = any(event['generation'] != footer['generation'] or event['version'] != footer['version']
                                       for event in (*state['aggregates'], *state['samples']))
             if generation_mismatch:
                 issue('group or sample generation differs from footer', window_id)
@@ -792,7 +794,8 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
         if unrepresented:
             issue('aggregate groups lack representative samples', window_id)
             representatives_complete = False
-        protected_slots = {SPAN_METHODS.index(key[0]) * 3 + SPAN_ROUTES.index(key[1]) for key in window_groups}
+        methods = SPAN_METHODS_V3 if footer and footer['version'] == 3 else SPAN_METHODS
+        protected_slots = {methods.index(key[0]) * 3 + SPAN_ROUTES.index(key[1]) for key in window_groups if key[0] in methods}
         if protected_slots - sample_indices:
             issue('missing protected method/route representative slot', window_id)
             representatives_complete = False
@@ -808,7 +811,7 @@ def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
     totals_complete = coverage_complete and all(window['totalsComplete'] for window in windows)
     breakdown_complete = coverage_complete and all(window['breakdownComplete'] for window in windows)
     representatives_complete = coverage_complete and all(window['representativeCoverageComplete'] for window in windows)
-    return {'version': 2, 'records': samples, 'aggregates': aggregates, 'byRoute': list(groups.values()),
+    return {'version': max((w['footer']['version'] for w in windows if w['footer']), default=2), 'records': samples, 'aggregates': aggregates, 'byRoute': list(groups.values()),
             'windows': windows, 'totals': known_totals if totals_complete else None,
             'knownTotals': known_totals if any(window['footer'] is not None for window in windows) else None,
             'totalsComplete': totals_complete, 'breakdownComplete': breakdown_complete,
