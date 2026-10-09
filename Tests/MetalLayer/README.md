@@ -214,7 +214,7 @@ P2C C2B adds a separate ordered plutovg span compositor for `drawLine`,
 `drawPath` and `drawImageStretch`. The pinned plutovg 1.3.3 overlay retains CPU
 rasterization, clip history and paint sampling; Metal composes original packed
 bytes with the upstream integer rounding into scratch, then commits the ROI.
-Recording, borrowed/escaped surfaces, live leases, arbitrary argument conversion
+Borrowed/escaped surfaces, live leases, arbitrary argument conversion
 and resource limits retain named CPU routes. No ordinary Layer operation IDs
 or public settings are added.
 
@@ -227,3 +227,22 @@ Native `metal.layerSpan` route samples are bounded to 32 per profile window and
 report overflow. Packet and scratch bytes are separate from C0 pixel transfers.
 Apple compilation, native kernel ordering and matching device log replay remain
 required; portable pixels do not establish a performance improvement.
+
+The remaining C2 implementation also captures native vector replay and
+`drawRectangle`, and stages per-paint recording deltas until pixel commit.
+Checked clones and pre-reserved record storage preserve sole CPU replay before
+commit and record publication after commit errors. Recording exports/redraw/save
+retain their synchronous CPU effects and remain explicit consumers.
+
+`clear` uses the original SRC color/span output. Only complete, full-coverage
+rows qualify for a CPU overwrite lease, without fetching old pixels. Historical
+clip, escaped aliases, live leases and object-result finalizers stay conservative.
+The 74-call chain oracle compares 73 GPU operations plus one CPU overwrite against
+the original CPU binding, including exact intermediate/final pixels.
+
+Route v3 protects 15 method/route representatives plus 17 reason samples; all-call
+aggregation remains complete. Successful whole-texture reads use a separate
+64-slot aggregate joined to C0 under its lock, with capacity/oversize overflow.
+The new `c2-window-emitter` test compiles the production headers and reconciles
+their native output with the analyzer, including bounded-detail omissions and an
+empty window. Point reads and absent caller traces remain separate coverage.

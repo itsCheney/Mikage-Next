@@ -693,6 +693,35 @@ static void C2SpanFacade(iTVPRenderBackend* backend) {
         "C2B dirty input expanded upload/readback");
     auto format=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::Gray,Image(9,5,1,4));
     Require(TVPTryMetalLayerSpanComposite(packet,format.get())==Result::Resource,"C2B non RGBA input accepted");
+    Require(TVPCheckMetalLayerCPUOverwrite(format.get())==Result::Resource,"CPU overwrite accepted non RGBA");
+    for(bool diagnostics:{false,true}) {
+        auto texture=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::RGBA,original);
+        texture->GetTextureHandle();texture->InvalidateCPUCache();
+        krkrsdl3::layer_work::SetEnabled(diagnostics);
+        const auto before=TVPGetMetalLayerRenderStats();
+#ifdef TEST_NATIVE_METAL
+        const auto submits=testMetalSubmits,waits=testMetalWaits;
+#endif
+        Require(TVPCheckMetalLayerCPUOverwrite(texture.get())==Result::Applied,"resident overwrite eligibility rejected");
+        {
+            tTVPScopedTexturePixels pixels;pixels.Acquire(texture.get(),true,"layerExDraw.write",true);
+            Require(TVPCheckMetalLayerCPUOverwrite(texture.get())==Result::CPUAccess,"overwrite ignored active CPU lease");
+            for(int y=0;y<5;++y) std::fill_n(reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(pixels.Data())+y*pixels.Pitch()),9,0x80402010u);
+            pixels.Written(tTVPRect(0,0,9,5));
+        }
+        const auto written=TVPGetMetalLayerRenderStats();
+        Require(written.readbackBytes==before.readbackBytes && written.uploadedBytes==before.uploadedBytes,
+            "full CPU overwrite fetched discarded GPU pixels or uploaded early");
+#ifdef TEST_NATIVE_METAL
+        Require(testMetalSubmits==submits && testMetalWaits==waits,"CPU overwrite probe/lease added GPU sync");
+#endif
+        Require(texture->GetPointAlpha(1,1)==0x80,"overwrite failed alpha-cache invalidation");
+        texture->GetTextureHandle();
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes+180,
+            "overwrite delayed input upload count is incorrect");
+        krkrsdl3::layer_work::SetEnabled(false);
+    }
 #ifndef TEST_NATIVE_METAL
     auto* device=static_cast<DeviceDouble*>(backend);
     for(int failure:{0,1}) {

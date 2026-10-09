@@ -82,6 +82,11 @@ void CompleteReadAggregation() {
     Require(!trace::ReportRead(r),"late read detail was attached to next window");
     {std::lock_guard<std::mutex> lock(work::mutex);
         Require(work::profile.cpuConsumerBudget.readWindow.totals.calls==0,"late read was double counted in new window");}
+    krkrsdl3::cpu_reads::Window overflow;
+    overflow.Record("clear","method","write","origin",{1,UINT64_MAX,UINT64_MAX,UINT64_MAX},true);
+    overflow.Record("clear","method","write","origin",{1,1,1,1},true);
+    Require(overflow.overflow && overflow.totals.calls==2 && overflow.totals.bytes==UINT64_MAX,
+        "successful-read metric overflow was silent or wrapped");
 }
 void ContextAndAttribution() {
     Begin();

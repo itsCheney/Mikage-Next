@@ -1,0 +1,20 @@
+Internal ctest changing into directory: D:/vn-sim/build/metal-layer-tests
+Test project D:/vn-sim/build/metal-layer-tests
+    Start 1: plutovg-exact-capture
+1/7 Test #1: plutovg-exact-capture ............   Passed    0.22 sec
+    Start 2: metal-layer-tests
+2/7 Test #2: metal-layer-tests ................   Passed   28.58 sec
+    Start 3: metal-layer-capability-audit
+3/7 Test #3: metal-layer-capability-audit .....   Passed    0.05 sec
+    Start 4: layer-diagnostics-parser
+4/7 Test #4: layer-diagnostics-parser .........   Passed    0.40 sec
+    Start 5: c2-window-emitter
+5/7 Test #5: c2-window-emitter ................   Passed    1.26 sec
+    Start 6: app-build-info-wiring
+6/7 Test #6: app-build-info-wiring ............   Passed    0.08 sec
+    Start 7: c2b-profile-window-wiring
+7/7 Test #7: c2b-profile-window-wiring ........   Passed    0.15 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =  30.77 sec

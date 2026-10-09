@@ -1,0 +1,10 @@
+Internal ctest changing into directory: D:/vn-sim/build/metal-layer-tests
+Test project D:/vn-sim/build/metal-layer-tests
+    Start 4: layer-diagnostics-parser
+1/2 Test #4: layer-diagnostics-parser .........   Passed    0.38 sec
+    Start 5: c2-window-emitter
+2/2 Test #5: c2-window-emitter ................   Passed    1.32 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   1.71 sec

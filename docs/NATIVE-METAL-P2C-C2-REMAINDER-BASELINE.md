@@ -26,6 +26,22 @@ drawRectangle 使用原 path_add_rect/_drawPath，复用原 paint、历史 Clip�
 
 metal.layerSpan 输出v3：五个固定方法、15个方法/路由保护位＋17个原因位，共32代表；clear 在第四批接入。所有方法/路由/原因聚合仍完整、有界，旧v1/v2分析兼容；v3按本版本保护位验证，混合版本或代际缺口显式报错。证据见 [第三批 manifest](native-metal-c2-remainder-baseline/batch3/manifest.json)。
 
+## 第四批：clear 完整覆盖与最终验证
+
+独立只读 facade 检查原生同会话 RGBA 与 CPU 租约，不获取GPU句柄。原clear在capture canvas上仍执行原SRC颜色转换/栅格化；准备后的每行span必须连续覆盖整个image、无缺口/重叠、SolidSource且coverage=255，才获取CPU overwrite租约并写入原span的premultiplied像素。部分/历史Clip、逃逸alias、活动lease和不能证明的域保留原CPU。record替换预先暂存，成功后发布；原无条件Update、ImageModified和void结果清空顺序保持。已有对象结果可能析构重入，具名resultObject保守回退。
+
+新增45组颜色/alpha/Clip/COW/record/lease/分配与更新故障对照；另验逃逸image同步可见性、对象结果释放、整链诊断开关。74次生产绑定序列（原71调用＋rectangle＋clear＋vector）得到73 GPU＋1 CPU fullOverwrite，无目标旧像素acquire；mock验证不等同原生总线性能。真实facade/device double单独验证overwrite无readback/提前upload、alpha cache失效及一次180bytes必要延迟输入上传；探针无backend调用由源码确认，原生submit/wait断言在Apple分支待运行。
+
+最终 MetalLayer **7/7**、Backend **1/1**、TJS shutdown **1/1**；解析 **56项**、frame、point debug/release、C11 importer/App接线及四份生产TU syntax通过，零本地skip。新CTest编译生产emitter，以真实v3五方法75条路由、71条成功read/32条详情、空窗口和C0精确对账喂给生产分析器。源数据详情/总量不重复计数；聚合完整、名字容量和真实unknown归因分别报告。证据见 [第四批 manifest](native-metal-c2-remainder-baseline/batch4/manifest.json)。
+
+支持域的参数/span/scratch仅为原GPU合成输入，CPU clear overwrite单列为初始化；不计成GPU命中，也不新增GPU clear随后强制回读。getRecordImage/redrawRecord/saveRecord保留原同步CPU副作用，原内部重绘/保存仍可成为后续具名消费者，不能据选定绘制链测试宣称整款游戏零回读；设备重采须覆盖这些接口，核对是否转移了等待。
+
+## 必要 CPU 边界源码核对
+
+`plugins/LayerExBTOA.cpp::copyAlphaToProvince` 读取完整 imageWidth/imageHeight，不使用Layer ClipRect；逐RGBA像素取第4字节写省图。threshold<0复制原alpha，0..255写比较结果0/1，>=256写0。即使后一分支不消费alpha，原入口仍先校验/获取源和省图，错误顺序本轮保留。仅增加准确的copyAlphaToProvince诊断scope及保护槽，算法不变；同源版本的重复读复用原LayerTexture valid cache，GPU/CPU写入沿用既有失效。
+
+`SaveLayerImage → TVPSaveImage → PNG handler` 同步传递完整MainImage及元数据；PNG32逐行读取RGBA，PNG24去除alpha，不改用Clip ROI。源未变化时后续scanline复用原CPU cache；保存完成或异常原样返回，本轮不改变格式、路径、编码或跨会话资源释放。现有真实facade缓存/失效/诊断回归覆盖底层，但不充当新的设备保存文件或重启恢复验收。
+
 ## 待验与范围
 
-Windows portable 使用原 plutovg、生产 NCBind/TJS、生产 shader 数学抽取及 GPU device double。Apple Objective-C++/MSL、Swift/App、default/forced compute、device/simulator、原生 submit/wait 及同设备/场景/热状态三次配对未验。历史日志保持原样，不宣称性能改善。record、drawRectangle、clear 尚待后续批次；必要 CPU 保存/alphaToProvince、saveDataPack 独立兼容、C3、P2D、Nekopara 不因本批签收。
+Windows portable 使用原 plutovg、生产 NCBind/TJS、生产 shader 数学抽取及 GPU device double。本轮四批选定支持域本地实现/验证完成。Apple Objective-C++/MSL、Swift/App、default/forced compute、device/simulator、原生 submit/wait 及同设备/场景/热状态三次配对未验。历史日志保持原样，不宣称性能改善。必要 CPU 保存/alphaToProvince、保守record重绘等更广消费域、saveDataPack 独立兼容、C3、P2D、Nekopara 不因本批签收。

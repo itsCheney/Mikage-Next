@@ -172,6 +172,8 @@ add_test(NAME plutovg-exact-capture COMMAND "${Python3_EXECUTABLE}"
 add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
 add_test(NAME metal-layer-capability-audit COMMAND metal-layer-tests --audit-capabilities)
 add_test(NAME layer-diagnostics-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-layer-diagnostics.py")
+add_test(NAME c2-window-emitter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-c2-window-emitter.py")
+set_tests_properties(c2-window-emitter PROPERTIES ENVIRONMENT "CXX=${CMAKE_CXX_COMPILER}")
 add_test(NAME app-build-info-wiring COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../../scripts/check-app-build-info.py")
 add_test(NAME c2b-profile-window-wiring COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../../scripts/check-c2b-profile-window.py")
 set_tests_properties(c2b-profile-window-wiring PROPERTIES ENVIRONMENT "CC=${CMAKE_C_COMPILER}")

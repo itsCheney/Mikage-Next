@@ -1,6 +1,6 @@
 # P2C C2 后续：CPU 消费链与像素往返收敛
 
-2026-10-09。归属兼容性计划的 **P2C C2 / G2**，承接已实现的 C2A 归因和 C2B span 合成；本文件安排后续范围与验收，尚未实施这些优化。普通 Layer overdraw 仍归 P2D，tiny update batching 仍归 C3，Nekopara 继续延后。
+2026-10-09。归属兼容性计划的 **P2C C2 / G2**，承接已实现的 C2A 归因和 C2B span 合成；本文件保留范围与验收；四个选定域及成功read聚合的本地实现已完成，见[实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。Apple/真机整链及性能配对仍待验。普通 Layer overdraw 仍归 P2D，tiny update batching 仍归 C3，Nekopara 继续延后。
 
 ## 证据与优先级依据
 
@@ -56,4 +56,4 @@
 4. 诊断开关不改变像素、路由、backend调用或同步；优化不新增强制submit/wait来换取表面命中。保持GPU前失败的唯一CPU续跑、GPU后异常传播、资源预算与后台/退出寿命。
 5. 运行所涉portable回归与原生Apple kernel/默认及强制compute/device及simulator/App检查；真机按相同设备/OS、场景、输入步骤、分辨率、设置、热状态与时长每组三次。合并原始帧样本计算runtime interval与CPU wall的p50/p95/p99和长帧，另报GPU时间；无配对不宣称性能改善。
 
-当前只签收参数误拒绝在样例中的修复与路由统计完整性，以上CPU消费链优化及完整C2/性能签收均为待办。
+当前签收四个选定域及统计的本地实现/portable回归；clear采用完整覆盖CPU overwrite，record导出/重绘/保存保留原CPU副作用。新原生全链路日志必须计入这些消费者，完整C2与性能签收仍待验。历史样例仅作路径证据，不作为本轮性能结果。

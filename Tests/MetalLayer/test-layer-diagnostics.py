@@ -148,6 +148,20 @@ class LayerDiagnosticsTests(unittest.TestCase):
         result=self.summarize(self.basic(work(),consumer_event(),heart()))
         self.assertIsNone(result['cpuReadAggregates']['totals'])
 
+    def test_cpu_read_overflow_totals_match_c0_without_inventing_origin(self):
+        events=self.read_aggregates()
+        for index in (1,3):
+            e=json.loads(events[index]['fields']['message'].split(' ',1)[1])
+            if index==1: e.update(calls=1,bytes=10,wallNS=15,waitNS=2)
+            else: e.update(calls=72,bytes=720,wallNS=1080,waitNS=144,capacityRecords=1,readExceeded=40)
+            events[index]['fields']['message']='metal.cpuConsumerAggregate '+json.dumps(e)
+        result=self.summarize(self.basic(work(spanRouteWindowID='50',transfers='read:load=72/720/1080/144',
+            transferOrigins='read:load=72/720/1080/144'),*events,heart()))['cpuReadAggregates']
+        self.assertTrue(result['complete'])
+        self.assertFalse(result['namedConsumersComplete'])
+        self.assertEqual(result['windows'][0]['totalC0Reconciliation']['status'],'match')
+        self.assertEqual(result['byConsumer'][0]['calls'],71)
+
     def span_summary(self, events, **bounds):
         return self.summarize(self.basic(work(spanRouteWindowID='50'), *events, heart()), **bounds)['layerSpans']
 

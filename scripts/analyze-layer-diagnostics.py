@@ -453,6 +453,7 @@ def cpu_read_aggregates(rows, work_rows, errors, file_complete=True):
         if len(overflow) != 2 or len(state['overflow']) != 2:
             issue('missing or duplicate consumer overflow row', key)
         reconciliation = []
+        total_reconciliation = {'status': 'unavailable', 'C0': None, 'consumer': None, 'additionalC0Reads': None}
         if footer:
             if footer['overflow']:
                 issue('consumer counter saturation', key)
@@ -471,6 +472,16 @@ def cpu_read_aggregates(rows, work_rows, errors, file_complete=True):
                 if reason in overflow and overflow[reason]['calls'] != footer[reason + 'Records']:
                     issue('consumer overflow count mismatch', key)
             origins, valid = parse_transfers(selected[key]['fields'].get('transferOrigins'), errors, 'consumer.C0', True)
+            folded, folded_valid = (parse_overflow(selected[key]['fields']['originOverflow'], errors, 'consumer.C0.overflow')
+                                    if 'originOverflow' in selected[key]['fields'] else ({}, False))
+            if valid and folded_valid:
+                c0_total = [sum(v[i] for name, v in origins.items() if name.startswith('read:')) + folded['read'][i] for i in range(4)]
+                observed_total = [footer[m] for m in metrics]
+                status = 'match' if observed_total == c0_total else 'subset' if all(a <= b for a, b in zip(observed_total, c0_total)) else 'mismatch'
+                total_reconciliation = {'status': status, 'C0': c0_total, 'consumer': observed_total,
+                                        'additionalC0Reads': [b-a for a,b in zip(observed_total,c0_total)] if status != 'mismatch' else None}
+                if status == 'mismatch':
+                    issue('whole-read footer exceeds same-window C0 including overflow', key)
             for source in sorted({e['source'] for e in entries}):
                 observed = [sum(e[m] for e in entries if e['source'] == source) for m in metrics]
                 c0 = origins.get('read:' + source)
@@ -484,11 +495,14 @@ def cpu_read_aggregates(rows, work_rows, errors, file_complete=True):
             for metric in metrics:
                 target[metric] += e[metric]
         windows.append({'windowID': key, 'footer': footer, 'complete': footer is not None and not state['invalid'] and len(issues) == before,
-                        'overflow': overflow, 'originReconciliation': reconciliation})
+                        'overflow': overflow, 'originReconciliation': reconciliation, 'totalC0Reconciliation': total_reconciliation})
     complete = bool(work_rows) and file_complete and len(selected) == len(work_rows) and not issues and all(w['complete'] for w in windows)
+    unknown_calls = sum(g['calls'] for g in groups.values() if g['method'] == 'unknown' or g['nativeEntry'] == 'unknown')
+    named_complete = complete and all(not w['footer']['capacityRecords'] and not w['footer']['oversizeRecords'] for w in windows)
     return {'version': 2, 'observed': True, 'complete': complete, 'totals': totals if complete else None,
             'knownTotals': totals, 'byConsumer': list(groups.values()), 'windows': windows, 'issues': issues,
-            'namedConsumersComplete': complete and all(not w['footer']['capacityRecords'] and not w['footer']['oversizeRecords'] for w in windows),
+            'namedConsumersComplete': named_complete, 'identifiedConsumersComplete': named_complete and not unknown_calls,
+            'unknownConsumerCalls': unknown_calls,
             'basis': 'whole selected work windows; aggregate + explicit overflow; details never added; point reads are outside this coverage'}
 
 

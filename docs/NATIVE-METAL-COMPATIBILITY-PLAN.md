@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-09。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 归因对账通过；C4 已有三款 iPhone 实际场景 GPU/零 CPU 证据；C1 两种 shrinkCopy、安全自别名、诊断及日志闭环已提交，本地 portable 验证通过，Apple/Swift及同条件真机配对待验。C2A 已提交并有三款真机消费端证据；C2B 首批及真实类型/统计修复已提交，After_P2C_C2B-2确认部分实际GPU与626窗口完整对账；本轮最小参数契约和已知HSV字节码兼容补修本地通过并发布，Apple/设备重采待验。C2 其余子域/完整签收、C3、P2D、P3–P5 尚未完成。C4 未覆盖原生矩阵和受控配对继续按原门槛验收。**
+日期：2026-10-05；更新：2026-10-09。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 对账通过，C4 有实际 GPU/零 CPU 样例，C1 本地实现与 portable 通过。C2A/C2B 及参数/HSV 补修已发布，After_P2C_C2B-3 确认参数支持域 GPU 命中与完整路由对账；C2 剩余 vectorSource/record/drawRectangle/clear 和成功 read 聚合本地实现与验证完成。完整 Apple/App/原生矩阵及匹配真机重采/性能配对仍待验，C2 更广消费域、C3、P2D、P3–P5 未完成。**
 
 2026-10-09 发布补记：用户授权本轮提交推送，Core `5e54d4678119c79848f6aab9d759550c8ff0a663`、Runtime `b6f31a2f892a0f4e20641471a6c361d2b899ac37` 已顺序发布并核对远端；主仓库测试/证据与指针由包含本记录的提交发布。下文“本轮未提交”的本地验收历史以本发布补记更新；不跟踪CI，等待用户反馈构建或设备异常。
 
@@ -368,11 +368,11 @@
 
 #### C2. LayerEx/raw-pixel：收敛 GPU↔CPU ping-pong，而非假定插件可自动 GPU 化
 
-2026-10-09 C2B 本地签收：After_P2C_C2A 三份 `sourceRevision=3cc3971f518c` 日志确认流程图的 drawLine/drawPath/drawImageStretch 为剩余实际绘制消费者；千恋保存小图的消费者已精确关联为 `Layer.saveLayerImage` / `saveBookMarkToFile`。本批选择流程图三入口，保留 pinned plutovg 1.3.3 原栅格化/paint 采样，以有序整数 span 做 GPU 合成并只提交 ROI。record、借用/逃逸 surface、租约、转换、副作用与超限保留具名 CPU 路由，返回值装箱仅在提交后执行一次。MetalLayer 5/5（含真实上游/overlay 完整像素对照）、Backend/TJS 各 1/1、34 项解析、frame/point trace、完整 Draw/native Layer syntax 通过；未提交或推送。详见 [C2B 独立基线](NATIVE-METAL-P2C-C2B-BASELINE.md)。Apple/原生 kernel、新真机与配对仍待验，不宣称全部 C2 完成或性能改善；9-nine Copy/blur 和同步保存未纳入本批优化。
+2026-10-09 C2B 本地签收：After_P2C_C2A 三份 `sourceRevision=3cc3971f518c` 日志确认流程图的 drawLine/drawPath/drawImageStretch 为剩余实际绘制消费者；千恋保存小图的消费者已精确关联为 `Layer.saveLayerImage` / `saveBookMarkToFile`。本批选择流程图三入口，保留 pinned plutovg 1.3.3 原栅格化/paint 采样，以有序整数 span 做 GPU 合成并只提交 ROI。record、借用/逃逸 surface、租约、转换、副作用与超限保留具名 CPU 路由，返回值装箱仅在提交后执行一次。MetalLayer 5/5（含真实上游/overlay 完整像素对照）、Backend/TJS 各 1/1、34 项解析、frame/point trace、完整 Draw/native Layer syntax 通过；当时未提交；首批随后已发布。详见 [C2B 独立基线](NATIVE-METAL-P2C-C2B-BASELINE.md)。Apple/原生 kernel、新真机与配对仍待验，不宣称全部 C2 完成或性能改善；9-nine Copy/blur 和同步保存未纳入本批优化。
 
-2026-10-09 C2B 修复签收：首批代码随后已提交至三层 `0b557122fca5 / 860d3de7e804 / 6e75bbb32739`。After_P2C_C2B 真机日志暴露真实 Appearance/Path 的 direct-native 注册与旧 Gdip wrapper 预检不符；旧夹具也人为包装，未覆盖该差异。本轮改用直接 adaptor，测试使用生产构造与默认 boxing/unboxing，旧预检真实注册复现失败后修复通过。新增固定方法×路由×原因表完整聚合，详情仅留 9 个方法/路由保护样例＋23 个原因样例；native `metal.layerSpan` v2 在原窗口结束时输出聚合/样例/总账，以 generation＋windowID 对账，App 经只读 C accessor 附带 ID，旧 C struct/profile 字段/周期不变。MetalLayer 6/6、Backend/TJS 各1/1、51项解析、生产 emitter→parser 5,071 次路由对账、C importer/桥接/接线、frame/point/syntax通过；八份旧日志哈希不变，历史省略39条仍未知。修复未提交或推送，新真机 GPU 命中和 Apple 联合构建/同步仍待验，见 [命中与统计修复记录](NATIVE-METAL-C2B-HIT-FIX-BASELINE.md)。Nekopara 明确延后，不由此宣称性能改善。
+2026-10-09 C2B 修复签收：首批代码随后已提交至三层 `0b557122fca5 / 860d3de7e804 / 6e75bbb32739`。After_P2C_C2B 真机日志暴露真实 Appearance/Path 的 direct-native 注册与旧 Gdip wrapper 预检不符；旧夹具也人为包装，未覆盖该差异。本轮改用直接 adaptor，测试使用生产构造与默认 boxing/unboxing，旧预检真实注册复现失败后修复通过。新增固定方法×路由×原因表完整聚合，详情仅留 9 个方法/路由保护样例＋23 个原因样例；native `metal.layerSpan` v2 在原窗口结束时输出聚合/样例/总账，以 generation＋windowID 对账，App 经只读 C accessor 附带 ID，旧 C struct/profile 字段/周期不变。MetalLayer 6/6、Backend/TJS 各1/1、51项解析、生产 emitter→parser 5,071 次路由对账、C importer/桥接/接线、frame/point/syntax通过；八份旧日志哈希不变，历史省略39条仍未知。该修复随后已发布；5987acb 与 e3b0a5e 样例确认实际 GPU，完整 Apple 联合构建/同步仍待验，见 [命中与统计修复记录](NATIVE-METAL-C2B-HIT-FIX-BASELINE.md)。Nekopara 明确延后，不由此宣称性能改善。
 
-2026-10-09 后续日志与补修：上述类型/统计修复已提交至三层 `5987acb274a7 / 1f8c04839d2b / e3302bed3d4f`。After_P2C_C2B-2八份日志的626个完整work窗口全部v2对账，聚合/代表/总账无缺行或容量丢失；千恋drawLine1/drawPath10均GPU，两份天使各GPU4/CPU67（arguments33、record33、vectorSource1）。千恋剩余流程图回读为范围外drawRectangle，天使正常样例仍3次/8,029,788 bytes/136.633458ms wait，不宣称完整C2B往返消除或性能改善。本轮真实绑定复现并修正严格数量与NCBind最小数量的差异，三个入口允许原生签名之外未消费的额外参数，少参数错误及安全域保持。用户提供的天使hsvcpick字节码确认设置direct缺失是选项模块旧字段读取；固定完整SHA/类/方法/指令签名的临时副本仅更改local字符串映射，绑定既有hsvDirectSysButton，无全局/Layer假属性或VM语义修改。MetalLayer6/6、Backend/TJS各1/1、四套其它TJS依赖目标及51解析通过，真实字节码仅1byte静态变化，无游戏初始化执行；修复未提交/推送，设备设置闭环和新GPU命中仍待重采。见 [参数与设置兼容修复记录](NATIVE-METAL-C2B-ARITY-BASELINE.md)。
+2026-10-09 后续日志与补修：上述类型/统计修复已提交至三层 `5987acb274a7 / 1f8c04839d2b / e3302bed3d4f`。After_P2C_C2B-2八份日志的626个完整work窗口全部v2对账，聚合/代表/总账无缺行或容量丢失；千恋drawLine1/drawPath10均GPU，两份天使各GPU4/CPU67（arguments33、record33、vectorSource1）。千恋剩余流程图回读为范围外drawRectangle，天使正常样例仍3次/8,029,788 bytes/136.633458ms wait，不宣称完整C2B往返消除或性能改善。本轮真实绑定复现并修正严格数量与NCBind最小数量的差异，三个入口允许原生签名之外未消费的额外参数，少参数错误及安全域保持。用户提供的天使hsvcpick字节码确认设置direct缺失是选项模块旧字段读取；固定完整SHA/类/方法/指令签名的临时副本仅更改local字符串映射，绑定既有hsvDirectSysButton，无全局/Layer假属性或VM语义修改。MetalLayer6/6、Backend/TJS各1/1、四套其它TJS依赖目标及51解析通过，真实字节码仅1byte静态变化，无游戏初始化执行；修复已发布至 e3b0a5e04488；After-3 确认原 arguments33 转 GPU 及 HSV applied，完整设备设置交互闭环仍待验。见 [参数与设置兼容修复记录](NATIVE-METAL-C2B-ARITY-BASELINE.md)。
 
 2026-10-08 C2A 本地签收：已完成有界消费端/shrink 输出 identity 归因、LayerExDraw 元数据构造和按需像素租约，以及 NCBind 参数/错误顺序、raw-first、外部重入/COW/resize 的兼容修复。MetalLayer 4/4、Backend/TJS 各1/1、32项解析、frame/point-trace及六个生产 TU syntax通过；诊断开关真实 facade 事务的精确像素与计数一致。Draw 边界使用真实 NCBind/TJS 和 canvas double，真实 plutovg/Apple/App及新真机链路待验，不宣称性能改善或全部 C2 完成。详见 [C2A 基线](NATIVE-METAL-P2C-C2A-BASELINE.md)。既有 CPU 保存同步语义、plutovg算法和实际绘制写域保持；新 GPU 算子/异步保存留待消费端证据选定。
 
@@ -387,10 +387,10 @@
 - [x] C2B 本地：三个流程图入口的原始 span/采样与整数 GPU 合成；独立 Unsupported/Count、稳定行内顺序、64 MiB 与每行 512 references 预算、ROI 外像素、COW/lease/Clip、提交前唯一 CPU 续跑、提交后异常不重放、返回值及装箱副作用、逃逸图像别名均通过。本地证据见独立基线；普通 Layer 名称/编号不变。
 - [x] C2B 命中与统计修复本地：真实 direct-native Appearance/Path、GdipImage wrapper/default conversion 注册回归；完整五指标聚合及32代表、保护位置、溢出/缺行/空窗/开关/换代/迟到identity检查通过。总量和原因分布使用v2聚合与窗口总账，代表不重复计数；C0像素传输和执行次数保持，详见修复记录。
 - [ ] C2B Apple/真机：完整 App/插件及 Objective-C++/MSL、default/forced compute、device/simulator、诊断开关 submit/wait 与新流程图日志。支持域 target readback/整图 output upload 为零；source/参数传输另报，所有 CPU 路由须具名，不把零 C0 像素上传当作零参数传输。
-- [ ] C2B 新日志完整性：千恋/天使支持域出现真实GPU代表；每个完整work窗口的ID匹配native总账（含零调用），总调用数＝GPU＋CPU＋noop＝聚合调用数之和，五指标一致且行数无缺失；分别报告代表覆盖/容量省略，不补历史39条。
+- [x] C2B e3b0a5e 新日志完整性：After-3 三份297完整窗口继续v2对账；千恋绘制GPU及天使arguments33转GPU，BD7898C1为320路由GPU132/CPU188，详情容量省略0。此样例不替代本轮v3重采。
 - [x] C2B 5987acb样例完整性：8份626窗口对账通过、零容量丢失；千恋drawLine/drawPath与天使drawLine出现真实GPU。代表省略仅重复详情，不丢聚合；其余域与重采门槛保持。
 - [x] C2B 参数/HSV兼容本地：额外参数真实绑定与少参数错误回归通过；严格已知版本字节码映射修复只改临时副本1byte，原创VM回归和用户字节码静态差异检查通过，无游戏原文进入tracked测试。
-- [ ] C2B 本轮设备重采：核对天使arguments支持域GPU与回读变化、所有窗口继续对账；确认compat.bytecode applied标识及设置进入/颜色选择/修改/退出/再次进入闭环。record/vectorSource继续保守CPU，drawRectangle另选域，Nekopara延后。
+- [ ] C2B 设备设置闭环/本轮重采：After-3已确认arguments支持域GPU与compat.bytecode applied；设置进入/颜色选择/修改/退出/再次进入的完整闭环仍待验。本轮record/vectorSource/rectangle/clear支持域扩大后须新采v3日志；Nekopara延后。
 - [ ] 对有已知 GPU 等价实现的功能接入专用 GPU 路径；对 ABI 必须提供 raw pointer 的功能，设计单次、区域化的 acquire/release 与上传边界。不能通过延迟 dirty、复用失效 CPU buffer 或虚构 full overwrite 改变插件可见像素。
 - [ ] 以天使纷扰的 1052×900 `layerExDraw.write` → `layerExBase` 交替访问为主回归，并加入千恋的 960×863、186×936 LayerEx 样例。重构前先证明两次完整往返由同一调用序列造成；重构后要么消除其中可 GPU 化的一段，要么记录为何 ABI/算法必须保留边界。
 
@@ -400,13 +400,13 @@
 
 **C2 后续范围：CPU 消费链（2026-10-09 After_P2C_C2B-3）。**详细范围、依赖、原始输入哈希与验收见 [CPU 消费链专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md)。BD7898C1的82窗口/320路由完整对账，原71调用中的arguments33已转GPU；但同构窗口仍有3次/8,029,788bytes回读，首次CPU消费者移到drawRectangle。整段继续滚动/再次绘制的LayerEx完整C0总量为66read＋66upload、每方向243,585,196bytes，read wait486.163046ms。CPU路线为record126、vectorSource62；已采到56次drawImageStretch回读212,083,200bytes，另6条read详情未采，不能补给任何方法，也不能按CPU调用数推算readback。
 
-2026-10-09 后续实施第一批：vectorSource drawImageStretch 复用原重放/span 合成，成功 whole-texture read 新增与 C0 同锁记账的64槽聚合和明确 overflow。真实生产绑定/原plutovg精确对照及portable回归通过；record、drawRectangle、clear继续后续批次，Apple/真机待验，见 [剩余链路实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。
+2026-10-09 后续四批本地签收：vectorSource原重放/span、record增量事务、drawRectangle及经实际覆盖证明的clear CPU overwrite已完成。成功whole-texture read新增与C0同锁的64槽聚合/overflow；路由v3有15＋17代表位，旧日志兼容。74调用选定链为73 GPU＋1 CPU overwrite，原精确像素和诊断开关一致；MetalLayer7/7、Backend/TJS各1/1、56解析、emitter→parser、frame/point/importer/生产syntax通过。Apple/完整原生及匹配真机重采仍待验，见 [实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。
 
 - [x] 参数补修样例：首个71次窗口GPU4/CPU67→GPU37/CPU34，arguments拒绝消除；该签收只覆盖实际支持域，不代表完整C2或整链路零往返。
-- [ ] 优先设计 **vectorSource安全重放/捕获与GPU合成**；录制元数据可继续CPU，保持原plutovg、不可变源版本/寿命、Clip/变换/alpha和顺序。无法证明的借用/逃逸或动态资源继续具名回退。
-- [ ] 拆分 **record纯命令构建与实际像素写入**，并扩展 **drawRectangle** 的可证明span支持域；保留录制导出/重绘、事务恢复、返回/装箱/更新次数及租约/COW语义。整条drawLine/drawPath→drawRectangle→record/vector重放链计量，避免仅移动CPU边界。
-- [ ] 为设置构造的 **clear＋紧随绘制** 选定子域：证明完整覆盖与旧值依赖后，分别评估CPU overwrite租约或连续GPU方案，保留Clip/区域外内容和同步指针。千恋5次clear wait63.780792ms、天使10次233.886794ms来自不同场景样例，不作性能配对。
-- [ ] 按需补齐 **C2A消费者有界聚合/代表覆盖**：read/caller/producer省略显式报告，不混同已完整的C2B路由和C0总量；无新增GPU查询/同步或无界dump。必要CPU的alphaToProvince与缩略图保存按真实通道/ROI/版本、同步返回与异常另验。
+- [x] vectorSource本地：原矩阵/重复项/paint/Clip顺序重放捕获后GPU合成；脚本参数固定同步采样寿命，GPU仅留复制参数，借用/逃逸/非法几何/超限具名回退。
+- [x] record/drawRectangle本地：纯矩阵元数据不acquire；录制增量先暂存/预留容量，GPU后无分配发布，提交前唯一续跑/后失败不重放。原录制导出/重绘/保存同步副作用、返回/装箱/更新和COW/lease保持。
+- [x] clear本地：原SRC span逐行证明完整覆盖才使用CPU overwrite，跳过旧值回读；部分/历史Clip、alias、lease、对象结果析构重入等保留原CPU，后续必要输入上传单列。45组精确对照及整链通过，设备设置场景待验。
+- [x] C2A成功read聚合本地：64槽按method/nativeEntry/access/origin完整累计，容量/超长四指标分别overflow；read/caller/producer仍有界且缺失显式。无额外GPU查询/同步；alphaToProvince、缩略图及内部record重绘仍按必要CPU边界具名。
 - [ ] **saveDataPack系统变量保存缺失** 单列功能兼容修复；不以跳过保存、空实现或吞异常降低CPU统计。Nekopara仍延后，C3/P2D仍保持各自范围。
 
 专项验收同时要求精确像素/脚本/record与raw-pointer语义、整链路read/upload/wait及参数分账、诊断开关无副作用、GPU前失败唯一CPU续跑/后失败不重放，以及相同设备/场景/热状态每组三次真机原始帧样本配对。GPU命中增加、origin改名或缺失样本补零均不替代传输/同步改善证明。
@@ -494,7 +494,7 @@
 | G0 | P2C origin 聚合、无同步诊断和场景基线；真机归因已签收 | F、现有 `metal.layerWork` | 中；原生开关开销与正式性能配对仍待验 |
 | G4 | 高频 CPU transition GPU 保留路径；已有本地实现及实际场景证据 | G0、千恋/DRACU 实际 handler 样例 | 高；时间/规则语义、三源与回退边界 |
 | G1 | `shrinkCopy` GPU 路径与完整覆盖写裁决；本地实现及 portable 验证完成 | G0、resize/copy 语义样例 | 高；filter、ROI、alias、旧目标读取；Apple/配对待验 |
-| G2 | LayerEx/raw-pixel 边界收敛；C2A/C2B后续按[CPU消费链专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md)扩展vectorSource、record、drawRectangle、clear | G0、插件样例；vector重放可先消费已有CPU录制产物 | 高；ABI可见性、录制事务、COW/lease、CPU cache；必须签收整链路传输，原生/配对与其余域待验 |
+| G2 | LayerEx/raw-pixel边界；C2A/C2B及vectorSource/record/drawRectangle/clear本地已实现，见[专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md) | G0、原plutovg/生产绑定/录制事务 | 高；ABI、COW/lease和CPU cache；Apple、整链路真机重采/配对及更广域待验 |
 | G3 | `bitmap.update` staging/encoder 批处理 | G0、调用点证据 | 高；更新顺序、可见时序、资源寿命 |
 | H | P2D hot-layer 关联、滚动背景 overdraw/pass 优化与 backpressure 配对 | G0、天使纷扰道路重放 | 高；顺序/alias/clip 正确性、诊断零同步、热状态配对 |
 | I | 通用三角形与安全支持域 | D、独立参照 | 高；软件回退不通用 |
@@ -597,13 +597,14 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [ ] P1：24 个矩形语义缺口完成，全部支持域/回退域有证据。
 - [ ] P2：常用 affine 混合及单输入 perspective 留在 GPU，几何边界裁决完成。
 - [x] P2C C0 真机归因：`4943c0e47665` 的 8 份日志 origin bytes/calls/wait 精确对账，overflow 为零；已足以安排 C4 → C1 → C2 → C3。
-- [x] P2C C4 本地与实际场景：七种真实 handler 1962 精确案例、拒绝/异常/COW/lease、诊断与原回归通过；`56b2799f8068` 的千恋、DRACU、天使纷扰实测 transition 均为 GPU/0 CPU/零像素往返。全 handler 原生矩阵、受控同热状态配对和提交仍待验，见第 2.6 节与 C4 独立基线。
+- [x] P2C C4 本地与实际场景：七种真实 handler 1962 精确案例、拒绝/异常/COW/lease、诊断与原回归通过；`56b2799f8068` 的千恋、DRACU、天使纷扰实测 transition 均为 GPU/0 CPU/零像素往返。全 handler 原生矩阵、受控同热状态配对仍待验，见第 2.6 节与 C4 独立基线。
 - [x] P2C C1 本地：两种 shrinkCopy 的精确整数算法、安全自别名、COW/resize/lease、事务拒绝与诊断日志闭环已实现；60 个真实插件精确对照、2048 组依赖证明、12 个故障事务和原 portable 回归通过。签收时未提交，当前 C1 包已提交；Apple/Swift/App、真实 GPU 同步和同条件真机配对仍待验，见 [C1 独立基线](NATIVE-METAL-P2C-C1-BASELINE.md)。
-- [x] P2C C2A 本地：消费端/shrink 输出有界关联、元数据操作零像素访问、绘制/record租约及原错误顺序、外部重入目标替换/resize通过生产边界测试；32项解析和原回归通过。真实plutovg/Apple/App及新真机链路待验，未提交；见 [C2A 独立基线](NATIVE-METAL-P2C-C2A-BASELINE.md)，不替代全部C2验收。
-- [x] P2C C2B 本地：流程图三个绘制入口、原 plutovg CPU/采样与 GPU 整数组合、真实完整像素 oracle 和生产绑定事务通过；首批与类型/统计修复已提交，5987acb样例支持部分实际GPU及626窗口对账。本轮最小参数和已知HSV字节码补修后，MetalLayer6/6、Backend/TJS各1/1、其它TJS依赖回归和51解析通过；本轮未提交，设备重采、完整Apple及C2签收待验，见 [C2B 基线](NATIVE-METAL-P2C-C2B-BASELINE.md)、[类型/统计记录](NATIVE-METAL-C2B-HIT-FIX-BASELINE.md)及[本轮记录](NATIVE-METAL-C2B-ARITY-BASELINE.md)。
+- [x] P2C C2A 本地：消费端/shrink 输出有界关联、元数据操作零像素访问、绘制/record租约及原错误顺序、外部重入目标替换/resize通过生产边界测试；32项解析和原回归通过。真实plutovg/Apple/App及新真机链路按后续记录验收；本包已提交；见 [C2A 独立基线](NATIVE-METAL-P2C-C2A-BASELINE.md)，不替代全部C2验收。
+- [x] P2C C2B 本地：流程图三个绘制入口、原 plutovg CPU/采样与 GPU 整数组合、真实完整像素 oracle 和生产绑定事务通过；首批与类型/统计修复已提交，5987acb样例支持部分实际GPU及626窗口对账。本轮最小参数和已知HSV字节码补修后，MetalLayer6/6、Backend/TJS各1/1、其它TJS依赖回归和51解析通过；补修已提交，After-3参数命中和v2对账通过；完整Apple/设置闭环及C2签收待验，见 [C2B 基线](NATIVE-METAL-P2C-C2B-BASELINE.md)、[类型/统计记录](NATIVE-METAL-C2B-HIT-FIX-BASELINE.md)及[本轮记录](NATIVE-METAL-C2B-ARITY-BASELINE.md)。
 - [ ] P2C C0 剩余验证：Apple 原生诊断开关无额外 submit/wait、App XCTest/界面、统计开销及同热状态性能配对有独立证据；不由对账签收替代。
 - [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
-- [ ] P2C C2 后续CPU消费链：vectorSource/record/drawRectangle/clear各自支持域与事务已证明，整链路可避免readback/整图CPU output upload消除；必要CPU边界和诊断缺口具名，保存兼容单独通过，见CPU消费链专项。当前仅完成规划与样例归因。
+- [x] P2C C2后续本地选定域：vectorSource/record/drawRectangle/clear与有界成功read聚合完成，原像素/事务/计数回归通过；见[实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。此项不签收更广CPU消费、原生或性能。
+- [ ] P2C C2原生与整链重采：新v3/CPU聚合完整对账，涵盖录制导出/重绘和必要CPU保存，不能仅移动回读来源；Apple/App及三次受控配对仍待验。
 - [ ] P2D：天使纷扰道路滚动完成 D0 asset→Layer→operation 归因；严格保持 Layer 像素/顺序/alias 语义的优化在 nominal/same-thermal 重复样本中降低 GPU fragment/command、`nextDrawable` backpressure、pass 或冗余像素与长帧。C1/C4 的传输改善不得冒充 P2D 收益。
 - [ ] P3：通用三角形域有独立参照与安全拒绝/回退。
 - [ ] P4：逐项标明“未触发/延后/已验收”，不作为当前核心功能完成的隐含条件。
@@ -617,7 +618,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 的诊断、逐帧、解析与版本 HEAD 已提交；独立 [C0 记录](NATIVE-METAL-P2C-C0-BASELINE.md)保留 simulator 大数组 Swift importer 失败、只读 C accessor 补修及当时待验状态。C0 该次记录的主仓库 HEAD 为 `4943c0e47665433ef0c1d139d9043c408ef5c33a`，新增 8 份同短 revision 真机日志已验证 origin 对账；该证据不自动签收全部 Apple CI、App XCTest 或诊断开关开销。
 
-仍未完成：C0 剩余 Apple 专项与同热状态性能对照、C4 全 handler 原生 GPU/App/受控配对签收、C1 Apple/Swift/原生和真机配对、C2A/C2B 完整原生/App 与 C2B 本轮真机重采、C2 其余子域、C3、P2D、P3–P5，以及新原生像素/性能基线和旧 GL 实际运行。C1/C2A 已提交；C2B 首批和类型/统计修复已提交，5987acb已有部分GPU与完整窗口证据；本轮最小参数/已知HSV字节码兼容补修本地完成、未提交，详见独立记录。第 2.6 节的 transition 实际证据不替代 C4 全矩阵；C2 后续根据具名 CPU 路由选域，并独立安排 C3 tiny update。P2D 处理 ordinary Layer overdraw/fragment/drawable backpressure；P5 保留 Emote GPU 与 scanline/queue 调查。正式性能结论仍以同热状态配对实测为准。
+仍未完成：C0剩余Apple专项与同热状态性能对照、C4全handler原生/App/受控配对、C1 Apple/Swift/原生和配对、C2完整Apple/App/设置闭环与本轮v3全链路重采、更广CPU消费域、C3、P2D、P3–P5和新原生像素/性能基线。C1/C2A/C2B、参数/已知HSV补修已发布；After-3确认参数GPU命中、HSV applied及297窗口对账。本轮vectorSource/record/drawRectangle/clear和成功read聚合本地完成，证据见独立记录；不以portable或旧日志替代新原生验证。P2D与P5保持独立范围，性能结论仍要求同热状态配对。
 
 ## 附录 A：完整名称对照
 

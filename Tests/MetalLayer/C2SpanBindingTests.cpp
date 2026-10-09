@@ -48,12 +48,13 @@ void TVPAddLog(const ttstr&) {}
 #define TestDrawNativeLayer C2BTestDrawNativeLayer
 void Check(bool value,const char* message) {if(!value) throw std::runtime_error(message);}
 struct TestDrawClass {static constexpr int ClassID=0x421356;};
-struct Counts {int reads=0,writes=0,unlocks=0,dirty=0;};
+struct Counts {int reads=0,writes=0,unlocks=0,dirty=0,overwrites=0,oldReads=0;};
 class TestDrawTexture:public iTVPTexture2D {
 public:
     std::vector<uint32_t> pixels;
     std::shared_ptr<Counts> counts=std::make_shared<Counts>();
     uint64_t identity;
+    bool externalLease=false,failOverwrite=false;
     static uint64_t nextID;
     TestDrawTexture(int w,int h):iTVPTexture2D(w,h),pixels(size_t(w)*h,0x90604830u),identity(++nextID) {}
     TVPTextureFormat::e GetFormat() const override {return TVPTextureFormat::RGBA;}
@@ -66,7 +67,11 @@ public:
     bool GetTextureData(void*,int&) override {return false;}
     bool GetContentKey(uint64_t& id,uint64_t& version) const override {id=identity;version=counts->dirty;return true;}
     void* LockCPURead() override {++counts->reads;return pixels.data();}
-    void* LockCPUWrite() override {++counts->writes;return pixels.data();}
+    void* LockCPUWrite() override {++counts->writes;++counts->oldReads;return pixels.data();}
+    void* LockCPUWriteForOverwrite() override {
+        if(failOverwrite) {failOverwrite=false;throw std::bad_alloc();}
+        ++counts->writes;++counts->overwrites;return pixels.data();
+    }
     void UnlockCPU() override {++counts->unlocks;}
     void UnlockCPUWrite(const tTVPRect&) override {++counts->dirty;UnlockCPU();}
 };
@@ -74,7 +79,7 @@ uint64_t TestDrawTexture::nextID=0;
 class TestDrawNativeLayer:public tTJSNativeInstance {
 public:
     TestDrawTexture* texture;
-    int updates=0,cow=0;bool modified=false,throwPrepare=false;
+    int updates=0,cow=0;bool modified=false,throwPrepare=false,throwUpdate=false;
     tTVPRect clip;
     explicit TestDrawNativeLayer(int w,int h):texture(new TestDrawTexture(w,h)),clip(0,0,w,h) {}
     ~TestDrawNativeLayer() override {texture->Release();}
@@ -82,7 +87,7 @@ public:
     int GetImageHeight() const {return texture->GetHeight();}
     int GetClipLeft() const {return clip.left;} int GetClipTop() const {return clip.top;}
     int GetClipWidth() const {return clip.get_width();} int GetClipHeight() const {return clip.get_height();}
-    void Update() {++updates;} void Update(const tTVPRect&) {++updates;}
+    void Update() {++updates;if(throwUpdate) throw std::runtime_error("update");} void Update(const tTVPRect&) {++updates;}
     void SetImageModified(bool v) {modified=v;}
     iTVPTexture2D* GetMainImageTextureForSpanComposite() {
         if(throwPrepare) {throwPrepare=false;throw std::runtime_error("prepare");}
@@ -99,6 +104,9 @@ public:
 bool Support=false,RejectSubmit=false,ThrowAfterCommit=false;
 int Attempts=0;
 bool TestSpanSupport() {return Support;}
+TVPLayerSpanCompositeResult TestCPUOverwriteCheck(iTVPTexture2D* target) {
+    return static_cast<TestDrawTexture*>(target)->externalLease ? TVPLayerSpanCompositeResult::CPUAccess : TVPLayerSpanCompositeResult::Applied;
+}
 TVPLayerSpanCompositeResult TestSpanSubmit(const TVPLayerSpanCompositePacket& p,iTVPTexture2D* target,bool* committed=nullptr) {
     if(committed) *committed=false;
     ++Attempts;auto* t=static_cast<TestDrawTexture*>(target);
@@ -129,9 +137,11 @@ plutovg_surface_t* ImageLoadSurface=nullptr;
 static plutovg_surface_t* loadImage(const tjs_char*) {++ImageLoads;return ImageLoadSurface;}
 #define TVPHasMetalLayerSpanCompositionSupport TestSpanSupport
 #define TVPTryMetalLayerSpanComposite TestSpanSubmit
+#define TVPCheckMetalLayerCPUOverwrite TestCPUOverwriteCheck
 #include "ProductionLayerExSpanBinding.inc"
 #undef plutovg_path_clone_checked
 #undef TVPTryMetalLayerSpanComposite
+#undef TVPCheckMetalLayerCPUOverwrite
 #undef TVPHasMetalLayerSpanCompositionSupport
 static_assert(std::is_same<ncbTypeConvertor::SelectConvertorType<tTJSVariant,const Appearance*>::Type,
     ncbNativeObjectBoxing::Unboxing>::value,"Appearance must use production direct-native unboxing");
@@ -303,6 +313,47 @@ int RunC2SpanBindingTests() {
         }
         // Real vector replay: duplicated entries, multiple paints, source and
         // destination transforms, negative source coordinates and Clip.
+        // Clear's source pixels come from the original plutovg SRC color
+        // conversion. Compare full/partial and historical effective Clip.
+        for(uint32_t color:{0u,0xffffffffu,0x80abcdefu,0x01ff4011u,0xfedcba98u}) for(int mode=0;mode<9;++mode) {
+            LayerFixture cpu,gpu;
+            if(mode==1) cpu.native->clip=gpu.native->clip=tTVPRect(3,2,61,35);
+            if(mode==2) {
+                cpu.native->clip=gpu.native->clip=tTVPRect(3,2,61,35);
+                Support=false;call(cpu,"clear",{0});call(gpu,"clear",{0});
+                cpu.native->clip=gpu.native->clip=tTVPRect(0,0,67,39);
+            }
+            if(mode==3) {cpu.Draw()->setRecord(true);gpu.Draw()->setRecord(true);}
+            if(mode==4) gpu.native->texture->externalLease=true;
+            if(mode==5) gpu.native->texture->failOverwrite=true;
+            if(mode==6) {cpu.Draw()->setUpdateWhenDraw(false);gpu.Draw()->setUpdateWhenDraw(false);}
+            if(mode==7) {cpu.native->throwUpdate=true;gpu.native->throwUpdate=true;}
+            if(mode==8) {cpu.native->texture->AddRef();gpu.native->texture->AddRef();}
+            auto* oldCPU=cpu.native->texture;auto* oldGPU=gpu.native->texture;
+            const auto oldPixels=oldGPU->pixels;
+            const int oldWrites=gpu.native->texture->counts->writes;
+            const int oldOverwrites=gpu.native->texture->counts->overwrites;
+            tTJSVariant cpuResult(123),gpuResult(123);bool cpuThrew=false,gpuThrew=false;
+            Support=false;try {call(cpu,"clear",{tTJSVariant(tjs_int64(color))},&cpuResult);}catch(...) {cpuThrew=true;}
+            const int attempts=Attempts;Support=true;try {call(gpu,"clear",{tTJSVariant(tjs_int64(color))},&gpuResult);}catch(...) {gpuThrew=true;}
+            const bool overwrite=mode==0 || mode==3 || mode==6 || mode==7 || mode==8;
+            Check(cpuThrew==gpuThrew && cpuThrew==(mode==7) && cpu.native->texture->pixels==gpu.native->texture->pixels,
+                "clear changed color/alpha/Clip/exception behavior");
+            Check(gpu.native->texture->counts->writes==oldWrites+1 && Attempts==attempts &&
+                gpu.native->texture->counts->overwrites==oldOverwrites+(overwrite?1:0) && cpu.native->updates==gpu.native->updates,
+                "clear overwrite proof, unique CPU execution, Update or GPU call budget failed");
+            Check(cpuResult.Type()==gpuResult.Type() && (cpuResult.Type()!=tvtInteger || cpuResult.AsInteger()==gpuResult.AsInteger()),
+                "void clear changed caller result");
+            if(mode==3) {
+                std::unique_ptr<GdipImage> a(cpu.Draw()->getRecordImage()),b(gpu.Draw()->getRecordImage());
+                Check(a && b && a->vectorGraph.empty() && b->vectorGraph.empty(),"clear failed to rebuild record");
+            }
+            if(mode==8) {
+                Check(cpu.native->cow==1 && gpu.native->cow==1 && oldGPU->pixels==oldPixels,
+                    "full clear COW changed retained source");
+                oldCPU->Release();oldGPU->Release();
+            }
+        }
         for(int variant=0;variant<24;++variant) {
             auto* image=new GdipImage(67,39);
             image->bgColor=0xff123456; // replay historically ignores this field
@@ -655,6 +706,57 @@ int RunC2SpanBindingTests() {
             auto values=operations[0].second;values[0]=guarded;call(target,"drawLine",values);
             Check(Attempts==attempts && target.native->texture->counts->writes==1 && object->nativeGets==1 && object->propertyGets==0,
                 "guarded argument skipped eager lease or repeated legacy conversion/getter");
+        }
+        {
+            // The formerly mixed 71-call chain, followed by rectangle/clear
+            // and another vector replay. Diagnostics cannot change execution.
+            namespace trace=krkrsdl3::cpu_consumer_trace;namespace work=krkrsdl3::layer_work;
+            const auto logger=trace::logMessage;const auto producer=trace::captureProducer;
+            struct Restore {void (*logger)(const char*);bool (*producer)(void*,trace::Producer&);
+                ~Restore(){work::SetEnabled(false);trace::SetCallbacks(logger,producer);}} restore{logger,producer};
+            trace::SetCallbacks(C2BDiscardDiagnostic,C2BUnknownDiagnosticIdentity);
+            LayerFixture recorder;recorder.Draw()->setRecord(true);Support=false;
+            call(recorder,"drawPath",operations[1].second);call(recorder,"drawPath",operations[1].second);
+            auto vector=BoxImage(recorder.Draw()->getRecordImage());
+            std::vector<uint32_t> stages[3][2];Counts count[3];int submissions[3]{};
+            for(int mode=0;mode<3;++mode) {
+                LayerFixture target;Support=mode!=0;work::SetEnabled(mode==2);const int before=Attempts;
+                auto imageValues=operations[2].second;imageValues[4]=vector;imageValues[7]=67.0;imageValues[8]=39.0;
+                for(int i=0;i<71;++i) {
+                    if(i==37) target.Draw()->setRecord(true);
+                    if(i<4) call(target,"drawLine",operations[0].second);
+                    else if(i<70) call(target,"drawPath",operations[1].second);
+                    else call(target,"drawImageStretch",imageValues);
+                }
+                call(target,"drawRectangle",operations[3].second);stages[mode][0]=target.native->texture->pixels;
+                call(target,"clear",{0});call(target,"drawImageStretch",imageValues);stages[mode][1]=target.native->texture->pixels;
+                count[mode]=*target.native->texture->counts;submissions[mode]=Attempts-before;
+                if(mode==2) {
+                    std::lock_guard<std::mutex> lock(work::mutex);const auto& w=work::profile.cpuConsumerBudget.spanWindow;
+                    Check(w.totals.calls==74 && w.routes[0]==73 && w.routes[1]==1 && !w.routes[2] && !w.overflow,
+                        "complete C2 chain route totals did not reconcile");
+                }
+                work::Take();
+            }
+            Check(stages[0][0]==stages[1][0] && stages[1][0]==stages[2][0] && stages[0][1]==stages[1][1] && stages[1][1]==stages[2][1],
+                "whole record/vector/rectangle/clear chain changed exact pixels");
+            Check(count[1].oldReads==0 && count[1].writes==1 && count[1].overwrites==1 && submissions[1]==73,
+                "selected chain still acquired old target pixels or CPU full output");
+            Check(count[1].writes==count[2].writes && count[1].overwrites==count[2].overwrites && count[1].dirty==count[2].dirty &&
+                count[1].oldReads==count[2].oldReads && submissions[1]==submissions[2],"diagnostic switch changed entire C2 chain calls");
+            std::cout<<"PASS C2 full chain: 74 decisions, 73 GPU + one CPU overwrite, zero old-pixel acquisitions; diagnostics invariant\n";
+        }
+        {
+            LayerFixture target;Support=true;
+            std::unique_ptr<GdipImage> escaped(target.Draw()->getImageForBridge());
+            const auto before=target.native->texture->counts->overwrites;
+            call(target,"clear",{0});
+            Check(target.native->texture->counts->overwrites==before &&
+                reinterpret_cast<uint32_t*>(plutovg_surface_get_data(escaped->_surface))[0]==0,
+                "escaped image alias lost synchronous clear visibility");
+            LayerFixture other;tTJSVariant objectResult=ConstructDirect<Path>();call(other,"clear",{0},&objectResult);
+            Check(objectResult.Type()==tvtVoid && other.native->texture->counts->overwrites==0,
+                "clear object result changed legacy release/order");
         }
         std::cout<<"C2B real plutovg production binding transaction checks passed\n";Support=false;return 0;
     }catch(const std::exception& error){std::cerr<<"C2B binding: "<<error.what()<<'\n';return 1;}
