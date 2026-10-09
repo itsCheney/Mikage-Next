@@ -86,5 +86,8 @@ args.cache_output.write_text(
     + function(layer_source,"class tTVPTempBitmapHolder :") + ";\n"
     + function(layer_source,"tTVPBaseTexture TVPGetInitialBitmap()") + "\n"
     + "static iTVPTexture2D* _CharacterTexture=nullptr;\n"
-    + function(source,"bool tTVPNativeBaseBitmap::InternalBlendText(").replace("tTVPNativeBaseBitmap::InternalBlendText", "TestBitmap::BlendGlyph"),
+    + function(source,"bool tTVPNativeBaseBitmap::InternalBlendText(").replace("tTVPNativeBaseBitmap::InternalBlendText", "TestBitmap::BlendGlyph") + "\n"
+    + function(source,"bool tTVPNativeBaseBitmap::InternalDrawText(")
+        .replace("tTVPNativeBaseBitmap::InternalDrawText", "TestBitmap::DrawGlyphData")
+        .replace("InternalBlendText(", "BlendGlyph("),
     encoding="utf-8")

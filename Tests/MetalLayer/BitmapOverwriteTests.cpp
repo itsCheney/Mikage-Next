@@ -12,6 +12,7 @@
 #include "tjsUtils.h"
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <iostream>
 #include <stdexcept>
@@ -66,7 +67,13 @@ class TestBitmap final : public iTVPBaseBitmap {
 public:
     explicit TestBitmap(iTVPTexture2D* texture) { Bitmap=texture; }
     iTVPRenderManager* GetRenderManager() override { return TVPGetRenderManager(); }
+    int targetAcquisitions=0;
+    iTVPTexture2D* GetTextureForRender(bool blend,const tTVPRect* rect) override {
+        ++targetAcquisitions;
+        return tTVPNativeBaseBitmap::GetTextureForRender(blend,rect);
+    }
     bool BlendGlyph(tTVPCharacterData*,tTVPDrawTextData*,tjs_uint32,const tTVPRect&,tTVPRect&);
+    bool DrawGlyphData(tTVPCharacterData*,tjs_int,tjs_int,tjs_uint32,tTVPDrawTextData*,tTVPRect&);
 };
 #include "ProductionBitmapCaches.inc"
 void Require(bool ok,const char* message) {
@@ -86,9 +93,13 @@ iTVPTexture2D* Create(const std::vector<uint32_t>& pixels,int width,int height,b
     return texture;
 }
 void Equal(iTVPTexture2D* texture,const std::vector<uint32_t>& expected) {
-    const auto* actual=static_cast<const uint32_t*>(texture->GetScanLineForRead(0));
-    Require(actual && !std::memcmp(actual,expected.data(),expected.size()*4),
-            "bitmap overwrite produced wrong pixels");
+    const size_t width=texture->GetWidth(),height=texture->GetHeight();
+    Require(expected.size()==width*height,"bitmap comparison dimensions differ");
+    for(size_t y=0;y<height;++y) {
+        const auto* actual=static_cast<const uint32_t*>(texture->GetScanLineForRead(unsigned(y)));
+        Require(actual && !std::memcmp(actual,expected.data()+y*width,width*4),
+                "bitmap overwrite produced wrong pixels");
+    }
 }
 void NoPreservationWork(const TVPLayerRenderStats& before) {
     const auto after=TVPGetMetalLayerRenderStats();
@@ -548,9 +559,12 @@ void BitmapRenderSessionCacheTests(krkrsdl3::iTVPRenderBackend* backend) {
         Require(afterGlyph.gpuOperations==beforeGlyph.gpuOperations+128 &&
                 afterGlyph.cpuFallbacks==beforeGlyph.cpuFallbacks && afterGlyph.readbackBytes==beforeGlyph.readbackBytes,
                 "glyph cache forced CPU fallback/readback in the next game");
-        Require(_CharacterTexture->GetContentKey(identity,version) && identity!=lastGlyph,
-                "glyph scratch retained an old render session");
-        lastGlyph=identity;
+        if(_CharacterTexture) {
+            Require(!manager->CanReuseCachedTexture(_CharacterTexture) ||
+                    (_CharacterTexture->GetContentKey(identity,version) && identity!=lastGlyph),
+                    "glyph scratch retained an old render session");
+            if(manager->CanReuseCachedTexture(_CharacterTexture)) lastGlyph=identity;
+        }
 
         // Compare the sequence with the actual software operator, including
         // glyph alpha, repeated blends, clipping and existing target pixels.
@@ -575,8 +589,173 @@ void BitmapRenderSessionCacheTests(krkrsdl3::iTVPRenderBackend* backend) {
             Require(cpu.BlendGlyph(&character,&draw,0xff3579bd,src,dst),"software-between-games glyph failed");
         }
     }
-    _CharacterTexture->Release(); _CharacterTexture=nullptr;
+    if(_CharacterTexture) {_CharacterTexture->Release(); _CharacterTexture=nullptr;}
     tTVPTempBitmapHolder::Release();
     retainedPrototype.reset();
     iTVPTexture2D::RecycleProcess();
+}
+
+namespace {
+void LegacyGlyphReference(std::vector<uint32_t>& target,int width,int height,
+                          const tTVPCharacterData& glyph,const tTVPDrawTextData& draw,
+                          uint32_t color,const tTVPRect& source,const tTVPRect& destination) {
+    auto* software=TVPGetSoftwareRenderManager();
+    TextureRef output(software->CreateTexture2D(target.data(),width*4,width,height,TVPTextureFormat::RGBA));
+    // The old caller crops rows and dimensions, but ignores source.left. This
+    // oracle deliberately freezes that existing byte interpretation for C3.
+    TextureRef mask(software->CreateTexture2D(glyph.GetData()+source.top*glyph.Pitch,glyph.Pitch,
+        destination.get_width(),destination.get_height(),TVPTextureFormat::Gray));
+    const char* name=draw.bltmode==bmAlphaOnAlpha ? (draw.opa>0 ? "ApplyColorMap_d" : "RemoveOpacity") :
+                     draw.bltmode==bmAlphaOnAddAlpha ? "ApplyColorMap_a" : "ApplyColorMap";
+    auto* method=software->GetRenderMethod(name);
+    method->SetParameterOpa(method->EnumParameterID("opacity"),draw.opa);
+    method->SetParameterColor4B(method->EnumParameterID("color"),color);
+    tRenderTexRectArray::Element input(mask.get(),tTVPRect(0,0,destination.get_width(),destination.get_height()));
+    software->OperateRect(method,output.get(),nullptr,destination,tRenderTexRectArray(&input,1));
+}
+}
+
+void GlyphCallerTests(krkrsdl3::iTVPRenderBackend* backend,const std::function<void(int)>& failure) {
+    constexpr int width=13,height=11,gw=7,gh=5;
+    auto initial=Pixels(width,height,0x31415926);
+    std::vector<uint8_t> input(size_t(gw)*gh);
+    for(size_t i=0;i<input.size();++i) input[i]=uint8_t(i*7+3);
+    tGlyphMetrics metrics{};
+    tTVPCharacterData glyph(input.data(),gw,0,0,gw,gh,metrics,false);
+    auto* manager=TVPGetRenderManager();
+
+    // Exercise both production text functions, rather than drawing a reused,
+    // already-uploaded test mask through the generic operator directly.
+    for(bool diagnostics:{false,true}) for(auto mode:{bmAlpha,bmAlphaOnAlpha,bmAlphaOnAddAlpha}) {
+        TestBitmap bitmap(Create(initial,width,height));
+        auto expected=initial;
+        tTVPDrawTextData draw{tTVPRect(3,3,10,8),width*4,191,false,mode};
+        const tTVPRect expectedDestination(3,3,8,7),source(2,1,7,5);
+        krkrsdl3::layer_work::SetEnabled(diagnostics);
+        const auto before=TVPGetMetalLayerRenderStats();
+        for(int pass=0;pass<4;++pass) {
+            // Reuse exactly the same CharacterData address while changing every
+            // byte, alpha and color. No content identity may suppress a copy.
+            for(int y=0;y<gh;++y) for(int x=0;x<gw;++x)
+                glyph.GetData()[y*glyph.Pitch+x]=uint8_t(pass*41+x*19+y*7);
+            draw.holdalpha=pass%2!=0;
+            const uint32_t color=0x9153a7e1u+uint32_t(pass)*0x03110709u;
+            tTVPRect destination;
+            Require(bitmap.DrawGlyphData(&glyph,1,2,color,&draw,destination),"production clipped glyph rejected");
+            Require(destination==expectedDestination,"production glyph clipping rectangle changed");
+            LegacyGlyphReference(expected,width,height,glyph,draw,color,source,destination);
+        }
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(bitmap.targetAcquisitions==4,"glyph acquired its COW target more than once");
+        Require(after.gpuOperations==before.gpuOperations+4 && after.cpuFallbacks==before.cpuFallbacks &&
+                after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes+80,
+                "glyph snapshot caller changed route, logical bytes or target residency");
+        const auto profile=krkrsdl3::layer_work::Take();
+        Require(diagnostics ? profile.transferOrigins.find("upload:bitmap.update=4/80/")!=std::string::npos :
+                              profile.transferOrigins.empty(),"glyph snapshot C0 attribution was lost");
+        krkrsdl3::layer_work::SetEnabled(false);
+        try {Equal(bitmap.GetTexture(),expected);}
+        catch(...) {std::cerr<<"C3 changing bytes diagnostics="<<diagnostics<<" mode="<<int(mode)<<'\n';throw;}
+        const auto acquired=bitmap.targetAcquisitions;
+        draw.rect=tTVPRect(10,9,12,10);tTVPRect invisible;
+        Require(!bitmap.DrawGlyphData(&glyph,0,0,0xff123456,&draw,invisible) &&
+                bitmap.targetAcquisitions==acquired,"fully clipped glyph acquired or changed target");
+    }
+
+    // A shared image must preserve the previous Layer snapshot. Ordinary target
+    // acquisition performs the production COW transaction before either route.
+    {
+        TestBitmap bitmap(Create(initial,width,height));
+        auto* original=bitmap.GetTexture();original->AddRef();TextureRef snapshot(original);
+        tTVPDrawTextData draw{tTVPRect(0,0,width,height),width*4,255,true,bmAlphaOnAlpha};
+        tTVPRect src(0,0,gw,gh),dst(2,3,2+gw,3+gh);
+        auto expected=initial;
+        Require(bitmap.BlendGlyph(&glyph,&draw,0x713579bd,src,dst),"COW glyph rejected");
+        LegacyGlyphReference(expected,width,height,glyph,draw,0x713579bd,src,dst);
+        Require(bitmap.GetTexture()!=original && bitmap.targetAcquisitions==1,"glyph bypassed or repeated target COW");
+        Equal(original,initial);Equal(bitmap.GetTexture(),expected);
+    }
+
+    // Negative opacity retains RemoveOpacity's software behavior. CPU write
+    // leases and software targets likewise retain the ordinary scratch route.
+    for(int route=0;route<3;++route) {
+        auto* texture=route==2 ? TVPGetSoftwareRenderManager()->CreateTexture2D(nullptr,0,width,height,TVPTextureFormat::RGBA) :
+                               Create(initial,width,height);
+        if(route==2) texture->Update(initial.data(),TVPTextureFormat::RGBA,width*4,tTVPRect(0,0,width,height));
+        TestBitmap bitmap(texture);
+        tTVPDrawTextData draw{tTVPRect(0,0,width,height),width*4,route==0 ? -127 : 191,true,bmAlphaOnAlpha};
+        tTVPRect src(0,0,gw,gh),dst(2,3,2+gw,3+gh);
+        auto expected=initial;
+        if(route==1) Require(texture->LockCPUWrite()!=nullptr,"glyph CPU lease failed");
+        const auto before=TVPGetMetalLayerRenderStats();
+        Require(bitmap.BlendGlyph(&glyph,&draw,0x713579bd,src,dst),"ordinary glyph fallback rejected");
+        Require(TVPGetMetalLayerRenderStats().cpuFallbacks==before.cpuFallbacks+1,
+                "glyph preflight counted fallback twice or bypassed the CPU boundary");
+        LegacyGlyphReference(expected,width,height,glyph,draw,0x713579bd,src,dst);
+        if(route==1) texture->UnlockCPUWrite(dst);
+        Equal(bitmap.GetTexture(),expected);
+        Require(bitmap.targetAcquisitions==1,"fallback glyph reacquired target");
+    }
+
+    if(failure) {
+        for(int stage:{0,1,2}) {
+            TestBitmap bitmap(Create(initial,width,height));
+            tTVPDrawTextData draw{tTVPRect(0,0,width,height),width*4,191,true,bmAlphaOnAlpha};
+            tTVPRect src(0,0,gw,gh),dst(2,3,2+gw,3+gh);
+            auto expected=initial;
+            // Prime the real CPU cache: a post-dispatch exception must not leave
+            // it current, and must never replay a partly encoded glyph.
+            Equal(bitmap.GetTexture(),initial);
+            const auto before=TVPGetMetalLayerRenderStats();
+            krkrsdl3::layer_work::SetEnabled(true);
+            failure(stage);bool thrown=false;
+            try {bitmap.BlendGlyph(&glyph,&draw,0x713579bd,src,dst);}
+            catch(const std::bad_alloc&) {thrown=true;}
+            failure(-1);
+            Require(thrown==(stage==1),"glyph exception was swallowed or unsupported route threw");
+            LegacyGlyphReference(expected,width,height,glyph,draw,0x713579bd,src,dst);
+            Require(bitmap.targetAcquisitions==1,"failed glyph reacquired target");
+            const auto after=TVPGetMetalLayerRenderStats();
+            Require(after.gpuOperations==before.gpuOperations+1 && after.cpuFallbacks==before.cpuFallbacks &&
+                    after.uploadedBytes==before.uploadedBytes+gw*gh,
+                    "glyph optimization rejection/exception lost or duplicated committed work");
+            const auto profile=krkrsdl3::layer_work::Take();
+            if(stage==2) Require(profile.transferOrigins.empty(),"glyph upload crossed a diagnostics generation");
+            else Require(profile.transferOrigins.find("upload:bitmap.update=1/35/")!=std::string::npos,
+                         "glyph failure/rejection did not record exactly one committed upload");
+            krkrsdl3::layer_work::SetEnabled(false);
+            Equal(bitmap.GetTexture(),expected);
+        }
+    }
+    // The optional API validates raw input and active leases before touching an
+    // atlas or destination. These declines must not record ordinary GPU rejects.
+    {
+        TextureRef target(Create(initial,width,height));
+        auto* method=manager->GetRenderMethod("ApplyColorMap_d");
+        method->SetParameterOpa(method->EnumParameterID("opacity"),191);
+        method->SetParameterColor4B(method->EnumParameterID("color"),0x713579bd);
+        const tTVPRect dst(2,3,2+gw,3+gh);
+        const auto before=TVPGetMetalLayerRenderStats();
+        Require(!manager->TryBlendGlyph(method,target.get(),dst,nullptr,glyph.Pitch,gw,gh) &&
+                !manager->TryBlendGlyph(method,target.get(),dst,glyph.GetData(),gw-1,gw,gh),"invalid glyph input accepted");
+        Require(target->LockCPURead()!=nullptr,"glyph read lease failed");
+        Require(!manager->TryBlendGlyph(method,target.get(),dst,glyph.GetData(),glyph.Pitch,gw,gh),"glyph accepted active CPU read lease");
+        target->UnlockCPU();
+        const auto after=TVPGetMetalLayerRenderStats();
+        for(int i=0;i<int(TVPLayerGPURejectReason::Count);++i)
+            Require(after.gpuRejectCountByReason[i]==before.gpuRejectCountByReason[i],"optional glyph decline changed ordinary GPU rejects");
+        Equal(target.get(),initial);
+        krkrsdl3::layer_work::SetEnabled(true);
+        const auto beforeNoOp=TVPGetMetalLayerRenderStats();
+        Require(manager->TryBlendGlyph(method,target.get(),tTVPRect(20,20,20+gw,20+gh),
+                    glyph.GetData(),glyph.Pitch,gw,gh),"fully clipped valid glyph declined");
+        const auto afterNoOp=TVPGetMetalLayerRenderStats();
+        Require(afterNoOp.uploadedBytes==beforeNoOp.uploadedBytes &&
+                krkrsdl3::layer_work::Take().transferOrigins.empty(),"glyph no-op recorded an upload");
+        krkrsdl3::layer_work::SetEnabled(false);
+        Equal(target.get(),initial);
+    }
+    if(_CharacterTexture) {_CharacterTexture->Release();_CharacterTexture=nullptr;}
+    std::cout<<"PASS C3 production glyph caller: changing bytes, legacy clipping/HDA, COW, leases, fallback, errors and C0 epochs\n";
+    (void)backend;
 }

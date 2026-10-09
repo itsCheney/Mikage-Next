@@ -15,6 +15,7 @@
 #include <chrono>
 
 using krkrsdl3::iTVPRenderBackend;
+void LayerUploadLayoutTests();
 
 // The independent test executable does not link the engine/session. Only the
 // software *offscreen* renderer is used; SDL presenter calls are unexpected.
@@ -26,12 +27,13 @@ void TVPRecordEmoteGPUDeform(uint64_t) {}
 // force command-buffer submits (see SubmissionCadenceTests).
 int g_metalSubmits = 0;
 int g_renderEncoders = 0;
+int g_blitEncoders = 0;
 int g_syncWaits = 0;
 uint64_t g_layerRectSnapshotBytes = 0;
 void TVPRecordMetalSubmit() { ++g_metalSubmits; }
 void TVPRecordMetalRenderEncoder() { ++g_renderEncoders; }
 void TVPRecordMetalComputeEncoder() {}
-void TVPRecordMetalBlitEncoder() {}
+void TVPRecordMetalBlitEncoder() { ++g_blitEncoders; }
 void TVPRecordMetalLayerRectSnapshot(uint64_t bytes) { g_layerRectSnapshotBytes += bytes; }
 void TVPRecordMetalSurfaceUpload(uint64_t) {}
 void TVPRecordMetalSyncWait(uint64_t) { ++g_syncWaits; }
@@ -625,6 +627,7 @@ void ScopedPointReadTests(iTVPRenderBackend& gpu)
 // host-visible staging memory. It previously counted against the 16 MB staging
 // budget, so full-surface Emote captures (~8.5 MB each) forced a submit every
 // other capture and serialized the CPU against the inFlight semaphore.
+#include "NativeLayerUploadTests.inc"
 void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 {
     const int waitsBefore = krkrsdl3::g_syncWaits;
@@ -669,6 +672,7 @@ void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 int main()
 {
     try {
+        LayerUploadLayoutTests();
         DiagnosticAttributionTests();
         StageTimingTests();
         PointQueryScopeTests();
@@ -697,6 +701,8 @@ int main()
                 AsyncLayerReadTests(*gpu);
                 ScopedPointReadTests(*gpu);
                 SubmissionCadenceTests(*gpu);
+                TinyUploadBatchTests(*gpu);
+                GlyphAtlasNativeTests(*gpu);
                 SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "0");
             }
             CaptureTests(*gpu);

@@ -33,7 +33,9 @@ MTL_DEBUG_LAYER=1 ctest --test-dir build/metal-render-tests --output-on-failure
 On Apple hosts without a Metal device, the executable returns 77, which CTest
 reports as skipped. A skip does **not** validate native shaders or rendering.
 On non-Apple hosts only the software transfer/reference and diagnostic metadata
-tests are compiled.
+tests run. C3 atlas/arena allocation and ownership conditions, plus the actual
+aggregate formatter and parser, also run portably. Native C3 test bodies get a
+compile-only C++ check; this does not compile Objective-C++ or validate GPU access.
 The iOS build workflow compiles this test executable and runs it when the
 runner exposes a Metal device.
 
@@ -46,6 +48,14 @@ Metal within their supported method, format, geometry and resource domains;
 unsupported calls retain software fallback. See ../MetalLayer for actual software
 RenderManager parity and capability audits. Backend tests alone do not establish
 complete Layer acceleration or lower memory use.
+
+C3 native tests cover consecutive tiny uploads sharing an encoder, borrowed
+source lifetime, overlapping/interleaved updates with intermediate consumers,
+and shared R8 glyphs against the original scratch operator. Tile rendering must
+retain one pass; snapshot-compute devices retain their required target copies.
+Repeated resets before submission must retain the old atlas memory budget until
+completion. CTest runs both ordinary and forced-compute configurations on Apple.
+See ../../docs/NATIVE-METAL-P2C-C3-BASELINE.md for evidence and device gates.
 
 The Layer suite also covers the P2A prepared affine blend domain. Nonrectangular
 Alpha/ConstAlpha/AdditiveAlpha and Photoshop quads use compute with GPU snapshots;

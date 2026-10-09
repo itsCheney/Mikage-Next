@@ -38,6 +38,7 @@ void BitmapOverwriteTests(iTVPRenderBackend* backend);
 void C4BitmapResourceTests(iTVPRenderBackend*);
 void TransitionOutputTests();
 void BitmapRenderSessionCacheTests(iTVPRenderBackend* backend);
+void GlyphCallerTests(iTVPRenderBackend*,const std::function<void(int)>&);
 void UnivTransShaderTests();
 void LayerBlendShaderTests();
 void TriangleProfileTests();
@@ -102,6 +103,9 @@ class DeviceDouble : public iTVPRenderBackend {
     bool preserveSoftwareStretch=false;
 public:
     uint64_t fullReads=0, updateCalls=0;
+    uint64_t glyphCalls=0,glyphApplied=0,glyphResets=0;
+    uint64_t glyphRejected[unsigned(krkrsdl3::layer_upload::GlyphReject::Count)]{};
+    bool rejectGlyph=false,throwAfterGlyph=false,cycleDiagnosticsOnGlyph=false;
     bool failDiagnosticUpload=false, cycleDiagnosticsOnRead=false;
     bool cycleDiagnosticsOnUpload=false, cycleDiagnosticsOnRegionRead=false;
     bool rejectTripleSource=false;
@@ -262,6 +266,49 @@ public:
         }
         auto& r=*resources.at(handle);
         for(int y=0;y<rc.Height();++y) std::memcpy(r.pixels.data()+((y+rc.top)*r.w+rc.left)*r.bpp,data+y*pitch,rc.Width()*r.bpp);
+        return true;
+    }
+    void RecordLayerGlyphRejection(krkrsdl3::layer_upload::GlyphReject reason) override {
+        ++glyphCalls;++glyphRejected[unsigned(reason)];
+    }
+    void ResetLayerGlyphResources() override { ++glyphResets; }
+    bool OperateLayerGlyph(const TVPLayerOperation& op,void* target,const TVPLayerRect& dst,
+                          const uint8_t* pixels,int pitch,int width,int height,int sampling,
+                          krkrsdl3::TVPLayerGlyphUploadInfo& upload) override {
+        ++glyphCalls;
+        upload={};
+        if(rejectGlyph) {
+            // Metadata may already describe a reserved/copied slot; false still
+            // promises no target write and must not be counted as an upload.
+            upload.textureID=krkrsdl3::point_trace::NextTextureID();
+            upload.width=width;upload.height=height;upload.bytes=uint64_t(width)*height;
+            upload.reason="capacity";
+            ++glyphRejected[unsigned(krkrsdl3::layer_upload::GlyphReject::Capacity)];return false;
+        }
+        auto found=resources.find(target);
+        if(found==resources.end() || !pixels || width<=0 || height<=0 || pitch<width) return false;
+        if(std::min(found->second->w,dst.right)<=std::max(0,dst.left) ||
+           std::min(found->second->h,dst.bottom)<=std::max(0,dst.top)) return true;
+        // Device-double snapshots own a synchronous copy. This covers the real
+        // facade/caller contract; native tests cover in-flight atlas ownership.
+        void* source=CreateLayerTexture(width,height,TVPLayerTextureFormat::R8);
+        auto& snapshot=*resources.at(source);
+        for(int y=0;y<height;++y)
+            std::memcpy(snapshot.pixels.data()+size_t(y)*width,pixels+size_t(y)*pitch,width);
+        bool applied=false;
+        try { applied=OperateLayerRect(op,target,dst,source,{0,0,width,height},sampling); }
+        catch(...) { DestroyLayerTexture(source);throw; }
+        DestroyLayerTexture(source);
+        if(!applied) {upload.reason="backendFailure";return false;}
+        if(cycleDiagnosticsOnGlyph) {
+            cycleDiagnosticsOnGlyph=false;
+            krkrsdl3::layer_work::SetEnabled(false);krkrsdl3::layer_work::SetEnabled(true);
+        }
+        upload.textureID=krkrsdl3::point_trace::NextTextureID();
+        upload.width=width;upload.height=height;upload.bytes=uint64_t(width)*height;upload.reason="applied";
+        upload.targetWritten=true;
+        ++glyphApplied;
+        if(throwAfterGlyph) throw std::bad_alloc();
         return true;
     }
     bool ReadLayerTexture(void* handle,std::vector<uint8_t>& pixels,int& pitch) override {
@@ -2521,6 +2568,22 @@ int main(int argc,char** argv) {
         } unavailable;
         Require(!TVPBindMetalLayerRenderManager(&unavailable) && TVPIsSoftwareRenderManager() && std::strlen(TVPMetalLayerFallbackReason()),"resource init did not retain software composition");
 #endif
+        if(argc>1 && std::string(argv[1])=="--glyph-caller") {
+            Require(TVPBindMetalLayerRenderManager(backend.get()),"glyph session init failed");
+#ifndef TEST_NATIVE_METAL
+            auto& device=*static_cast<DeviceDouble*>(backend.get());
+            GlyphCallerTests(backend.get(),[&](int stage) {
+                device.rejectGlyph=stage==0;device.throwAfterGlyph=stage==1;device.cycleDiagnosticsOnGlyph=stage==2;
+            });
+#else
+            GlyphCallerTests(backend.get(),{});
+#endif
+            TVPUnbindMetalLayerRenderManager();backend.reset();
+#ifdef TEST_NATIVE_METAL
+            SDL_DestroyWindow(window);SDL_Quit();
+#endif
+            return 0;
+        }
         if(argc>1 && std::string(argv[1])=="--performance") {
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             CompositionWorkload(); GlyphWorkload();
@@ -2571,6 +2634,15 @@ int main(int argc,char** argv) {
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
             P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); C0ProfileTests(); C0ProductionDiagnostics(backend.get()); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+#ifndef TEST_NATIVE_METAL
+            auto& glyphDevice=*static_cast<DeviceDouble*>(backend.get());
+            GlyphCallerTests(backend.get(),[&](int stage) {
+                glyphDevice.rejectGlyph=stage==0;glyphDevice.throwAfterGlyph=stage==1;
+                glyphDevice.cycleDiagnosticsOnGlyph=stage==2;
+            });
+#else
+            GlyphCallerTests(backend.get(),{});
+#endif
 #ifdef TEST_NATIVE_METAL
             Presentation(backend.get());
 #endif

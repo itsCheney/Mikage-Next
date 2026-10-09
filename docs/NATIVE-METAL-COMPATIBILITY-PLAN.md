@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-09。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 对账通过，C4 有实际 GPU/零 CPU 样例，C1 本地实现与 portable 通过。C2A/C2B 及参数/HSV 补修已发布，After_P2C_C2B-3 确认参数支持域 GPU 命中与完整路由对账；C2 剩余 vectorSource/record/drawRectangle/clear 和成功 read 聚合本地实现与验证完成。完整 Apple/App/原生矩阵及匹配真机重采/性能配对仍待验，C2 更广消费域、C3、P2D、P3–P5 未完成。**
+日期：2026-10-05；更新：2026-10-10。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 对账通过，C4 有实际 GPU/零 CPU 样例，C1 本地实现与 portable 通过。C2A/C2B 及参数/HSV 补修已发布，After_P2C_C2B-3 确认参数支持域 GPU 命中与完整路由对账；C2 剩余 vectorSource/record/drawRectangle/clear 和成功 read 聚合本地实现与验证完成。C3 字形 atlas/tiny update 合批本地实现及 portable 验证完成，未提交。完整 Apple/App/原生矩阵及匹配真机重采/性能配对仍待验，C2 更广消费域、C3 原生/真机、P2D、P3–P5 未完成。**
 
 2026-10-09 发布补记：用户授权本轮提交推送，Core `5e54d4678119c79848f6aab9d759550c8ff0a663`、Runtime `b6f31a2f892a0f4e20641471a6c361d2b899ac37` 已顺序发布并核对远端；主仓库测试/证据与指针由包含本记录的提交发布。下文“本轮未提交”的本地验收历史以本发布补记更新；不跟踪CI，等待用户反馈构建或设备异常。
 
@@ -440,9 +440,10 @@
 #### C3. `bitmap.update`：按帧聚合小更新与 encoder 生命周期
 
 - [x] 调用链审计（2026-10-09，第 2.7 节与[发热来源分析](NATIVE-METAL-THERMAL-ANALYSIS.md)第 4 节）：`bitmap.update` 的主体是 `LayerBitmap.cpp:2504` `InternalBlendText` 逐字形经单张共享 `_CharacterTexture`（`:2502`）调用 `Update()`（`:2568`）；`MetalLayerRenderManager.cpp:499` 直接转发到 `MetalRenderBackend.mm:1723` `UpdateLayerTexture`，每次申请 staging 并新建 blit encoder，`:811` `Blit()` 无条件 `EndOrdinary()`，下一次 `OperateRect` 经 `:857` `OrdinaryRender` 重新 `Pass(target,false)`。五份日志每秒 325–820 次、平均 0.5–1.2 KB、占 blit encoder 83–89%，每个 blit 平均额外打断 1.1–1.4 个 pass。启动资源加载（`image.load`）、movie frame（`AlphaMovie.frame`/`video.frame`）与 LayerEx 写入已有独立 origin，不混入此项；脚本原始位图写入走 lease 路径并标注 `bitmap.cpuWrite/lock/scanline`，本批可忽略。
-- [ ] 字形路径：把 `_CharacterTexture`/`_CharacterTextureRGBA` 改为 shared-storage 字形 atlas 或环形槽位，CPU 以 `replaceRegion:` 直写（统一内存下不需要 blit encoder），同帧字形先全部写入再在同一 ordinary render pass 内连续绘制。槽位复用必须等待读取它的 command buffer 完成或按帧轮转，不得覆盖 GPU 仍在读取的字形；保持字形像素、颜色/不透明度参数、裁剪与绘制顺序精确一致。
-- [ ] 其余 tiny update：在不改变可见次序的前提下，把同一帧中可合并的 dirty rect 放入 staging arena/ring，并复用尽可能少的 blit encoder；跨目标、跨依赖或中间读取时保留顺序，不能为减少 encoder 数而延迟本帧必须可见的内容。
-- [ ] 约束 staging/atlas 资源寿命、背压、最大合并大小、内存上限和 submission 预算；场景切换、后台恢复和跨会话销毁不得引用旧 staging buffer 或 atlas。
+- [x] 字形本地：可选 `TryBlendGlyph` 接入backend独占shared R8 atlas，逐次同步复制不可覆写快照并立即复用原整数算子；同一未提交命令可连续保持ordinary pass。原scratch只作拒绝/CPU回退，不暴露atlas给软件消费者；保持原像素、参数、裁剪和阴影/正文顺序。所有Submit封存页，必须以完成状态复用，不按帧数推断GPU完成。
+- [x] tiny update本地：≤64 KiB对齐数据同步复制入1 MiB arena切片，连续更新共用upload encoder；下一render/compute/blit/clear/readback/capture/Submit/销毁边界关闭，重叠ROI及不同目标严格保序，大更新/容量不足走原staging。
+- [x] 资源/诊断本地：16 MiB atlas含Reset后未完成旧页；16 MiB单命令arena预留，沿用原staging/submission预算与退休池。C0 shared逻辑字节不归零；有界累计glyph/tiny/encoder/CPU聚合及生产emitter→parser通过。
+- [ ] Apple/真机：shared ownership、default/forced compute、diagnostic submit/wait、App及device/simulator、nominal三次配对待验；不以portable或native测试正文类型检查替代。详见[C3独立基线](NATIVE-METAL-P2C-C3-BASELINE.md)。
 
 验收：小 bitmap 与字形的像素、dirty ROI、可见时序及 CPU/GPU 所有权正确；在选定的高频文本场景（千恋/DRACU 的 skip 或即时显示）中，blit encoder 与 render pass 数不再与 `bitmap.update` 次数近似一一对应（受真实依赖限制的例外必须记录）。报告每秒 update、blit encoder、render pass、submit、CPU encoding 时间和 frame-time，而不是只报告累计 MiB；性能改善按 D2 口径在 nominal 下配对，不得把 C3 收益与 P2D 混报。
 
@@ -539,7 +540,7 @@
 
 每包均包括必要的 production scalar 对照、路由与资源测试、原生 GPU 测试和文档更新。不要把所有 Metal 修改合成一个大提交，再补测试。
 
-P2C 的 G1/G2 本地实现及 portable 验证已完成，仍待 Apple/配对验收；第 2.7 节证明剩余发热来自 pass 碎片化与 overdraw，后续实现优先级为 **G3 → H（D0/D1 → D3）**。G4 已有本地实现和第 2.6 节实际场景证据，仍待完整原生/配对验收。H 的 D0 可以在 G0 之后立即开展，不等待 G1–G3；D1/D2 的优化提交独立签收，并在 I（P3）之前完成。保留包编号与 C4/C1/C2/C3 对应，独立依赖仍为 G0，不人为增加串行实现依赖。
+P2C 的 G1/G2/G3 本地实现及 portable 验证已完成，仍待 Apple/配对验收；第 2.7 节证明剩余发热来自 pass 碎片化与 overdraw，后续优先 **G3 原生/配对验证 → H（D0/D1 → D3）实施**。G4 已有本地实现和第 2.6 节实际场景证据，仍待完整原生/配对验收。H 的 D0 可以在 G0 之后立即开展，不等待 G1–G3；D1/D2 的优化提交独立签收，并在 I（P3）之前完成。保留包编号与 C4/C1/C2/C3 对应，独立依赖仍为 G0，不人为增加串行实现依赖。
 
 跨仓库位置：主要实现属于 core；host 只在新增诊断/配置确有需要时变更；测试/CI/计划属于主仓库。实现完成后的提交和 submodule 指针更新按 core → runtime/host → 主仓库顺序处理。本计划不执行提交或推送。
 
@@ -595,7 +596,7 @@ P2C 的 G1/G2 本地实现及 portable 验证已完成，仍待 Apple/配对验�
 | DRACU-RIOT! CPU transition 流程（交叉回归） | 源输出尺寸不同、handler 支持与回退、同步 | P2C C4；C0 前 17 次 source / 132.93 ms、14 次 output；C4 后 crossfade 449 / 449 GPU / 0 CPU，验证 1280×960 → 1280×720 的实际语义 |
 | DRACU-RIOT!、天使纷扰、9-nine 缩放触发流程 | `shrinkCopy` 小读回的 p50/p95 wait、长帧 | P2C C1；C0 后分别约 177.2、368.2、47.6 ms wait；9-nine readback 全来自 shrinkCopy |
 | 天使纷扰与千恋万花 LayerEx 触发流程 | raw-pixel boundary、同 texture ping-pong、CPU wait | P2C C2；天使重放 1052×900 样例，千恋加入 960×863/186×936；需确认插件功能与调用栈 |
-| 高频 UI/文本流程（少女领域、DRACU-RIOT!、9-nine、青空、千恋各至少一个） | `bitmap.update` rate、blit encoder/submit、CPU encoding | P2C C3；千恋 53,983 次 / 53.32 MiB；先验证调用点，不将相关性当成因果 |
+| 高频 UI/文本流程（少女领域、DRACU-RIOT!、9-nine、青空、千恋各至少一个） | `bitmap.update` rate、blit encoder/submit、CPU encoding | P2C C3；调用链已证实，本地atlas/tiny合批完成；native/nominal配对待验，不将相关性当成性能收益 |
 | 千恋万花流程图首次/再次打开 | 图像加载、脚本时间与渲染的分离 | 解码/首次加载成本不由 Metal 算子覆盖自动解决 |
 | affine/perspective 专用场景 | 正确坐标、边缘、COW、回退来源 | 若游戏缺少稳定样例，先制作可重放最小脚本 |
 | Emote 静置及连续点击 | mesh、mask、capture、显示版本与输入 | 与 ordinary Layer 缺口分开归因；保留 async alpha 行为 |
@@ -641,7 +642,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 - [ ] P2C：按 origin 的无同步诊断与同条件基线齐全；已选择的 `shrinkCopy`、LayerEx、tiny update、transition 子项分别满足其专属正确性和传输/同步门槛。未选择或仍必须 CPU 的子项有具名原因。
 - [x] P2C C2后续本地选定域：vectorSource/record/drawRectangle/clear与有界成功read聚合完成，原像素/事务/计数回归通过；见[实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。此项不签收更广CPU消费、原生或性能。
 - [ ] P2C C2原生与整链重采：新v3/CPU聚合完整对账，涵盖录制导出/重绘和必要CPU保存，不能仅移动回读来源；Apple/App及三次受控配对仍待验。
-- [ ] P2C C3：字形 atlas/tiny update 聚合后，高频文本场景的 blit encoder 与 render pass 不再≈`bitmap.update` 次数，像素/时序/所有权正确；nominal 配对报告 update、encoder、pass、submit、CPU encoding 与帧时间。调用链证据已于 2026-10-09 补齐（第 2.7 节）。
+- [ ] P2C C3：2026-10-10字形atlas/tiny合批本地实现，MetalLayer7/7、Backend2/2及生产TU/生命周期检查通过；详见[C3基线](NATIVE-METAL-P2C-C3-BASELINE.md)。原生/真机仍须证明高频文本blit/pass不再≈update，像素/时序/所有权正确，并nominal配对报告update、encoder、pass、submit、CPU encoding与帧时间；必要snapshot-compute例外单列。
 - [ ] P2D：天使纷扰道路滚动完成 D0 asset→Layer→operation 归因；严格保持 Layer 像素/顺序/alias 语义的优化在 nominal/same-thermal 重复样本中降低 GPU fragment/command、`nextDrawable` backpressure、pass 或冗余像素与长帧；D3 的 0 帧转场与静止 present 改动保持可观察语义并同条件配对。C1/C4 的传输改善与 C3 的字形改善不得冒充 P2D 收益。
 - [ ] P3：通用三角形域有独立参照与安全拒绝/回退。
 - [ ] P4：逐项标明“未触发/延后/已验收”，不作为当前核心功能完成的隐含条件。
@@ -655,7 +656,7 @@ Apple 配置参照现有 `.github/workflows/ios.yml`，提供 SDL3 的 `CMAKE_PR
 
 P0/P1A/P1B/P2A/P2B 与 ARC 补修已提交；用户报告 P2A 测试暂未发现问题。P1B 能力审计为 70/70/0/15；P2A/P2B 的几何实现和证据各自保存。P2C C0 的诊断、逐帧、解析与版本 HEAD 已提交；独立 [C0 记录](NATIVE-METAL-P2C-C0-BASELINE.md)保留 simulator 大数组 Swift importer 失败、只读 C accessor 补修及当时待验状态。C0 该次记录的主仓库 HEAD 为 `4943c0e47665433ef0c1d139d9043c408ef5c33a`，新增 8 份同短 revision 真机日志已验证 origin 对账；该证据不自动签收全部 Apple CI、App XCTest 或诊断开关开销。
 
-仍未完成：C0剩余Apple专项与同热状态性能对照、C4全handler原生/App/受控配对、C1 Apple/Swift/原生和配对、C2完整Apple/App/设置闭环与本轮v3全链路重采、更广CPU消费域、C3、P2D、P3–P5和新原生像素/性能基线。C1/C2A/C2B、参数/已知HSV补修已发布；After-3确认参数GPU命中、HSV applied及297窗口对账。本轮vectorSource/record/drawRectangle/clear和成功read聚合本地完成，证据见独立记录；不以portable或旧日志替代新原生验证。P2D与P5保持独立范围，性能结论仍要求同热状态配对。2026-10-09 的 After_P2C_C2_1 五份日志已把剩余发热定位到 pass 碎片化（C3）与 overdraw/固定开销（P2D D0/D1/D3），回读/同步不再是主要开销；证据与调用链见第 2.7 节和[发热来源分析](NATIVE-METAL-THERMAL-ANALYSIS.md)，`scripts/analyze-thermal-passes.py` 可对新日志重算同一组指标。
+仍未完成：C0剩余Apple专项与同热状态性能对照、C4全handler原生/App/受控配对、C1 Apple/Swift/原生和配对、C2完整Apple/App/设置闭环与本轮v3全链路重采、更广CPU消费域、C3原生/真机配对、P2D、P3–P5和新原生像素/性能基线。C1/C2A/C2B、参数/已知HSV补修已发布；After-3确认参数GPU命中、HSV applied及297窗口对账。本轮vectorSource/record/drawRectangle/clear和成功read聚合本地完成，证据见独立记录；不以portable或旧日志替代新原生验证。P2D与P5保持独立范围，性能结论仍要求同热状态配对。2026-10-09 的 After_P2C_C2_1 五份日志已把剩余发热定位到 pass 碎片化（C3）与 overdraw/固定开销（P2D D0/D1/D3），回读/同步不再是主要开销；证据与调用链见第 2.7 节和[发热来源分析](NATIVE-METAL-THERMAL-ANALYSIS.md)，`scripts/analyze-thermal-passes.py` 可对新日志重算同一组指标。
 
 ## 附录 A：完整名称对照
 
