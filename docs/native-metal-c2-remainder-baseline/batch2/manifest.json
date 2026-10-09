@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-09",
+  "batch": "batch2",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "initialHeads": {
+    "main": "3bc9c1ddf541875bceb0299ffeca212b81105d88",
+    "runtime": "b6f31a2f892a0f4e20641471a6c361d2b899ac37",
+    "core": "5e54d4678119c79848f6aab9d759550c8ff0a663"
+  },
+  "initialState": "All three repositories observed clean before source edits; initial tracked diffs empty",
+  "repos": {
+    "main": {
+      "headBeforeCommit": "bc98c346ec5950079dbdd6952b5efd477e6cf597",
+      "status": " m Engine/KRKRRuntime/Source\n M Tests/MetalLayer/C2LayerExBoundaryTests.cpp\n M Tests/MetalLayer/C2SpanBindingTests.cpp\n M Tests/MetalLayer/MetalLayerTests.cpp\n M Tests/MetalLayer/extract-layerex-boundary.py\n M docs/NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md\n",
+      "diff": "build\\native-metal-c2-remainder-baseline\\batch2-main.patch",
+      "diffSHA256": "42f3374289d0ec778d0be5563be938397e738dce4222745129d910dd4b067028",
+      "snapshots": {
+        "Tests/MetalLayer/C2LayerExBoundaryTests.cpp": {
+          "sha256": "5e5bd5933026ce8f0c0ce4bf834a1173df5e59de456558ff2f97832407f4c666",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\main\\Tests\\MetalLayer\\C2LayerExBoundaryTests.cpp"
+        },
+        "Tests/MetalLayer/C2SpanBindingTests.cpp": {
+          "sha256": "1371158f23ab119c4b1901093dfdd4671fec2a6fc81e4b98bcd490e3a72b55f9",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\main\\Tests\\MetalLayer\\C2SpanBindingTests.cpp"
+        },
+        "Tests/MetalLayer/MetalLayerTests.cpp": {
+          "sha256": "f038280fb19b445ce3f43583a143f8bc82eefc0d48916b1ef449b8891fbaa11b",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\main\\Tests\\MetalLayer\\MetalLayerTests.cpp"
+        },
+        "Tests/MetalLayer/extract-layerex-boundary.py": {
+          "sha256": "b00af4503f9d5e56dbc32d7ff1af752c58389c167ab0bd6b9b87d0d1e351b728",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\main\\Tests\\MetalLayer\\extract-layerex-boundary.py"
+        },
+        "docs/NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md": {
+          "sha256": "9b91d321709048d965d88a4ae25df69e99251da8d546888d0ff653eb4b4ad2b0",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\main\\docs\\NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md"
+        }
+      }
+    },
+    "runtime": {
+      "headBeforeCommit": "02c9da45cafcdadaf073e490e470c03950b23e9e",
+      "status": " m cpp\n M vcpkg/ports/plutovg/span-capture.patch\n",
+      "diff": "build\\native-metal-c2-remainder-baseline\\batch2-runtime.patch",
+      "diffSHA256": "3018dccff3a998f6945df417bcbb1543a5e8656e79302e301af5527d4d235952",
+      "snapshots": {
+        "vcpkg/ports/plutovg/span-capture.patch": {
+          "sha256": "83589767f7d0b72dca7cf75b80ae34ef75b8b8996cc9135d746460eed207dcec",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\runtime\\vcpkg\\ports\\plutovg\\span-capture.patch"
+        }
+      }
+    },
+    "core": {
+      "headBeforeCommit": "5d97eb9af21b2dba8a866ad9c2935dfb169b3bc6",
+      "status": " M core/render/LayerSpanComposite.h\n M core/render/MetalLayerRenderManager.cpp\n M plugins/LayerExDraw/DrawBackend.h\n M plugins/LayerExDraw/LayerExDraw.cpp\n M plugins/LayerExDraw/LayerExDraw.hpp\n",
+      "diff": "build\\native-metal-c2-remainder-baseline\\batch2-core.patch",
+      "diffSHA256": "ec69f06909212688528da913821a41723db34370a9dca144dd1ca56e7badd674",
+      "snapshots": {
+        "core/render/LayerSpanComposite.h": {
+          "sha256": "6624d2aeae1385b37bc33c793d0f576c51eff192a147c23849de0253397a3d77",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\core\\core\\render\\LayerSpanComposite.h"
+        },
+        "core/render/MetalLayerRenderManager.cpp": {
+          "sha256": "77f2afa13d0db9f15444dfb9732cd9e4deb81727401d85f1e4a4b7d396a34e21",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\core\\core\\render\\MetalLayerRenderManager.cpp"
+        },
+        "plugins/LayerExDraw/DrawBackend.h": {
+          "sha256": "61e9552ef5f654f9e03cd5435b0c6da43fb9d296ba9d88e3d7c7e40ef5ca7749",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\core\\plugins\\LayerExDraw\\DrawBackend.h"
+        },
+        "plugins/LayerExDraw/LayerExDraw.cpp": {
+          "sha256": "313e18911fc6e78fd76516b3ff9fa2665f3ba316cff7a84d9318be0784de6479",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\core\\plugins\\LayerExDraw\\LayerExDraw.cpp"
+        },
+        "plugins/LayerExDraw/LayerExDraw.hpp": {
+          "sha256": "ff15874e6fd7d9a153d2855979a046fce94e1708263854cd649992f7beb8d383",
+          "localPath": "build\\native-metal-c2-remainder-baseline\\snapshots\\batch2\\core\\plugins\\LayerExDraw\\LayerExDraw.hpp"
+        }
+      }
+    }
+  },
+  "logs": {
+    "batch2-backend.log": {
+      "sha256": "b0ac06ea9a1db7c82f10bfdc5013eeeab972ab4c6180bd22f0950c5010642714",
+      "bytes": 313
+    },
+    "batch2-build.log": {
+      "sha256": "caeffbd664b00c6f7d3a51ab6930831f76a32295caac4fa230f9040e0bbe0800",
+      "bytes": 185
+    },
+    "batch2-frame.log": {
+      "sha256": "541cfdd9aad6f9c57270f1b2eaf16d54243c0e0dd935686cc77e35147778c123",
+      "bytes": 91
+    },
+    "batch2-importer.log": {
+      "sha256": "4a917d756886a0ddffc4fcd7a9d9cf8e152bd078f89b0b4907092cceb84f1765",
+      "bytes": 112
+    },
+    "batch2-layer.log": {
+      "sha256": "19feb4604293f8b51337db475263714e0635135f57f0f41d76a04c04ae741f2e",
+      "bytes": 854
+    },
+    "batch2-point.log": {
+      "sha256": "d29b50a21d35f30e24e5ce0230f14e3641f0fd437f069438a198f56f6f4fab0f",
+      "bytes": 178
+    },
+    "batch2-syntax.log": {
+      "sha256": "8b5df5414929ac4c8a38cf95096031340e732ec2ea22bb3cd4662ea20fa0e550",
+      "bytes": 4762
+    },
+    "batch2-tjs.log": {
+      "sha256": "f4f97d331e09e0ba26c9d5f16299f4123c88f591296c7bf85718ad34fdadc43b",
+      "bytes": 313
+    },
+    "before-metal-layer-workspace-temp.log": {
+      "sha256": "74f7694f661b5ed82b4bbcd872e5d865eba16dfb12c7de3083e948e180c22f93",
+      "bytes": 854
+    },
+    "before-metal-layer.log": {
+      "sha256": "5a59a8312f7d481e7270c65aa2cbe38d136fd7a05d141e164e0d5090c3028a43",
+      "bytes": 205311
+    },
+    "before-metal-render.log": {
+      "sha256": "7107630a4007673be501bd83b3e124c7130fd5c706e92967cd9af655261cc29c",
+      "bytes": 313
+    },
+    "before-tjs-shutdown.log": {
+      "sha256": "0c2dee561c4b56457ef4b33a0ae47f8eb45082c7e3ebc2c4e1ff77955d5aff16",
+      "bytes": 313
+    }
+  },
+  "deviceDouble": true,
+  "nativeAppleValidated": false,
+  "environment": {
+    "CXX": "C:/Strawberry/c/bin/c++.exe",
+    "CC": "C:/Strawberry/c/bin/gcc.exe",
+    "TEMP": "D:/vn-sim/build/tmp",
+    "TMP": "D:/vn-sim/build/tmp"
+  },
+  "commands": [
+    "cmake --build build/metal-layer-tests --parallel 6",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "cmake --build build/metal-render-tests --parallel 6",
+    "ctest --test-dir build/metal-render-tests --output-on-failure",
+    "ctest --test-dir build/tjs-shutdown-tests --output-on-failure",
+    "python scripts/check-krkr-frame-times.py",
+    "python scripts/check-krkr-point-read-trace.py",
+    "python scripts/check-c2b-profile-window.py",
+    "python build/native-metal-c2-remainder-baseline/check-syntax.py batch2"
+  ]
+}

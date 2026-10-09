@@ -699,11 +699,12 @@ static void C2SpanFacade(iTVPRenderBackend* backend) {
         auto actual=Create(TVPGetRenderManager(),9,5,TVPTextureFormat::RGBA,original);
         auto reference=Create(TVPGetRenderManager(ttstr("software")),9,5,TVPTextureFormat::RGBA,failure?expected:original);
         actual->GetTextureHandle();actual->GetScanLineForRead(0); // seed a stale CPU cache
-        device->spanFailure=failure;bool thrown=false;
-        try {Require(TVPTryMetalLayerSpanComposite(packet,actual.get())==Result::BackendFailure,"C2B precommit rejection lost");}
+        device->spanFailure=failure;bool thrown=false,committed=true;
+        try {Require(TVPTryMetalLayerSpanComposite(packet,actual.get(),&committed)==Result::BackendFailure,"C2B precommit rejection lost");}
         catch(const std::bad_alloc&) {thrown=true;}
         device->spanFailure=-1;
         Require(thrown==(failure==1),"C2B postcommit exception was replayable");
+        Require(committed==(failure==1),"span commit phase output is inaccurate");
         Compare(reference.get(),actual.get(),0,"C2B commit failure cache contract");
     }
 #else

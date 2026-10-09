@@ -78,6 +78,7 @@ if a.capture_output:
           "void Appearance::clear(","Path::Path(","Path::~Path(",
           "GdipImage::~GdipImage(","GdipImage* GdipImage::Clone(",
           "void LayerExDraw::deferCapturedUpdate(","bool LayerExDraw::spanCaptureStateSafe(",
+          "void LayerExDraw::stageCapturedRecord(",
           "bool LayerExDraw::spanCaptureTargetAliased(","RectF LayerExDraw::drawPath(",
           "RectF LayerExDraw::getPathExtents(","void LayerExDraw::draw(","void LayerExDraw::fill(",
           "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(",

@@ -345,8 +345,8 @@ int RunC2LayerExBoundaryTests() {
         TestDrawBridge::image.reset();
         const int normalUpdates=fixture.native->updates,normalWrites=counts->writes;
         call(fixture,"rotateTransform",{4});
-        RequireDraw(counts->writes==normalWrites+1 && fixture.native->updates==normalUpdates,
-            "normal recorded transform changed historical redraw behavior");
+        RequireDraw(counts->writes==normalWrites && fixture.native->updates==normalUpdates,
+            "pure recorded transform acquired pixels or changed redraw behavior");
         fixture.native->clip=tTVPRect(1,0,3,2);
         call(fixture,"clear",{tTJSVariant(tjs_int64(0x80abcdef))});
         RequireDraw(texture->pixels[0]==0 && texture->pixels[1]==0x80abcdef,"initial clip/alpha changed");

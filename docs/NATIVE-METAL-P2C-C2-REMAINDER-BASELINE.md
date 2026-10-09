@@ -12,6 +12,14 @@
 
 原测试输出、命令、完整三层 HEAD、diff 哈希和源码快照位置见 [第一批 manifest](native-metal-c2-remainder-baseline/batch1/manifest.json)。初次 before 测试因系统 TEMP 沙箱权限失败；改用工作区 TEMP 后原 MetalLayer 6/6 通过，失败输出也保留，不能记作产品失败或原生验证。
 
+## 第二批：record 事务
+
+原 drawLine/drawPath/drawImageStretch 的 record 域通过原预检后允许 capture。_drawPath 每个有效 drawInfo 仍追加完整 Appearance 和 path，保留重复录制及 transform；新增项暂存，Prepare 完成预算与目标 vector 容量准备，成功后无分配发布。提交前拒绝销毁暂存再唯一 CPU 续跑。span facade 增加可选 committed 输出，提交后异常也发布录制状态再传播，不重复写目标或录制。纯普通 transform 在 record 模式只更新矩阵；view transform、导出、重绘、保存仍保留原同步像素副作用。
+
+Appearance/brush/pen 克隆增加异常清理；plutovg overlay 增加独立 checked path clone，精确分配元素数组，失败返回 null。记录克隆、暂存和目标扩容与请求的 span/scratch 一起受64 MiB检查；原backend实际staging预算继续生效。原栅格化算法不变。
+
+真实绑定覆盖成功、后端拒绝、checked clone 失败、提交后异常、装箱异常；精确像素和导出命令/重复项/变换一致，导出后再次 vector 重放与原 CPU 相同。原测试中普通 record transform 的“必须 acquire”断言改为本批明确要求的纯元数据零 acquire，更新副作用保持。证据见 [第二批 manifest](native-metal-c2-remainder-baseline/batch2/manifest.json)。
+
 ## 待验与范围
 
 Windows portable 使用原 plutovg、生产 NCBind/TJS、生产 shader 数学抽取及 GPU device double。Apple Objective-C++/MSL、Swift/App、default/forced compute、device/simulator、原生 submit/wait 及同设备/场景/热状态三次配对未验。历史日志保持原样，不宣称性能改善。record、drawRectangle、clear 尚待后续批次；必要 CPU 保存/alphaToProvince、saveDataPack 独立兼容、C3、P2D、Nekopara 不因本批签收。

@@ -4,6 +4,13 @@
 #include "MetalLayerRenderManager.h"
 #include "CPUConsumerTrace.h"
 #include "ncbind/ncbind.hpp"
+#include <plutovg.h>
+static bool FailRecordClone=false;
+static plutovg_path_t* C2BCheckedPathClone(const plutovg_path_t* path) {
+    if(FailRecordClone) {FailRecordClone=false;return nullptr;}
+    return plutovg_path_clone_checked(path);
+}
+#define plutovg_path_clone_checked C2BCheckedPathClone
 #include "DrawBackend.h"
 #include "SpanCapture.h"
 #include "ProductionSpanMath.inc"
@@ -92,7 +99,8 @@ public:
 bool Support=false,RejectSubmit=false,ThrowAfterCommit=false;
 int Attempts=0;
 bool TestSpanSupport() {return Support;}
-TVPLayerSpanCompositeResult TestSpanSubmit(const TVPLayerSpanCompositePacket& p,iTVPTexture2D* target) {
+TVPLayerSpanCompositeResult TestSpanSubmit(const TVPLayerSpanCompositePacket& p,iTVPTexture2D* target,bool* committed=nullptr) {
+    if(committed) *committed=false;
     ++Attempts;auto* t=static_cast<TestDrawTexture*>(target);
     if(RejectSubmit) return TVPLayerSpanCompositeResult::Resource;
     auto output=t->pixels;
@@ -100,6 +108,7 @@ TVPLayerSpanCompositeResult TestSpanSubmit(const TVPLayerSpanCompositePacket& p,
         output[size_t(y)*t->GetWidth()+x]=span_shader::spanComposePixel(t->pixels[size_t(y)*t->GetWidth()+x],x,y,y-p.destination.top,
             p.spans.data(),p.sourcePixels.data(),p.rowOffsets.data(),p.rowEntries.data());
     t->pixels.swap(output);++t->counts->dirty;
+    if(committed) *committed=true;
     if(ThrowAfterCommit) throw std::runtime_error("postcommit");
     return TVPLayerSpanCompositeResult::Applied;
 }
@@ -121,6 +130,7 @@ static plutovg_surface_t* loadImage(const tjs_char*) {++ImageLoads;return ImageL
 #define TVPHasMetalLayerSpanCompositionSupport TestSpanSupport
 #define TVPTryMetalLayerSpanComposite TestSpanSubmit
 #include "ProductionLayerExSpanBinding.inc"
+#undef plutovg_path_clone_checked
 #undef TVPTryMetalLayerSpanComposite
 #undef TVPHasMetalLayerSpanCompositionSupport
 static_assert(std::is_same<ncbTypeConvertor::SelectConvertorType<tTJSVariant,const Appearance*>::Type,
@@ -529,10 +539,35 @@ int RunC2SpanBindingTests() {
             Check(!std::strcmp(ncbInvocationPolicy<LayerExDraw>::Preflight("drawImageStretch",9,params.data(),target.Draw()),"borrowedSource"),
                 "borrowed source route reason missing");
         }
-        {
-            LayerFixture target;Support=true;const int attempts=Attempts;
-            target.Draw()->setRecord(true);call(target,"drawPath",operations[1].second);
-            Check(Attempts==attempts && target.native->texture->counts->writes==1 && target.native->updates==1,"record draw entered capture or duplicated Update");
+        Check(!plutovg_path_clone_checked(nullptr),"checked clone must reject null without dereference");
+        for(int fault=0;fault<5;++fault) {
+            LayerFixture cpu,gpu;cpu.Draw()->setRecord(true);gpu.Draw()->setRecord(true);
+            cpu.Draw()->scaleTransform(0.9,0.8);gpu.Draw()->scaleTransform(0.9,0.8);
+            Support=false;call(cpu,"drawPath",operations[1].second);
+            Support=true;RejectSubmit=fault==1;ThrowAfterCommit=fault==2;ThrowResultConstructor=fault==3;
+            FailRecordClone=fault==4;
+            bool threw=false;tTJSVariant result;
+            try {call(gpu,"drawPath",operations[1].second,&result);}catch(...) {threw=true;}
+            RejectSubmit=ThrowAfterCommit=ThrowResultConstructor=false;
+            Check(threw==(fault==2 || fault==3) && cpu.native->texture->pixels==gpu.native->texture->pixels,
+                "record transaction changed pixels or exception phase");
+            Check(gpu.native->texture->counts->writes==(fault==1 || fault==4?1:0),"record transaction replayed CPU after GPU write");
+            std::unique_ptr<GdipImage> expected(cpu.Draw()->getRecordImage()),actual(gpu.Draw()->getRecordImage());
+            Check(expected && actual && expected->vectorGraph.size()==2 && actual->vectorGraph.size()==2,
+                "record transaction duplicated or lost original per-paint entries");
+            Check(!std::memcmp(&expected->transMtx,&actual->transMtx,sizeof(actual->transMtx)),"record transform changed");
+            for(size_t i=0;i<2;++i) {
+                const plutovg_path_element_t *a=nullptr,*b=nullptr;
+                const auto na=plutovg_path_get_elements(expected->vectorGraph[i].path,&a);
+                const auto nb=plutovg_path_get_elements(actual->vectorGraph[i].path,&b);
+                Check(na==nb && !std::memcmp(a,b,na*sizeof(*a)) && actual->vectorGraph[i].app->drawInfos.size()==2,
+                    "record command path or cloned paint count changed");
+            }
+            LayerFixture replayCPU,replayGPU;auto values=operations[2].second;values[7]=67.0;values[8]=39.0;
+            values[4]=BoxImage(expected.release());Support=false;call(replayCPU,"drawImageStretch",values);
+            values[4]=BoxImage(actual.release());Support=true;call(replayGPU,"drawImageStretch",values);
+            Check(replayCPU.native->texture->pixels==replayGPU.native->texture->pixels,
+                "record export/replay diverged from original CPU");
         }
         {
             LayerFixture target;Support=true;const int attempts=Attempts;
