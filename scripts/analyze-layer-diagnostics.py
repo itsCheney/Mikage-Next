@@ -369,6 +369,129 @@ def cpu_consumers(rows, errors, origin=None, from_seconds=None, to_seconds=None)
         'correlationBasis': 'preceding shrink output with identical generation/session/texture/contentVersion; never infer from dimensions'}
 
 
+def cpu_read_aggregates(rows, work_rows, errors, file_complete=True):
+    """All successful whole-texture reads; bounded details are never summed here."""
+    metrics = ('calls', 'bytes', 'wallNS', 'waitNS')
+    labels = ('method', 'nativeEntry', 'access', 'source')
+    native = []
+    for row in rows:
+        for value in row['fields'].values():
+            if isinstance(value, str) and value.startswith('metal.cpuConsumerAggregate '):
+                try:
+                    event = json.loads(value.split(' ', 1)[1])
+                except ValueError:
+                    event = None
+                native.append((value, event))
+    if not native:
+        return {'version': None, 'observed': False, 'complete': False, 'totals': None,
+                'byConsumer': [], 'windows': [], 'basis': 'legacy read details are a lower bound'}
+    issues = []
+    def issue(message, window_id=None):
+        issues.append({'windowID': window_id, 'message': message})
+        problem(errors, 'cpuReadAggregates', message)
+    selected = {}
+    for row in work_rows:
+        value = row['fields'].get('spanRouteWindowID')
+        if not re.fullmatch(r'[1-9]\d*', str(value)):
+            issue('missing work window ID'); continue
+        value = int(value)
+        if value in selected:
+            issue('duplicate work window ID', value)
+        selected[value] = row
+    states = {key: {'aggregate': [], 'overflow': [], 'window': [], 'invalid': False} for key in selected}
+    for encoded, original in native:
+        key = original.get('windowID') if isinstance(original, dict) else None
+        if isinstance(key, bool) or not isinstance(key, int) or key <= 0:
+            issue('malformed consumer window ID'); continue
+        if key not in states:
+            continue
+        try:
+            event = dict(original)
+            phase = event.get('phase')
+            if event.get('version') != 2 or phase not in ('aggregate', 'overflow', 'window') or len(encoded.encode('utf-8')) > 900:
+                raise ValueError('invalid consumer aggregate version, phase or size')
+            fields = (*metrics, 'generation')
+            if phase == 'window':
+                fields += ('aggregateRows', 'capacityRecords', 'oversizeRecords', 'repeatedReads',
+                           'readRecords', 'readExceeded', 'callerRecords', 'callerExceeded',
+                           'producerRecords', 'producerExceeded')
+                if type(event.get('overflow')) is not bool:
+                    raise ValueError('missing counter overflow flag')
+            for field in fields:
+                value = event.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= (1 << 64) - 1:
+                    raise ValueError('invalid consumer counter: ' + field)
+            if not event['generation']:
+                raise ValueError('missing generation')
+            if phase == 'aggregate':
+                index = event.get('groupIndex')
+                if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < 64:
+                    raise ValueError('invalid consumer group index')
+                for label in labels:
+                    if not isinstance(event.get(label), str) or not event[label] or len(event[label].encode('utf-8')) > 48:
+                        raise ValueError('missing or oversized consumer label')
+                if event['access'] not in ('read', 'write', 'metadata') or not event['calls']:
+                    raise ValueError('invalid consumer group access/calls')
+            if phase == 'overflow' and event.get('reason') not in ('capacity', 'oversize'):
+                raise ValueError('unknown consumer overflow reason')
+            states[key][phase].append(event)
+        except (TypeError, ValueError) as error:
+            states[key]['invalid'] = True
+            issue(str(error), key)
+    windows, groups = [], {}
+    totals = dict.fromkeys(metrics, 0)
+    for key, state in states.items():
+        before = len(issues)
+        footers = state['window']
+        footer = footers[0] if len(footers) == 1 else None
+        if footer is None:
+            issue('missing or duplicate consumer footer', key)
+        entries = state['aggregate']
+        if len({tuple(e[x] for x in labels) for e in entries}) != len(entries) or len({e['groupIndex'] for e in entries}) != len(entries):
+            issue('duplicate consumer group or slot', key)
+        overflow = {e['reason']: e for e in state['overflow']}
+        if len(overflow) != 2 or len(state['overflow']) != 2:
+            issue('missing or duplicate consumer overflow row', key)
+        reconciliation = []
+        if footer:
+            if footer['overflow']:
+                issue('consumer counter saturation', key)
+            if len(entries) != footer['aggregateRows']:
+                issue('consumer aggregate row count mismatch', key)
+            for e in (*entries, *state['overflow']):
+                if e['generation'] != footer['generation']:
+                    issue('consumer generation mismatch', key)
+            for metric in metrics:
+                if sum(e[metric] for e in (*entries, *state['overflow'])) != footer[metric]:
+                    issue('consumer aggregate sum mismatch: ' + metric, key)
+                totals[metric] += footer[metric]
+            if footer['readRecords'] + footer['readExceeded'] != footer['calls']:
+                issue('consumer detail admission count mismatch', key)
+            for reason in ('capacity', 'oversize'):
+                if reason in overflow and overflow[reason]['calls'] != footer[reason + 'Records']:
+                    issue('consumer overflow count mismatch', key)
+            origins, valid = parse_transfers(selected[key]['fields'].get('transferOrigins'), errors, 'consumer.C0', True)
+            for source in sorted({e['source'] for e in entries}):
+                observed = [sum(e[m] for e in entries if e['source'] == source) for m in metrics]
+                c0 = origins.get('read:' + source)
+                status = 'unavailable' if not valid or c0 is None else 'match' if observed == c0 else 'subset' if all(a <= b for a, b in zip(observed, c0)) else 'mismatch'
+                reconciliation.append({'source': source, 'consumer': observed, 'C0': c0, 'status': status})
+                if status == 'mismatch':
+                    issue('consumer metrics exceed same-window C0: ' + source, key)
+        for e in entries:
+            group = tuple(e[x] for x in labels)
+            target = groups.setdefault(group, dict(zip(labels, group), **dict.fromkeys(metrics, 0)))
+            for metric in metrics:
+                target[metric] += e[metric]
+        windows.append({'windowID': key, 'footer': footer, 'complete': footer is not None and not state['invalid'] and len(issues) == before,
+                        'overflow': overflow, 'originReconciliation': reconciliation})
+    complete = bool(work_rows) and file_complete and len(selected) == len(work_rows) and not issues and all(w['complete'] for w in windows)
+    return {'version': 2, 'observed': True, 'complete': complete, 'totals': totals if complete else None,
+            'knownTotals': totals, 'byConsumer': list(groups.values()), 'windows': windows, 'issues': issues,
+            'namedConsumersComplete': complete and all(not w['footer']['capacityRecords'] and not w['footer']['oversizeRecords'] for w in windows),
+            'basis': 'whole selected work windows; aggregate + explicit overflow; details never added; point reads are outside this coverage'}
+
+
 def legacy_layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None):
     """Bounded C2B routes. Packet/scratch bytes are not C0 pixel transfers."""
     records, budgets, identities = [], [], set()
@@ -1072,6 +1195,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
                 if w['possibleLegacyClippingKeys']], 'windows': transport_windows},
         'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
         'cpuConsumers': cpu_consumers(selected_rows, errors, origin, from_seconds, to_seconds),
+        'cpuReadAggregates': cpu_read_aggregates(selected_rows, work, errors, file_complete),
         'layerSpans': layer_spans(selected_rows, errors, origin, from_seconds, to_seconds, work, file_complete),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,

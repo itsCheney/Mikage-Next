@@ -10,10 +10,12 @@ namespace trace=krkrsdl3::cpu_consumer_trace;
 namespace work=krkrsdl3::layer_work;
 std::vector<std::string> messages;
 std::vector<std::string> spanMessages;
+std::vector<std::string> readAggregateMessages;
 unsigned producerCaptures=0;
 void Require(bool value,const char* reason) {if(!value) throw std::runtime_error(reason);}
 void Capture(const char* value) {
     if(std::strncmp(value,"metal.layerSpan ",16)==0) spanMessages.emplace_back(value);
+    else if(std::strncmp(value,"metal.cpuConsumerAggregate ",27)==0) readAggregateMessages.emplace_back(value);
     else messages.emplace_back(value);
 }
 void ThrowingLog(const char*) {throw std::runtime_error("diagnostic callback");}
@@ -31,7 +33,7 @@ bool ProducerResetsSession(void* resource,trace::Producer& p) {
     const bool result=Producer(resource,p);
     work::SetEnabled(false);work::SetEnabled(true);return result;
 }
-void Begin() {work::SetEnabled(true);messages.clear();spanMessages.clear();producerCaptures=0;}
+void Begin() {work::SetEnabled(true);messages.clear();spanMessages.clear();readAggregateMessages.clear();producerCaptures=0;}
 trace::Read Read(uint64_t session=77) {
     auto read=trace::BeginRead(work::CaptureGeneration(),session);
     read.textureID=123;read.contentVersion=5;read.width=17;read.height=13;
@@ -44,6 +46,42 @@ void Report(const trace::Read& read,const char* stack="script.ks:4") {
 }
 size_t Count(const char* fragment) {
     size_t result=0;for(const auto& message:messages) if(message.find(fragment)!=std::string::npos) ++result;return result;
+}
+void CompleteReadAggregation() {
+    Begin();
+    {
+        trace::ConsumerScope c("drawImageStretch",trace::Access::Write,"method");
+        for(unsigned i=0;i<71;++i) {auto r=Read();r.textureID=i+1;Report(r);}
+    }
+    {std::lock_guard<std::mutex> lock(work::mutex);
+        const auto& w=work::profile.cpuConsumerBudget.readWindow;
+        Require(w.totals.calls==71 && w.groups[0].metrics.calls==71 && w.repeatedReads==70 &&
+            w.totals.bytes==71*884 && w.totals.wallNS==71*91 && w.totals.waitNS==71*63,
+            "CPU read aggregation lost texture-independent metrics after detail limit");}
+    work::Take();
+    Require(readAggregateMessages.size()==4 && readAggregateMessages.back().find("\"calls\":71")!=std::string::npos,
+        "CPU read aggregate footer/overflow rows missing");
+    for(const auto& message:readAggregateMessages) Require(message.size()<=900,"CPU read aggregate line exceeds bound");
+    Begin();
+    for(unsigned i=0;i<70;++i) {
+        const auto name=std::string("dynamic")+std::to_string(i);
+        trace::ConsumerScope c(name.c_str(),trace::Access::Read,"native");Report(Read());
+    }
+    {trace::ConsumerScope c("clear",trace::Access::Write,"method");Report(Read());}
+    {std::string name(49,'a');trace::ConsumerScope c(name.c_str(),trace::Access::Read,"native");Report(Read());}
+    {std::lock_guard<std::mutex> lock(work::mutex);const auto& w=work::profile.cpuConsumerBudget.readWindow;
+        Require(w.totals.calls==72 && w.capacityRecords==14 && w.oversizeRecords==1 &&
+            w.groups[4].metrics.calls==1 && w.capacityOverflow.bytes==14*884 && w.oversizeOverflow.waitNS==63,
+            "CPU read protected slot or independent overflow failed");}
+    work::Take();
+    Begin();work::Take();Require(readAggregateMessages.size()==3,"empty CPU read window has no explicit zero footer");
+    Begin();auto r=Read();auto input=trace::ReadInput(r);
+    work::Record(false,r.textureID,r.width,r.height,r.bytes,r.wallNS,r.waitNS,false,r.source,r.epoch,false,&input);
+    r.windowID=input.windowID;r.detailReserved=input.detail;r.callerReserved=input.caller;
+    work::Take();
+    Require(!trace::ReportRead(r),"late read detail was attached to next window");
+    {std::lock_guard<std::mutex> lock(work::mutex);
+        Require(work::profile.cpuConsumerBudget.readWindow.totals.calls==0,"late read was double counted in new window");}
 }
 void ContextAndAttribution() {
     Begin();
@@ -292,6 +330,6 @@ void RunC2ConsumerTraceTests() {
         ~Restore() {work::SetEnabled(false);trace::SetCallbacks(logger,producer);}
     } restore{logger,producer};
     trace::SetCallbacks(Capture,Producer);
-    ContextAndAttribution();WindowBudgets();EpochsAndDisabled();UTF8AndWireLimits();ProducerSafety();RejectedNamesAndCallbackErrors();SpanRoutes();
+    CompleteReadAggregation();ContextAndAttribution();WindowBudgets();EpochsAndDisabled();UTF8AndWireLimits();ProducerSafety();RejectedNamesAndCallbackErrors();SpanRoutes();
     std::cout<<"PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety\n";
 }

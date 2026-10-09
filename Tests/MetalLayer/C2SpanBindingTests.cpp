@@ -285,10 +285,35 @@ int RunC2SpanBindingTests() {
             auto malformedPath=ConstructDirect<Path>();auto* badPath=UnboxDirect<Path>(malformedPath);
             plutovg_path_move_to(const_cast<plutovg_path_t*>(badPath->spanCapturePath()),std::numeric_limits<float>::infinity(),0);
             Check(reason("drawPath",{appearance,malformedPath})=="path","path data reason missing");
-            imageValues[4]=BoxImage(new GdipImage(9,7));
-            Check(reason("drawImageStretch",imageValues)=="vectorSource","vector image reason missing");
+            imageValues[4]=BoxImage(new GdipImage(67,39));
+            Check(reason("drawImageStretch",imageValues).empty(),"valid empty vector rejected");
             imageValues[4]=BoxImage(new GdipImage(static_cast<plutovg_surface_t*>(nullptr)));
             Check(reason("drawImageStretch",imageValues)=="source","missing image surface reason missing");
+        }
+        // Real vector replay: duplicated entries, multiple paints, source and
+        // destination transforms, negative source coordinates and Clip.
+        for(int variant=0;variant<24;++variant) {
+            auto* image=new GdipImage(67,39);
+            image->bgColor=0xff123456; // replay historically ignores this field
+            plutovg_matrix_init(&image->transMtx,1.f,0.03f,-0.02f,1.f,float(variant%3),-1.f);
+            for(int i=0;i<3;++i) image->vectorGraph.push_back({app->Clone(),plutovg_path_clone(path->spanCapturePath())});
+            auto vectorArg=BoxImage(image);auto values=operations[2].second;
+            values[4]=vectorArg;values[5]=-2.25;values[6]=1.75;values[7]=67.0;values[8]=39.0;
+            values[2]=43.0+variant%3;values[3]=28.0;
+            LayerFixture cpu,gpu;cpu.native->clip=gpu.native->clip=tTVPRect(3,2,61,36);
+            Support=false;call(cpu,"drawImageStretch",values);
+            const int attempts=Attempts;Support=true;call(gpu,"drawImageStretch",values);
+            Check(Attempts==attempts+1 && gpu.native->texture->counts->writes==0 &&
+                gpu.native->texture->pixels==cpu.native->texture->pixels && gpu.native->updates==cpu.native->updates,
+                "vector replay changed original pixels/order or acquired target");
+            RejectSubmit=true;LayerFixture fallback;call(fallback,"drawImageStretch",values);RejectSubmit=false;
+            LayerFixture expected;Support=false;call(expected,"drawImageStretch",values);Support=true;
+            Check(fallback.native->texture->pixels==expected.native->texture->pixels &&
+                fallback.native->texture->counts->writes==1 && fallback.native->updates==expected.native->updates,
+                "vector rejection did not perform exactly one original CPU replay");
+            // A later operation must see the pre-replay transform even after rejection.
+            Support=false;call(fallback,"drawPath",operations[1].second);call(expected,"drawPath",operations[1].second);Support=true;
+            Check(fallback.native->texture->pixels==expected.native->texture->pixels,"vector capture leaked calcTransform");
         }
         {
             LayerFixture cpu,gpu;auto values=operations[2].second;values[4]=TJS_N("oracle-image.png");

@@ -109,6 +109,45 @@ def span_event(phase, timestamp=106, **overrides):
 
 
 class LayerDiagnosticsTests(unittest.TestCase):
+    def read_aggregates(self, calls=71):
+        base = dict(version=2, generation=1, windowID=50)
+        metrics = dict(calls=calls, bytes=calls*10, wallNS=calls*15, waitNS=calls*2)
+        events = [dict(base, phase='aggregate', groupIndex=0, method='drawImageStretch', nativeEntry='method',
+                       access='write', source='load', **metrics)]
+        events += [dict(base, phase='overflow', reason=reason, calls=0, bytes=0, wallNS=0, waitNS=0)
+                   for reason in ('capacity', 'oversize')]
+        events += [dict(base, phase='window', aggregateRows=1, capacityRecords=0, oversizeRecords=0,
+                        repeatedReads=calls-1, readRecords=min(calls,32), readExceeded=max(0,calls-32),
+                        callerRecords=8, callerExceeded=max(0,min(calls,32)-8), producerRecords=0,
+                        producerExceeded=0, overflow=False, **metrics)]
+        return [row('native.log', 106, message='metal.cpuConsumerAggregate '+json.dumps(e)) for e in events]
+
+    def test_complete_cpu_reads_survive_detail_budget_and_match_c0(self):
+        event=work(spanRouteWindowID='50',transfers='read:load=71/710/1065/142',
+                   transferOrigins='read:load=71/710/1065/142')
+        result=self.summarize(self.basic(event,*self.read_aggregates(),heart()))
+        aggregate=result['cpuReadAggregates']
+        self.assertTrue(aggregate['complete'])
+        self.assertEqual(aggregate['totals']['calls'],71)
+        self.assertEqual(aggregate['windows'][0]['originReconciliation'][0]['status'],'match')
+        self.assertEqual(aggregate['byConsumer'][0]['bytes'],710)
+
+    def test_cpu_read_missing_duplicate_and_generation_rows_are_incomplete(self):
+        for mutate in ('missing','duplicate','generation','total'):
+            events=self.read_aggregates()
+            if mutate=='missing': events.pop(0)
+            elif mutate=='duplicate': events.insert(0,events[0])
+            else:
+                e=json.loads(events[0]['fields']['message'].split(' ',1)[1])
+                e['generation' if mutate=='generation' else 'bytes']+=1
+                events[0]['fields']['message']='metal.cpuConsumerAggregate '+json.dumps(e)
+            result=self.summarize(self.basic(work(spanRouteWindowID='50'),*events,heart()))
+            self.assertFalse(result['cpuReadAggregates']['complete'],mutate)
+
+    def test_legacy_cpu_read_aggregates_stay_unknown(self):
+        result=self.summarize(self.basic(work(),consumer_event(),heart()))
+        self.assertIsNone(result['cpuReadAggregates']['totals'])
+
     def span_summary(self, events, **bounds):
         return self.summarize(self.basic(work(spanRouteWindowID='50'), *events, heart()), **bounds)['layerSpans']
 

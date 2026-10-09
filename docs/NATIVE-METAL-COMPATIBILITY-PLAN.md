@@ -400,6 +400,8 @@
 
 **C2 后续范围：CPU 消费链（2026-10-09 After_P2C_C2B-3）。**详细范围、依赖、原始输入哈希与验收见 [CPU 消费链专项](NATIVE-METAL-P2C-C2-CPU-CONSUMERS.md)。BD7898C1的82窗口/320路由完整对账，原71调用中的arguments33已转GPU；但同构窗口仍有3次/8,029,788bytes回读，首次CPU消费者移到drawRectangle。整段继续滚动/再次绘制的LayerEx完整C0总量为66read＋66upload、每方向243,585,196bytes，read wait486.163046ms。CPU路线为record126、vectorSource62；已采到56次drawImageStretch回读212,083,200bytes，另6条read详情未采，不能补给任何方法，也不能按CPU调用数推算readback。
 
+2026-10-09 后续实施第一批：vectorSource drawImageStretch 复用原重放/span 合成，成功 whole-texture read 新增与 C0 同锁记账的64槽聚合和明确 overflow。真实生产绑定/原plutovg精确对照及portable回归通过；record、drawRectangle、clear继续后续批次，Apple/真机待验，见 [剩余链路实施记录](NATIVE-METAL-P2C-C2-REMAINDER-BASELINE.md)。
+
 - [x] 参数补修样例：首个71次窗口GPU4/CPU67→GPU37/CPU34，arguments拒绝消除；该签收只覆盖实际支持域，不代表完整C2或整链路零往返。
 - [ ] 优先设计 **vectorSource安全重放/捕获与GPU合成**；录制元数据可继续CPU，保持原plutovg、不可变源版本/寿命、Clip/变换/alpha和顺序。无法证明的借用/逃逸或动态资源继续具名回退。
 - [ ] 拆分 **record纯命令构建与实际像素写入**，并扩展 **drawRectangle** 的可证明span支持域；保留录制导出/重绘、事务恢复、返回/装箱/更新次数及租约/COW语义。整条drawLine/drawPath→drawRectangle→record/vector重放链计量，避免仅移动CPU边界。
