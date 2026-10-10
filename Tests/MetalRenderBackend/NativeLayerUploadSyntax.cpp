@@ -9,6 +9,8 @@
 bool SDL_ShowWindow(SDL_Window*);
 bool SDL_HideWindow(SDL_Window*);
 void SDL_PumpEvents();
+union SDL_Event {unsigned type;};
+bool SDL_PollEvent(SDL_Event*);
 using krkrsdl3::iTVPRenderBackend;
 bool SDL_SetHint(const char*,const char*);
 bool SDL_GetHintBoolean(const char*,bool);

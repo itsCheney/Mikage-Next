@@ -13,6 +13,7 @@ add_executable(metal-render-tests
     ImageAsyncTests.cpp
     ImageHolderTests.cpp
     StaticPresentationTests.cpp
+    StaticPresentationHarnessTests.cpp
     TransitionCacheTests.cpp
     MetalRenderBackendTests.cpp
     "${CORE}/core/render/backend/SWRenderBackend.cpp")
@@ -70,6 +71,13 @@ add_custom_command(OUTPUT "${IMAGE_HOLDER}"
     DEPENDS "${CORE}/core/media/image/TVPGraphicsLoader.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-image-holder.py"
     VERBATIM)
 target_sources(metal-render-tests PRIVATE "${IMAGE_HOLDER}")
+set(STATIC_PRESENTATION_TEST "${CMAKE_CURRENT_BINARY_DIR}/ProductionStaticPresentationTest.inc")
+add_custom_command(OUTPUT "${STATIC_PRESENTATION_TEST}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-static-presentation-test.py"
+        --source "${CMAKE_CURRENT_LIST_DIR}/NativeStaticPresentationTests.inc" --output "${STATIC_PRESENTATION_TEST}"
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/NativeStaticPresentationTests.inc" "${CMAKE_CURRENT_LIST_DIR}/extract-static-presentation-test.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${STATIC_PRESENTATION_TEST}")
 
 
 
@@ -100,4 +108,10 @@ if(APPLE)
     add_test(NAME metal-render-compute-tests COMMAND metal-render-tests)
     set_tests_properties(metal-render-compute-tests PROPERTIES SKIP_RETURN_CODE 77
         ENVIRONMENT "MTL_DEBUG_LAYER=1;MIKAGE_METAL_LAYER_TILE_RENDERER=0")
+    add_test(NAME metal-static-presentation-tests COMMAND metal-render-tests --static-presentation)
+    set_tests_properties(metal-static-presentation-tests PROPERTIES SKIP_RETURN_CODE 77
+        ENVIRONMENT "MTL_DEBUG_LAYER=1" TIMEOUT 60)
+    add_test(NAME metal-static-presentation-compute-tests COMMAND metal-render-tests --static-presentation)
+    set_tests_properties(metal-static-presentation-compute-tests PROPERTIES SKIP_RETURN_CODE 77
+        ENVIRONMENT "MTL_DEBUG_LAYER=1;MIKAGE_METAL_LAYER_TILE_RENDERER=0" TIMEOUT 60)
 endif()

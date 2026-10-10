@@ -210,4 +210,6 @@ jobs:
           name: Mikage-validation-${{ github.run_number }}
           path: |
             build/*.log
+            build/**/Testing/Temporary/LastTest.log
+            build/**/Testing/Temporary/LastTestsFailed.log
           if-no-files-found: ignore

@@ -19,6 +19,7 @@ void LayerUploadLayoutTests();
 void LayerInitializationTests();
 void PendingFillTests();
 void StaticPresentationTests();
+void StaticPresentationHarnessTests();
 void TransitionCacheTests();
 void CPUFrameTests();
 void BoundedStackTests();
@@ -681,13 +682,34 @@ void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 #endif
 }
 
-int main()
+int main(int argc,char** argv)
 {
     try {
+        const bool staticPresentationOnly=argc==2 && std::strcmp(argv[1],"--static-presentation")==0;
+        Require(argc==1 || staticPresentationOnly,"unknown backend test option");
+#ifdef TEST_NATIVE_METAL
+        if(staticPresentationOnly) {
+            if(!krkrsdl3::MetalRenderBackendAvailable()) {
+                std::cout<<"SKIP: static presentation requires a Metal device\n";return 77;
+            }
+            Require(SDL_Init(SDL_INIT_VIDEO),"SDL init for static presentation");
+            SDL_Window* window=SDL_CreateWindow("Metal static presentation tests",256,256,SDL_WINDOW_METAL);
+            Require(window!=nullptr,"SDL static presentation window");
+            const bool verified=NativeStaticPresentationTests(window);
+            SDL_DestroyWindow(window);SDL_Quit();
+            if(!verified)return 77;
+            std::cout<<"PASS: native static presentation with real displayed acknowledgement\n";return 0;
+        }
+#else
+        if(staticPresentationOnly) {
+            std::cout<<"SKIP: static presentation requires Apple Metal\n";return 77;
+        }
+#endif
         LayerUploadLayoutTests();
         LayerInitializationTests();
         PendingFillTests();
         StaticPresentationTests();
+        StaticPresentationHarnessTests();
         TransitionCacheTests();
         CPUFrameTests();
         BoundedStackTests();
@@ -709,7 +731,6 @@ int main()
         Require(window != nullptr, "SDL Metal window");
         NativeLayerInitializationTests(window);
         NativePendingFillTests(window);
-        const bool staticPresentationVerified=NativeStaticPresentationTests(window);
         for (int session = 0; session < 2; ++session) {
             std::unique_ptr<iTVPRenderBackend> gpu(krkrsdl3::MetalRenderBackend::Create(window, false));
             Require(gpu && gpu->IsHardware() && std::strcmp(gpu->GetName(), "metal") == 0, "native backend initialization");
@@ -733,10 +754,6 @@ int main()
         }
         SDL_DestroyWindow(window);
         SDL_Quit();
-        if(!staticPresentationVerified) {
-            std::cout<<"SKIP: native rendering ran, static presentation acknowledgement remains unverified\n";
-            return 77;
-        }
         std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask, capture and submission cadence tests\n";
 #else
         std::cout << "PASS: diagnostic attribution/sampling/stage timing and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";
