@@ -418,6 +418,8 @@
 - [x] C2B 参数/HSV兼容本地：额外参数真实绑定与少参数错误回归通过；严格已知版本字节码映射修复只改临时副本1byte，原创VM回归和用户字节码静态差异检查通过，无游戏原文进入tracked测试。
 - [ ] C2B 设备设置闭环/本轮重采：After-3已确认arguments支持域GPU与compat.bytecode applied；设置进入/颜色选择/修改/退出/再次进入的完整闭环仍待验。本轮record/vectorSource/rectangle/clear支持域扩大后须新采v3日志；Nekopara延后。
 - [ ] 对有已知 GPU 等价实现的功能接入专用 GPU 路径；对 ABI 必须提供 raw pointer 的功能，设计单次、区域化的 acquire/release 与上传边界。不能通过延迟 dirty、复用失效 CPU buffer 或虚构 full overwrite 改变插件可见像素。
+- [x] 2026-10-10 LayerExImage 本地首批：After_P2C_C3 的 F63 DRACU 样本暴露另一插件的颜色处理重放，125 次大图及190次小图 read，合计2749.160326 ms wait；旧样本没有具体方法/参数，不能视为 C3 回归或把它全部分配给 light。新增五个方法的有界 v1 参数/阶段/路由与完整总账，构造仅 metadata；先接精确 light LUT（包括 alpha=0 RGB），原 Gamma 规则不变，其余四个方法具名 CPU。真实 NCBind/原 CPU 算法、COW/Clip/lease、失败不重放、overflow/换代/生产 emitter→parser 与原回归通过，见 [独立记录](NATIVE-METAL-LAYEREX-IMAGE-BASELINE.md)。本项扩展 C2 更广 CPU 消费域，不替代 LayerExDraw 剩余绘制/导出/源桥接工作。
+- [ ] LayerExImage Apple/新 DRACU 重采：验证原生 light 路径、默认/强制 compute、完整 App；按 v1 确认实际颜色方法及参数后再扩大支持域。原 CPU 方法只移动 acquire/origin 不算优化；支持域检查全链 read/upload/wait 与同热状态三次配对。
 - [ ] 以天使纷扰的 1052×900 `layerExDraw.write` → `layerExBase` 交替访问为主回归，并加入千恋的 960×863、186×936 LayerEx 样例。重构前先证明两次完整往返由同一调用序列造成；重构后要么消除其中可 GPU 化的一段，要么记录为何 ABI/算法必须保留边界。
 
 验收：样例的像素、raw-pointer 可见性、区域外内容、COW/lease 和资源释放保持正确；一次逻辑插件处理不会在没有新的 CPU 消费者需求时对同一完整纹理产生两次 GPU→CPU→GPU 往返。若语义确实要求多次 CPU 阶段，报告每段 origin、区域和 wait，而不是把它标成“已优化”。

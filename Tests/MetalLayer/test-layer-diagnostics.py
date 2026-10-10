@@ -786,5 +786,49 @@ class LayerDiagnosticsTests(unittest.TestCase):
         self.assertTrue(any('dropped count disagrees' in issue['message'] for issue in result['issues']))
 
 
+class LayerImageDiagnosticsTests(unittest.TestCase):
+    def fixture(self):
+        metrics=dict(records=1,readCalls=1,readBytes=4096,readWallNS=100,readWaitNS=90,parameterBytes=0)
+        base=dict(version=1,generation=4,windowID=17)
+        aggregate=dict(base,phase='aggregate',method='modulate',stage='invoke',route='cpu',reason='unsupportedMethod',parameters='[30,17,-9]',**metrics)
+        overflow=dict(base,phase='overflow',**{k:0 for k in metrics})
+        footer=dict(base,phase='window',**metrics,calls=1,constructors=0,gpuCalls=0,cpuCalls=1,noopCalls=0,errorCalls=0,
+            aggregateRows=1,capacityRecords=0,oversizeRecords=0,lateCalls=0,lateReads=0,saturated=False)
+        return [aggregate,overflow,footer]
+
+    def parse(self,events):
+        errors=[];rows=[row('runtime.message',105,message='metal.layerImage '+json.dumps(e)) for e in events]
+        return analysis.layer_images(rows,[work(spanRouteWindowID='17')],errors),errors
+
+    def test_exact_window_and_legacy(self):
+        result,errors=self.parse(self.fixture())
+        self.assertFalse(errors);self.assertTrue(result['complete']);self.assertTrue(result['breakdownComplete'])
+        self.assertEqual(result['totals']['readBytes'],4096)
+        self.assertEqual(result['groups'][0]['parameters'],'[30,17,-9]')
+        self.assertFalse(analysis.layer_images([],[],[])['observed'])
+
+    def test_missing_duplicate_and_total_mismatch(self):
+        events=self.fixture()
+        for broken in [events[1:],events+[events[0]],events+[events[-1]]]:
+            result,errors=self.parse(broken);self.assertFalse(result['complete']);self.assertTrue(errors)
+        for key in ['records','readCalls','readBytes','readWaitNS','parameterBytes']:
+            events=self.fixture();events[-1][key]+=1
+            self.assertFalse(self.parse(events)[0]['complete'])
+
+    def test_overflow_retains_totals_and_marks_names_partial(self):
+        events=self.fixture();events[1]['records']=1;events[-1]['records']=2
+        events[-1]['calls']=events[-1]['cpuCalls']=2;events[-1]['capacityRecords']=1
+        result,errors=self.parse(events)
+        self.assertTrue(result['complete']);self.assertFalse(result['breakdownComplete']);self.assertTrue(errors)
+        self.assertEqual(result['totals']['calls'],2)
+
+    def test_late_generation_negative_and_saturation(self):
+        for key,value in [('lateCalls',1),('lateReads',1),('saturated',True),('readBytes',-1),('generation',0)]:
+            events=self.fixture();events[-1][key]=value
+            result,errors=self.parse(events);self.assertFalse(result['complete']);self.assertTrue(errors)
+        events=self.fixture();events[0]['generation']=3
+        self.assertFalse(self.parse(events)[0]['complete'])
+
+
 if __name__ == '__main__':
     unittest.main()

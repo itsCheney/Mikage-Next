@@ -29,6 +29,8 @@
 
 ## 后续范围与依赖
 
+2026-10-10 新增优先项：After_P2C_C3 的 F63 DRACU 日志确认 `LayerExImage` 动态颜色处理链的高频往返，与下表 `LayerExDraw` 子域不同，底层共享 CPU acquire/COW/lease。首批已实现五个方法的参数/阶段/路由归因、仅 metadata 构造和精确 `light` GPU LUT；其它颜色方法等待新日志选定。该样本说明更广 CPU 插件仍可成为主开销，不能把此前五份 After_P2C_C2_1 中回读较少推广为所有场景；详见 [LayerExImage 独立记录](NATIVE-METAL-LAYEREX-IMAGE-BASELINE.md)。
+
 默认先设计vectorSource的安全重放与GPU合成；录制元数据生成可以继续CPU，不要求先把record全域GPU化。record与drawRectangle按真实调用依赖拆分；clear按设置场景单独验证。每块只扩大可证明的支持域，分批交付，保留普通Layer名称/编号与现有安全拒绝。
 
 | 子域 | 拟实施工作与前置证明 | 专项完成标准 |

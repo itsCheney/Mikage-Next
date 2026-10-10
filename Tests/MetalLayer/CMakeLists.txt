@@ -24,6 +24,13 @@ set(GENERATED_SHRINK_COPY "${CMAKE_CURRENT_BINARY_DIR}/ProductionShrinkCopy.inc"
 set(GENERATED_LAYEREX_BOUNDARY "${CMAKE_CURRENT_BINARY_DIR}/ProductionLayerExBoundary.inc")
 set(GENERATED_SPAN_BINDING "${CMAKE_CURRENT_BINARY_DIR}/ProductionLayerExSpanBinding.inc")
 set(GENERATED_SPAN_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionSpanMath.inc")
+set(GENERATED_IMAGE "${CMAKE_CURRENT_BINARY_DIR}/ProductionLayerExImage.inc")
+add_custom_command(OUTPUT "${GENERATED_IMAGE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-layerex-image.py"
+        --core "${CORE}" --output "${GENERATED_IMAGE}"
+    DEPENDS "${CORE}/plugins/LayerExImage.cpp" "${CORE}/plugins/LayerExImage.h"
+        "${CORE}/plugins/LayerExBase.hpp" "${CORE}/plugins/ScopedLayerPixels.h"
+        "${CMAKE_CURRENT_LIST_DIR}/extract-layerex-image.py" VERBATIM)
 add_custom_command(OUTPUT "${GENERATED_SPAN_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-span-math.py"
             --source "${CORE}/core/render/backend/MetalSpanCompositeShaders.h" --output "${GENERATED_SPAN_MATH}"
@@ -87,6 +94,7 @@ add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp Tr
     TransitionHandlerTests.cpp TransitionShaderTests.cpp C4ProfileTests.cpp "${GENERATED_TRANSITION_MATH}"
     ShrinkCopyTests.cpp ShrinkShaderTests.cpp C1ProfileTests.cpp "${GENERATED_SHRINK_MATH}" "${GENERATED_SHRINK_COPY}"
     C2ConsumerTraceTests.cpp C2LayerExBoundaryTests.cpp "${GENERATED_LAYEREX_BOUNDARY}"
+    C2ImageBindingTests.cpp "${GENERATED_IMAGE}"
     C2SpanShaderTests.cpp C2SpanBindingTests.cpp "${GENERATED_SPAN_MATH}" "${GENERATED_SPAN_BINDING}"
     "${CORE}/plugins/extrans/mosaic.cpp" "${CORE}/plugins/extrans/wave.cpp"
     "${CORE}/plugins/extrans/ripple.cpp" "${CORE}/plugins/extrans/turn.cpp"
@@ -173,6 +181,8 @@ add_test(NAME metal-layer-tests COMMAND metal-layer-tests)
 add_test(NAME metal-layer-capability-audit COMMAND metal-layer-tests --audit-capabilities)
 add_test(NAME layer-diagnostics-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-layer-diagnostics.py")
 add_test(NAME c2-window-emitter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-c2-window-emitter.py")
+add_test(NAME image-window-emitter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-image-window-emitter.py")
+set_tests_properties(image-window-emitter PROPERTIES ENVIRONMENT "CXX=${CMAKE_CXX_COMPILER}")
 set_tests_properties(c2-window-emitter PROPERTIES ENVIRONMENT "CXX=${CMAKE_CXX_COMPILER}")
 add_test(NAME app-build-info-wiring COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../../scripts/check-app-build-info.py")
 add_test(NAME c2b-profile-window-wiring COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../../scripts/check-c2b-profile-window.py")

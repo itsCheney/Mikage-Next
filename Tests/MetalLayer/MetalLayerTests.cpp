@@ -60,6 +60,7 @@ void RunC2ConsumerTraceTests();
 int RunC2LayerExBoundaryTests();
 void RunC2SpanShaderTests();
 int RunC2SpanBindingTests();
+int RunC2ImageBindingTests();
 void TVPTestSpanCompositeExecute(const TVPLayerSpanCompositePacket&,const uint8_t*,int,std::vector<uint8_t>&);
 void TVPTestShrinkExecute(const TVPLayerShrinkOperation&,const uint8_t*,int,std::vector<uint8_t>&,int);
 uint32_t TVPTestTransitionPixel(const TVPLayerTransitionOperation&,int,int,const uint8_t*,int,const uint8_t*,int);
@@ -681,6 +682,51 @@ static void Compare(iTVPTexture2D* expected,iTVPTexture2D* actual,int tolerance,
 static void Operation(iTVPRenderManager* manager,iTVPRenderMethod* method,iTVPTexture2D* dst,const tTVPRect& dr,iTVPTexture2D* src,const tTVPRect& sr) {
     std::pair<iTVPTexture2D*,tTVPRect> input(src,sr);
     manager->OperateRect(method,dst,nullptr,dr,tRenderTexRectArray(src?&input:nullptr,src?1:0));
+}
+static void C2ImageLUTFacade(iTVPRenderBackend* backend) {
+    using Result=TVPLayerImageResult;
+    Require(TVPHasMetalLayerImageLUTSupport(),"Image LUT backend support missing");
+    auto input=Image(19,17,4,97);input[(2*19+3)*4+3]=0;auto expected=input;
+    auto lut=std::make_shared<TVPLayerGammaLUT>();lut->version=9127;
+    for(int i=0;i<256;++i) {lut->bytes[i]=uint8_t(255-i);lut->bytes[256+i]=uint8_t(i/3);lut->bytes[512+i]=uint8_t(i*3);}
+    const TVPLayerRect roi{2,1,18,15};
+    for(int y=roi.top;y<roi.bottom;++y) for(int x=roi.left;x<roi.right;++x) {
+        auto* p=expected.data()+(y*19+x)*4;
+        for(int channel=0;channel<3;++channel) p[channel]=lut->bytes[(2-channel)*256+p[channel]];
+    }
+    for(bool enabled:{false,true}) {
+        auto target=Create(TVPGetRenderManager(),19,17,TVPTextureFormat::RGBA,input);
+        auto reference=Create(TVPGetSoftwareRenderManager(),19,17,TVPTextureFormat::RGBA,expected);
+        target->GetTextureHandle();
+        const auto alpha=target->GetPointAlpha(3,2),outside=target->GetPoint(0,0);
+        krkrsdl3::layer_work::SetEnabled(enabled);
+        const auto before=TVPGetMetalLayerRenderStats();
+        Require(TVPTryMetalLayerImageLUT(target.get(),roi,lut)==Result::Applied,"Image LUT facade rejected valid ROI");
+        const auto after=TVPGetMetalLayerRenderStats();
+        Require(after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes &&
+            after.cpuFallbacks==before.cpuFallbacks && after.gpuOperations==before.gpuOperations+1,"Image LUT caused CPU transfer/fallback");
+        Require(target->GetPointAlpha(3,2)==alpha && target->GetPoint(0,0)==outside &&
+            TVPGetMetalLayerRenderStats().readbackBytes==after.readbackBytes,"Image LUT invalidated alpha/exterior point cache");
+        Compare(reference.get(),target.get(),0,"Image LUT exact backend pixels");
+        const auto stable=TVPGetMetalLayerRenderStats().gpuOperations;
+        Require(TVPTryMetalLayerImageLUT(target.get(),{2,1,2,15},lut)==Result::Applied &&
+            TVPGetMetalLayerRenderStats().gpuOperations==stable,"Image LUT empty ROI encoded work");
+        Require(TVPTryMetalLayerImageLUT(target.get(),{-1,1,18,15},lut)==Result::Geometry,"Image LUT accepted invalid ROI");
+        Require(TVPTryMetalLayerImageLUT(target.get(),roi,{})==Result::Resource,"Image LUT accepted missing parameters");
+        tTVPScopedTexturePixels lease;lease.Acquire(target.get(),false,"image.test.read");
+        Require(TVPTryMetalLayerImageLUT(target.get(),roi,lut)==Result::CPUAccess,"Image LUT raced read lease");
+    }
+    krkrsdl3::layer_work::SetEnabled(false);
+    auto dirty=Create(TVPGetRenderManager(),19,17,TVPTextureFormat::RGBA,input);dirty->GetTextureHandle();
+    {tTVPScopedTexturePixels lease;lease.Acquire(dirty.get(),true,"image.test.dirty");
+        static_cast<uint32_t*>(lease.Data())[0]=0x12345678u;lease.Written(tTVPRect(0,0,1,1));}
+    const auto before=TVPGetMetalLayerRenderStats();
+    Require(TVPTryMetalLayerImageLUT(dirty.get(),roi,lut)==Result::Applied,"Image LUT rejected dirty input");
+    const auto after=TVPGetMetalLayerRenderStats();
+    Require(after.uploadedBytes==before.uploadedBytes+4 && after.readbackBytes==before.readbackBytes,"Image LUT expanded dirty input transfer");
+    auto gray=Create(TVPGetRenderManager(),19,17,TVPTextureFormat::Gray,Image(19,17,1,1));
+    Require(TVPTryMetalLayerImageLUT(gray.get(),roi,lut)==Result::Resource,"Image LUT accepted non RGBA");
+    (void)backend;
 }
 static void C2SpanFacade(iTVPRenderBackend* backend) {
     using Result=TVPLayerSpanCompositeResult;
@@ -2540,6 +2586,7 @@ int main(int argc,char** argv) {
             RunC2SpanShaderTests();
             Require(RunC2SpanBindingTests()==0,"C2B production span binding tests failed");
             Require(RunC2LayerExBoundaryTests()==0,"C2A production LayerEx boundary tests failed");
+            Require(RunC2ImageBindingTests()==0,"C2 Image production binding tests failed");
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2619,7 +2666,7 @@ int main(int argc,char** argv) {
             TVPSetMetalLayerTriangleDiagnostics(true);
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             CapabilityAuditTests(true);
-            if(session==0) {InvalidOperationKinds(*backend);C2SpanFacade(backend.get());}
+            if(session==0) {InvalidOperationKinds(*backend);C2SpanFacade(backend.get());C2ImageLUTFacade(backend.get());}
             const auto newTriangleInterval=TVPTakeMetalLayerTriangleProfile();
             Require(newTriangleInterval.stats.calls==0 && newTriangleInterval.stats.maxCpuTimeNS==0 &&
                     newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");

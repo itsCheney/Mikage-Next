@@ -596,6 +596,88 @@ SPAN_METHODS_V3 = (*SPAN_METHODS, 'drawRectangle', 'clear')
 SPAN_WINDOW_METRICS = (*SPAN_METRICS, 'gpuCalls', 'cpuCalls', 'noopCalls')
 
 
+def layer_images(rows, work, errors, file_complete=True):
+    """Independent plugin window totals; never add these reads to C0 again."""
+    metrics=('records','readCalls','readBytes','readWallNS','readWaitNS','parameterBytes')
+    counts=('calls','constructors','gpuCalls','cpuCalls','noopCalls','errorCalls')
+    native=[]
+    for row in rows:
+        message=row.get('fields',{}).get('message','')
+        if isinstance(message,str) and message.startswith('metal.layerImage '):
+            try:
+                event=json.loads(message.split(' ',1)[1])
+                if not isinstance(event,dict): raise ValueError('expected object')
+                native.append(event)
+            except (TypeError,ValueError) as error:
+                problem(errors,'layerImages','malformed JSON: '+str(error))
+                native.append({})
+    if not native:
+        return {'observed':False,'version':None,'complete':False,'reason':'legacy log has no Image profile'}
+    selected={int(r['fields']['spanRouteWindowID']) for r in work if str(r['fields'].get('spanRouteWindowID','')).isdigit()}
+    states={w:[] for w in selected};bad=False;outside=0
+    def issue(message):
+        nonlocal bad
+        bad=True;problem(errors,'layerImages',message)
+    for event in native:
+        w=event.get('windowID')
+        if isinstance(w,bool) or not isinstance(w,int) or w<=0:
+            issue('missing/invalid windowID');continue
+        if w not in states: outside+=1;continue
+        states[w].append(event)
+    totals={k:0 for k in metrics+counts};groups=[];windows=[];breakdown=True
+    for w,events in sorted(states.items()):
+        before=len(errors)
+        footer=[e for e in events if e.get('phase')=='window']
+        aggregate=[e for e in events if e.get('phase')=='aggregate']
+        overflow=[e for e in events if e.get('phase')=='overflow']
+        if len(footer)!=1 or len(overflow)!=1:
+            issue(f'window {w}: missing/duplicate footer or overflow');continue
+        f=footer[0];o=overflow[0]
+        try:
+            for e in events:
+                if e.get('version')!=1 or e.get('generation')!=f.get('generation'):
+                    raise ValueError('version/generation mismatch')
+                if e.get('phase') not in ('aggregate','overflow','window'): raise ValueError('invalid phase')
+                for key in metrics:
+                    if isinstance(e.get(key),bool) or not isinstance(e.get(key),int) or not 0<=e[key]<(1<<64):
+                        raise ValueError('invalid '+key)
+            if isinstance(f.get('generation'),bool) or not isinstance(f.get('generation'),int) or f['generation']<=0:
+                raise ValueError('invalid generation')
+            for key in counts+('aggregateRows','capacityRecords','oversizeRecords','lateCalls','lateReads'):
+                if isinstance(f.get(key),bool) or not isinstance(f.get(key),int) or not 0<=f[key]<(1<<64):
+                    raise ValueError('invalid '+key)
+            if not isinstance(f.get('saturated'),bool): raise ValueError('invalid saturated flag')
+            if f['saturated']: raise ValueError('counter saturation')
+            if not 0<=len(aggregate)==f['aggregateRows']<=64: raise ValueError('missing/duplicate aggregate rows')
+            keys=set()
+            for e in aggregate:
+                key=tuple(e.get(k) for k in ('method','stage','route','reason','parameters'))
+                if any(not isinstance(v,str) for v in key) or key in keys: raise ValueError('invalid/duplicate labels')
+                keys.add(key)
+            if any(sum(e[k] for e in aggregate)+o[k]!=f[k] for k in metrics): raise ValueError('aggregate/overflow total mismatch')
+            if sum(f[k] for k in ('gpuCalls','cpuCalls','noopCalls','errorCalls'))!=f['calls']:
+                raise ValueError('route calls mismatch')
+            if f['calls']+f['constructors']!=f['records']: raise ValueError('constructor/invocation record mismatch')
+            if f['capacityRecords']+f['oversizeRecords']!=o['records']: raise ValueError('overflow cause count mismatch')
+            if not o['records']:
+                if sum(e['records'] for e in aggregate if e['stage']=='construct')!=f['constructors']:
+                    raise ValueError('constructor row mismatch')
+                for route in ('gpu','cpu','noop','error'):
+                    if sum(e['records'] for e in aggregate if e['stage']!='construct' and e['route']==route)!=f[route+'Calls']:
+                        raise ValueError('route row mismatch')
+            if f['lateCalls'] or f['lateReads']: issue(f'window {w}: late calls/reads not attributed')
+            if o['records']:
+                breakdown=False;problem(errors,'layerImages',f'window {w}: parameter groups overflow; labels are a lower bound')
+            for key in totals: totals[key]+=f[key]
+            groups.extend(dict(e) for e in aggregate)
+            windows.append({'windowID':w,'footer':f,'overflow':o,'complete':len(errors)==before})
+        except ValueError as error: issue(f'window {w}: {error}')
+    return {'observed':True,'version':1,'complete':file_complete and not bad and len(windows)==len(selected),
+            'breakdownComplete':file_complete and not bad and breakdown and len(windows)==len(selected),
+            'totals':totals,'groups':groups,'windows':windows,'outsideSelectedRows':outside,
+            'transferBasis':'subset of C0 successful reads; parameterBytes is immutable LUT payload, not pixel transfer or measured upload'}
+
+
 def layer_spans(rows, errors, origin=None, from_seconds=None, to_seconds=None,
                 selected_work=None, file_complete=True):
     """V2 totals use whole work-window IDs; representatives never contribute totals."""
@@ -1213,6 +1295,7 @@ def summarize(path, session=None, from_seconds=None, to_seconds=None):
         'shrinks': shrink_summary(shrink_windows, shrink_missing, bool(work), file_complete),
         'cpuConsumers': cpu_consumers(selected_rows, errors, origin, from_seconds, to_seconds),
         'cpuReadAggregates': cpu_read_aggregates(selected_rows, work, errors, file_complete),
+        'layerImages': layer_images(selected_rows, work, errors, file_complete),
         'layerSpans': layer_spans(selected_rows, errors, origin, from_seconds, to_seconds, work, file_complete),
         'transitions': {'profileVersion': 1 if transition_windows else None, 'records': list(transition_rows.values()),
             'complete': transition_complete, 'lowerBound': not transition_complete, 'missingHandlerWindows': transition_missing,

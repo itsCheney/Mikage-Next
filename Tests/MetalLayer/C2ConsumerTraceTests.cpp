@@ -16,6 +16,7 @@ void Require(bool value,const char* reason) {if(!value) throw std::runtime_error
 void Capture(const char* value) {
     if(std::strncmp(value,"metal.layerSpan ",16)==0) spanMessages.emplace_back(value);
     else if(std::strncmp(value,"metal.cpuConsumerAggregate ",27)==0) readAggregateMessages.emplace_back(value);
+    else if(std::strncmp(value,"metal.layerImage ",17)==0) {} // Tested separately.
     else messages.emplace_back(value);
 }
 void ThrowingLog(const char*) {throw std::runtime_error("diagnostic callback");}
