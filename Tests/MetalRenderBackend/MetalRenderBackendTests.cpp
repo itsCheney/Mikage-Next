@@ -16,6 +16,7 @@
 
 using krkrsdl3::iTVPRenderBackend;
 void LayerUploadLayoutTests();
+void LayerInitializationTests();
 
 // The independent test executable does not link the engine/session. Only the
 // software *offscreen* renderer is used; SDL presenter calls are unexpected.
@@ -628,6 +629,7 @@ void ScopedPointReadTests(iTVPRenderBackend& gpu)
 // budget, so full-surface Emote captures (~8.5 MB each) forced a submit every
 // other capture and serialized the CPU against the inFlight semaphore.
 #include "NativeLayerUploadTests.inc"
+#include "NativeLayerInitializationTests.inc"
 void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 {
     const int waitsBefore = krkrsdl3::g_syncWaits;
@@ -673,6 +675,7 @@ int main()
 {
     try {
         LayerUploadLayoutTests();
+        LayerInitializationTests();
         DiagnosticAttributionTests();
         StageTimingTests();
         PointQueryScopeTests();
@@ -686,6 +689,7 @@ int main()
         Require(SDL_Init(SDL_INIT_VIDEO), "SDL init");
         SDL_Window* window = SDL_CreateWindow("Metal backend tests", 12, 8, SDL_WINDOW_METAL | SDL_WINDOW_HIDDEN);
         Require(window != nullptr, "SDL Metal window");
+        NativeLayerInitializationTests(window);
         for (int session = 0; session < 2; ++session) {
             std::unique_ptr<iTVPRenderBackend> gpu(krkrsdl3::MetalRenderBackend::Create(window, false));
             Require(gpu && gpu->IsHardware() && std::strcmp(gpu->GetName(), "metal") == 0, "native backend initialization");

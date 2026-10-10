@@ -1,6 +1,6 @@
 # 原生 Metal 兼容性补齐计划：对照 Kirikiroid2 OpenGL 的源码审计
 
-日期：2026-10-05；更新：2026-10-10。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 对账通过，C4 有实际 GPU/零 CPU 样例，C1 本地实现与 portable 通过。C2A/C2B 及参数/HSV 补修已发布，After_P2C_C2B-3 确认参数支持域 GPU 命中与完整路由对账；C2 剩余 vectorSource/record/drawRectangle/clear 和成功 read 聚合本地实现与验证完成。C3 字形 atlas/tiny update 合批本地实现及 portable 验证完成，未提交。完整 Apple/App/原生矩阵及匹配真机重采/性能配对仍待验，C2 更广消费域、C3 原生/真机、P2D、P3–P5 未完成。**
+日期：2026-10-05；更新：2026-10-10。状态：**P0 已验收；P1A/P1B/P2A/P2B 已提交；P2C C0 真机 origin 对账通过，C4 有实际 GPU/零 CPU 样例，C1 本地实现与 portable 通过。C2A/C2B 及参数/HSV 补修已发布，After_P2C_C2B-3 确认参数支持域 GPU 命中与完整路由对账；C2 剩余 vectorSource/record/drawRectangle/clear 和成功 read 聚合本地实现与验证完成。C3 字形 atlas/tiny update 合批本地实现及 portable 验证完成，未提交。完整 Apple/App/原生矩阵及匹配真机重采/性能配对仍待验，C2 更广消费域、C3 原生/真机、P2D 设备归因/原生与配对、P3–P5 未完成；P2D D0/D1 首轮本地实现及 portable 已完成，未提交。**
 
 2026-10-09 发布补记：用户授权本轮提交推送，Core `5e54d4678119c79848f6aab9d759550c8ff0a663`、Runtime `b6f31a2f892a0f4e20641471a6c361d2b899ac37` 已顺序发布并核对远端；主仓库测试/证据与指针由包含本记录的提交发布。下文“本轮未提交”的本地验收历史以本发布补记更新；不跟踪CI，等待用户反馈构建或设备异常。
 
@@ -146,6 +146,12 @@
 - 跨基线对照：Before_C0 → C2_1 的 pass/帧、blit/帧与像素量没有台阶式下降，差异与场景/时长差异同量级。
 
 **优先级调整：**C4/C1/C2 的本地实现已完成且本轮证据显示其目标传输已收敛，后续实施顺序改为 **C3（字形/tiny update 聚合）→ P2D D0/D1（目标切换、clear pass、Fill 冗余）→ P2D D3（0 帧转场固定开销与静止帧重复 present）**。本批同样不是受控基线：四份开局已是 thermal 2，不能用于前后百分比比较；配对按 D2 口径在 nominal 下重做。
+
+### 2.8 2026-10-10 P2D 首轮本地实施
+
+接续 Root `17d0773`、Runtime `3a8179c`、Core `484e927`，实施 D0 元数据/有界热点/pass 来源诊断与保守 D1 延迟初始化/完整 Fill；未提交、未推送。范围、独立改动包、验证及设备重采方法见 [P2D 基线](NATIVE-METAL-P2D-BASELINE.md)。
+
+Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周期检查通过。D0 输出使用 backend epoch 与稳定 texture/Layer 身份，保留 overflow、完整总账及分片完整性；D1 只作用于普通 Layer 创建纹理，不引入 DontCare，也未改变转场或 present 行为。Apple 原生、App device/simulator、实际资产映射及三组 nominal A/B 仍待验，不能由 portable 结果签收 P2D 性能。
 
 ## 3. 对原对话结论的逐项核实
 
@@ -455,12 +461,16 @@
 
 #### D0. 有界 hot-layer 归因：先把过量像素连回资源和 Layer
 
+**首轮本地实现完成，设备归因待验：**stable Layer/texture/session/contentVersion、资产/cache/COW 来源、256 操作/64 资源采样、clear/pass 来源总账、32KiB/s 输出预算与只读分析器已接入；下列复现与归因门槛仍需新日志签收，见 [P2D 基线](NATIVE-METAL-P2D-BASELINE.md)。
+
 - [ ] 在已存在的 `metal.layerWork` / GPU-stage 诊断之上增加**采样式**关联：operation kind、目标/源 resource generation、rect/clip、实际/缩放/alias 像素、render-pass 或 encoder、snapshot 原因；将 resource generation 在可用时关联到 asset 名与 Layer 对象/调用类别。不得长期输出每次 operation 的无界日志、持有已销毁对象，或为取名新增 GPU readback、submit、等待和资源强引用。
 - [ ] 以命令像素量、fragment time、`nextDrawable` wait 或长帧为触发阈值采样，并保留未采样窗口的聚合计数。先验证 `街_通学路a.png` 是否实际参与 hotspot，而不是用加载时间直接给某个 Copy/Alpha 定责。
 - [ ] 对每个 sampled hotspot 输出 Copy/CopyColor/Fill/Alpha 的像素贡献、目标完整覆盖与不透明性、clip/dirty ROI、alias/snapshot、操作顺序和中间结果是否被读取。诊断数据只用于定位；不能将重叠 GPU stage 时间相加为 command 总时长。
 - [ ] 以第 2.7 节为起点，把去掉 blit 后剩余的约 8–19 pass/帧常数项，以及抽样 clears p99 78–391/帧（`MetalRenderBackend.mm:987` `Create()` 每张纹理一次 clear pass、转场 cache 分配）连回 Layer 树目标切换、cache 分配与纹理创建；先得到 pass 来源分布，再决定同目标 pass 复用或延迟 clear 的策略。
 
 #### D1. 在严格顺序语义下减少 full-surface 工作和 pass
+
+**首轮保守子域本地实现完成，原生及性能待验：**普通 Layer pending-zero、首个 tile pass 融合清零、完整 upload/GPU blit 取消初始 clear、无同目标活跃 pass 时完整 RGBA Fill→load-action clear，以及所有消费者初始化保护。`MIKAGE_METAL_LAYER_LAZY_INIT=0` 恢复旧创建/Fill路径用于 A/B。一般 ROI、跨目标 batching 和道路专用路径继续保留为后续候选。
 
 - [ ] 先区分必要重绘（动画位置、透明合成、规则/clip、目标旧值或 alias 所要求）与可证明冗余的 full-surface operation。为道路滚动建立可重放存档/输入、资源尺寸、层级及逐帧 operation 序列，不以单个 heartbeat 推断所有帧。
 - [ ] 只在像素/顺序证明成立时采用 dirty ROI/scissor、同目标 pass 复用/安全 batching、已知完全覆盖下的冗余 clear/fill 消除、或专用滚动背景路径。目标/源别名、COW、lease、透明 alpha、clip 边缘、目标旧值依赖和中间可见结果必须先裁决；不能用“上一帧纹理复用”替代脚本要求的当前帧组合。

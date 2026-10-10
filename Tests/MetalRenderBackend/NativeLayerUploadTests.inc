@@ -8,6 +8,7 @@ void TinyUploadBatchTests(iTVPRenderBackend& gpu) {
     std::vector<uint8_t> expected[2]={std::vector<uint8_t>(32*32*4),std::vector<uint8_t>(32*32*4)};
     std::vector<uint8_t> discarded;int pitch=0;
     Require(gpu.ReadLayerTexture(textures[0],discarded,pitch),"prime upload boundary");
+    Require(gpu.ReadLayerTexture(textures[1],discarded,pitch),"prime second upload boundary");
     const int blits=krkrsdl3::g_blitEncoders,submits=krkrsdl3::g_metalSubmits,waits=krkrsdl3::g_syncWaits;
     for(int i=0;i<32;++i) {
         const int index=i%2,x=(i*3)%28,y=(i*5)%29;

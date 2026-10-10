@@ -1,5 +1,14 @@
 # Native Metal backend verification
 
+P2D adds production initialization-policy checks and a bounded hotspot recorder,
+the extracted production C++ attribution helpers, and formatter-to-parser tests.
+The native suite also checks logical zero before first use, partial-write borders,
+full upload/copy initialization elision, full Fill clear precision and pass reuse,
+alpha-table replacement after fast Fill, aliases and asynchronous reads. Its
+test bodies compile as an unlinked object on Windows; actual Metal execution
+still requires Apple. See ../../docs/NATIVE-METAL-P2D-BASELINE.md for limits and
+device A/B acceptance.
+
 This executable links the production Metal and software offscreen backends
 without the game engine. On macOS it verifies:
 

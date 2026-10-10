@@ -26,11 +26,10 @@ def main():
     a=p.parse_args(); compiler=a.cxx or shutil.which('clang++') or shutil.which('g++')
     if not compiler: p.error('C++17 compiler required')
     source=(a.source/'core/media/image/TVPGraphicsLoader.cpp').read_text(encoding='utf-8')
-    production='\n'.join(definition(source,s) for s in ['static void TVPTrimGraphicCache(',
+    production='\n'.join(definition(source,s)+(';' if s.startswith('struct ') else '') for s in ['static void TVPTrimGraphicCache(',
         'static void TVPCheckGraphicCacheLimit()', 'void TVPClearGraphicCache()',
-        'struct tTVPClearGraphicCacheCallback', 'int TVPLoadGraphic(iTVPBaseBitmap* dest,'])
-    # A class definition needs a semicolon; no static registration is needed.
-    production=production.replace('}\nint TVPLoadGraphic','};\nint TVPLoadGraphic')
+        'struct tTVPClearGraphicCacheCallback', 'static void TVPTagGraphicDiagnosticAsset(',
+        'int TVPLoadGraphic(iTVPBaseBitmap* dest,'])
     root=Path(__file__).resolve().parent.parent
     with tempfile.TemporaryDirectory(prefix='mikage-graphic-load-',dir=a.work_dir) as folder:
         unit=Path(folder)/'test.cpp'; exe=Path(folder)/('test.exe' if os.name=='nt' else 'test')

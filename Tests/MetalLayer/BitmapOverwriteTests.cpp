@@ -181,8 +181,13 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
     // Exercise the real bitmap wrappers and GetTextureForRender COW path,
     // including their reference operand, instead of simulating a copied target.
     for(int conversion=0;conversion<3;++conversion) {
+        krkrsdl3::layer_hotspot::Scope owner(900,"main");
         TestBitmap bitmap(Create(oldPixels,width,height));
         auto* original=bitmap.GetTexture(); original->GetTextureHandle(); original->AddRef();
+        original->SetDiagnosticAsset("archive/streets/road.png");
+        const auto originalIdentity=original->DiagnosticIdentity();
+        Require(originalIdentity.texture && originalIdentity.session && originalIdentity.creatorLayer==900,
+                "P2D stable texture/session/creator identity");
         TextureRef snapshot(original);
         auto expected=oldPixels;
         const tTVPRect rect(1,1,6,4);
@@ -200,6 +205,10 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
         else if(conversion==1) bitmap.AdjustGammaForAdditiveAlpha(rect,data);
         else bitmap.ConvertAddAlphaToAlpha();
         const auto after=TVPGetMetalLayerRenderStats();
+        const auto copiedIdentity=bitmap.GetTexture()->DiagnosticIdentity();
+        Require(copiedIdentity.texture!=originalIdentity.texture && copiedIdentity.parent==originalIdentity.texture &&
+                copiedIdentity.parentSession==originalIdentity.session && copiedIdentity.assetHash==originalIdentity.assetHash &&
+                copiedIdentity.version>0,"P2D actual bitmap COW lineage/version lost");
         Require(bitmap.GetTexture()!=original && after.cpuFallbacks==before.cpuFallbacks &&
                 after.readbackBytes==before.readbackBytes && after.uploadedBytes==before.uploadedBytes,
                 "P1A bitmap COW conversion read back/uploaded/fell back");

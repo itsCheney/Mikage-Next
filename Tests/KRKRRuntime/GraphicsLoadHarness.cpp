@@ -5,9 +5,12 @@ int main() {
         krkrsdl3::layer_work::SetEnabled(true);
         Require(TVPLoadGraphic(&dest,"ui",TVP_clNone,0,0,glmNormal,&province,&metadata)==4*1024*1024,"wrong image byte count");
         Require(opens==1 && liveBitmaps==0 && province=="ui.province" && metadata->metadata==1,"single-load ownership or metadata changed");
+        Require(dest.texture.tags==1 && std::string(dest.texture.identity.asset)=="ui","decoded image lost P2D asset tag");
+        const auto assetHash=dest.texture.identity.assetHash;
         auto original=dest.marker; delete metadata; metadata=nullptr;
         TVPLoadGraphic(&dest,"ui",TVP_clNone,0,0,glmNormal,&province,&metadata);
         Require(opens==1 && dest.marker==original && metadata->metadata==1,"cache hit re-opened or lost metadata"); delete metadata;
+        Require(dest.texture.tags==2 && dest.texture.identity.assetHash==assetHash,"cache hit lost P2D asset tag");
         auto timing=krkrsdl3::layer_work::Take();
         Require(timing.stages.find("imageLoad:2/")!=std::string::npos && timing.stages.find("imageDecode:1/")!=std::string::npos &&
             timing.stages.find("imageCacheHit:1/")!=std::string::npos,"image stage/cache attribution wrong");
@@ -31,9 +34,11 @@ int main() {
         TVPLoadGraphic(&dest,"uncached",TVP_clNone,0,0,glmNormal,nullptr,nullptr);
         Require(opens==before+2 && liveBitmaps==0,"uncached loads leaked or re-opened");
         failAssignment=true; bool failed=false;
+        const auto tagsBeforeFailure=dest.texture.tags;
         try { TVPLoadGraphic(&dest,"failed",TVP_clNone,0,0,glmNormal,nullptr,nullptr); }
         catch(const std::runtime_error&) { failed=true; }
         Require(failed && liveBitmaps==0,"failed image assignment leaked decoded bitmap");
+        Require(dest.texture.tags==tagsBeforeFailure,"failed assignment falsely tagged an asset");
         std::cout<<"PASS production graphic single load, cache keys/metadata, bounded minimize, explicit purge and exception cleanup\n";
         return 0;
     } catch(const std::exception& e) { std::cerr<<"FAIL: "<<e.what()<<'\n'; return 1; }

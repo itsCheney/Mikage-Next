@@ -8,14 +8,26 @@
 #include <string>
 #include <vector>
 #include "LayerWorkDiagnostics.h"
+#include "LayerHotspotContext.h"
 using tjs_uint64=uint64_t; using tjs_uint=unsigned; using tjs_uint32=uint32_t;
-using tjs_int32=int32_t; using tjs_int=int; using ttstr=std::string;
+using tjs_int32=int32_t; using tjs_int=int;
+struct ttstr:std::string {
+    using std::string::string;
+    ttstr()=default;ttstr(const std::string& text):std::string(text) {}
+    std::string AsStdString() const {return *this;}
+};
 enum tTVPGraphicLoadMode { glmNormal,glmGray };
 constexpr int TVP_clNone=-1,TVP_COMPACT_LEVEL_MINIMIZE=15,TVP_COMPACT_LEVEL_MAX=100;
 struct tTVPCompactEventCallbackIntf { virtual ~tTVPCompactEventCallbackIntf()=default; virtual void OnCompact(tjs_int)=0; };
 struct tTVPGraphicMetaInfoPair { int value=0; };
 struct iTJSDispatch2 { int metadata=0; };
-struct iTVPBaseBitmap { unsigned marker=0; };
+struct DiagnosticTexture {
+    krkrsdl3::layer_hotspot::Identity identity;unsigned tags=0;
+    void SetDiagnosticAsset(const char* name) {krkrsdl3::layer_hotspot::SetAsset(identity,name);++tags;}
+};
+struct iTVPBaseBitmap { unsigned marker=0;DiagnosticTexture texture;
+    DiagnosticTexture* GetTexture() {return &texture;}
+};
 unsigned opens=0,liveBitmaps=0,nextMarker=0; bool failAssignment=false;
 struct tTVPBitmap {
     unsigned marker=++nextMarker;
