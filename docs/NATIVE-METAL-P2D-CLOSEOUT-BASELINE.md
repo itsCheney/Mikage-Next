@@ -4,12 +4,12 @@
 
 实施顺序为 D0 → D1 → D3 → CPU → D2。本记录区分实现、portable 验证、原生正确、设备路径命中与性能签收。Windows 结果不代表 Apple Objective-C++/MSL 编译或 iPhone 性能。
 
-2026-10-11 CI补充：AppleClang原生backend编译和链接已通过；tile/forced-compute均在静止present夹具失败，后续MetalLayer、runtime framework与App构建未运行。已修复首次真实显示探测及测试隔离，修复后的Apple执行仍待复跑，详见 [CI失败与修复记录](CI-FAILURE-38068554575.md)。
+2026-10-11 CI补充：AppleClang原生backend编译和链接已通过；复跑时普通tile/forced-compute测试均通过，独立静止present的首次probe失败，后续MetalLayer、runtime framework与App构建未运行。本轮补齐明确失败原因与command确认，修复后仍待复跑，详见 [第二次CI记录](CI-FAILURE-38070082782.md)。
 
 | 改动包 | 实现与 portable 验证 | Apple 原生正确 | 本次设备命中 | 性能签收 |
 | --- | --- | --- | --- | --- |
 | D0 v2 归因 | 已接入；v1/v2 emitter→parser 与旧日志回归 | 待验 | v2 待新日志 | 不适用；还须测诊断开销 |
-| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS初始化/Fill用例已返回；完整suite与iOS待验 | 新游戏路径待验 | 待 nominal 配对 |
+| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS backend tile/compute通过；MetalLayer集成与iOS待验 | 新游戏路径待验 | 待 nominal 配对 |
 | D3 转场缓存 | 已接入；抽取真实 lease/materialize/stop 生命周期测试 | 完整 begin/Draw/Complete/重入/OOM 路径待验 | 待验 | 待配对 |
 | D3 静止 present | 已接入；真实确认策略、16 项上限与迟到回调测试 | 真实 drawable acknowledgement 待验 | 待验 | 待配对 |
 | CPU 缓存、预取、调用归因 | 已接入；真实 holder、异步完成分支、缓存与 KAG 生命周期测试 | host 编译及真实 codec 对照待验 | 待新调用日志 | **CPU 长帧仍未签收** |

@@ -7,11 +7,20 @@ static void PumpStaticPresentationEvents() {
 }
 static bool WaitForStaticPresentation(const std::shared_ptr<krkrsdl3::AsyncLayerPresentation>& ticket) {
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+    // A not-displayed callback can precede command completion. Await the
+    // actual frame command too so a GPU failure can never become a skip.
+    while(ticket->command.load(std::memory_order_acquire)==krkrsdl3::PresentationCommand::Pending &&
+          std::chrono::steady_clock::now()<deadline) {
+        const auto reason=ticket->failureReason.load(std::memory_order_acquire);
+        if(reason==krkrsdl3::PresentationFailure::NoDrawable)break;
+        PumpStaticPresentationEvents();SDL_Delay(10);
+    }
     while(!ticket->presented.load(std::memory_order_acquire) && !ticket->failed.load(std::memory_order_acquire) &&
           std::chrono::steady_clock::now()<deadline) {
         PumpStaticPresentationEvents();SDL_Delay(10);
     }
-    return ticket->presented.load(std::memory_order_acquire) && !ticket->failed.load(std::memory_order_acquire);
+    return ticket->presented.load(std::memory_order_acquire) && !ticket->failed.load(std::memory_order_acquire) &&
+        ticket->command.load(std::memory_order_acquire)==krkrsdl3::PresentationCommand::Succeeded;
 }
 bool NativeStaticPresentationTests(SDL_Window* window) {
     bool verified=false;
@@ -34,9 +43,21 @@ bool NativeStaticPresentationTests(SDL_Window* window) {
             unsigned(krkrsdl3::static_presentation::Denial::Unsupported)]!=0;
         // Do not repeatedly enqueue presents while waiting: 16 unacknowledged
         // records correctly disable skipping until lifecycle invalidation.
-        const bool displayed=!unsupported && WaitForStaticPresentation(initial);
+        const bool displayed=WaitForStaticPresentation(initial);
+        const auto command=initial->command.load(std::memory_order_acquire);
+        const auto reason=initial->failureReason.load(std::memory_order_acquire);
+        const bool surfaceUnavailable=reason==krkrsdl3::PresentationFailure::Unsupported ||
+            reason==krkrsdl3::PresentationFailure::NoDrawable;
+        std::cout<<"static present probe reason="<<krkrsdl3::PresentationFailureName(reason)
+            <<" command="<<unsigned(command)<<" presentedTime="<<initial->presentedTime.load(std::memory_order_acquire)<<'\n';
+        Require(command!=krkrsdl3::PresentationCommand::Failed &&
+            reason!=krkrsdl3::PresentationFailure::CommandFailed && reason!=krkrsdl3::PresentationFailure::EncodingFailed,
+            "static present probe failed");
+        Require(surfaceUnavailable || command==krkrsdl3::PresentationCommand::Succeeded,
+            "static present probe command confirmation failed");
         if(unsupported) std::cout<<"SKIP: static present needs real displayed acknowledgement on this platform\n";
-        else if(!displayed && !initial->failed.load(std::memory_order_acquire))
+        else if(!displayed && (surfaceUnavailable || reason==krkrsdl3::PresentationFailure::NotDisplayed ||
+                !initial->failed.load(std::memory_order_acquire)))
             std::cout<<"SKIP: runner did not acknowledge the first real drawable display; static present remains unverified\n";
         else {
             Require(displayed,"static present probe failed");
@@ -54,7 +75,12 @@ bool NativeStaticPresentationTests(SDL_Window* window) {
             }
             Require(skipped,"unchanged frame never confirmed/skipped");
             const auto before=metal->GetStaticPresentationStats().skipped;
-            auto ticket=gpu.GetCurrentLayerPresentation();frame();
+            auto ticket=gpu.GetCurrentLayerPresentation();
+            Require(ticket!=initial && ticket->frameSerial>initial->frameSerial &&
+                !ticket->presented.load(std::memory_order_acquire) && !ticket->failed.load(std::memory_order_acquire) &&
+                ticket->command.load(std::memory_order_acquire)==krkrsdl3::PresentationCommand::Pending,
+                "new alpha ticket reused old display proof");
+            frame();
             Require(metal->GetStaticPresentationStats().skipped==before,"new alpha ticket skipped");
             Require(WaitForStaticPresentation(ticket),"fresh ticket lacked display proof");
             seed[0]^=0xff;Require(gpu.UpdateLayerTexture(texture,seed.data(),16,{0,0,4,4}),"mutated static image");
