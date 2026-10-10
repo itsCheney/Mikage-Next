@@ -1,6 +1,8 @@
 #include "tjsCommHead.h"
 #include "tjsDebug.h"
 #include "tjsObject.h"
+#include "CPUFrameDiagnostics.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -35,6 +37,37 @@ void assertReset()
             !diagnosticScriptTrace.ownsReference, "diagnostic tracer owner did not reset");
 }
 
+void verifyProductionStackCapture(bool hasFrames)
+{
+    auto capture = krkrsdl3::cpu_frame::captureStack;
+    char stack[513];
+    const bool available = capture(stack, sizeof(stack), 4);
+    require(available == TJSStackTracerEnabled(), "production stack callback availability changed");
+    require((stack[0] != 0) == (available && hasFrames), "production stack callback lost script frames");
+
+    std::array<char, 1025> bounded;
+    bounded.fill('!');
+    require(capture(bounded.data(), bounded.size(), 100) == available, "bounded capture failed");
+    require(std::find(bounded.begin(), bounded.begin() + 513, '\0') != bounded.begin() + 513 &&
+            std::all_of(bounded.begin() + 513, bounded.end(), [](char c) { return c == '!'; }),
+            "production stack callback exceeded the 512-byte cap");
+    bounded.fill('!');
+    require(capture(bounded.data(), 8, 4) == available && bounded[8] == '!' &&
+            std::find(bounded.begin(), bounded.begin() + 8, '\0') != bounded.begin() + 8,
+            "production stack callback exceeded caller capacity");
+    require(capture(stack, sizeof(stack), 0) == available && stack[0] == 0,
+            "production stack callback ignored the frame limit");
+    require(!capture(nullptr, sizeof(stack), 4) && !capture(stack, 0, 4),
+            "production stack callback accepted an invalid buffer");
+
+    onVMThread = false;
+    bounded.fill('!');
+    const bool offThread = capture(bounded.data(), bounded.size(), 4);
+    onVMThread = true;
+    require(!offThread && std::all_of(bounded.begin(), bounded.end(), [](char c) { return c == '!'; }),
+            "off-thread stack callback inspected the VM or changed the output");
+}
+
 enum class CallbackAction { Capture, Enable, Disable };
 class TraceProbe : public tTJSDispatch {
     std::vector<std::string>& traces_;
@@ -47,6 +80,7 @@ public:
         if (action_ == CallbackAction::Disable) diagnosticCallback.store(nullptr);
         DiagnosticScriptTraceScope nestedHostCall;
         traces_.push_back(TJSGetStackTraceString(3, " | ").AsStdString());
+        verifyProductionStackCapture(!traces_.back().empty());
         return TJS_S_OK;
     }
 };
@@ -84,6 +118,7 @@ void enabledReleaseSession()
                     traces.back().find("inner") != std::string::npos && traces.back().find("outer") != std::string::npos,
                     "Release VM did not produce script/function/line attribution");
             require(TJSGetStackTraceString().IsEmpty(), "completed script left tracer frames");
+            verifyProductionStackCapture(false);
             require(!TJSEnableDebugMode && !TJSObjectHashMapEnabled(), "stack attribution enabled unrelated debug work");
             action = CallbackAction::Disable;
             bool threw = false;
@@ -221,12 +256,15 @@ void strippedBytecodeHasUnverifiedPosition()
 int main()
 {
     try {
+        installProductionStackCapture();
+        verifyProductionStackCapture(false);
         enabledReleaseSession();
         enableInsideCallbackIsDeferred();
         nestedRestartAndExternalOwner();
         strippedBytecodeHasUnverifiedPosition();
         std::cout << "PASS: Release stack attribution, deferred nested toggles, exception unwind, "
-                     "session restart/ref ownership, off-thread exclusion and stripped-bytecode fallback\n";
+                     "session restart/ref ownership, production CPU callback bounds/thread guard "
+                     "and stripped-bytecode fallback\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n'; return 1;

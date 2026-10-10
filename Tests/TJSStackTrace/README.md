@@ -1,8 +1,10 @@
 # Diagnostic script-stack lifetime
 
 This fixture compiles the production TJS VM and extracts the exact diagnostic
-tracer-owner state/scopes from the native host. Foundation's main-thread check
-and the host callback pointer are supplied by the test; it is not an iOS build.
+tracer-owner state/scopes and CPU stack-capture callback from the native host.
+The callback is compiled against the real TJS types and CPU diagnostic interface.
+Foundation's main-thread check and the host diagnostic callback pointer are
+supplied by the test; it is not an iOS build.
 
 ```sh
 cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
@@ -13,8 +15,9 @@ ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
 The tests verify Release script/function attribution without TJS debug mode or
 object tracking, nested host callbacks, enabling/disabling during script calls,
 exception unwinding, shutdown, nested restart, an independent tracer owner,
-off-thread calls and failed startup. Bytecode stripped of source maps retains
-function attribution but can report a fallback line, so log positions remain
+off-thread calls, failed startup and the production callback's buffer/frame caps.
+Bytecode stripped of source maps retains function attribution but can report a
+fallback line, so log positions remain
 explicitly unverified.
 
 The diagnostic reference is acquired at an outer main-thread host boundary and

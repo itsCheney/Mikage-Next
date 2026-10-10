@@ -459,6 +459,8 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 2026-10-10 收口包：按 D0 补齐 → D1 绘制合并 → D3 固定开销 → CPU 缓存与调用归因 → D2 配对验收推进。**实现及 Windows portable 检查完成，Apple 原生正确、设备新路径命中与 nominal 性能均保留待验；CPU 长帧未签收。** 分包范围、开关、旧日志长帧证据和待验矩阵见 [P2D 收口基线](NATIVE-METAL-P2D-CLOSEOUT-BASELINE.md)。本轮不提交、不推送。
 
+2026-10-11 CI进展：普通 Metal backend tile/forced-compute、parser 与 MetalLayer 主比较通过；静止 present 两项为 SKIP，真实显示待验。runtime framework 的 host 栈回调类型名错误已本地修复，新增生产回调编译及边界回归通过；framework/App须复跑。详见 [CI记录](CI-FAILURE-38071661074.md)，设备路径和性能签收状态保持待验。
+
 目标：处理已证实的 **GPU-bound ordinary Layer fragment workload**，特别是滚动/缩放背景叠加 full-surface Copy、CopyColor、Fill、Alpha 与 alias/snapshot 时的 pass 数、像素量和 presentation backpressure。它不属于 P2C 的 CPU/GPU boundary：`gpuSyncWaitMS=0`、读回或上传为零不能证明此类场景足够快；也不以减少诊断计数、降低画质或改变脚本绘制顺序为目标。第 2.6 节的天使纷扰道路场景是首要回归；第 2.7 节证明碎片化与 overdraw 在五款游戏的整段游玩中持续存在（去掉 blit 后仍有约 8–19 pass/帧，Fill 占像素 38%），并给出 D3 的固定开销项。
 
 #### D0. 有界 hot-layer 归因：先把过量像素连回资源和 Layer

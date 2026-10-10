@@ -4,12 +4,12 @@
 
 实施顺序为 D0 → D1 → D3 → CPU → D2。本记录区分实现、portable 验证、原生正确、设备路径命中与性能签收。Windows 结果不代表 Apple Objective-C++/MSL 编译或 iPhone 性能。
 
-2026-10-11 CI补充：AppleClang原生backend编译和链接已通过；复跑时普通tile/forced-compute测试均通过，独立静止present的首次probe失败，后续MetalLayer、runtime framework与App构建未运行。本轮补齐明确失败原因与command确认，修复后仍待复跑，详见 [第二次CI记录](CI-FAILURE-38070082782.md)。
+2026-10-11 最新 CI：Root `4c22081` 的普通 tile/forced-compute 与三个 parser 通过；两项静止 present 为 SKIP，真实显示仍待验。MetalLayer 比较及 release 测量步骤成功，主比较记录78,463次、3个session。runtime framework 随后因 host 的 `TJS::tjs_uint` 类型名错误停止；已修正并补生产回调编译回归，framework/App 仍待复跑，详见 [第三次CI记录](CI-FAILURE-38071661074.md)。前次首次呈现探测修复见 [第二次CI记录](CI-FAILURE-38070082782.md)。
 
 | 改动包 | 实现与 portable 验证 | Apple 原生正确 | 本次设备命中 | 性能签收 |
 | --- | --- | --- | --- | --- |
 | D0 v2 归因 | 已接入；v1/v2 emitter→parser 与旧日志回归 | 待验 | v2 待新日志 | 不适用；还须测诊断开销 |
-| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS backend tile/compute通过；MetalLayer集成与iOS待验 | 新游戏路径待验 | 待 nominal 配对 |
+| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS backend tile/compute及MetalLayer主比较通过；iOS待验 | 新游戏路径待验 | 待 nominal 配对 |
 | D3 转场缓存 | 已接入；抽取真实 lease/materialize/stop 生命周期测试 | 完整 begin/Draw/Complete/重入/OOM 路径待验 | 待验 | 待配对 |
 | D3 静止 present | 已接入；真实确认策略、16 项上限与迟到回调测试 | 真实 drawable acknowledgement 待验 | 待验 | 待配对 |
 | CPU 缓存、预取、调用归因 | 已接入；真实 holder、异步完成分支、缓存与 KAG 生命周期测试 | host 编译及真实 codec 对照待验 | 待新调用日志 | **CPU 长帧仍未签收** |
@@ -94,7 +94,7 @@ Windows验证产物集中在 `build/native-metal-p2d-closeout-baseline/`：Metal
 
 待验清单：
 
-- Apple tile/forced-compute与Metal validation；本次Objective-C++/MSL和host编译；App device/simulator构建。无设备或unsupported的skip保持待验。
+- Apple tile/forced-compute backend 已通过，MetalLayer 主比较在 validation 下通过；静止 present 两项为 skip。host/framework 类型修复后的复跑及 App device/simulator 构建仍待验；skip保持待验。
 - 真实codec PNG/JPEG/BMP/TLG 的同步与touch结果逐像素/metadata对照，尤其透明边界、取消、失败、冷/热加载。
 - 固定设备/OS、三仓revision和dirty源码/包哈希、分辨率、存档、窗口、预热及输入，nominal至少三组配对。道路滚动、静止菜单、零帧转场、隐藏跳读及冷/热加载分别登记。
 - 隔离开关：Fill合并A/B固定lazy=1、cache=0、staticPresent=0；转场缓存A/B固定其它项；静止present同样单独A/B。诊断开关另测开销，不能把关闭诊断当作缓存收益。

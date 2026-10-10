@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the exact host tracer-owner logic without Foundation/SDL."""
+"""Compile the exact host tracer-owner logic and stack callback without Foundation/SDL."""
 import argparse
 from pathlib import Path
 
@@ -23,4 +23,6 @@ owner = definition(source, "struct DiagnosticScriptTraceState") + ";\n"
 owner += "DiagnosticScriptTraceState diagnosticScriptTrace;\n"
 owner += definition(source, "struct DiagnosticScriptTraceScope") + ";\n"
 owner += definition(source, "void endDiagnosticScriptTraceSession()") + "\n"
+owner += "void installProductionStackCapture() {\n"
+owner += definition(source, "krkrsdl3::cpu_frame::captureStack = []") + ";\n}\n"
 args.output.write_text(owner, encoding="utf-8")
