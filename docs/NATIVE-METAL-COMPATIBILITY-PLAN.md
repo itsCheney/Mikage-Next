@@ -457,11 +457,13 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 ### P2D：普通 Layer overdraw 与滚动背景性能专项
 
+2026-10-10 收口包：按 D0 补齐 → D1 绘制合并 → D3 固定开销 → CPU 缓存与调用归因 → D2 配对验收推进。**实现及 Windows portable 检查完成，Apple 原生正确、设备新路径命中与 nominal 性能均保留待验；CPU 长帧未签收。** 分包范围、开关、旧日志长帧证据和待验矩阵见 [P2D 收口基线](NATIVE-METAL-P2D-CLOSEOUT-BASELINE.md)。本轮不提交、不推送。
+
 目标：处理已证实的 **GPU-bound ordinary Layer fragment workload**，特别是滚动/缩放背景叠加 full-surface Copy、CopyColor、Fill、Alpha 与 alias/snapshot 时的 pass 数、像素量和 presentation backpressure。它不属于 P2C 的 CPU/GPU boundary：`gpuSyncWaitMS=0`、读回或上传为零不能证明此类场景足够快；也不以减少诊断计数、降低画质或改变脚本绘制顺序为目标。第 2.6 节的天使纷扰道路场景是首要回归；第 2.7 节证明碎片化与 overdraw 在五款游戏的整段游玩中持续存在（去掉 blit 后仍有约 8–19 pass/帧，Fill 占像素 38%），并给出 D3 的固定开销项。
 
 #### D0. 有界 hot-layer 归因：先把过量像素连回资源和 Layer
 
-**首轮本地实现完成，设备归因待验：**stable Layer/texture/session/contentVersion、资产/cache/COW 来源、256 操作/64 资源采样、clear/pass 来源总账、32KiB/s 输出预算与只读分析器已接入；下列复现与归因门槛仍需新日志签收，见 [P2D 基线](NATIVE-METAL-P2D-BASELINE.md)。
+**D0 v2 本地实现完成，新设备归因待验：**归档内路径展示与完整路径 hash 分离；真实 Layer/Bitmap/LayerEx receiver、参数、逻辑 ID 和实际执行状态接入，分析器兼容 v1。256/64、960-byte 与32KiB/s上限保持，实际 draw 与逻辑工作分别累计。首轮 stable Layer/texture/session/contentVersion、资产/cache/COW 来源、256 操作/64 资源采样、clear/pass 来源总账、32KiB/s 输出预算与只读分析器已接入；下列复现与归因门槛仍需新日志签收，见 [P2D 基线](NATIVE-METAL-P2D-BASELINE.md)。
 
 - [ ] 在已存在的 `metal.layerWork` / GPU-stage 诊断之上增加**采样式**关联：operation kind、目标/源 resource generation、rect/clip、实际/缩放/alias 像素、render-pass 或 encoder、snapshot 原因；将 resource generation 在可用时关联到 asset 名与 Layer 对象/调用类别。不得长期输出每次 operation 的无界日志、持有已销毁对象，或为取名新增 GPU readback、submit、等待和资源强引用。
 - [ ] 以命令像素量、fragment time、`nextDrawable` wait 或长帧为触发阈值采样，并保留未采样窗口的聚合计数。先验证 `街_通学路a.png` 是否实际参与 hotspot，而不是用加载时间直接给某个 Copy/Alpha 定责。
@@ -470,7 +472,7 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 #### D1. 在严格顺序语义下减少 full-surface 工作和 pass
 
-**首轮保守子域本地实现完成，原生及性能待验：**普通 Layer pending-zero、首个 tile pass 融合清零、完整 upload/GPU blit 取消初始 clear、无同目标活跃 pass 时完整 RGBA Fill→load-action clear，以及所有消费者初始化保护。`MIKAGE_METAL_LAYER_LAZY_INIT=0` 恢复旧创建/Fill路径用于 A/B。一般 ROI、跨目标 batching 和道路专用路径继续保留为后续候选。
+**D1 保守子域与单槽 Fill 合并本地实现完成，原生及性能待验：**本轮在 ordinary tile、flags=0 域延迟最后一个 Fill draw；后继完整覆盖 Fill 或验证成功的非 alias 满幅 RGBA Copy 可以省略它，观察/提交/异常边界保持已接受写入。`MIKAGE_METAL_LAYER_COALESCE_FILL=0` 独立关闭合并。首轮 普通 Layer pending-zero、首个 tile pass 融合清零、完整 upload/GPU blit 取消初始 clear、无同目标活跃 pass 时完整 RGBA Fill→load-action clear，以及所有消费者初始化保护。`MIKAGE_METAL_LAYER_LAZY_INIT=0` 恢复旧创建/Fill路径用于 A/B。一般 ROI、跨目标 batching 和道路专用路径继续保留为后续候选。
 
 - [ ] 先区分必要重绘（动画位置、透明合成、规则/clip、目标旧值或 alias 所要求）与可证明冗余的 full-surface operation。为道路滚动建立可重放存档/输入、资源尺寸、层级及逐帧 operation 序列，不以单个 heartbeat 推断所有帧。
 - [ ] 只在像素/顺序证明成立时采用 dirty ROI/scissor、同目标 pass 复用/安全 batching、已知完全覆盖下的冗余 clear/fill 消除、或专用滚动背景路径。目标/源别名、COW、lease、透明 alpha、clip 边缘、目标旧值依赖和中间可见结果必须先裁决；不能用“上一帧纹理复用”替代脚本要求的当前帧组合。
@@ -484,12 +486,22 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 #### D3. 固定开销：0 帧转场与静止帧重复 present
 
+**本地实现完成，原生与设备待验：**Native Metal withchildren 的零租约空 cache 延迟到首次消费；begin 的 lease/hook/dirty、Update(true) 与 tick/回调顺序保留，允许 OOM 移至首次消费并保留可清理状态。静止 present 使用独立 resource lifetime/mutation 与完整窗口签名，等待真实显示和 command 成功确认；在途更新、新 alpha ticket、生命周期刷新或16项超限均禁止skip，simulator保守关闭。skip仍提交离屏工作并执行runtime tick。独立开关为 `MIKAGE_METAL_DEFER_TRANSITION_CACHE` 和 `MIKAGE_METAL_STATIC_PRESENT`。
+
 - [ ] 转场 begin/stop 抖动：第 2.7 节五份日志每秒 2–9 对 begin/end，27–90% 以 `frame=0` 结束。`tjsNativeLayer.cpp:7602` `StartTransition` 在 `withchildren` 时 `IncCacheEnabledCount()`（`:4207`）→ `AllocateCache()`（`:4162`）分配整幅 cache 纹理（后端 `Create()` 附带 clear pass）并整幅标记重算，`Update(true)` 触发整树重合成；`InternalStopTransition`（`:7799`）后释放或留待 compact。先用 D0 采样证明每次的像素与 pass 代价，再评估同帧内 begin→stop 且未绘制任何转场帧时延迟 cache 分配/重合成；保留 `TransSrc`、exchange/swap、完成事件顺序、`getTransTick` 与 continuous hook 等可观察语义，不改变脚本可见的层状态与时序。调用频率来自游戏脚本，不以修改脚本行为为目标。
-- [ ] 静止帧重复 present：`KRKRSession.swift:512` 每个 display tick 调 `MikageKRKRStep`，`sdl3_app.cpp:618` → `TVPCompositor.cpp:635` → `MetalRenderBackend.mm:1358` `EndFrame` 无条件 `nextDrawable`/`presentDrawable`/`Submit()`。评估窗口纹理内容版本未变时跳过 present（或空闲时降低 display link 频率），同时保持异步 alpha 的 presentation gating、显示版本语义、输入响应延迟与前后台/截屏行为；静止时抽样 GPU 0.3–0.7 ms、CPU 约 1 ms/帧，这是常驻底噪，收益按整段游玩的热状态曲线与能耗评价，不按峰值帧。
+- [ ] 静止帧重复 present：`KRKRSession.swift:512` 每个 display tick 调 `MikageKRKRStep`，`sdl3_app.cpp:618` → `TVPCompositor.cpp:635` → `MetalRenderBackend.mm:1358` `EndFrame` 无条件 `nextDrawable`/`presentDrawable`/`Submit()`。评估窗口纹理内容版本未变时跳过 present，同时保持异步 alpha 的 presentation gating、显示版本语义、输入响应延迟与前后台/截屏行为；静止时抽样 GPU 0.3–0.7 ms、CPU 约 1 ms/帧，这是常驻底噪，收益按整段游玩的热状态曲线与能耗评价，不按峰值帧。
 
 验收：转场结果画面、层顺序/位置/可见性、完成回调顺序逐像素与原路径一致；静止跳过 present 不改变任何可见帧、不延迟首个变化帧，且 presentation 版本/alpha gating 仍成立。两项均在 nominal 热状态下三次配对报告 pass/帧、GPU command、`nextDrawable` 等待与热状态曲线，并与 C3、D1 分别计量。
 
 验收：先得到 D0 的 asset→Layer→operation 证据与可重放最小路径；随后对该路径的画面、alpha、clip、操作顺序、COW/alias 及场景切换逐像素或预定义容差一致。优化前先预注册目标设备/热状态下的 GPU command p50/p95、fragment p50/p95、`nextDrawable` p50/p95、rectPixels、pass/encoder 数、frame p50/p95/p99 和长帧数；仅在同条件重复样本显示这些指标改善时签收。不得把 C1 shrinkCopy 或 C4 transition 的改善计入 P2D，也不得因为降频/热状态变化宣称 overdraw 优化成功。
+
+#### CPU. 同步长帧：缓存、touch 与逐帧调用关联
+
+- [x] 实现 epoch/step/call/parent 关联，在VM返回/展开前捕获最多4层/512-byte栈；图片、storage及三套KAG的读取/cache/标签/GetNextTag聚合。详情≥16ms、每窗口8条/step4条、独立8KiB滚动一秒预算，完整eligible/drop与诊断开销计量；不相加嵌套墙钟，不称纯VM CPU。
+- [x] 统一图像缓存成功提交、replacement字节账和插入后裁剪；超限单图正常返回不入缓存，texture-only Bitmap查询miss，不增readback或长期双副本。
+- [x] 已有touch复用加载线程，仅无owner预取去重，queued/running/loaded最多32项，预算/deadline/session取消；普通async回调顺序保留，同步miss不等待。首批只覆盖明确扩展名、normal原尺寸、无colorkey/mask/province的有限域。
+- [ ] Apple host编译和真实PNG/JPEG/BMP/TLG同步/touch逐像素对照；设备隐藏跳读、冷/热加载重放。当前portable边界替身不签收codec或iPhone性能。
+- [ ] 用新的调用栈与场景读/解析证据解释剩余同步隐藏跳读长调用。保留表达式/宏/回调副作用，不缓存最终tag、不预测资产、不强制yield；**不能凭缓存已修复宣布CPU长帧解决**。
 
 ### P3：通用三角形能力
 

@@ -27,6 +27,31 @@ int main() {
         TVPLoadGraphic(&dest,"ui",TVP_clNone,0,0,glmNormal,nullptr,nullptr); Require(opens==before+1,"minimize kept cold oldest image");
         compact.OnCompact(TVP_COMPACT_LEVEL_MAX);
         Require(TVPGraphicCacheTotalBytes==0 && TVPGraphicCache.entries.empty(),"maximum compaction retained images");
+        // Actual common commit policy: capacity is true immediately after
+        // every insertion, replacement changes only the committed bytes, and
+        // failed hash-table insertion does not corrupt totals or old entries.
+        TVPGraphicCacheLimit=4u*1024u*1024u;
+        TVPLoadGraphic(&dest,"capacity-a",TVP_clNone,0,0,glmNormal,nullptr,nullptr);
+        TVPLoadGraphic(&dest,"capacity-b",TVP_clNone,0,0,glmNormal,nullptr,nullptr);
+        Require(TVPGraphicCacheTotalBytes==TVPGraphicCacheLimit && TVPGraphicCache.entries.size()==1,"after-insert capacity exceeded");
+        tTVPGraphicsSearchData replacement;replacement.Name="capacity-b";replacement.KeyIdx=TVP_clNone;
+        auto* data=new tTVPGraphicImageData();data->bitmapAvailable=false;
+        Require(TVPCommitGraphicCache(replacement,0,data),"replacement rejected");data->Release();
+        Require(TVPGraphicCacheTotalBytes==4u*1024u*1024u && TVPGraphicCache.entries.size()==1,"replacement double-counted bytes");
+        failCacheInsert=true;data=new tTVPGraphicImageData();bool insertFailed=false;
+        replacement.Name="failed-insert";
+        try {TVPCommitGraphicCache(replacement,0,data);} catch(...) {insertFailed=true;}
+        data->Release();failCacheInsert=false;
+        Require(insertFailed && TVPGraphicCacheTotalBytes==4u*1024u*1024u && TVPGraphicCache.entries.size()==1,"failed insertion changed committed state");
+        tTVPBaseBitmap cpuBitmap;cpuBitmap.marker=777;
+        Require(!TVPCheckImageCache("capacity-b",&cpuBitmap,glmNormal,0,0,TVP_clNone,nullptr) && cpuBitmap.marker==777,
+            "texture-only holder produced a false Bitmap hit");
+        TVPClearGraphicCache();TVPGraphicCacheLimit=2u*1024u*1024u;
+        before=opens;TVPLoadGraphic(&dest,"oversize",TVP_clNone,0,0,glmNormal,nullptr,nullptr);
+        Require(opens==before+1 && dest.marker && TVPGraphicCacheTotalBytes==0 && TVPGraphicCache.entries.empty(),"oversize did not return normally without admission");
+        TVPGraphicCacheLimit=0;
+        TVPLoadGraphic(&dest,"cache-zero",TVP_clNone,0,0,glmNormal,nullptr,nullptr);
+        Require(TVPGraphicCacheTotalBytes==0 && TVPGraphicCache.entries.empty(),"enabled zero-capacity cache admitted an image");
         TVPGraphicCacheLimit=0; compact.OnCompact(TVP_COMPACT_LEVEL_MINIMIZE);
         Require(TVPGraphicCache.entries.empty(),"zero cache limit ignored");
         TVPGraphicCacheEnabled=false; before=opens;

@@ -11,14 +11,15 @@ import re
 KINDS = {1: 'Copy', 2: 'CopyColor', 3: 'CopyMask', 4: 'CopyOpaque', 5: 'Fill',
          6: 'FillColor', 7: 'FillMask', 8: 'Alpha', 9: 'ConstAlpha', 10: 'ColorMap'}
 ACCESS = ('rect', 'read', 'snapshot', 'upload', 'copy', 'affine', 'perspective',
-          'span', 'shrink', 'transition', 'window', 'mesh', 'create', 'clear', 'pass', 'end')
+          'span', 'shrink', 'transition', 'window', 'mesh', 'create', 'clear', 'pass', 'end', 'execution')
 BOUNDARIES = ('target', 'upload', 'blit', 'compute', 'mesh', 'submit', 'destroy',
               'read', 'snapshot', 'window', 'explicitClear', 'initialization', 'other')
 CLEARS = ('layerCreate', 'otherCreate', 'firstRead', 'firstWrite',
           'fusedInitialization', 'fullFill', 'explicit')
 COUNTERS = ('calls', 'pixels', 'scaledPixels', 'aliasPixels', 'snapshotBytes', 'render',
             'compute', 'blit', 'draws', 'creates', 'clearBytes', 'elidedInitialization',
-            'fusedInitialization', 'fastFills', 'sampleFailures', 'diagnosticGaps')
+            'fusedInitialization', 'fastFills', 'sampleFailures', 'diagnosticGaps',
+            'deferredFills', 'materializedFills', 'omittedFills', 'actualDraws')
 
 
 def integer(value):
@@ -36,7 +37,11 @@ def unique_object(pairs):
     return value
 
 
-def totals(value):
+def totals(value, version=1):
+    for key in ('deferredFills', 'materializedFills', 'omittedFills', 'actualDraws'):
+        if version>=2 and key not in value:
+            raise ValueError('missing v2 counter '+key)
+        value.setdefault(key, 0)  # v1 did not defer shader Fill draws.
     for key in (*COUNTERS, 'saturated'):
         integer(value[key])
     for key, length in (('ends', len(BOUNDARIES)), ('clears', len(CLEARS))):
@@ -73,7 +78,7 @@ def summarize(events):
             raw = dict(pairs)
             if len(pairs) != len(raw):
                 raise ValueError('duplicate field')
-            if int(raw['version']) != 1:
+            if int(raw['version']) not in (1, 2):
                 raise ValueError('unsupported version')
             prefix = message.split()[0]
             epoch, command = integer(int(raw['epoch'])), integer(int(raw['id']))
@@ -86,8 +91,8 @@ def summarize(events):
                 raise ValueError('invalid final flag')
             key = (event.get('run'), prefix, epoch, command, final)
             group = groups.setdefault(key, {'parts': parts, 'rows': {}, 'lost': lost,
-                                            'time': event.get('uptimeSeconds')})
-            if group['parts'] != parts or group['lost'] != lost:
+                                            'version': int(raw['version']), 'time': event.get('uptimeSeconds')})
+            if group['parts'] != parts or group['lost'] != lost or group['version'] != int(raw['version']):
                 raise ValueError('inconsistent chunk headers')
             if part in group['rows']:
                 raise ValueError('duplicate chunk')
@@ -105,12 +110,13 @@ def summarize(events):
             value = json.loads(base64.b64decode(data, validate=True).decode('utf-8'), object_pairs_hook=unique_object)
             if prefix == 'metal.layerPasses':
                 reports.append({'run': run, 'epoch': epoch, 'id': command, 'final': bool(final),
+                                'version': group['version'], 'actualDrawsAvailable': group['version']>=2,
                                 'droppedReports': group['lost'], 'time': group['time'],
-                                'totals': totals(value)})
+                                'totals': totals(value,group['version'])})
                 continue
-            if (value['version'], value['epoch'], value['id']) != (1, epoch, command):
+            if (value['version'], value['epoch'], value['id']) != (group['version'], epoch, command):
                 raise ValueError('payload identity differs from header')
-            total = totals(value['totals'])
+            total = totals(value['totals'],value['version'])
             if len(value['resources']) > 64 or len(value['operations']) > 256:
                 raise ValueError('sample exceeds production capacity')
             reasons = []
@@ -122,14 +128,20 @@ def summarize(events):
             resources = []
             generations = set()
             for r in value['resources']:
-                if len(r) != 13 or any(type(n) is not int or n < 0 for n in r[:11]):
+                if len(r) != (14 if value['version']==2 else 13) or any(type(n) is not int or n < 0 for n in r[:11]):
                     raise ValueError('malformed resource row')
                 if r[0] in generations:
                     raise ValueError('duplicate resource generation')
                 generations.add(r[0])
+                if r[10] not in (0,1) or any(not isinstance(s,str) for s in r[11:13]):
+                    raise ValueError('invalid asset/role display')
                 resource = dict(zip(('generation', 'session', 'texture', 'parentSession', 'parent',
                                      'creatorLayer', 'assetHash', 'width', 'height', 'bpp',
-                                     'assetTruncated', 'asset', 'role'), r))
+                                     'assetTruncated', 'asset', 'role', 'displayShortened'), r))
+                resource.setdefault('displayShortened', False)
+                if value['version']==2:
+                    integer(r[13])
+                    if r[13] not in (0,1):raise ValueError('invalid display shortened flag')
                 resources.append(resource)
                 if r[10]:
                     reasons.append('truncated asset')
@@ -138,7 +150,7 @@ def summarize(events):
             previous = 0
             mapped_pixels = 0
             for op in value['operations']:
-                if len(op) != 21 or not 0 <= op[1] < len(ACCESS):
+                if len(op) != (29 if value['version']==2 else 21) or not 0 <= op[1] < len(ACCESS):
                     raise ValueError('malformed operation row')
                 if op[0] <= previous:
                     raise ValueError('operation order regression')
@@ -152,7 +164,7 @@ def summarize(events):
                 target = resources[ti] if ti >= 0 else None
                 source = resources[si] if si >= 0 else None
                 if op[2] > 0:
-                    if not target or not target['texture'] or not op[7]:
+                    if not target or not target['texture'] or (not op[7] and not (value['version']==2 and op[21] and op[22] in (2,3))):
                         reasons.append('unknown resource or current Layer')
                     if source and not source['texture']:
                         reasons.append('unknown source identity')
@@ -171,6 +183,18 @@ def summarize(events):
                                            else 'load' if op[1] == 14
                                            else BOUNDARIES[op[17]] if 0 <= op[17] < len(BOUNDARIES) else 'unknown'),
                                 'destination': op[18], 'sourceRect': op[19], 'clip': op[20]})
+                if value['version']==2:
+                    for n in op[21:25]+op[26:]:
+                        integer(n)
+                    if type(op[25]) is not int or not -(2**31)<=op[25]<2**31:
+                        raise ValueError('invalid v2 opacity')
+                    if op[22]>3 or op[28]>3 or op[26]>1:
+                        raise ValueError('invalid v2 receiver/execution/sampling')
+                    ordered[-1].update(receiver=op[21], receiverKind=('unknown','Layer','Bitmap','LayerEx')[op[22]],
+                                       flags=op[23], color=op[24], opacity=op[25], sampling=op[26],
+                                       logicalID=op[27], execution=('immediate','deferred','materialized','omitted')[op[28]])
+                    if op[2]>0 and not op[27]:
+                        reasons.append('unknown logical operation')
             if mapped_pixels > total['pixels']:
                 raise ValueError('sample details exceed aggregate pixels')
             if mapped_pixels != total['pixels']:
@@ -183,6 +207,7 @@ def summarize(events):
                 # from stage validity and overlapping stage times are not added.
                 reasons.append('partial or unavailable GPU stage timing')
             samples.append({'run': run, 'epoch': epoch, 'id': command, 'firstFrame': value['firstFrame'],
+                            'version': value['version'], 'actualDrawsAvailable': value['version']>=2,
                             'lastFrame': value['lastFrame'], 'hot': bool(value['hot']), 'gpuMS': value['gpuMS'],
                             'drawableMS': value['drawableMS'] if value.get('drawableObserved', 0) else None, 'frameMS': value['frameMS'],
                             'complete': not reasons, 'incompleteReasons': sorted(set(reasons)),
@@ -216,6 +241,7 @@ def summarize(events):
         if last['final'] and any(s['run']==run and s['epoch']==epoch and s['id']>last['id'] for s in samples):
             errors.append(f'{run}/{epoch}: sample command exceeds final command')
         epochs.append({'run': run, 'epoch': epoch, 'snapshots': len(rows), 'finalObserved': last['final'],
+                       'actualDrawsAvailable': all(r['actualDrawsAvailable'] for r in rows),
                        'droppedReports': last['droppedReports'], 'lastTotals': last['totals'],
                        'observedDelta': {k: last['totals'][k]-first['totals'][k] for k in COUNTERS},
                        'passEndReasons': dict(zip(BOUNDARIES, last['totals']['ends'])),
@@ -240,7 +266,7 @@ def main():
         data = path.read_bytes()
         events = [json.loads(line) for line in data.decode('utf-8-sig').splitlines() if line.strip()]
         sources.append({'file': path.as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), **summarize(events)})
-    text = json.dumps({'tool': 'analyze-layer-hotspots', 'version': 1, 'sources': sources}, ensure_ascii=False, indent=2)
+    text = json.dumps({'tool': 'analyze-layer-hotspots', 'version': 2, 'sources': sources}, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text+'\n', encoding='utf-8')

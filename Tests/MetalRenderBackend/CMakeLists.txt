@@ -6,6 +6,14 @@ set(CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp")
 add_executable(metal-render-tests
     LayerUploadTests.cpp
     LayerInitializationTests.cpp
+    PendingFillTests.cpp
+    CPUFrameTests.cpp
+    BoundedStackTests.cpp
+    ImagePrefetchTests.cpp
+    ImageAsyncTests.cpp
+    ImageHolderTests.cpp
+    StaticPresentationTests.cpp
+    TransitionCacheTests.cpp
     MetalRenderBackendTests.cpp
     "${CORE}/core/render/backend/SWRenderBackend.cpp")
 target_include_directories(metal-render-tests PRIVATE "${CORE}/core/render" "${CORE}/environ")
@@ -34,6 +42,38 @@ add_custom_command(OUTPUT "${UPLOAD_REPORT}"
         --source "${CORE}/core/render/backend/MetalRenderBackend.mm" --output "${UPLOAD_REPORT}"
     DEPENDS "${CORE}/core/render/backend/MetalRenderBackend.mm" "${CMAKE_CURRENT_LIST_DIR}/extract-upload-report.py"
     VERBATIM)
+set(TRANSITION_CACHE "${CMAKE_CURRENT_BINARY_DIR}/ProductionTransitionCache.inc")
+add_custom_command(OUTPUT "${TRANSITION_CACHE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-cache.py"
+        --source "${CORE}/core/script/tjsNativeLayer.cpp" --output "${TRANSITION_CACHE}"
+    DEPENDS "${CORE}/core/script/tjsNativeLayer.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-cache.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${TRANSITION_CACHE}")
+set(BOUNDED_STACK "${CMAKE_CURRENT_BINARY_DIR}/ProductionBoundedStack.inc")
+add_custom_command(OUTPUT "${BOUNDED_STACK}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-cpu-stack.py"
+        --source "${CORE}/tjs2/tjsDebug.cpp" --output "${BOUNDED_STACK}"
+    DEPENDS "${CORE}/tjs2/tjsDebug.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-cpu-stack.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${BOUNDED_STACK}")
+set(IMAGE_ASYNC "${CMAKE_CURRENT_BINARY_DIR}/ProductionImageAsync.inc")
+add_custom_command(OUTPUT "${IMAGE_ASYNC}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-image-async.py"
+        --source "${CORE}/core/media/image/GraphicsLoadThread.cpp" --output "${IMAGE_ASYNC}"
+    DEPENDS "${CORE}/core/media/image/GraphicsLoadThread.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-image-async.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${IMAGE_ASYNC}")
+set(IMAGE_HOLDER "${CMAKE_CURRENT_BINARY_DIR}/ProductionImageHolder.inc")
+add_custom_command(OUTPUT "${IMAGE_HOLDER}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-image-holder.py"
+        --source "${CORE}/core/media/image/TVPGraphicsLoader.cpp" --output "${IMAGE_HOLDER}"
+    DEPENDS "${CORE}/core/media/image/TVPGraphicsLoader.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-image-holder.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${IMAGE_HOLDER}")
+
+
+
+target_include_directories(metal-render-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/core/media/image")
 add_executable(c3-upload-emitter LayerUploadEmitter.cpp "${UPLOAD_REPORT}")
 target_include_directories(c3-upload-emitter PRIVATE "${CORE}/core/render" "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME c3-upload-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-c3-uploads.py")
@@ -48,6 +88,10 @@ add_executable(p2d-hotspot-emitter LayerHotspotEmitter.cpp "${HOTSPOT_TRACE}")
 target_include_directories(p2d-hotspot-emitter PRIVATE "${CORE}/core/render" "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME p2d-hotspot-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-layer-hotspots.py")
 set_tests_properties(p2d-hotspot-parser PROPERTIES ENVIRONMENT "P2D_HOTSPOT_EMITTER=$<TARGET_FILE:p2d-hotspot-emitter>")
+add_executable(p2d-cpu-emitter CPUFrameEmitter.cpp)
+target_include_directories(p2d-cpu-emitter PRIVATE "${CORE}/core/render")
+add_test(NAME p2d-cpu-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-cpu-calls.py")
+set_tests_properties(p2d-cpu-parser PROPERTIES ENVIRONMENT "P2D_CPU_EMITTER=$<TARGET_FILE:p2d-cpu-emitter>")
 add_test(NAME metal-render-tests COMMAND metal-render-tests)
 set_tests_properties(metal-render-tests PROPERTIES SKIP_RETURN_CODE 77)
 

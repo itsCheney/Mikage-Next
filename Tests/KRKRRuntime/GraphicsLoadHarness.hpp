@@ -9,6 +9,7 @@
 #include <vector>
 #include "LayerWorkDiagnostics.h"
 #include "LayerHotspotContext.h"
+#include "ImagePrefetchPolicy.h"
 using tjs_uint64=uint64_t; using tjs_uint=unsigned; using tjs_uint32=uint32_t;
 using tjs_int32=int32_t; using tjs_int=int;
 struct ttstr:std::string {
@@ -28,7 +29,8 @@ struct DiagnosticTexture {
 struct iTVPBaseBitmap { unsigned marker=0;DiagnosticTexture texture;
     DiagnosticTexture* GetTexture() {return &texture;}
 };
-unsigned opens=0,liveBitmaps=0,nextMarker=0; bool failAssignment=false;
+unsigned opens=0,liveBitmaps=0,nextMarker=0; bool failAssignment=false,failCacheInsert=false;
+struct tTVPBaseBitmap:iTVPBaseBitmap {};
 struct tTVPBitmap {
     unsigned marker=++nextMarker;
     tTVPBitmap() { ++liveBitmaps; }
@@ -48,12 +50,15 @@ tTVPBitmap* TVPInternalLoadBitmap(const ttstr& name,int,unsigned,unsigned,
     return new tTVPBitmap;
 }
 struct tTVPGraphicImageData {
+    bool bitmapAvailable=true;
+    bool HasBitmap() const {return bitmapAvailable;}
+    void AssignToBitmap(tTVPBaseBitmap* dest) {dest->marker=marker;}
     unsigned refs=1,marker=0; ttstr ProvinceName; std::vector<tTVPGraphicMetaInfoPair>* MetaInfo=nullptr;
     ~tTVPGraphicImageData() { delete MetaInfo; }
     void AddRef() { ++refs; } void Release() { if(--refs==0) delete this; }
     void AssignBitmap(tTVPBitmap* bmp) { marker=bmp->marker; }
     void AssignToTexture(iTVPBaseBitmap* dest) {
-        if(failAssignment) throw std::runtime_error("assignment failed"); dest->marker=marker;
+        if(failAssignment) throw std::runtime_error("assignment failed"); dest->marker=marker;bitmapAvailable=false;
     }
     unsigned GetSize() const { return 4u*1024u*1024u; }
 };
@@ -84,11 +89,17 @@ struct tTVPGraphicCache {
         }
         return nullptr;
     }
+    tTVPGraphicImageHolder* FindWithHash(const tTVPGraphicsSearchData& key,unsigned) {
+        for(auto& entry:entries) if(entry.key==key) return &entry.holder;
+        return nullptr;
+    }
     tIterator GetLast() { return {entries.empty() ? nullptr : &entries.back()}; }
     tIterator GetEnd() { return {}; }
     void ChopLast(unsigned) { entries.pop_back(); }
     void Clear() { entries.clear(); }
     void AddWithHash(const tTVPGraphicsSearchData& key,unsigned,const tTVPGraphicImageHolder& holder) {
+        if(failCacheInsert) throw std::runtime_error("insertion failed");
+        if(auto* previous=FindWithHash(key,0)) {*previous=holder;return;}
         entries.push_front({key,holder});
     }
 } TVPGraphicCache;

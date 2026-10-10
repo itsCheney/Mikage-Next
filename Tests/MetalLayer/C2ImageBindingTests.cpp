@@ -49,6 +49,7 @@ public:
 };
 class TestImageLayer:public tTJSNativeInstance {
 public:
+    uint64_t GetLayerDiagnosticID() const { return 100; }
     ImageTexture* texture=new ImageTexture(32,32);
     tTVPRect clip{0,0,32,32};int updates=0,cow=0;bool modified=false,throwUpdate=false,throwPrepare=false;
     ~TestImageLayer() override {texture->Release();}

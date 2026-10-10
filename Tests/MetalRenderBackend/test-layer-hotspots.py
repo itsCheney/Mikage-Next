@@ -22,7 +22,7 @@ def events(payload, prefix='metal.layerHotspot', final=0, command=1):
     raw = base64.b64encode(json.dumps(payload, ensure_ascii=False).encode()).decode()
     chunks = [raw[i:i+720] for i in range(0, len(raw), 720)]
     return [{'run': 'fixture', 'uptimeSeconds': command, 'fields': {'message':
-             f'{prefix} version=1 epoch=1 id={command} final={final} droppedReports=0 '
+             f'{prefix} version={payload.get("version",1)} epoch=1 id={command} final={final} droppedReports=0 '
              f'part={i} parts={len(chunks)} data={chunk}'}} for i, chunk in enumerate(chunks)]
 
 
@@ -51,6 +51,24 @@ class HotspotTests(unittest.TestCase):
         self.assertEqual(overflow['totals']['calls'], 400)
         self.assertTrue(result['epochs'][0]['finalObserved'])
         self.assertEqual(result['epochs'][0]['observedDelta']['pixels'], 16)
+
+    def test_v2_receiver_parameters_and_execution(self):
+        value=sample();value['version']=2
+        value['resources']=[[7,1,9,0,0,0,123,4,4,4,0,'bg/street.png','image',1]]
+        value['totals']['calls']=1;value['totals']['pixels']=16;value['totals']['kindPixels'][5]=16
+        value['totals'].update(deferredFills=1,omittedFills=1)
+        op=[1,0,5,0,-1,3,0,0,'bitmap',8,16,0,1,0,0,0,0,12,[0,0,4,4],[0,0,0,0],[0,0,4,4],99,2,0,0x12345678,255,0,42,1]
+        status=copy.deepcopy(op);status[0]=2;status[1]=16;status[2]=0;status[10]=0;status[28]=3
+        value['operations']=[op,status]
+        result=module.summarize(events(value))
+        self.assertTrue(result['valid'],result['errors']);first=result['samples'][0]
+        self.assertTrue(first['complete'],first['incompleteReasons'])
+        self.assertEqual(first['operations'][0]['receiverKind'],'Bitmap')
+        self.assertEqual(first['operations'][0]['color'],0x12345678)
+        self.assertEqual(first['operations'][1]['execution'],'omitted')
+        self.assertEqual(first['totals']['draws'],0)
+        value['resources'][0][10]=1
+        self.assertFalse(module.summarize(events(value))['samples'][0]['complete'])
 
     def test_old_logs_are_unavailable(self):
         result = module.summarize([{'fields': {'message': 'metal.layerWork id=1 rectPixels=9'}}])

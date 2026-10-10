@@ -22,4 +22,4 @@ args.output.write_text('// Production MetalRenderBackend attribution; no GPU imp
     '\n'.join(function(text, signature) for signature in (
         '    layer_hotspot::ResourceInfo* Info(Resource* resource)',
         '    static std::array<int,4> DiagnosticRect(',
-        '    void Trace(layer_hotspot::Access access'))+'\n', encoding='utf-8')
+        '    uint64_t Trace(layer_hotspot::Access access'))+'\n', encoding='utf-8')

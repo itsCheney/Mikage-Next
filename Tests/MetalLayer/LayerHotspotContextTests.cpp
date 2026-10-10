@@ -1,4 +1,7 @@
 #include "../../Engine/KRKRRuntime/Source/cpp/core/render/LayerHotspotContext.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -40,6 +43,15 @@ int main() {
     Identity utf8;
     SetAsset(utf8,(std::string(190,'a')+"\xe8\xa1\x97").c_str());
     assert(utf8.assetTruncated && std::strlen(utf8.asset)==190);
+    SetAsset(utf8,(std::string(260,'a')+"/archive.xp3>bg/street.png").c_str());
+    assert(std::string(utf8.asset)=="bg/street.png" && utf8.displayShortened && !utf8.assetTruncated);
+    {
+        Scope bitmap(0,"bitmap",second,ReceiverKind::Bitmap);
+        assert(Current().currentReceiver==second && Current().receiverKind==ReceiverKind::Bitmap);
+        Scope layer(first,"draw",first,ReceiverKind::Layer);
+        assert(Current().currentLayer==first && Current().currentReceiver==first);
+    }
+    assert(Current().currentReceiver==0);
     Identity copy=CreatedIdentity(8,43);
     copy.version=12;
     SetParent(copy,source,"copy",true);

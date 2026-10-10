@@ -17,6 +17,14 @@
 using krkrsdl3::iTVPRenderBackend;
 void LayerUploadLayoutTests();
 void LayerInitializationTests();
+void PendingFillTests();
+void StaticPresentationTests();
+void TransitionCacheTests();
+void CPUFrameTests();
+void BoundedStackTests();
+void ImagePrefetchTests();
+void ImageAsyncTests();
+void ImageHolderTests();
 
 // The independent test executable does not link the engine/session. Only the
 // software *offscreen* renderer is used; SDL presenter calls are unexpected.
@@ -630,6 +638,8 @@ void ScopedPointReadTests(iTVPRenderBackend& gpu)
 // other capture and serialized the CPU against the inFlight semaphore.
 #include "NativeLayerUploadTests.inc"
 #include "NativeLayerInitializationTests.inc"
+#include "NativePendingFillTests.inc"
+#include "NativeStaticPresentationTests.inc"
 void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 {
     const int waitsBefore = krkrsdl3::g_syncWaits;
@@ -676,6 +686,14 @@ int main()
     try {
         LayerUploadLayoutTests();
         LayerInitializationTests();
+        PendingFillTests();
+        StaticPresentationTests();
+        TransitionCacheTests();
+        CPUFrameTests();
+        BoundedStackTests();
+        ImagePrefetchTests();
+        ImageAsyncTests();
+        ImageHolderTests();
         DiagnosticAttributionTests();
         StageTimingTests();
         PointQueryScopeTests();
@@ -690,6 +708,8 @@ int main()
         SDL_Window* window = SDL_CreateWindow("Metal backend tests", 12, 8, SDL_WINDOW_METAL | SDL_WINDOW_HIDDEN);
         Require(window != nullptr, "SDL Metal window");
         NativeLayerInitializationTests(window);
+        NativePendingFillTests(window);
+        const bool staticPresentationVerified=NativeStaticPresentationTests(window);
         for (int session = 0; session < 2; ++session) {
             std::unique_ptr<iTVPRenderBackend> gpu(krkrsdl3::MetalRenderBackend::Create(window, false));
             Require(gpu && gpu->IsHardware() && std::strcmp(gpu->GetName(), "metal") == 0, "native backend initialization");
@@ -713,6 +733,10 @@ int main()
         }
         SDL_DestroyWindow(window);
         SDL_Quit();
+        if(!staticPresentationVerified) {
+            std::cout<<"SKIP: native rendering ran, static presentation acknowledgement remains unverified\n";
+            return 77;
+        }
         std::cout << "PASS: native Metal transfer, all Layer blends, mesh/mask, capture and submission cadence tests\n";
 #else
         std::cout << "PASS: diagnostic attribution/sampling/stage timing and software reference transfer tests; native Metal requires Apple + SDL3 (not tested)\n";

@@ -78,6 +78,7 @@ public:
 uint64_t TestDrawTexture::nextID=0;
 class TestDrawNativeLayer:public tTJSNativeInstance {
 public:
+    uint64_t GetLayerDiagnosticID() const { return 101; }
     TestDrawTexture* texture;
     int updates=0,cow=0;bool modified=false,throwPrepare=false,throwUpdate=false;
     tTVPRect clip;

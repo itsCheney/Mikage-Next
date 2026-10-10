@@ -50,6 +50,7 @@ public:
 uint64_t TestDrawTexture::nextID=0;
 class TestDrawNativeLayer : public tTJSNativeInstance {
 public:
+    uint64_t GetLayerDiagnosticID() const { return 100; }
     TestDrawTexture* texture;
     int updates=0,cow=0;
     tTVPRect clip;

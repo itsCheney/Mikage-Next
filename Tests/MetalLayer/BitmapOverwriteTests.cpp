@@ -47,6 +47,7 @@ void TVPRemoveCompactEventHook(tTVPCompactEventCallbackIntf* hook) {
 class TestLayerCopy {
 public:
     tTVPNativeBaseBitmap* MainImage;
+    uint64_t LayerDiagnosticID=1;
     bool ImageModified=false;
     iTVPTexture2D* GetMainImageTextureForCPUAccess(bool);
     iTVPTexture2D* GetMainImageTextureForSpanComposite();

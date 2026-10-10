@@ -69,13 +69,13 @@ def main():
                                     "static tExtTVPScenarioCacheItem* TVPGetScenario(")
             end = text.index(get_scenario) + len(get_scenario)
             unit = temp / (name + ".cpp")
-            unit.write_text(prefix + "\n" + production_lifecycle + "\n" +
+            unit.write_text('#include "CPUFrameDiagnostics.h"\n' + prefix + "\n" + production_lifecycle + "\n" +
                             text[start:end] + "\n" + tests, encoding="utf-8")
             for debug in (False, True):
                 mode = "debug" if debug else "release"
                 exe = temp / (name + "-" + mode + (".exe" if os.name == "nt" else ""))
                 command = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
-                           str(unit), "-o", str(exe)]
+                           '-I'+str(args.source/'core/render'), str(unit), "-o", str(exe)]
                 if debug:
                     command.append("-D_DEBUG")
                 subprocess.run(command, check=True)

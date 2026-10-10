@@ -7,7 +7,7 @@ namespace layer_hotspot=krkrsdl3::layer_hotspot;
 namespace layer_initialization=krkrsdl3::layer_initialization;
 struct ProductionTrace {
     struct Resource {int width=0,height=0,bytesPerPixel=4;ResourceInfo diagnostic;};
-    Recorder hotspots;uint64_t diagnosticResourceSerial=0,diagnosticEncoderSerial=8;
+    Recorder hotspots;uint64_t diagnosticResourceSerial=0,diagnosticEncoderSerial=8,logicalOperationSerial=0;
     #include "ProductionHotspotTrace.inc"
 };
 int main() {
@@ -17,11 +17,19 @@ int main() {
     actualTarget.width=actualSource.width=4;actualTarget.height=actualSource.height=4;
     actualTarget.diagnostic.identity=CreatedIdentity(44,45);
     actualSource.diagnostic.identity=CreatedIdentity(44,46);
-    production.Trace(Access::Rect,1,&actualTarget,&actualSource,{0,0,4,4},{0,0,2,2},{1,1,4,4});
+    TVPLayerOperation parameters;parameters.kind=TVPLayerOperationKind::Copy;
+    parameters.color=0x12345678;parameters.opacity=67;parameters.flags=9;
+    {
+        Scope receiver(0,"bitmap",99,ReceiverKind::Bitmap);
+        production.Trace(Access::Rect,1,&actualTarget,&actualSource,{0,0,4,4},{0,0,2,2},{1,1,4,4},true,0,-1,&parameters,1);
+    }
     auto actual=production.hotspots.Freeze(1);
     if(actual->totals.calls!=1 || actual->totals.pixels!=9 || actual->totals.scaledPixels!=9 ||
        actual->resources[0].generation==actual->resources[1].generation ||
-       actual->operations[0].encoder!=8 || actual->operations[0].full || actual->operations[0].readsTarget)
+       actual->operations[0].encoder!=8 || actual->operations[0].full || actual->operations[0].readsTarget ||
+       actual->operations[0].receiver!=99 || actual->operations[0].receiverKind!=2 ||
+       actual->operations[0].flags!=9 || actual->operations[0].color!=0x12345678 ||
+       actual->operations[0].opacity!=67 || actual->operations[0].sampling!=1 || actual->operations[0].logicalID!=1)
         throw std::runtime_error("production trace resource/clip/traits");
     Recorder recorder;OutputGate gate;
     const auto log=[](const char* text){std::puts(text);};

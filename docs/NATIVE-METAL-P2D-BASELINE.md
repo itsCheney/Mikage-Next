@@ -1,5 +1,7 @@
 # P2D 首轮：普通 Layer 归因与延迟初始化
 
+> 本文为首轮历史基线。后续 D0 v2、Fill 合并、D3 与 CPU 治理及当前待验状态见 [P2D 收口基线](NATIVE-METAL-P2D-CLOSEOUT-BASELINE.md)。
+
 2026-10-10。本地实现及 Windows portable 验证完成，未提交、未推送。实施起点三仓干净：Root `17d0773a528a59311de305b28c925c34899f2fbc`、Runtime `3a8179cfb8f24e0f4456aa5e98f5c45844442f51`、Core `484e92734f46accf3af50fb8ce79a3b3dbe3690f`。
 
 这是 D0 与保守 D1 的实现记录。Apple Objective-C++/MSL 编译、原生 tile/forced-compute、App device/simulator 和 nominal 真机 A/B 尚未完成；不宣称 GPU 性能、功耗或道路热点资产归因已经签收。D3 行为没有修改。

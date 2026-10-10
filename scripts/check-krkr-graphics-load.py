@@ -27,15 +27,16 @@ def main():
     if not compiler: p.error('C++17 compiler required')
     source=(a.source/'core/media/image/TVPGraphicsLoader.cpp').read_text(encoding='utf-8')
     production='\n'.join(definition(source,s)+(';' if s.startswith('struct ') else '') for s in ['static void TVPTrimGraphicCache(',
-        'static void TVPCheckGraphicCacheLimit()', 'void TVPClearGraphicCache()',
-        'struct tTVPClearGraphicCacheCallback', 'static void TVPTagGraphicDiagnosticAsset(',
+        'static void TVPCheckGraphicCacheLimit()', 'static bool TVPCommitGraphicCache(', 'void TVPClearGraphicCache()',
+        'bool TVPCheckImageCache(',
+        'struct tTVPClearGraphicCacheCallback', 'void TVPTagGraphicDiagnosticAsset(',
         'int TVPLoadGraphic(iTVPBaseBitmap* dest,'])
     root=Path(__file__).resolve().parent.parent
     with tempfile.TemporaryDirectory(prefix='mikage-graphic-load-',dir=a.work_dir) as folder:
         unit=Path(folder)/'test.cpp'; exe=Path(folder)/('test.exe' if os.name=='nt' else 'test')
         unit.write_text((root/'Tests/KRKRRuntime/GraphicsLoadHarness.hpp').read_text(encoding='utf-8')+'\n'+production+'\n'+
                         (root/'Tests/KRKRRuntime/GraphicsLoadHarness.cpp').read_text(encoding='utf-8'),encoding='utf-8')
-        subprocess.run([compiler,'-std=c++17','-O2','-I'+str(a.source/'core/render'),str(unit),'-o',str(exe)],check=True)
+        subprocess.run([compiler,'-std=c++17','-O2','-I'+str(a.source/'core/render'),'-I'+str(a.source/'core/media/image'),str(unit),'-o',str(exe)],check=True)
         subprocess.run([str(exe)],check=True)
     return 0
 
