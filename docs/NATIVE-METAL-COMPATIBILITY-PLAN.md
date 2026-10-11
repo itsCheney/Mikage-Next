@@ -459,13 +459,17 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 2026-10-10 收口包：按 D0 补齐 → D1 绘制合并 → D3 固定开销 → CPU 缓存与调用归因 → D2 配对验收推进。**实现及 Windows portable 检查完成，Apple 原生正确、设备新路径命中与 nominal 性能均保留待验；CPU 长帧未签收。** 分包范围、开关、旧日志长帧证据和待验矩阵见 [P2D 收口基线](NATIVE-METAL-P2D-CLOSEOUT-BASELINE.md)。本轮不提交、不推送。
 
-2026-10-11 CI进展：普通 Metal backend tile/forced-compute、parser 与 MetalLayer 主比较通过；静止 present 两项为 SKIP，真实显示待验。runtime framework 的 host 栈回调类型名错误已本地修复，新增生产回调编译及边界回归通过；framework/App须复跑。详见 [CI记录](CI-FAILURE-38071661074.md)，设备路径和性能签收状态保持待验。
+2026-10-11 CI进展：普通 Metal backend tile/forced-compute、parser 与 MetalLayer 主比较通过；静止 present 两项为 SKIP，真实显示待验。runtime framework 的 host 栈回调类型名错误已本地修复，新增生产回调编译及边界回归通过；framework/App须复跑。旧独立CI故障文档已移除，设备路径和性能签收状态保持待验。
 
 2026-10-11设备进展：`After_P2D_2` / Root `8e3b7448f0ee` 确认道路资产、receiver及Fill deferred→omitted→Copy顺序；三游戏Fill省略2908/1243/1279，静止present最后可见累计skip1008/1041/174，DRACU未消费缓存租约取消511。CPU仍有885–1089ms step，场景重建慢调用与详情限额已明确；千恋/DRACU首窗thermal2、天使中途升温，尚无nominal配对。只推进设备路径命中，完整原生矩阵、CPU及性能签收保持待验，详见 [新设备分析](NATIVE-METAL-P2D-2-DEVICE-ANALYSIS.md)。
 
 CPU续查已补PSB open/read/decompress/tables/materialize及普通owner树销毁精确scope；CPU v2保留最慢两step的外层/原生阶段，修复先到内层挤掉外层证据。生产PSB与真实VM回归通过，当前游戏PSB实际占比仍须新包日志裁决；没有提前修改场景缓存/脚本语义或签收性能。详见 [续查基线](NATIVE-METAL-P2D-CPU-TRACE-BASELINE.md)。
 
 CPU第二轮复核确认字体/系统语音/影片打开等独立慢调用，重窗口有大量VM调用与30–46ms已记录诊断扰动；GPU同步读回及Emote计算不符合几个约1秒窗口的主要成本。新增生产回归证明外部root引用可让对象树在PSB实例删除之后才释放，因此psb.destroy小不能排除一般释放成本。归因与裁决边界见 [其它原因复核](NATIVE-METAL-P2D-CPU-OTHER-CAUSES.md)。
+
+2026-10-11新设备归因：`After_P2D_3` / Root `302c7bc21718` 五游戏确认CPU v2、PSB及scope内vmCalls生效。天使968.497ms step内materialize443.413ms，同窗口destroy291.569ms；9-nine1713.236ms step所在窗口有12次PSB load，materialize总594.022ms、destroy总352.879ms，不能只看单次最大值。千恋1573.960ms runtime step所在窗口67次图片加载的imageOpen总1418.549ms；天使另有event区域111.496ms/VM仅22次的112.289ms帧；NEKOPARA有267.529ms Emote资源加载。PSB构建/释放、PIMG/XP3打开分解、剩余内层VM及host事件边界分别推进，NEKOPARA修复优先级仍后排。D1/D3路径继续命中，nextDrawable仍有约30–64ms慢样本；原生完整矩阵、nominal配对与CPU性能保持待验。详见 [After_P2D_3设备分析](NATIVE-METAL-P2D-3-DEVICE-ANALYSIS.md)。
+
+持续发热仍未签收：同批完整profile平均天使47.96、千恋19.96、DRACU28.18个render pass/tick；天使累计差约每秒4599实际draw、560.5M逻辑像素，约80% pass结束由target切换触发。C3全部glyph命中，天使tiny-upload仅10批，不能沿用旧“逐字形blit主因”归因。发热主线优先追持续Layer/cache合成、target切换及GPU Copy/snapshot/COW，再核对静止present上游失效；PSB优先级用于卡顿，诊断扰动单独配对。计数不当作瓦数或真实DRAM流量，见[持续发热复核](NATIVE-METAL-P2D-3-THERMAL-FOLLOWUP.md)。
 
 目标：处理已证实的 **GPU-bound ordinary Layer fragment workload**，特别是滚动/缩放背景叠加 full-surface Copy、CopyColor、Fill、Alpha 与 alias/snapshot 时的 pass 数、像素量和 presentation backpressure。它不属于 P2C 的 CPU/GPU boundary：`gpuSyncWaitMS=0`、读回或上传为零不能证明此类场景足够快；也不以减少诊断计数、降低画质或改变脚本绘制顺序为目标。第 2.6 节的天使纷扰道路场景是首要回归；第 2.7 节证明碎片化与 overdraw 在五款游戏的整段游玩中持续存在（去掉 blit 后仍有约 8–19 pass/帧，Fill 占像素 38%），并给出 D3 的固定开销项。
 
@@ -481,6 +485,11 @@ CPU第二轮复核确认字体/系统语音/影片打开等独立慢调用，重
 #### D1. 在严格顺序语义下减少 full-surface 工作和 pass
 
 **D1 保守子域与单槽 Fill 合并本地实现完成，原生及性能待验：**本轮在 ordinary tile、flags=0 域延迟最后一个 Fill draw；后继完整覆盖 Fill 或验证成功的非 alias 满幅 RGBA Copy 可以省略它，观察/提交/异常边界保持已接受写入。`MIKAGE_METAL_LAYER_COALESCE_FILL=0` 独立关闭合并。首轮 普通 Layer pending-zero、首个 tile pass 融合清零、完整 upload/GPU blit 取消初始 clear、无同目标活跃 pass 时完整 RGBA Fill→load-action clear，以及所有消费者初始化保护。`MIKAGE_METAL_LAYER_LAZY_INIT=0` 恢复旧创建/Fill路径用于 A/B。一般 ROI、跨目标 batching 和道路专用路径继续保留为后续候选。
+
+**2026-10-11 发热复查后的两项窗口合成修正（本地实现、Windows portable 检查通过，Apple 原生与设备待验）：**
+- Primary 自拷贝：不透明 Primary 让子层直接画进 DrawBuffer，`tTVPLayerManager::DrawCompleted` 随后又把 DrawBuffer 以同坐标 Blt 回自身；Metal 为此做 alias snapshot 并断开 pass。`render/PrimaryCompletion.h` 只在 bmp==DrawBuffer、ltOpaque、opacity 255、同起点同尺寸时跳过（该组合在 HoldAlpha 真/假下都是恒等拷贝），其它偏移、半透明、混合类型与子层图像不变。五游戏 After_P2D_3 保留样本中此类自拷贝数与 blit encoder 数基本一一对应。
+- update region 合并：ComplexRect 分带会把一行文字拆成 13×1、39×1 细条，每条矩形各走 7–13 个 pass。`render/UpdateRegionCoalescing.h` 在 `NotifyUpdateRegionFixed`（BeforeCompletion 之后、遍历之前）按“每矩形 65536 像素当量”贪心合并为互不相交的外接矩形；只在 Metal Layer 会话生效，软件合成保留原区域，`MIKAGE_METAL_LAYER_COALESCE_UPDATES=0` 关闭。重画多出的像素只是当前 Layer 树的重新合成，与原有 `TVP_UPDATE_UNITE_LIMIT` 同语义。单位权重来自 365 个保留 command 拟合（约 51µs/pass、0.57ms/Mpx），须用设备配对复核。
+- 回归：`Tests/MetalLayer/PrimaryCompletionTests.cpp` 抽取生产 `DrawCompleted`/`NotifyUpdateRegionFixed`/两个 `Blt`，覆盖恒等跳过零后端工作、其它组合仍执行一次且像素与软件结果一致、DrawBuffer 创建/增长、设备样本矩形 fixture、随机不变量（互不相交、覆盖输入、不超外接框、模型成本不升）与会话/开关门控；两项均做过变异验证。设备验收看 render pass/tick、blit/tick、snapshot bytes、天使/千恋文本推进时段 GPU command 与热状态曲线。
 
 - [ ] 先区分必要重绘（动画位置、透明合成、规则/clip、目标旧值或 alias 所要求）与可证明冗余的 full-surface operation。为道路滚动建立可重放存档/输入、资源尺寸、层级及逐帧 operation 序列，不以单个 heartbeat 推断所有帧。
 - [ ] 只在像素/顺序证明成立时采用 dirty ROI/scissor、同目标 pass 复用/安全 batching、已知完全覆盖下的冗余 clear/fill 消除、或专用滚动背景路径。目标/源别名、COW、lease、透明 alpha、clip 边缘、目标旧值依赖和中间可见结果必须先裁决；不能用“上一帧纹理复用”替代脚本要求的当前帧组合。

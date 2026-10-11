@@ -49,6 +49,19 @@ facade in place of the script/window machinery. Coverage includes:
 The full iOS framework build remains necessary to validate plugin and script
 class integration. Test checks remain active in Release builds.
 
+`PrimaryCompletionTests.cpp` extracts the production
+`tTVPLayerManager::DrawCompleted`, `NotifyUpdateRegionFixed`,
+`tTVPDestTexture::CopyRect` and both `iTVPBaseBitmap::Blt` overloads. An opaque
+Primary completing its own DrawBuffer at the same coordinates must encode no
+backend work and keep pixels; shifted self-copies, partial opacity, blending
+types and child images still compose exactly once and match the software Blt
+(copies exact, blends within 1). DrawBuffer creation/growth keep the black fill.
+Update-region coalescing is checked on rectangles retained from device samples,
+pseudorandom unions (disjoint output covering every input, inside the bound, no
+higher modeled cost, beyond the greedy limit too) and its gate: only an active
+Metal Layer session coalesces, and `MIKAGE_METAL_LAYER_COALESCE_UPDATES=0`
+restores the original regions. Portable runs do not measure GPU pass cost.
+
 Additive-alpha, Photoshop multiply/overlay/hard-light/screen/color-dodge5, add,
 and straight-to-premultiplied conversion compile the production MSL scalar
 helpers as C++ and compare 1,835,008 exact pixels with tvpgl, including

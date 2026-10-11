@@ -4,7 +4,7 @@
 
 实施顺序为 D0 → D1 → D3 → CPU → D2。本记录区分实现、portable 验证、原生正确、设备路径命中与性能签收。Windows 结果不代表 Apple Objective-C++/MSL 编译或 iPhone 性能。
 
-2026-10-11 最新 CI：Root `4c22081` 的普通 tile/forced-compute 与三个 parser 通过；两项静止 present 为 SKIP，真实显示仍待验。MetalLayer 比较及 release 测量步骤成功，主比较记录78,463次、3个session。runtime framework 随后因 host 的 `TJS::tjs_uint` 类型名错误停止；已修正并补生产回调编译回归，framework/App 仍待复跑，详见 [第三次CI记录](CI-FAILURE-38071661074.md)。前次首次呈现探测修复见 [第二次CI记录](CI-FAILURE-38070082782.md)。
+2026-10-11 CI历史：Root `4c22081` 的普通 tile/forced-compute 与三个 parser 通过；两项静止 present 为 SKIP，真实显示仍待验。MetalLayer 比较及 release 测量步骤成功，主比较记录78,463次、3个session。runtime framework 随后因 host 的 `TJS::tjs_uint` 类型名错误停止；已修正并补生产回调编译回归，framework/App 仍待复跑。前次首次呈现探测亦已修复；旧独立CI故障文档已移除，此处保留验证边界。
 
 2026-10-11设备补充：`After_P2D_2` 均为 Root `8e3b7448f0ee`，D0 v2、D1 Fill省略、D3静止present及DRACU未消费缓存取消均有真机命中。三主session仍有885–1089ms CPU step；只有天使首段nominal，其后升至thermal1/2，千恋/DRACU首窗已thermal2。更新只签收路径命中，CPU与D2性能仍待验，详见 [设备日志分析](NATIVE-METAL-P2D-2-DEVICE-ANALYSIS.md)。上一段CI是对应旧提交的历史记录。
 
@@ -93,6 +93,8 @@ python scripts/analyze-cpu-calls.py <device.jsonl> --output build/p2d-cpu-calls.
 CPU输出按run/epoch/window/step/call关联，检查详情与总账、缺行/丢弃/未知栈。inclusive时间不可相加，不叫纯VM CPU。剩余隐藏跳读成本必须由本构建新调用日志说明；本轮没有强制yield、分帧、降低画质或减少正常绘制。
 
 ## 05：验证与 D2 配对验收
+
+2026-10-11 `After_P2D_3` / Root `302c7bc21718` 已确认CPU v2/PSB设备归因及D1/D3持续命中；长帧分出PSB树构建/销毁、图片imageOpen累计、host事件区域与NEKOPARA Emote加载。完整frame样本、热阶段、详情溢出、道路GPU与后续优先级见 [第三轮设备分析](NATIVE-METAL-P2D-3-DEVICE-ANALYSIS.md)。只推进设备证据状态，不签收CPU或匹配性能，Apple矩阵本轮未复跑。
 
 Windows验证产物集中在 `build/native-metal-p2d-closeout-baseline/`：MetalLayer 9/9、Backend 4/4（含GPU与CPU emitter→parser）、LayerInput 1/1；13个生产C++ TU syntax、graphics-load、frame-time、三套KAG release/debug与session-exit检查。原生测试正文编译为未链接object；没有在Windows执行Metal backend。
 

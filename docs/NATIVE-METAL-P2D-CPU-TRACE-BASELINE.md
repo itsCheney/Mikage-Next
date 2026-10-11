@@ -45,6 +45,8 @@ PSB测试已接入iOS workflow前置阶段；Windows结果不代表Apple重跑�
 
 ## 下一次重放的裁决
 
+2026-10-11已收到 `After_P2D_3` / Root `302c7bc21718`，五游戏CPU v2/PSB/vmCalls设备命中，两个解析器均通过。PSB materialize及同步destroy已确认重成本；千恋冷UI窗口还确认67次imageOpen累计约1.42s，天使有独立host事件长帧，9-nine重窗口有12次PSB加载，NEKOPARA有Emote慢资源加载。原生完整矩阵和配对性能保持待验；下述文字保留原重放方法，最新裁决与下一包优先级见 [After_P2D_3设备分析](NATIVE-METAL-P2D-3-DEVICE-ANALYSIS.md)。
+
 待本包进入通过CI的新包后，用同一存档和输入重放天使skipToStop及千恋/DRACU场景跳转。提供完整日志即可，优先等待nominal，保留各热阶段。
 
 若重step的PSB materialize或destroy占比高，下一包针对已经测到的对象树构建/同步释放开销；若open/read/decompress高，沿archive/filter/MDF继续分解；若这些阶段都很小，则依据保留下来的外层VM、子调用与残余wall追其它原生入口或脚本循环。不会依据旧脚本或“缓存已有命中”提前宣布某个优化能解决长帧。

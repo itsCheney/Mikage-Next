@@ -84,6 +84,14 @@ add_custom_command(OUTPUT "${GENERATED_TRIANGLE_BRIDGE}"
     DEPENDS "${TRIANGLE_BRIDGE_SOURCE}" "${CORE}/../host/MikageKRKRRuntime.h"
             "${CMAKE_CURRENT_LIST_DIR}/extract-triangle-profile.py"
     VERBATIM)
+set(GENERATED_PRIMARY_COMPLETION "${CMAKE_CURRENT_BINARY_DIR}/ProductionPrimaryCompletion.inc")
+add_custom_command(OUTPUT "${GENERATED_PRIMARY_COMPLETION}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-primary-completion.py"
+            --manager-source "${CORE}/core/render/LayerManager.cpp" --bitmap-source "${BITMAP_SOURCE}"
+            --output "${GENERATED_PRIMARY_COMPLETION}"
+    DEPENDS "${CORE}/core/render/LayerManager.cpp" "${BITMAP_SOURCE}"
+            "${CMAKE_CURRENT_LIST_DIR}/extract-primary-completion.py"
+    VERBATIM)
 set(GENERATED_AFFINE_MATH "${CMAKE_CURRENT_BINARY_DIR}/ProductionAffineMath.inc")
 add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-affine-math.py"
@@ -91,6 +99,7 @@ add_custom_command(OUTPUT "${GENERATED_AFFINE_MATH}"
     DEPENDS "${UNIV_SHADER_SOURCE}" "${CMAKE_CURRENT_LIST_DIR}/extract-affine-math.py"
     VERBATIM)
 add_executable(metal-layer-tests MetalLayerTests.cpp BitmapOverwriteTests.cpp TriangleProfileTests.cpp TestPlatform.cpp
+    PrimaryCompletionTests.cpp "${GENERATED_PRIMARY_COMPLETION}"
     CapabilityAuditTests.cpp CompilationFailureTests.cpp OperationContractTests.cpp C0ProfileTests.cpp
     P1AShaderTests.cpp
     TransitionHandlerTests.cpp TransitionShaderTests.cpp C4ProfileTests.cpp "${GENERATED_TRANSITION_MATH}"
