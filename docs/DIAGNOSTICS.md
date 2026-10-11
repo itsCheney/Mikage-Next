@@ -19,6 +19,7 @@
 - Metal Layer heartbeat 额外记录 GPU→CPU readback 来源、software fallback 首次回读的 target/source/reference 角色，以及 GPU 路径拒绝原因（如 targetCPUResident、unsupportedMethod、multipleInputs、triangles/perspective 等），用于区分兼容性回退和可优化的数据搬运。
 - `heartbeat.profile.commandIntervalProfile` 记录相邻心跳之间的 Metal render/compute/blit encoder、网格绘制、Emote 蒙版重画、`LayerDrawRect` 快照字节、ring 上传、command buffer，以及普通 Emote→Layer 的 GPU 复制或同步 CPU 回读。`ticks` 是同一段内的回调次数；首条心跳只建立基线。蒙版 group 只按源节点身份去重，不代表内容未变化。
 - 浮层安装、菜单开关、移除；KRKR 原有日志/异常标题与 SDL 已产生的日志。保留 SDL 原输出回调，不替换 TJS 脚本日志处理器。
+- `threadCPU` 每秒记录一次进程内全部线程的 CPU：`processCPUPercent` 是所有线程合计、以单核为 100%（可超过 100）；`threads` 按线程名合并、从高到低列出前 16 组（`名称×线程数:百分比`，主线程记为 `main`）。数据来自 Mach `THREAD_EXTENDED_INFO`，首个窗口只建立基线，窗口内新建的线程从下一窗口开始计入。`heartbeat` 的 step/script 计时只覆盖主线程，后台线程（音频解码、视频解复用、SDL 音频）的忙等只能从这里看到。性能 HUD 同时显示合计值与最忙的两组线程。
 
 ## 复现 Emote 卡顿
 
@@ -62,7 +63,7 @@
 
 ## 存储与隐私
 
-日志仅保存在 `Application Support/Mikage/Logs`，最多四个约 2 MiB 的 JSONL 分段；轮转删除最旧分段。后台串行写入，入口队列和单条内容均有限制；过载时丢弃日志并在后续记录中标记数量。磁盘失败停止记录并在设置提示。每秒及前后台/退出时刷盘。
+日志仅保存在 `Application Support/Mikage/Logs`，最多四个约 4 MiB 的 JSONL 分段（合计约 16 MiB）；轮转删除最旧分段。后台串行写入，入口队列和单条内容均有限制；过载时丢弃日志并在后续记录中标记数量。磁盘失败停止记录并在设置提示。每秒及前后台/退出时刷盘。
 
 关闭开关停止 App 日志采集和额外诊断采样，但保留现有文件。导出为不可变的 JSONL 快照，经系统分享面板交给用户，不自动上传。清除只删除 logger 的固定分段，不删除游戏文件。下一次导出会清理此前的临时导出副本。
 

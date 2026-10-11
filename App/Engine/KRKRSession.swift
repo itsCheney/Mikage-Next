@@ -102,6 +102,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var previousCommandCounters: [String: UInt64] = [:]
     private var lastStepResult = "none"
     private var isStepping = false
+    private let threadCPU = ThreadCPUSampler()
 
     override init() {
         super.init()
@@ -533,6 +534,17 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     private func updateMetrics() {
         guard state == .running || state == .stopping else { return }
+        // One sample per metrics tick keeps the window at one second.
+        let cpuSample = AppDiagnostics.shared.isEnabled || performanceEnabled ? threadCPU.sample() : nil
+        if let cpuSample, AppDiagnostics.shared.isEnabled {
+            AppDiagnostics.shared.event("session", "threadCPU", [
+                "processCPUPercent": String(format: "%.1f", cpuSample.processPercent),
+                "threadCount": String(cpuSample.threadCount),
+                "threads": cpuSample.summary(limit: 16),
+                "foreground": String(isForeground),
+                "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue)
+            ])
+        }
         if AppDiagnostics.shared.isEnabled {
             var diagnosticStats = MikageKRKRStats()
             if MikageKRKRGetStats(&diagnosticStats) {
@@ -918,6 +930,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerPsTableUploads: raw.layerPsTableUploads,
                 layerPsTableUploadedBytes: raw.layerPsTableUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
+                processCPUPercent: cpuSample?.processPercent ?? -1,
+                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
                 elapsedSeconds: elapsedSeconds
             )
         )
