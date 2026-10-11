@@ -6,13 +6,15 @@
 
 2026-10-11 最新 CI：Root `4c22081` 的普通 tile/forced-compute 与三个 parser 通过；两项静止 present 为 SKIP，真实显示仍待验。MetalLayer 比较及 release 测量步骤成功，主比较记录78,463次、3个session。runtime framework 随后因 host 的 `TJS::tjs_uint` 类型名错误停止；已修正并补生产回调编译回归，framework/App 仍待复跑，详见 [第三次CI记录](CI-FAILURE-38071661074.md)。前次首次呈现探测修复见 [第二次CI记录](CI-FAILURE-38070082782.md)。
 
+2026-10-11设备补充：`After_P2D_2` 均为 Root `8e3b7448f0ee`，D0 v2、D1 Fill省略、D3静止present及DRACU未消费缓存取消均有真机命中。三主session仍有885–1089ms CPU step；只有天使首段nominal，其后升至thermal1/2，千恋/DRACU首窗已thermal2。更新只签收路径命中，CPU与D2性能仍待验，详见 [设备日志分析](NATIVE-METAL-P2D-2-DEVICE-ANALYSIS.md)。上一段CI是对应旧提交的历史记录。
+
 | 改动包 | 实现与 portable 验证 | Apple 原生正确 | 本次设备命中 | 性能签收 |
 | --- | --- | --- | --- | --- |
-| D0 v2 归因 | 已接入；v1/v2 emitter→parser 与旧日志回归 | 待验 | v2 待新日志 | 不适用；还须测诊断开销 |
-| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS backend tile/compute及MetalLayer主比较通过；iOS待验 | 新游戏路径待验 | 待 nominal 配对 |
-| D3 转场缓存 | 已接入；抽取真实 lease/materialize/stop 生命周期测试 | 完整 begin/Draw/Complete/重入/OOM 路径待验 | 待验 | 待配对 |
-| D3 静止 present | 已接入；真实确认策略、16 项上限与迟到回调测试 | 真实 drawable acknowledgement 待验 | 待验 | 待配对 |
-| CPU 缓存、预取、调用归因 | 已接入；真实 holder、异步完成分支、缓存与 KAG 生命周期测试 | host 编译及真实 codec 对照待验 | 待新调用日志 | **CPU 长帧仍未签收** |
+| D0 v2 归因 | 已接入；v1/v2 emitter→parser 与旧日志回归 | iPhone emitter→parser可解析；有界不完整明示 | 道路asset/receiver/顺序映射成立 | 不适用；还须测诊断开销 |
+| D1 单槽 Fill 合并 | 已接入；覆盖政策、原生测试正文编译 | macOS backend tile/compute及MetalLayer主比较通过；iPhone像素边界专项待验 | 三游戏省略2908/1243/1279；道路有完整有序证据 | 待 nominal 配对 |
+| D3 转场缓存 | 已接入；抽取真实 lease/materialize/stop 生命周期测试 | 完整 begin/Draw/Complete/重入/OOM 路径待验 | DRACU取消511个未消费租约；天使/千恋未证明取消域 | 待配对 |
+| D3 静止 present | 已接入；真实确认策略、16 项上限与迟到回调测试 | iPhone确认后skip命中；全部生命周期待验 | 最后可见累计skip1008/1041/174 | 待配对 |
+| CPU 缓存、预取、调用归因 | 已接入；真实 holder、异步完成分支、缓存与 KAG 生命周期测试 | host回调已在设备输出栈；真实codec对照待验 | 图片/KAG缓存命中；场景重建慢链成立；预取无证据 | **CPU 长帧仍未签收** |
 | D2 | 分离指标、开关和配对要求已登记 | — | 无本轮配对数据 | 待验 |
 
 ## 输入证据与长帧边界
@@ -68,6 +70,8 @@ skip 仍调用离屏 Submit，runtime tick/输入/脚本继续执行。只省 dr
 独立开关为 `MIKAGE_METAL_DEFER_TRANSITION_CACHE` 与 `MIKAGE_METAL_STATIC_PRESENT`，默认1，backend/session初始化读取。`metal.staticPresentation` 输出跳过/拒绝及转场缓存 eligible/materialized/cancelled 累计。
 
 ## 04：CPU 缓存、touch 与调用归因
+
+2026-10-11续查包：针对After_P2D_2的长step补PSB阶段和同步对象树销毁归因，CPU v2改为最慢两step的四角色候选，保留外层与先完成的原生阶段；解析器保留v1。生产PSB/VM/边界回归通过，实际设备PSB占比及CPU长帧仍待验，见 [CPU续查基线](NATIVE-METAL-P2D-CPU-TRACE-BASELINE.md)。下述首轮实现保留为历史范围说明。
 
 `CPUFrameDiagnostics.h` 在 host 事件处理前建立 epoch+stepID，覆盖event、pending input及iterate。VM调用保存callID/parentCallID；在返回或异常展开、tracer pop前完成捕获，并在 ExecuteCode 的局部 code pointer 失效前冻结位置。新增栈API写入调用方固定缓冲，最多4层/512 bytes，不构造完整长路径字符串。
 

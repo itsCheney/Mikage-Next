@@ -252,6 +252,71 @@ void strippedBytecodeHasUnverifiedPosition()
     }
     assertReset();
 }
+
+uint64_t cpuFixtureTime=1;
+std::vector<std::string> cpuFixtureLines;
+class SlowNativeProbe : public tTJSDispatch {
+public:
+    tjs_error FuncCall(tjs_uint32,const tjs_char*,tjs_uint32*,tTJSVariant*,
+                      tjs_int,tTJSVariant**,iTJSDispatch2*) override {
+        krkrsdl3::cpu_frame::EventScope phase(krkrsdl3::cpu_frame::Kind::PSBMaterialize);
+        cpuFixtureTime+=20000000;
+        return TJS_S_OK;
+    }
+};
+void deferredProductionStacksSurviveUnwind()
+{
+    namespace cpu=krkrsdl3::cpu_frame;
+    const auto savedClock=cpu::clockNS;
+    cpu::clockNS=[](){return cpuFixtureTime;};
+    cpu::rawLine=[](const char* line){cpuFixtureLines.emplace_back(line);};
+    for(bool failure:{false,true}) {
+        assertReset();cpuFixtureTime=1;cpuFixtureLines.clear();
+        cpu::SetEnabled(true,failure?101:100,1);
+        diagnosticCallback.store(enabledCallback);
+        {
+            DiagnosticScriptTraceScope host;host.BeginSession();
+            {
+                tTJS vm;
+                auto* probe=new SlowNativeProbe;
+                tTJSVariant value(probe);probe->Release();
+                auto* global=vm.GetGlobalNoAddRef();
+                require(TJS_SUCCEEDED(global->PropSet(TJS_MEMBERENSURE,"cpuProbe",nullptr,&value,global)),
+                        "slow native probe registration failed");
+                bool threw=false;
+                {
+                    cpu::StepScope step;
+                    try {
+                        vm.ExecScript(failure ?
+                            "function inner(){cpuProbe();throw 'expected';} function outer(){inner();} outer();" :
+                            "function inner(){cpuProbe();} function outer(){inner();} outer();",
+                            nullptr,nullptr,"long-frame-fixture.tjs");
+                    } catch(...) {threw=true;}
+                }
+                require(threw==failure,"deferred attribution changed script exception behavior");
+                require(cpuFixtureLines.empty(),"slow detail emitted before selection boundary");
+            }
+            endDiagnosticScriptTraceSession();
+        }
+        assertReset(); // VM/tracer are gone before output: all retained stacks must be copies.
+        cpu::TakeWindow(1,2);
+        bool outer=false,native=false,step=false;
+        for(const auto& line:cpuFixtureLines) {
+            if(line.find("cpu.slow ")!=0)continue;
+            require(line.size()<=960,"deferred native line exceeded budget");
+            if(line.find("role=1 ")!=std::string::npos) {
+                outer=line.find("long-frame-fixture.tjs")!=std::string::npos;
+                require(line.find(failure?"failed=1 ":"failed=0 ")!=std::string::npos,
+                        "outer exception flag was not frozen before unwind");
+            }
+            if(line.find("kind=psb.materialize ")!=std::string::npos)
+                native=line.find("[inner]")!=std::string::npos && line.find("[outer]")!=std::string::npos;
+            step|=line.find("kind=step ")!=std::string::npos;
+        }
+        require(outer && native && step,"deferred production trace lost outer/native/step evidence");
+    }
+    cpu::SetEnabled(false,102,1);cpu::clockNS=savedClock;cpu::rawLine=nullptr;
+}
 }
 int main()
 {
@@ -262,9 +327,10 @@ int main()
         enableInsideCallbackIsDeferred();
         nestedRestartAndExternalOwner();
         strippedBytecodeHasUnverifiedPosition();
+        deferredProductionStacksSurviveUnwind();
         std::cout << "PASS: Release stack attribution, deferred nested toggles, exception unwind, "
                      "session restart/ref ownership, production CPU callback bounds/thread guard "
-                     "and stripped-bytecode fallback\n";
+                     "stripped-bytecode fallback and deferred production stacks after VM unwind\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n'; return 1;

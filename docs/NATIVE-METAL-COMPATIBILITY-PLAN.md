@@ -461,6 +461,12 @@ Windows MetalLayer 9/9、Backend 3/3、四个生产 TU syntax 和相关生命周
 
 2026-10-11 CI进展：普通 Metal backend tile/forced-compute、parser 与 MetalLayer 主比较通过；静止 present 两项为 SKIP，真实显示待验。runtime framework 的 host 栈回调类型名错误已本地修复，新增生产回调编译及边界回归通过；framework/App须复跑。详见 [CI记录](CI-FAILURE-38071661074.md)，设备路径和性能签收状态保持待验。
 
+2026-10-11设备进展：`After_P2D_2` / Root `8e3b7448f0ee` 确认道路资产、receiver及Fill deferred→omitted→Copy顺序；三游戏Fill省略2908/1243/1279，静止present最后可见累计skip1008/1041/174，DRACU未消费缓存租约取消511。CPU仍有885–1089ms step，场景重建慢调用与详情限额已明确；千恋/DRACU首窗thermal2、天使中途升温，尚无nominal配对。只推进设备路径命中，完整原生矩阵、CPU及性能签收保持待验，详见 [新设备分析](NATIVE-METAL-P2D-2-DEVICE-ANALYSIS.md)。
+
+CPU续查已补PSB open/read/decompress/tables/materialize及普通owner树销毁精确scope；CPU v2保留最慢两step的外层/原生阶段，修复先到内层挤掉外层证据。生产PSB与真实VM回归通过，当前游戏PSB实际占比仍须新包日志裁决；没有提前修改场景缓存/脚本语义或签收性能。详见 [续查基线](NATIVE-METAL-P2D-CPU-TRACE-BASELINE.md)。
+
+CPU第二轮复核确认字体/系统语音/影片打开等独立慢调用，重窗口有大量VM调用与30–46ms已记录诊断扰动；GPU同步读回及Emote计算不符合几个约1秒窗口的主要成本。新增生产回归证明外部root引用可让对象树在PSB实例删除之后才释放，因此psb.destroy小不能排除一般释放成本。归因与裁决边界见 [其它原因复核](NATIVE-METAL-P2D-CPU-OTHER-CAUSES.md)。
+
 目标：处理已证实的 **GPU-bound ordinary Layer fragment workload**，特别是滚动/缩放背景叠加 full-surface Copy、CopyColor、Fill、Alpha 与 alias/snapshot 时的 pass 数、像素量和 presentation backpressure。它不属于 P2C 的 CPU/GPU boundary：`gpuSyncWaitMS=0`、读回或上传为零不能证明此类场景足够快；也不以减少诊断计数、降低画质或改变脚本绘制顺序为目标。第 2.6 节的天使纷扰道路场景是首要回归；第 2.7 节证明碎片化与 overdraw 在五款游戏的整段游玩中持续存在（去掉 blit 后仍有约 8–19 pass/帧，Fill 占像素 38%），并给出 D3 的固定开销项。
 
 #### D0. 有界 hot-layer 归因：先把过量像素连回资源和 Layer

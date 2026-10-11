@@ -91,6 +91,11 @@ jobs:
           cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tjs-stack-trace-tests --parallel
           ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
+      - name: Test production PSB scene lifecycle attribution
+        run: |
+          cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/psb-file-tests --parallel
+          ctest --test-dir build/psb-file-tests --output-on-failure
       - name: Test layer input and pointer presentation lifecycle
         run: |
           cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release

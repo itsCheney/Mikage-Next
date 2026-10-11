@@ -16,6 +16,9 @@ The tests verify Release script/function attribution without TJS debug mode or
 object tracking, nested host callbacks, enabling/disabling during script calls,
 exception unwinding, shutdown, nested restart, an independent tracer owner,
 off-thread calls, failed startup and the production callback's buffer/frame caps.
+Deferred CPU attribution also runs the actual VM through normal and exceptional
+returns, destroys the VM/tracer, then emits retained stacks to verify they were
+copied before unwind and require no live VM objects at the output boundary.
 Bytecode stripped of source maps retains function attribution but can report a
 fallback line, so log positions remain
 explicitly unverified.
