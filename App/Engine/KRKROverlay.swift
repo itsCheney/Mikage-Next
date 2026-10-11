@@ -10,15 +10,26 @@ struct KRKRPerformanceSnapshot {
     var presentationWaitTimeMilliseconds = -1.0
     var drawableWidth: Int32 = 0
     var drawableHeight: Int32 = 0
-    var renderer = "Metal"
+    var renderer = RendererPreference.storageDefault.displayName
+    var gpuLayerComposition = false
+    var gpuLayerOperations: UInt64 = 0
+    var layerCPUFallbacks: UInt64 = 0
+    var layerUploadedBytes: UInt64 = 0
+    var layerReadbackBytes: UInt64 = 0
+    var layerGammaLUTUploads: UInt64 = 0
+    var layerGammaLUTUploadedBytes: UInt64 = 0
+    var layerPsTableUploads: UInt64 = 0
+    var layerPsTableUploadedBytes: UInt64 = 0
     var residentMemoryBytes: UInt64 = 0
+    /// All threads, percent of one core; negative until the second sample.
+    var processCPUPercent = -1.0
+    var busiestThreads = ""
     var elapsedSeconds = 0
 }
 
 @MainActor
 private final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
-    @Published var confirmExit = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
 
@@ -202,16 +213,6 @@ private struct KRKROverlayView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog(
-            "结束游戏并返回游戏库？",
-            isPresented: $model.confirmExit,
-            titleVisibility: .visible
-        ) {
-            Button("返回游戏库", role: .destructive) {
-                model.onExit?()
-            }
-            Button("继续游戏", role: .cancel) { }
-        }
         .sheet(
             isPresented: Binding(
                 get: { model.sharedImage != nil },
@@ -236,7 +237,19 @@ private struct KRKROverlayView: View {
                 Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
             }
             Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
+            Text("图层合成 · \(stats.gpuLayerComposition ? "GPU Metal" : "软件")")
+            if stats.gpuLayerComposition {
+                Text("算子 \(stats.gpuLayerOperations) · CPU 回退 \(stats.layerCPUFallbacks)")
+                Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
+            }
             Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            if stats.processCPUPercent >= 0 {
+                Text("全部线程 CPU \(stats.processCPUPercent, specifier: "%.0f")%")
+                if !stats.busiestThreads.isEmpty {
+                    Text(stats.busiestThreads)
+                        .lineLimit(1)
+                }
+            }
             Text("本次游玩 \(duration(stats.elapsedSeconds))")
         }
         .font(.system(size: 12, design: .monospaced))
@@ -270,7 +283,7 @@ private struct KRKROverlayView: View {
                     model.sharedImage = model.onScreenshot?()
                 }
                 action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
-                    model.confirmExit = true
+                    model.onExit?()
                 }
             }
         }
@@ -300,6 +313,6 @@ private struct KRKROverlayView: View {
     }
 
     private func duration(_ seconds: Int) -> String {
-        String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+        TimeInterval(seconds).playTimeClock
     }
 }

@@ -1,0 +1,39 @@
+Start testing: Oct 05 14:30 中国标准时间
+----------------------------------------------------------
+1/1 Testing: metal-layer-tests
+1/1 Test: metal-layer-tests
+Command: "D:/vn-sim/build/metal-layer-tests/metal-layer-tests.exe"
+Directory: D:/vn-sim/build/metal-layer-tests
+"metal-layer-tests" start time: Oct 05 14:30 中国标准时间
+Output:
+----------------------------------------------------------
+PASS production UnivTrans MSL integer helpers vs tvpgl: 3145728 exact pixels
+PASS production additive/PS/conversion MSL vs tvpgl: 1835008 exact pixels
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=9.8378 GPU encoding=9.6957 (120 operations)
+glyph CPU wall ms: software=0.1244 GPU encoding=0.1655 (320 glyphs)
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=10.032 GPU encoding=10.016 (120 operations)
+glyph CPU wall ms: software=0.1236 GPU encoding=0.1688 (320 glyphs)
+PASS UnivTrans three-source routing/geometry/alias: 252 exact surface comparisons
+PASS UnivTrans clipped/empty software fallbacks: 102 exact surface comparisons
+PASS Copy affine triangle: 369 exact comparisons and full-HD resident burst
+PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms
+composition CPU wall ms: software=10.076 GPU encoding=10.1019 (120 operations)
+glyph CPU wall ms: software=0.123 GPU encoding=0.1672 (320 glyphs)
+PASS device-double synchronization/lifetime (native pixel checks run on macOS): 4626 comparisons, 3 sessions
+<end of output>
+Test time =  21.53 sec
+----------------------------------------------------------
+Test Passed.
+"metal-layer-tests" end time: Oct 05 14:30 中国标准时间
+"metal-layer-tests" time elapsed: 00:00:21
+----------------------------------------------------------
+
+End testing: Oct 05 14:30 中国标准时间

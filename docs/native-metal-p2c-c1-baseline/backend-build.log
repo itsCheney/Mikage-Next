@@ -1,0 +1,4 @@
+[ 33%] Building CXX object CMakeFiles/metal-render-tests.dir/MetalRenderBackendTests.cpp.obj
+[ 66%] Building CXX object CMakeFiles/metal-render-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/backend/SWRenderBackend.cpp.obj
+[100%] Linking CXX executable metal-render-tests.exe
+[100%] Built target metal-render-tests

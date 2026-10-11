@@ -1,0 +1,22 @@
+[0/2] Re-checking globbed directories...
+[1/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDate.cpp.obj
+[2/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsBinarySerializer.cpp.obj
+[3/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.tab.cpp.obj
+[4/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/NativeFactoryTests.cpp.obj
+[5/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.cpp.obj
+[6/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsException.cpp.obj
+[7/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDictionary.cpp.obj
+[8/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp.obj
+[9/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMath.cpp.obj
+[10/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsLex.cpp.obj
+[11/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNative.cpp.obj
+[12/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsArray.cpp.obj
+[13/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsInterCodeExec.cpp.obj
+[14/22] Building C object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256.c.obj
+[15/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRandomGenerator.cpp.obj
+[16/22] Building C object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256Opt.c.obj
+[17/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObject.cpp.obj
+[18/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsOctPack.cpp.obj
+[19/22] Building CXX object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp.obj
+[20/22] Building C object CMakeFiles/tjs-native-factory-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/CpuArch.c.obj
+[21/22] Linking CXX executable tjs-native-factory-tests.exe

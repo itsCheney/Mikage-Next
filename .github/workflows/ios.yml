@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, codex/metal-render-backend]
+    branches: [main, master, beta, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -23,27 +23,126 @@ jobs:
           swift --version
           XCODE_CACHE_KEY="$(xcodebuild -version | shasum -a 256 | awk '{print $1}')"
           echo "XCODE_CACHE_KEY=${XCODE_CACHE_KEY}" >> "$GITHUB_ENV"
+          if [[ -n "${VCPKG_ROOT:-}" && -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]] || \
+             [[ -n "${VCPKG_INSTALLATION_ROOT:-}" && -f "${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" ]]; then
+            echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=false" >> "$GITHUB_ENV"
+          else
+            echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=true" >> "$GITHUB_ENV"
+          fi
       - name: Install project generator
-        run: brew install xcodegen sdl3
+        run: brew install xcodegen sdl3 ccache
       - name: Build and test native Metal backend
         run: |
           cmake -S Tests/MetalRenderBackend -B build/metal-render-tests \
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
+      - name: Compare Metal Layer with software RenderManager
+        run: |
+          cmake -S Tests/MetalLayer -B build/metal-layer-tests \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/metal-layer-tests --parallel
+          ctest --test-dir build/metal-layer-tests --output-on-failure --verbose
+      - name: Measure release Layer composition without validation
+        run: |
+          cmake -S Tests/MetalLayer -B build/metal-layer-release \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/metal-layer-release --parallel
+          MTL_DEBUG_LAYER=0 build/metal-layer-release/metal-layer-tests --performance
+          MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_SPECIALIZED_PIPELINES=0 build/metal-layer-release/metal-layer-tests --performance
+          MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_TILE_RENDERER=0 build/metal-layer-release/metal-layer-tests --performance
       - name: Test TJS shutdown and reentrant finalizers
         run: |
           cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests
           cmake --build build/tjs-shutdown-tests --parallel
           ctest --test-dir build/tjs-shutdown-tests --output-on-failure
           python3 scripts/check-krkr-frame-times.py
+          python3 scripts/check-krkr-emote-resource-cache.py
+          python3 scripts/check-krkr-emote-shared-cache.py
+          python3 scripts/check-krkr-session-exit.py
+          python3 scripts/check-krkr-point-read-trace.py
+          python3 scripts/check-krkr-graphics-load.py --source Engine/KRKRRuntime/Source/cpp
+      - name: Test bounded AlphaMovie decoding
+        run: |
+          cmake -S Tests/AlphaMovie -B build/alpha-movie-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/alpha-movie-tests --parallel
+          ctest --test-dir build/alpha-movie-tests --output-on-failure
+      - name: Test Emote metadata and shared resource loading
+        run: |
+          cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-metadata-tests --parallel
+          ctest --test-dir build/emote-metadata-tests --output-on-failure
+      - name: Test Emote animation integration
+        run: |
+          cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-animation-tests --parallel
+          ctest --test-dir build/emote-animation-tests --output-on-failure
+      - name: Test Emote performance state and production node evaluation
+        run: |
+          cmake -S Tests/EmotePerformance -B build/emote-performance-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-performance-tests --parallel
+          ctest --test-dir build/emote-performance-tests --output-on-failure --verbose
+      - name: Test native Array and Dictionary construction
+        run: |
+          cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tjs-native-factory-tests --parallel
+          ctest --test-dir build/tjs-native-factory-tests --output-on-failure
+      - name: Test Release script stack attribution
+        run: |
+          cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tjs-stack-trace-tests --parallel
+          ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
+      - name: Test production PSB scene lifecycle attribution
+        run: |
+          cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/psb-file-tests --parallel
+          ctest --test-dir build/psb-file-tests --output-on-failure
+      - name: Test layer input and pointer presentation lifecycle
+        run: |
+          cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/layer-input-tests --parallel
+          ctest --test-dir build/layer-input-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
-      - name: Cache KRKR dependencies
+      # `build-krkr-ios.sh` falls back to this checkout only when the runner
+      # does not already provide VCPKG_ROOT. Caching it avoids the fetch and
+      # bootstrap work on such images without retaining vcpkg build trees.
+      - name: Cache vcpkg bootstrap
+        if: env.KRKR_NEEDS_VCPKG_BOOTSTRAP == 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/vcpkg-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+          key: krkr-vcpkg-tool-v1-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+      # vcpkg verifies package ABIs before restoring an archive, so this
+      # cache may safely fall back across manifest changes. It avoids
+      # rebuilding unchanged packages (especially FFmpeg) when only one
+      # dependency input changes.
+      - name: Cache KRKR vcpkg binary packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: krkr-vcpkg-archives-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake', 'Engine/KRKRRuntime/Source/CMakePresets.json') }}
+          restore-keys: |
+            krkr-vcpkg-archives-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      # Installed trees are not ABI-addressed like archives. Keep them on an
+      # exact key that follows the Xcode toolchain and every manifest,
+      # overlay port, and iOS triplet that can change their ABI.
+      - name: Cache KRKR installed dependencies
         uses: actions/cache@v4
         with:
           path: build/krkr-vcpkg-installed
-          key: krkr-vcpkg-${{ runner.os }}-${{ runner.arch }}-8e8dfb4ba483886936ded5ca201b500b8d8b0096
+          key: krkr-vcpkg-installed-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake', 'Engine/KRKRRuntime/Source/CMakePresets.json') }}
+      # The XCFramework cache is intentionally exact: it is only safe to
+      # reuse when every runtime input is unchanged.  Preserve compiler
+      # results separately so a small runtime change does not force all of
+      # the device and simulator translation units to rebuild on a clean VM.
+      - name: Cache KRKR compilation results
+        uses: actions/cache@v4
+        with:
+          path: build/krkr-ccache
+          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          restore-keys: |
+            krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
       - name: Restore KRKR runtime framework
         id: cache-krkr-runtime
         uses: actions/cache/restore@v4
@@ -63,9 +162,41 @@ jobs:
           path: build/KRKRRuntime.xcframework
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          python3 scripts/check-krkr-work-profile-swift.py
+          python3 scripts/check-app-build-info.py
+          xcodegen generate
+      - name: Test app model on a simulator
+        run: |
+          set -o pipefail
+          MIKAGE_SOURCE_REVISION="$(git rev-parse --short=12 HEAD)"
+          # Resolve a real simulator rather than hardcoding a device name that
+          # changes with the Xcode version on the runner image.
+          SIMULATOR="$(xcrun simctl list devices available \
+            | grep 'iPhone' \
+            | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' \
+            | head -n 1)"
+          if [ -z "${SIMULATOR}" ]; then
+            echo "No available iOS simulator on this runner." >&2
+            xcrun simctl list devices available >&2
+            exit 1
+          fi
+          echo "Using simulator ${SIMULATOR}"
+          xcodebuild test \
+            -project Mikage.xcodeproj \
+            -scheme Mikage \
+            -destination "platform=iOS Simulator,id=${SIMULATOR}" \
+            -derivedDataPath build/TestDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
+            2>&1 | tee build/app-tests.log
       - name: Build unsigned iPhone app
         run: bash scripts/build-ios.sh
+      - name: Verify app revision metadata
+        run: |
+          python3 scripts/check-app-build-info.py \
+            --plist build/DerivedData/Build/Products/Release-iphoneos/Mikage.app/Info.plist \
+            --expected-revision "$(git rev-parse --short=12 HEAD)"
       - name: Package unsigned IPA
         run: |
           mkdir -p build/package/Payload
@@ -85,4 +216,6 @@ jobs:
           name: Mikage-validation-${{ github.run_number }}
           path: |
             build/*.log
+            build/**/Testing/Temporary/LastTest.log
+            build/**/Testing/Temporary/LastTestsFailed.log
           if-no-files-found: ignore

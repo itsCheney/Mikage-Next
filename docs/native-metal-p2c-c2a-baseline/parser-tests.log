@@ -1,0 +1,8 @@
+COMMAND ['C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe', 'Tests/MetalLayer/test-layer-diagnostics.py']
+................................
+----------------------------------------------------------------------
+Ran 32 tests in 0.076s
+
+OK
+
+EXIT 0

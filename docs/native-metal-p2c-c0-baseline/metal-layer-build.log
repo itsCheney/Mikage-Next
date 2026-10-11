@@ -1,0 +1,4 @@
+[0/2] Re-checking globbed directories...
+[1/4] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/MetalLayerRenderManager.cpp.obj
+[2/4] Building CXX object CMakeFiles/metal-layer-tests.dir/MetalLayerTests.cpp.obj
+[3/4] Linking CXX executable metal-layer-tests.exe

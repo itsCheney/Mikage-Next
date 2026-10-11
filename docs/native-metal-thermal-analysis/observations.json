@@ -1,0 +1,1162 @@
+{
+  "tool": "analyze-thermal-passes",
+  "version": 1,
+  "basis": "aggregates only; sampled command buffers are one per second and are never summed into a GPU budget; fits are descriptive, not hardware constants; stage times include synchronous waits and must not be added together",
+  "sources": [
+    {
+      "file": "perf_log/After_P2C_C2_1/Mikage-diagnostics-28FEB878-DC37-45E7-B813-B63931595EFC.jsonl",
+      "sha256": "bbbb92f85d0e8e216529de1681f1237242c3d1d2fd6985ec44908999fb37be4f",
+      "records": 2127,
+      "runs": [
+        {
+          "run": "21BEB579-C858-4823-8CE7-47C0A433BEFA",
+          "game": "千恋万花",
+          "revision": "f20d0e10c275",
+          "seconds": 64.3,
+          "heartbeats": 66,
+          "intervals": 65,
+          "thermalTimeline": [
+            [
+              3.1,
+              "2"
+            ]
+          ],
+          "thermalTimelineBasis": "seconds after game.begin; first entry is the first counted interval",
+          "thermalSeconds": {
+            "2": 65
+          },
+          "fpsMedian": 55.7,
+          "fpsMean": 50.1,
+          "cpuFrameMSMean": 33.87,
+          "idleSeconds": 4,
+          "activeSeconds": 61,
+          "encodersPerFrame": {
+            "renderEncoders": 32.26,
+            "blitEncoders": 16.91,
+            "computeEncoders": 0.12,
+            "commandBuffers": 1.0,
+            "drawCalls": 0.43
+          },
+          "encoderTotals": {
+            "ticks": 3290,
+            "renderEncoders": 106120,
+            "blitEncoders": 55647,
+            "computeEncoders": 404,
+            "commandBuffers": 3293,
+            "drawCalls": 1416,
+            "maskClears": 0
+          },
+          "gpuCommandBuffersMS": {
+            "count": 65,
+            "p50": 7.862,
+            "p90": 47.435,
+            "p95": 58.227,
+            "p99": 95.907,
+            "max": 95.907
+          },
+          "gpuCommandBufferMeanMS": 15.2,
+          "gpuStageSumsMS": {
+            "otherFragmentMS": 643.6,
+            "otherVertexMS": 33.9,
+            "windowFragmentMS": 19.6,
+            "blitMS": 12.3,
+            "layerComputeMS": 7.1,
+            "windowVertexMS": 1.5,
+            "meshFragmentMS": 1.2,
+            "meshVertexMS": 0.0
+          },
+          "gpuStageSamples": 65,
+          "kindPixels": {
+            "Fill": 354270816,
+            "Copy": 233990601,
+            "Alpha": 199971023,
+            "CopyColor": 110202708,
+            "RemoveConstOpacity": 9594240,
+            "PsOverlay": 9594240,
+            "ConstAlphaSD": 8294400,
+            "FillMask": 5529600,
+            "PsHardLight": 809160,
+            "20": 809160
+          },
+          "rectMpx": {
+            "count": 65,
+            "p50": 8.185,
+            "p90": 33.651,
+            "p95": 59.871,
+            "p99": 160.571,
+            "max": 160.571
+          },
+          "aliasMpx": {
+            "count": 65,
+            "p50": 0.505,
+            "p90": 2.074,
+            "p95": 2.074,
+            "p99": 4.147,
+            "max": 4.147
+          },
+          "scaledMpx": {
+            "count": 65,
+            "p50": 0.0,
+            "p90": 0.302,
+            "p95": 1.243,
+            "p99": 4.635,
+            "max": 4.635
+          },
+          "clears": {
+            "count": 65,
+            "p50": 1,
+            "p90": 15,
+            "p95": 49,
+            "p99": 391,
+            "max": 391
+          },
+          "layerDispatches": {
+            "count": 65,
+            "p50": 42,
+            "p90": 262,
+            "p95": 378,
+            "p99": 1134,
+            "max": 1134
+          },
+          "origins": {
+            "upload:image.load": {
+              "calls": 354,
+              "bytes": 238477236,
+              "wallNS": 49361638,
+              "gpuWaitNS": 0
+            },
+            "upload:bitmap.update": {
+              "calls": 49462,
+              "bytes": 53782173,
+              "wallNS": 843744636,
+              "gpuWaitNS": 0
+            },
+            "read:bitmap.scanline": {
+              "calls": 2,
+              "bytes": 1107072,
+              "wallNS": 23369791,
+              "gpuWaitNS": 19651459
+            }
+          },
+          "coveredSeconds": 67.2,
+          "bitmapUpdatePerSecond": 735.9,
+          "bitmapUpdateMeanBytes": 1087,
+          "bitmapUpdateShareOfBlits": 0.889,
+          "stageMillisecondsPerSecond": {
+            "script": 205.1,
+            "resourceLoad": 58.1,
+            "imageLoad": 43.8,
+            "imageDecode": 42.8,
+            "imageOpen": 29.2,
+            "scriptStorage": 11.9,
+            "imageCodec": 10.3,
+            "compact": 6.1,
+            "imageResolve": 3.2,
+            "gc": 0.3,
+            "imageCacheHit": 0.0,
+            "amvDecode": 0.0,
+            "software": 0.0
+          },
+          "stageMaxMS": {
+            "resourceLoad": 766.6,
+            "script": 1673.0,
+            "gc": 2.0,
+            "compact": 44.2,
+            "imageLoad": 168.0,
+            "imageDecode": 162.4,
+            "imageCacheHit": 0.0,
+            "scriptStorage": 766.6,
+            "imageResolve": 56.0,
+            "imageOpen": 48.1,
+            "imageCodec": 77.6
+          },
+          "cpuWallMS": {
+            "count": 3342,
+            "p50": 0.715292,
+            "p90": 16.3385,
+            "p95": 29.197083,
+            "p99": 59.074125,
+            "max": 1697.364542
+          },
+          "runtimeIntervalMS": {
+            "count": 3342,
+            "p50": 16.674666,
+            "p90": 26.299458,
+            "p95": 38.478,
+            "p99": 66.33375,
+            "max": 1713.509667
+          },
+          "longFrameShare": 0.099,
+          "mainThreadShare": 0.315,
+          "transitions": {
+            "begin": 226,
+            "end": 226,
+            "endZeroFrame": 177
+          },
+          "passesPerFrameFit": {
+            "coefficients": [
+              1.3885,
+              9.7474,
+              -0.1211,
+              7.7299
+            ],
+            "rSquared": 0.964
+          },
+          "passesPerFrameMeanOfIntervalRatios": 36.16,
+          "blitsPerFrameMeanOfIntervalRatios": 19.41,
+          "gpuTimeFit": {
+            "coefficients": [
+              0.0608,
+              0.5746,
+              3.5313
+            ],
+            "rSquared": 0.863
+          }
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2_1/Mikage-diagnostics-411C44A7-BD0B-4C95-9C63-464507A1771C.jsonl",
+      "sha256": "5b1b37d9c312491a4f4c7948fd7d86fa865ca7c8a07bd5b33cc746b9df9cdb01",
+      "records": 2785,
+      "runs": [
+        {
+          "run": "38C45B9B-E347-4E8D-AFED-7994C2383075",
+          "game": "DRACU-RIOT!(全汉)",
+          "revision": "f20d0e10c275",
+          "seconds": 52.3,
+          "heartbeats": 54,
+          "intervals": 53,
+          "thermalTimeline": [
+            [
+              2.8,
+              "2"
+            ]
+          ],
+          "thermalTimelineBasis": "seconds after game.begin; first entry is the first counted interval",
+          "thermalSeconds": {
+            "2": 53
+          },
+          "fpsMedian": 56.5,
+          "fpsMean": 53.0,
+          "cpuFrameMSMean": 6.94,
+          "idleSeconds": 0,
+          "activeSeconds": 53,
+          "encodersPerFrame": {
+            "renderEncoders": 43.23,
+            "blitEncoders": 18.75,
+            "computeEncoders": 0.21,
+            "commandBuffers": 1.0,
+            "drawCalls": 15.5
+          },
+          "encoderTotals": {
+            "ticks": 2803,
+            "renderEncoders": 121174,
+            "blitEncoders": 52558,
+            "computeEncoders": 585,
+            "commandBuffers": 2809,
+            "drawCalls": 43436,
+            "maskClears": 0
+          },
+          "gpuCommandBuffersMS": {
+            "count": 55,
+            "p50": 8.224,
+            "p90": 24.738,
+            "p95": 31.083,
+            "p99": 35.303,
+            "max": 35.303
+          },
+          "gpuCommandBufferMeanMS": 11.32,
+          "gpuStageSumsMS": {
+            "otherFragmentMS": 346.5,
+            "meshFragmentMS": 28.4,
+            "otherVertexMS": 27.1,
+            "windowFragmentMS": 11.0,
+            "blitMS": 10.1,
+            "layerComputeMS": 2.7,
+            "meshVertexMS": 2.1,
+            "windowVertexMS": 1.3
+          },
+          "gpuStageSamples": 55,
+          "kindPixels": {
+            "Fill": 188436370,
+            "Alpha": 156569472,
+            "Copy": 75794214,
+            "CopyColor": 55585658,
+            "ConstAlphaSD": 3686400,
+            "PsOverlay": 3409920,
+            "RemoveConstOpacity": 3031040,
+            "22": 921600,
+            "ColorMap": 536303,
+            "FillMask": 307200
+          },
+          "rectMpx": {
+            "count": 55,
+            "p50": 5.53,
+            "p90": 29.574,
+            "p95": 39.547,
+            "p99": 44.575,
+            "max": 44.575
+          },
+          "aliasMpx": {
+            "count": 55,
+            "p50": 0.922,
+            "p90": 0.922,
+            "p95": 0.922,
+            "p99": 0.922,
+            "max": 0.922
+          },
+          "scaledMpx": {
+            "count": 55,
+            "p50": 0.0,
+            "p90": 0.701,
+            "p95": 0.701,
+            "p99": 0.818,
+            "max": 0.818
+          },
+          "clears": {
+            "count": 55,
+            "p50": 7,
+            "p90": 17,
+            "p95": 24,
+            "p99": 78,
+            "max": 78
+          },
+          "layerDispatches": {
+            "count": 55,
+            "p50": 29,
+            "p90": 147,
+            "p95": 210,
+            "p99": 358,
+            "max": 358
+          },
+          "origins": {
+            "upload:AlphaMovie.frame": {
+              "calls": 81,
+              "bytes": 149299200,
+              "wallNS": 12094330,
+              "gpuWaitNS": 0
+            },
+            "upload:image.load": {
+              "calls": 79,
+              "bytes": 108936644,
+              "wallNS": 22465122,
+              "gpuWaitNS": 0
+            },
+            "upload:bitmap.update": {
+              "calls": 45025,
+              "bytes": 23392443,
+              "wallNS": 948294556,
+              "gpuWaitNS": 0
+            },
+            "read:bitmap.scanline": {
+              "calls": 1,
+              "bytes": 36864,
+              "wallNS": 8529500,
+              "gpuWaitNS": 7988583
+            }
+          },
+          "coveredSeconds": 54.9,
+          "bitmapUpdatePerSecond": 819.6,
+          "bitmapUpdateMeanBytes": 520,
+          "bitmapUpdateShareOfBlits": 0.857,
+          "stageMillisecondsPerSecond": {
+            "script": 248.5,
+            "resourceLoad": 26.4,
+            "imageLoad": 12.8,
+            "imageDecode": 12.2,
+            "scriptStorage": 9.7,
+            "imageCodec": 8.4,
+            "amvDecode": 7.8,
+            "imageOpen": 2.5,
+            "imageResolve": 1.1,
+            "imageCacheHit": 0.0,
+            "gc": 0.0,
+            "compact": 0.0,
+            "software": 0.0
+          },
+          "stageMaxMS": {
+            "resourceLoad": 513.8,
+            "amvDecode": 6.5,
+            "script": 513.7,
+            "imageLoad": 84.4,
+            "imageDecode": 83.3,
+            "imageCacheHit": 0.0,
+            "scriptStorage": 513.8,
+            "imageResolve": 1.3,
+            "imageOpen": 21.0,
+            "imageCodec": 77.4
+          },
+          "cpuWallMS": {
+            "count": 2858,
+            "p50": 1.156834,
+            "p90": 16.788292,
+            "p95": 26.08175,
+            "p99": 51.329416,
+            "max": 314.190917
+          },
+          "runtimeIntervalMS": {
+            "count": 2858,
+            "p50": 16.666,
+            "p90": 27.780334,
+            "p95": 40.779917,
+            "p99": 62.670666,
+            "max": 329.718917
+          },
+          "longFrameShare": 0.101,
+          "mainThreadShare": 0.318,
+          "transitions": {
+            "begin": 476,
+            "end": 476,
+            "endZeroFrame": 428
+          },
+          "passesPerFrameFit": {
+            "coefficients": [
+              1.2599,
+              -0.526,
+              0.7604,
+              8.0658
+            ],
+            "rSquared": 0.968
+          },
+          "passesPerFrameMeanOfIntervalRatios": 46.83,
+          "blitsPerFrameMeanOfIntervalRatios": 21.67,
+          "gpuTimeFit": {
+            "coefficients": [
+              0.1253,
+              0.3277,
+              2.3333
+            ],
+            "rSquared": 0.777
+          }
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2_1/Mikage-diagnostics-4E019989-9DFD-4165-B463-D571B31EB363.jsonl",
+      "sha256": "355f14648390d426e8f3b1a860e3686688fd09cf60aef77f3fb99a3f5fcfda2e",
+      "records": 3848,
+      "runs": [
+        {
+          "run": "56A6970F-C244-4508-B0BE-3E91B05ED73A",
+          "game": "天使纷扰 RE-BOOT！",
+          "revision": "f20d0e10c275",
+          "seconds": 112.4,
+          "heartbeats": 114,
+          "intervals": 113,
+          "thermalTimeline": [
+            [
+              3.6,
+              "1"
+            ],
+            [
+              35.6,
+              "2"
+            ]
+          ],
+          "thermalTimelineBasis": "seconds after game.begin; first entry is the first counted interval",
+          "thermalSeconds": {
+            "1": 32,
+            "2": 81
+          },
+          "fpsMedian": 51.2,
+          "fpsMean": 48.1,
+          "cpuFrameMSMean": 11.93,
+          "idleSeconds": 6,
+          "activeSeconds": 107,
+          "encodersPerFrame": {
+            "renderEncoders": 40.91,
+            "blitEncoders": 13.72,
+            "computeEncoders": 0.35,
+            "commandBuffers": 1.0,
+            "drawCalls": 0.05
+          },
+          "encoderTotals": {
+            "ticks": 5489,
+            "renderEncoders": 224580,
+            "blitEncoders": 75292,
+            "computeEncoders": 1946,
+            "commandBuffers": 5505,
+            "drawCalls": 252,
+            "maskClears": 0
+          },
+          "gpuCommandBuffersMS": {
+            "count": 115,
+            "p50": 6.484,
+            "p90": 42.092,
+            "p95": 88.363,
+            "p99": 148.961,
+            "max": 195.707
+          },
+          "gpuCommandBufferMeanMS": 16.66,
+          "gpuStageSumsMS": {
+            "otherFragmentMS": 846.7,
+            "otherVertexMS": 59.2,
+            "windowFragmentMS": 26.5,
+            "blitMS": 19.9,
+            "layerComputeMS": 18.5,
+            "windowVertexMS": 6.9,
+            "meshFragmentMS": 3.0,
+            "meshVertexMS": 0.1
+          },
+          "gpuStageSamples": 115,
+          "kindPixels": {
+            "Fill": 450241828,
+            "Alpha": 393834983,
+            "Copy": 231138922,
+            "CopyColor": 193860990,
+            "ConstAlphaSD": 20861928,
+            "FillMask": 9609600,
+            "AdditiveAlpha": 7805095,
+            "ColorMap": 2992354,
+            "FillColor": 2277120,
+            "19": 69696
+          },
+          "rectMpx": {
+            "count": 115,
+            "p50": 1.045,
+            "p90": 25.167,
+            "p95": 32.057,
+            "p99": 88.157,
+            "max": 185.368
+          },
+          "aliasMpx": {
+            "count": 115,
+            "p50": 0.003,
+            "p90": 2.074,
+            "p95": 2.074,
+            "p99": 2.116,
+            "max": 4.147
+          },
+          "scaledMpx": {
+            "count": 115,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 2.765,
+            "p99": 4.657,
+            "max": 11.309
+          },
+          "clears": {
+            "count": 115,
+            "p50": 1,
+            "p90": 8,
+            "p95": 55,
+            "p99": 127,
+            "max": 465
+          },
+          "layerDispatches": {
+            "count": 115,
+            "p50": 12,
+            "p90": 276,
+            "p95": 380,
+            "p99": 918,
+            "max": 2037
+          },
+          "origins": {
+            "upload:image.load": {
+              "calls": 192,
+              "bytes": 439349032,
+              "wallNS": 100395418,
+              "gpuWaitNS": 0
+            },
+            "upload:AlphaMovie.frame": {
+              "calls": 40,
+              "bytes": 331776000,
+              "wallNS": 32909788,
+              "gpuWaitNS": 0
+            },
+            "upload:bitmap.update": {
+              "calls": 62740,
+              "bytes": 74479179,
+              "wallNS": 1801232603,
+              "gpuWaitNS": 0
+            },
+            "read:layerExDraw.write": {
+              "calls": 1,
+              "bytes": 3787200,
+              "wallNS": 101347125,
+              "gpuWaitNS": 100318916
+            },
+            "upload:layerExDraw.write": {
+              "calls": 1,
+              "bytes": 3787200,
+              "wallNS": 376709,
+              "gpuWaitNS": 0
+            },
+            "read:layerExBTOA.alphaToProvince": {
+              "calls": 1,
+              "bytes": 1955056,
+              "wallNS": 19819250,
+              "gpuWaitNS": 18539042
+            },
+            "read:bitmap.scanline": {
+              "calls": 1,
+              "bytes": 553536,
+              "wallNS": 6871291,
+              "gpuWaitNS": 6726667
+            }
+          },
+          "coveredSeconds": 115.8,
+          "bitmapUpdatePerSecond": 541.9,
+          "bitmapUpdateMeanBytes": 1187,
+          "bitmapUpdateShareOfBlits": 0.833,
+          "stageMillisecondsPerSecond": {
+            "script": 186.7,
+            "resourceLoad": 26.2,
+            "imageLoad": 15.8,
+            "imageDecode": 14.8,
+            "imageCodec": 10.3,
+            "scriptStorage": 9.3,
+            "compact": 8.9,
+            "amvDecode": 3.8,
+            "imageResolve": 2.9,
+            "imageOpen": 1.5,
+            "gc": 0.3,
+            "imageCacheHit": 0.0,
+            "software": 0.0
+          },
+          "stageMaxMS": {
+            "resourceLoad": 1044.9,
+            "amvDecode": 12.3,
+            "script": 1044.9,
+            "gc": 4.0,
+            "compact": 73.4,
+            "imageLoad": 83.9,
+            "imageDecode": 81.4,
+            "imageCacheHit": 0.0,
+            "scriptStorage": 1044.9,
+            "imageResolve": 45.2,
+            "imageOpen": 10.4,
+            "imageCodec": 72.4
+          },
+          "cpuWallMS": {
+            "count": 5542,
+            "p50": 0.455167,
+            "p90": 24.221375,
+            "p95": 37.310875,
+            "p99": 79.572625,
+            "max": 802.062292
+          },
+          "runtimeIntervalMS": {
+            "count": 5542,
+            "p50": 16.671375,
+            "p90": 33.37525,
+            "p95": 46.570833,
+            "p99": 89.315,
+            "max": 818.52975
+          },
+          "longFrameShare": 0.138,
+          "mainThreadShare": 0.359,
+          "transitions": {
+            "begin": 518,
+            "end": 518,
+            "endZeroFrame": 138
+          },
+          "passesPerFrameFit": {
+            "coefficients": [
+              1.0843,
+              25.1543,
+              -7.2635,
+              18.5921
+            ],
+            "rSquared": 0.668
+          },
+          "passesPerFrameMeanOfIntervalRatios": 44.68,
+          "blitsPerFrameMeanOfIntervalRatios": 15.62,
+          "gpuTimeFit": {
+            "coefficients": [
+              0.0645,
+              0.6868,
+              3.9008
+            ],
+            "rSquared": 0.595
+          }
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2_1/Mikage-diagnostics-E44F7D75-F7AC-448D-8721-4FFCECA682BD.jsonl",
+      "sha256": "467cfadcd5c44ca276c83e0893274f3a4ae0dafbf9cc8e6a227c866a842add66",
+      "records": 1609,
+      "runs": [
+        {
+          "run": "C0299A0F-CCB1-4016-A2FC-26830BAD3699",
+          "game": "9-nine-天色天音天歌",
+          "revision": "f20d0e10c275",
+          "seconds": 51.0,
+          "heartbeats": 53,
+          "intervals": 51,
+          "thermalTimeline": [
+            [
+              2.9,
+              "2"
+            ]
+          ],
+          "thermalTimelineBasis": "seconds after game.begin; first entry is the first counted interval",
+          "thermalSeconds": {
+            "2": 51
+          },
+          "fpsMedian": 56.0,
+          "fpsMean": 49.0,
+          "cpuFrameMSMean": 26.03,
+          "idleSeconds": 2,
+          "activeSeconds": 49,
+          "encodersPerFrame": {
+            "renderEncoders": 29.62,
+            "blitEncoders": 13.42,
+            "computeEncoders": 0.18,
+            "commandBuffers": 1.0,
+            "drawCalls": 0.0
+          },
+          "encoderTotals": {
+            "ticks": 2533,
+            "renderEncoders": 75038,
+            "blitEncoders": 34005,
+            "computeEncoders": 459,
+            "commandBuffers": 2540,
+            "drawCalls": 0,
+            "maskClears": 0
+          },
+          "gpuCommandBuffersMS": {
+            "count": 53,
+            "p50": 4.962,
+            "p90": 23.558,
+            "p95": 30.318,
+            "p99": 35.053,
+            "max": 35.053
+          },
+          "gpuCommandBufferMeanMS": 8.12,
+          "gpuStageSumsMS": {
+            "otherFragmentMS": 269.9,
+            "otherVertexMS": 18.8,
+            "windowFragmentMS": 12.1,
+            "blitMS": 7.2,
+            "layerComputeMS": 4.1,
+            "windowVertexMS": 2.1
+          },
+          "gpuStageSamples": 53,
+          "kindPixels": {
+            "Fill": 117086155,
+            "Alpha": 83111556,
+            "CopyColor": 48975424,
+            "Copy": 45847396,
+            "ConstAlphaSD": 4608000,
+            "22": 4608000,
+            "ColorMap": 71986
+          },
+          "rectMpx": {
+            "count": 53,
+            "p50": 2.792,
+            "p90": 14.476,
+            "p95": 18.164,
+            "p99": 27.608,
+            "max": 27.608
+          },
+          "aliasMpx": {
+            "count": 53,
+            "p50": 0.308,
+            "p90": 0.922,
+            "p95": 0.922,
+            "p99": 0.922,
+            "max": 0.922
+          },
+          "scaledMpx": {
+            "count": 53,
+            "p50": 0.0,
+            "p90": 0.206,
+            "p95": 0.922,
+            "p99": 1.644,
+            "max": 1.644
+          },
+          "clears": {
+            "count": 53,
+            "p50": 1,
+            "p90": 23,
+            "p95": 198,
+            "p99": 204,
+            "max": 204
+          },
+          "layerDispatches": {
+            "count": 53,
+            "p50": 31,
+            "p90": 309,
+            "p95": 601,
+            "p99": 611,
+            "max": 611
+          },
+          "origins": {
+            "upload:image.load": {
+              "calls": 451,
+              "bytes": 389787112,
+              "wallNS": 61108393,
+              "gpuWaitNS": 0
+            },
+            "upload:AlphaMovie.frame": {
+              "calls": 14,
+              "bytes": 51609600,
+              "wallNS": 10675959,
+              "gpuWaitNS": 0
+            },
+            "upload:bitmap.update": {
+              "calls": 30122,
+              "bytes": 16808890,
+              "wallNS": 502791082,
+              "gpuWaitNS": 0
+            },
+            "read:bitmap.scanline": {
+              "calls": 1,
+              "bytes": 52976,
+              "wallNS": 2970708,
+              "gpuWaitNS": 2942084
+            },
+            "upload:script.storage": {
+              "calls": 128,
+              "bytes": 16442,
+              "wallNS": 2295831,
+              "gpuWaitNS": 0
+            }
+          },
+          "coveredSeconds": 53.7,
+          "bitmapUpdatePerSecond": 560.7,
+          "bitmapUpdateMeanBytes": 558,
+          "bitmapUpdateShareOfBlits": 0.886,
+          "stageMillisecondsPerSecond": {
+            "script": 257.0,
+            "resourceLoad": 109.7,
+            "imageLoad": 99.9,
+            "imageDecode": 98.4,
+            "imageOpen": 75.2,
+            "imageCodec": 21.3,
+            "scriptStorage": 9.7,
+            "compact": 2.5,
+            "amvDecode": 2.1,
+            "imageResolve": 1.6,
+            "gc": 0.1,
+            "imageCacheHit": 0.0,
+            "software": 0.0
+          },
+          "stageMaxMS": {
+            "resourceLoad": 510.0,
+            "amvDecode": 11.2,
+            "script": 715.9,
+            "gc": 1.5,
+            "compact": 10.4,
+            "imageLoad": 76.1,
+            "imageDecode": 71.8,
+            "imageCacheHit": 0.0,
+            "scriptStorage": 510.0,
+            "imageResolve": 3.5,
+            "imageOpen": 24.2,
+            "imageCodec": 63.1
+          },
+          "cpuWallMS": {
+            "count": 2589,
+            "p50": 0.596792,
+            "p90": 13.425584,
+            "p95": 25.753875,
+            "p99": 62.111,
+            "max": 721.123042
+          },
+          "runtimeIntervalMS": {
+            "count": 2589,
+            "p50": 16.665792,
+            "p90": 25.634375,
+            "p95": 40.702042,
+            "p99": 74.364208,
+            "max": 725.124792
+          },
+          "longFrameShare": 0.088,
+          "mainThreadShare": 0.312,
+          "transitions": {
+            "begin": 88,
+            "end": 88,
+            "endZeroFrame": 8
+          },
+          "passesPerFrameFit": {
+            "coefficients": [
+              3.4235,
+              95.776,
+              null,
+              -10.0467
+            ],
+            "rSquared": 0.161
+          },
+          "passesPerFrameMeanOfIntervalRatios": 63.09,
+          "blitsPerFrameMeanOfIntervalRatios": 15.28,
+          "gpuTimeFit": {
+            "coefficients": [
+              0.052,
+              0.671,
+              1.3692
+            ],
+            "rSquared": 0.903
+          }
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2_1/Mikage-diagnostics-EB1D1620-F327-4E95-8D7B-56D6A79AC84D.jsonl",
+      "sha256": "07565e4fe2aeedb2bb210ee48de91fe011f97242b5848754b042c402e0397609",
+      "records": 3335,
+      "runs": [
+        {
+          "run": "0C10726E-8F85-48CB-A3BD-26E9FE564EB2",
+          "game": "天使纷扰 RE-BOOT！",
+          "revision": "f20d0e10c275",
+          "seconds": 99.9,
+          "heartbeats": 101,
+          "intervals": 100,
+          "thermalTimeline": [
+            [
+              3.6,
+              "0"
+            ],
+            [
+              8.6,
+              "1"
+            ],
+            [
+              48.6,
+              "2"
+            ]
+          ],
+          "thermalTimelineBasis": "seconds after game.begin; first entry is the first counted interval",
+          "thermalSeconds": {
+            "0": 5,
+            "1": 40,
+            "2": 55
+          },
+          "fpsMedian": 55.0,
+          "fpsMean": 49.5,
+          "cpuFrameMSMean": 12.73,
+          "idleSeconds": 18,
+          "activeSeconds": 82,
+          "encodersPerFrame": {
+            "renderEncoders": 25.36,
+            "blitEncoders": 7.91,
+            "computeEncoders": 0.24,
+            "commandBuffers": 1.0,
+            "drawCalls": 0.04
+          },
+          "encoderTotals": {
+            "ticks": 5040,
+            "renderEncoders": 127814,
+            "blitEncoders": 39868,
+            "computeEncoders": 1195,
+            "commandBuffers": 5056,
+            "drawCalls": 226,
+            "maskClears": 0
+          },
+          "gpuCommandBuffersMS": {
+            "count": 103,
+            "p50": 0.7,
+            "p90": 35.94,
+            "p95": 72.464,
+            "p99": 111.463,
+            "max": 125.264
+          },
+          "gpuCommandBufferMeanMS": 12.85,
+          "gpuStageSumsMS": {
+            "otherFragmentMS": 599.2,
+            "otherVertexMS": 41.7,
+            "windowFragmentMS": 29.2,
+            "blitMS": 15.6,
+            "layerComputeMS": 10.7,
+            "windowVertexMS": 3.7
+          },
+          "gpuStageSamples": 103,
+          "kindPixels": {
+            "Fill": 435799097,
+            "Alpha": 230600920,
+            "Copy": 208302664,
+            "CopyColor": 92767944,
+            "FillMask": 16665600,
+            "AdditiveAlpha": 11026696,
+            "ConstAlphaSD": 10493928,
+            "FillColor": 4866312,
+            "ColorMap": 2925043,
+            "19": 69696
+          },
+          "rectMpx": {
+            "count": 103,
+            "p50": 0.0,
+            "p90": 24.863,
+            "p95": 69.047,
+            "p99": 90.534,
+            "max": 91.886
+          },
+          "aliasMpx": {
+            "count": 103,
+            "p50": 0.0,
+            "p90": 2.074,
+            "p95": 2.074,
+            "p99": 4.147,
+            "max": 4.147
+          },
+          "scaledMpx": {
+            "count": 103,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 2.765,
+            "p99": 4.325,
+            "max": 5.096
+          },
+          "clears": {
+            "count": 103,
+            "p50": 1,
+            "p90": 26,
+            "p95": 71,
+            "p99": 320,
+            "max": 465
+          },
+          "layerDispatches": {
+            "count": 103,
+            "p50": 0,
+            "p90": 246,
+            "p95": 469,
+            "p99": 1497,
+            "max": 2037
+          },
+          "origins": {
+            "upload:image.load": {
+              "calls": 217,
+              "bytes": 497641480,
+              "wallNS": 124171498,
+              "gpuWaitNS": 0
+            },
+            "upload:AlphaMovie.frame": {
+              "calls": 39,
+              "bytes": 323481600,
+              "wallNS": 58257882,
+              "gpuWaitNS": 0
+            },
+            "upload:bitmap.update": {
+              "calls": 33589,
+              "bytes": 37773645,
+              "wallNS": 1107678612,
+              "gpuWaitNS": 0
+            },
+            "read:layerExBTOA.alphaToProvince": {
+              "calls": 1,
+              "bytes": 1955056,
+              "wallNS": 24866709,
+              "gpuWaitNS": 23962417
+            },
+            "upload:layerExDraw.write": {
+              "calls": 4,
+              "bytes": 1125936,
+              "wallNS": 269667,
+              "gpuWaitNS": 0
+            },
+            "read:bitmap.scanline": {
+              "calls": 1,
+              "bytes": 553536,
+              "wallNS": 7416250,
+              "gpuWaitNS": 7197375
+            }
+          },
+          "coveredSeconds": 103.3,
+          "bitmapUpdatePerSecond": 325.1,
+          "bitmapUpdateMeanBytes": 1125,
+          "bitmapUpdateShareOfBlits": 0.843,
+          "stageMillisecondsPerSecond": {
+            "script": 189.4,
+            "resourceLoad": 34.9,
+            "imageLoad": 23.1,
+            "imageDecode": 21.7,
+            "imageCodec": 16.0,
+            "compact": 11.2,
+            "scriptStorage": 10.5,
+            "amvDecode": 6.6,
+            "imageResolve": 3.0,
+            "imageOpen": 2.5,
+            "gc": 0.4,
+            "imageCacheHit": 0.0,
+            "software": 0.0
+          },
+          "stageMaxMS": {
+            "resourceLoad": 1051.2,
+            "amvDecode": 26.0,
+            "script": 1051.1,
+            "gc": 4.1,
+            "compact": 56.4,
+            "imageLoad": 178.6,
+            "imageDecode": 173.9,
+            "imageCacheHit": 0.0,
+            "scriptStorage": 1051.2,
+            "imageResolve": 51.3,
+            "imageOpen": 14.6,
+            "imageCodec": 158.7
+          },
+          "cpuWallMS": {
+            "count": 5095,
+            "p50": 0.301834,
+            "p90": 16.173834,
+            "p95": 32.817916,
+            "p99": 76.674583,
+            "max": 994.215125
+          },
+          "runtimeIntervalMS": {
+            "count": 5095,
+            "p50": 16.668583,
+            "p90": 27.01125,
+            "p95": 41.852708,
+            "p99": 85.068458,
+            "max": 1003.050875
+          },
+          "longFrameShare": 0.097,
+          "mainThreadShare": 0.298,
+          "transitions": {
+            "begin": 362,
+            "end": 362,
+            "endZeroFrame": 120
+          },
+          "passesPerFrameFit": {
+            "coefficients": [
+              1.1233,
+              34.3788,
+              -3.4071,
+              9.8684
+            ],
+            "rSquared": 0.676
+          },
+          "passesPerFrameMeanOfIntervalRatios": 30.09,
+          "blitsPerFrameMeanOfIntervalRatios": 9.7,
+          "gpuTimeFit": {
+            "coefficients": [
+              0.0488,
+              0.7126,
+              1.3463
+            ],
+            "rSquared": 0.917
+          }
+        }
+      ]
+    }
+  ],
+  "pooledFits": {
+    "gpuSamples": 391,
+    "intervals": 382,
+    "gpuMS_vs_renderEncoders_Mpx": {
+      "coefficients": [
+        0.0573,
+        0.6427,
+        2.8056
+      ],
+      "rSquared": 0.731
+    },
+    "passesPerFrame_vs_blits_computes_meshDraws": {
+      "coefficients": [
+        1.3814,
+        28.1805,
+        -0.0777,
+        13.3479
+      ],
+      "rSquared": 0.237
+    },
+    "passesPerFrameMean": 42.17,
+    "blitsPerFrameMean": 15.51,
+    "computesPerFrameMean": 0.268,
+    "meshDrawsPerFrameMean": 2.2
+  }
+}

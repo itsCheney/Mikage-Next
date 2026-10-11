@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-09",
+  "mainFinalCommit": "the commit containing this record",
+  "runtimeFinalCommit": "f48a68c011c83fa601e301f9759e87a7536c6b07",
+  "coreFinalCommit": "31c743e7188c88c9698cf535b0bd9aa3d3706acb",
+  "mainPriorBatches": [
+    "bc98c346ec5950079dbdd6952b5efd477e6cf597",
+    "1bfd57b",
+    "f92aea1"
+  ],
+  "delivery": "Batch1 was pushed before the user requested deferral; batches2-4 committed locally, then pushed together bottom-up after final verification",
+  "tests": {
+    "MetalLayer": "7/7 PASS",
+    "MetalRenderBackend": "1/1 PASS",
+    "TJSShutdown": "1/1 PASS",
+    "parser": "56 PASS",
+    "productionEmitter": "75 v3 routes / 71 complete reads / 32 details; C0 including overflow reconciles",
+    "productionSyntax": "4 TUs PASS"
+  },
+  "limitations": [
+    "Windows portable and device double; no new native performance claim",
+    "Apple/Swift/App and matching device logs pending",
+    "record export/redraw/save retains synchronous CPU effects",
+    "C3/P2D/Nekopara/saveDataPack outside scope"
+  ],
+  "CI": "not monitored"
+}

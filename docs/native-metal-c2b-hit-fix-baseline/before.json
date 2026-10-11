@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-09",
+  "heads": {
+    "main": "0b557122fca5dfabafb2993af00a09507e24d975",
+    "runtime": "860d3de7e804def1f2dce195c7d754a678e8cb86",
+    "core": "6e75bbb32739a7ea8e2d851a88b8acb82c7179a3"
+  },
+  "platform": "Windows-11-10.0.26300-SP0",
+  "startingState": "All three repos observed clean before delegation; preserve HEAD source as original baseline",
+  "logHashes": {
+    "Mikage-diagnostics-10936578-45D2-4F97-BE92-9E42B880D330.jsonl": "d39275193a888b30fe8aa2d5ab613b74432701f4ea7e769c797cd70cade9c1fb",
+    "Mikage-diagnostics-29A892D5-1B75-46D7-8147-8E8B306696A1.jsonl": "56691f0a807ef40f75f2abe7cf78cfe1393db83743deef5960b72a335bc4149b",
+    "Mikage-diagnostics-A7F9D807-8F2E-47C9-828F-31B3BDE72287.jsonl": "82592dc1a7ebfd9af0fa02fb5bde33f01c9c35382d29176db96588f86b9936aa",
+    "Mikage-diagnostics-ABE010E1-E219-47F4-AAFE-9F5F4A4A2ABC.jsonl": "64f950d8d3f5e69fcc96091bc34a18be1eed24f46926e9cbedae7727a802209f",
+    "Mikage-diagnostics-B0A4043F-DEDC-44F1-B211-614C6E37905D.jsonl": "5071dee47adfa1d1520aa233703bdad8f518bdd6f35eb10bb582fa2814d762fd",
+    "Mikage-diagnostics-B80B92C5-90E2-4E13-851E-819CFC8272AD.jsonl": "10e63406cc8e519a18f77274d73bea977a1f4039d045a01165aeb4f5e74ba76c",
+    "Mikage-diagnostics-BB8DECFE-18DF-4DE0-BB39-191070F8AA44.jsonl": "15ac6fe16b48b5c66800d11cfc495a43a28e2b32c384127d7b14dbb9b648f562",
+    "Mikage-diagnostics-E2A3D968-9944-42BB-B427-39CC771F390F.jsonl": "8162a3b0568c9acd58efe14a263b09da7701cb707c298bc405d68eb7e46dc75f"
+  }
+}

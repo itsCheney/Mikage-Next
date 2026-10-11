@@ -1,14 +1,15 @@
 # Metal rendering
 
-The application now offers three explicit rendering choices:
+The application offers two explicit rendering choices:
 
 | Setting | Runtime argument | Work performed |
 | --- | --- | --- |
 | Metal (default) | `-render=metal` | Native Metal presentation, offscreen targets, Emote meshes and D3DLayer composition |
 | 软件合成 · Metal | `-render=software-metal` | Existing software composition with an explicitly selected SDL Metal presenter |
-| OpenGL ES | `-render=opengl` | Existing KRKR OpenGL ES backend |
 
-Saved `Metal 原生` preferences migrate to the new native Metal option. A native
+The runtime's OpenGL ES backend still exists and can be reported after a
+fallback, but it is no longer selectable: saved `OpenGL ES` and `Metal 原生`
+preferences both migrate to native Metal. A native
 Metal initialization failure tears down its view and recreates the window for
 software rendering with SDL Metal. If that presenter is unavailable, SDL's
 platform default is attempted. Logs and the performance HUD report the actual
@@ -19,17 +20,70 @@ Objective-C++17. The SDL Metal view, command queue and pipeline objects are
 owned by the backend and released before the SDL window. The implementation
 uses private RGBA8 textures and GPU target aliases, with no permanent CPU
 pixel mirror. Upload staging is retained by submitted command buffers and is
-bounded by a 16 MiB submission budget and two submissions in flight (a single
+bounded by a 16 MiB submission budget and three submissions in flight (a single
 large upload can exceed the budget). CPU target readback is allocated only
 for `LockTarget` and freed at `UnlockTarget`.
 
 Layer methods use GPU compute with software byte formulas, including signed
-shift rounding and alpha preservation. A reusable GPU destination snapshot
-avoids sampling an attachment while writing it. This introduces GPU copy
-bandwidth and one scratch texture; memory/performance gains require measurement.
+shift rounding and alpha preservation. `LayerDrawRect` reads and writes its
+destination pixel in place on Tier-2 read/write texture devices when its source
+is separate. Other devices snapshot only the affected rectangle; source/target
+aliases retain a full source snapshot to preserve sampling semantics.
+Consecutive Emote mesh draws to the same target share a render encoder until a
+clear, target change, blit, compute operation or submission requires a boundary.
 Mesh blending follows the existing OpenGL Emote GPU path, which has its own
-blend conventions. Ordinary `tjsNativeLayer`/RenderManager processing remains
-on the CPU in this first version. Image and video decoding are unchanged.
+blend conventions. Ordinary Emote-to-Layer full overwrites use a GPU copy when
+the Layer renderer exposes an unpinned GPU target; incompatible or CPU-backed
+Layers retain the readback path. Image and video decoding are unchanged.
+
+Ordinary KRKR Layer methods also reuse the canonical software method objects
+through the Metal Layer manager. The current registry has 70 names, including
+70 names with GPU descriptors; those descriptors still have explicit input,
+format, parameter, geometry and alias restrictions. On supporting Apple GPUs,
+ordinary operations use programmable blending in a shared target render pass;
+other devices use the existing compute paths. Affine Copy and the supported
+blend subset, plus bounded single-input perspective batches, are accelerated;
+general triangles still retain their existing restricted paths.
+P1B completes the remaining 11 registered Photoshop descriptors, without adding
+the 15 unregistered historical extensions or general geometry support.
+
+C4 adds compute paths for the seven built-in extrans handlers: mosaic, wave,
+ripple, turn, rotatezoom, rotatevanish and rotateswap. Their software time
+stepping, fixed-point scanline plans and lookup tables remain authoritative.
+Resident RGBA inputs avoid CPU scanlines and per-frame pixel output uploads;
+parameter uploads are counted separately. Actual target aliases, CPU leases,
+unavailable pipelines and unsupported resources retain the CPU path. Undefined
+legacy parameter cases fail explicitly. Portable parity is verified; Apple
+shader execution and paired device performance remain pending in the
+[C4 baseline](NATIVE-METAL-P2C-C4-BASELINE.md).
+
+P1A Gamma operations retain immutable 768-byte software LUT snapshots. Two
+recent-version caches create new Metal buffers only for changed versions/content;
+encoded command buffers retain old buffers until completion. The same pixel
+helpers run in tile, in-place compute and snapshot compute. Gamma parameter
+uploads are reported separately as `layerGammaLUTUploads` and
+`layerGammaLUTUploadedBytes` in host/Swift diagnostics. R8 RemoveOpacity supports
+only equal-size forward in-bounds rectangles; unsupported mask scaling/mirroring
+fails before entering the unsafe generic software RGBA resize path.
+
+Gamma_a's software LUT index is clamped to 255 to fix the former index-256
+access for valid alpha/channel pairs; this intentional behavior repair is
+documented with the [P1A baseline](NATIVE-METAL-P1A-BASELINE.md).
+
+P1B SoftLight/Dodge/Burn use a process-initialized software table export, packed
+source-major into 196608 immutable parameter bytes. The backend uploads this
+bundle once per distinct content and binds buffer(3) on tile, in-place compute
+and snapshot compute. Existing PS Screen/ColorDodge5 stay on their prior helpers.
+`layerPsTableUploads`, `layerPsTableUploadedBytes` and `psTables` rejection counts
+are separate diagnostic fields. See the [P1B baseline](NATIVE-METAL-P1B-BASELINE.md)
+for the remote precheck and portable/native verification boundary.
+
+Ordinary operation IDs, traits, shader constants and diagnostic sizes come from
+one shared definition. Capability audit output separates missing registrations,
+missing descriptors, declared parameter domains and actual backend availability.
+Dynamic GLSL compilation remains unsupported by these managers and fails without
+registering a null method. See [P0 baseline](NATIVE-METAL-P0-BASELINE.md) and the
+[ordinary Layer tests](../Tests/MetalLayer/README.md) for verification boundaries.
 
 The optional `CaptureFrame` backend method and C frame capture/free functions
 provide top-down straight-alpha RGBA8 screenshots. Metal replays the current
@@ -69,6 +123,14 @@ Low Power Mode. Startup/shader compilation and background time are excluded
 from gameplay cadence windows. The FPS metric counts runtime frame submissions,
 not script-level content changes. The optional timing methods return -1 on
 backends which cannot report the requested GPU/wait measurements.
+
+`heartbeat.profile.commandIntervalProfile` reports counts since the previous
+heartbeat, with `ticks` as its denominator for per-step averages. It includes
+render/compute/blit encoder counts, mesh and GPU-deformation draws, Emote mask
+clears/draws/unique source groups, `LayerDrawRect` snapshot bytes, transient
+uploads, command buffers, and ordinary Emote Layer GPU copies versus timed CPU
+readbacks. The first heartbeat establishes the counter baseline. A mask group
+identity counts source nodes, not unchanged pixels, and is not a cache key.
 
 TJS cleanup also drains inactive register references while globals are live,
 and keeps pooling disabled for shutdown-time finalizers. Per-VM GC now actually

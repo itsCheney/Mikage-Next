@@ -1,0 +1,8 @@
+Internal ctest changing into directory: D:/vn-sim/build/tjs-shutdown-tests
+Test project D:/vn-sim/build/tjs-shutdown-tests
+    Start 1: tjs-shutdown-tests
+1/1 Test #1: tjs-shutdown-tests ...............   Passed    0.11 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.11 sec

@@ -11,6 +11,23 @@ struct AppBackground: View {
     }
 }
 
+extension TimeInterval {
+    /// `H:MM:SS` elapsed time. Negative and non-finite values read as zero.
+    var playTimeClock: String {
+        guard isFinite, self > 0 else { return "0:00:00" }
+        let total = Int(self.rounded())
+        return String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
+    }
+
+    /// Short form for summaries: "3 小时 12 分" / "12 分" / "不到 1 分钟".
+    var playTimeSummary: String {
+        guard isFinite, self >= 60 else { return "不到 1 分钟" }
+        let minutes = Int(self) / 60
+        let hours = minutes / 60
+        return hours > 0 ? "\(hours) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+    }
+}
+
 extension View {
     @ViewBuilder
     func nativeGlassButtonStyle(prominent: Bool = false) -> some View {
@@ -56,19 +73,57 @@ struct RoundButton: View {
 
 struct GameCover: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.displayScale) private var displayScale
     let game: GameRecord
+    @State private var image: UIImage?
+
     var body: some View {
         GeometryReader { proxy in
-            if let url = model.coverURL(game), let image = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: image).resizable().scaledToFill().frame(width: proxy.size.width, height: proxy.size.height).clipped()
-            } else {
-                Color(uiColor: .secondarySystemGroupedBackground)
-                    .overlay(
-                        Image(systemName: "book.closed.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(.secondary)
-                    )
+            ZStack {
+                placeholder
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                        .transition(.opacity)
+                }
+            }
+            // Re-runs when the cover file or the laid-out size changes. Decoding
+            // happens off the main thread and is cached at display size.
+            .task(id: coverIdentity(proxy.size)) {
+                await load(size: proxy.size)
             }
         }
+    }
+
+    private var placeholder: some View {
+        Color(uiColor: .secondarySystemGroupedBackground)
+            .overlay(
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(.secondary)
+            )
+    }
+
+    private func coverIdentity(_ size: CGSize) -> String {
+        let url = model.coverURL(game)?.path ?? "none"
+        return "\(url)|\(Int(size.width))x\(Int(size.height))"
+    }
+
+    private func load(size: CGSize) async {
+        guard size.width > 0, size.height > 0, let url = model.coverURL(game) else {
+            image = nil
+            return
+        }
+        // Show a cache hit without an animation so scrolling does not flicker.
+        if let hit = CoverCache.shared.cached(url, size: size, scale: displayScale) {
+            image = hit
+            return
+        }
+        let decoded = await CoverCache.shared.image(for: url, size: size, scale: displayScale)
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.18)) { image = decoded }
     }
 }

@@ -1,0 +1,25 @@
+diff --git a/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md b/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md
+index b1ce5ec..37496f5 100644
+--- a/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md
++++ b/docs/NATIVE-METAL-COMPATIBILITY-PLAN.md
+@@ -366,12 +366,20 @@
+ 
+ #### C2. LayerEx/raw-pixel：收敛 GPU↔CPU ping-pong，而非假定插件可自动 GPU 化
+ 
++**C1 后的新增归因样例：缩放结果的 CPU 消费者。**2026-10-08、`sourceRevision=349f8945d605` 的 [After_C1 千恋原始日志](../perf_log/After_C1/Mikage-diagnostics-229C6FE2-D579-4FDD-A647-D5642EDFBB58.jsonl)中，两次 `shrinkCopy` 均为 GPU、无 shrink 归因像素读回/等待/上传，但同窗口仍有两次 496×279 `bitmap.scanline` 读回，合计 1,107,072 bytes / 18.387917 ms wait。对应 texture ID 分别为 441、8670，发生在开局与退出附近；不能视为同一有效内容被重复读回。尺寸和窗口关联提示缩放后的 CPU 消费，尚不能证明调用者是保存缩略图、图片编码或某个插件。
++
++- [ ] 在真实成功的 scanline 读回处增加有界、采样式消费端归因：texture ID、会话/资源与内容版本、最后写入者、原生调用入口及 TJS 调用栈，并关联 shrink 的输出 texture ID/版本。沿 `saveLayerImage`、图片编码、插件和 raw-pointer 入口确认实际调用链；字节码缺少 source map 时明确标记位置未知。复用既有传输和等待测量，不新增 readback、submit、wait 或资源强引用，关闭诊断时不抓栈。
++- [ ] 对后续绘制或有已知 GPU 等价实现的消费者，直接消费 GPU 纹理，消除获取 CPU 像素的边界；保持原像素、alpha、COW/lease 与操作顺序。
++- [ ] 对必须 CPU 编码/保存的消费者，保留 GPU 缩放，只对实际需要的小图做一次读回，并复用同一内容版本的有效 CPU 缓存。现有缓存已避免有效内容重复读取；不同纹理或 GPU 修改后的新版本不得合并为缓存命中，也不得以失效像素填补同步读取。
++- [ ] 仅在消费协议允许延后完成、且存在合适的既有提交时机时，评估提前准备不可变版本的读回及后台编码；保持脚本返回时的像素/文件完成与错误语义、场景退出和跨会话寿命。同步指针或立即要求保存完成的调用保留必要同步边界；异步准备不得新增强制提交或将等待转移到另一未计量路径。
+ - [ ] 将 `LayerExBase`、`LayerExDraw`、`ScopedLayerPixels` 等调用按只读、完整覆盖写、局部读改写和真 CPU 算法分类，并捕获调用栈/功能样例。每类明确 CPU cache、dirty ROI、lease、COW、alpha cache 和跨会话资源语义。
+ - [ ] 对有已知 GPU 等价实现的功能接入专用 GPU 路径；对 ABI 必须提供 raw pointer 的功能，设计单次、区域化的 acquire/release 与上传边界。不能通过延迟 dirty、复用失效 CPU buffer 或虚构 full overwrite 改变插件可见像素。
+ - [ ] 以天使纷扰的 1052×900 `layerExDraw.write` → `layerExBase` 交替访问为主回归，并加入千恋的 960×863、186×936 LayerEx 样例。重构前先证明两次完整往返由同一调用序列造成；重构后要么消除其中可 GPU 化的一段，要么记录为何 ABI/算法必须保留边界。
+ 
+ 验收：样例的像素、raw-pointer 可见性、区域外内容、COW/lease 和资源释放保持正确；一次逻辑插件处理不会在没有新的 CPU 消费者需求时对同一完整纹理产生两次 GPU→CPU→GPU 往返。若语义确实要求多次 CPU 阶段，报告每段 origin、区域和 wait，而不是把它标成“已优化”。
+ 
++新增缩放消费者样例按 **shrink → scanline → 消费者** 的整条链路验收：同条件报告总 readback calls/bytes、sync wait、CPU 消费/编码时间与逐帧长帧数，不能仅因 `shrinkCopy` 栏为零或 origin 改名而签收。可 GPU 化的消费者要求该链路像素读回为零；确需 CPU 保存的小图允许具名的一次必要读回，并验证保存结果、同步返回/异常、同版本缓存及版本变化后的正确失效。当前两次小图读回不作为 C1 算法失败，也不由其字节量较小推断等待可忽略。
++
+ #### C3. `bitmap.update`：按帧聚合小更新与 encoder 生命周期
+ 
+ - [ ] 先用 C0 origin、调用点和 dirty-rect/texture 数据验证 `bitmap.update` 与 blit encoder 的关系；沿 `UpdateLayerTexture()` → staging → `blitCommandEncoder` → `endEncoding()` 审计 encoder 生命周期。第 2.5 节的 interval 相关性是调查依据，不是充分的调用链证据；区分启动资源加载、字形/文本、小 UI、movie frame 与普通 bitmap 写入。

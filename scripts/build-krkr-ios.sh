@@ -6,7 +6,9 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VCPKG_BASELINE="8e8dfb4ba483886936ded5ca201b500b8d8b0096"
 SOURCE_DIR="${PROJECT_DIR}/Engine/KRKRRuntime/Source"
 OUTPUT="${PROJECT_DIR}/build/KRKRRuntime.xcframework"
-VCPKG_INSTALLED_DIR="${PROJECT_DIR}/build/krkr-vcpkg-installed"
+VCPKG_INSTALLED_ROOT="${PROJECT_DIR}/build/krkr-vcpkg-installed"
+VCPKG_DEVICE_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/device"
+VCPKG_SIMULATOR_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/simulator"
 
 if [[ -e "${OUTPUT}" ]]; then
     echo "${OUTPUT} already exists; remove the generated build directory before rebuilding." >&2
@@ -42,20 +44,40 @@ else
 fi
 
 export VCPKG_DISABLE_METRICS=1
-mkdir -p "${VCPKG_INSTALLED_DIR}"
+# Keep manifest installs disjoint. Sharing one installed tree makes vcpkg
+# reconcile the device and simulator triplets during alternating CMake
+# configures, which can discard the work it just restored for the other SDK.
+mkdir -p "${VCPKG_DEVICE_INSTALLED_DIR}" "${VCPKG_SIMULATOR_INSTALLED_DIR}"
+
+cmake_launcher_args=()
+if command -v ccache >/dev/null 2>&1; then
+    # Keep cache paths stable across GitHub-hosted runner workspaces while
+    # retaining the compiler and SDK in ccache's normal cache key.
+    export CCACHE_DIR="${CCACHE_DIR:-${PROJECT_DIR}/build/krkr-ccache}"
+    export CCACHE_BASEDIR="${PROJECT_DIR}"
+    cmake_launcher_args=(
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        -DCMAKE_OBJC_COMPILER_LAUNCHER=ccache
+        -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
+    )
+    ccache --zero-stats
+fi
 
 cmake --preset "iOS Device Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
-    -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
+    -DVCPKG_INSTALLED_DIR="${VCPKG_DEVICE_INSTALLED_DIR}" \
+    "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
 
 cmake --preset "iOS Simulator Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
-    -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
+    -DVCPKG_INSTALLED_DIR="${VCPKG_SIMULATOR_INSTALLED_DIR}" \
+    "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
 
 DEVICE_FRAMEWORK="${SOURCE_DIR}/out/ios-device/Release-iphoneos/KRKRRuntime.framework"
@@ -71,4 +93,7 @@ xcodebuild -create-xcframework \
     -output "${OUTPUT}"
 
 test -f "${OUTPUT}/Info.plist"
+if command -v ccache >/dev/null 2>&1; then
+    ccache --show-stats
+fi
 echo "Created ${OUTPUT}"

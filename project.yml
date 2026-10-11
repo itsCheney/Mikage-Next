@@ -34,6 +34,17 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
 
+  MikageTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/MikageTests
+    dependencies:
+      - target: Mikage
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   Mikage:
     build:
@@ -41,6 +52,10 @@ schemes:
         Mikage: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - MikageTests
 
     archive:
       config: Release

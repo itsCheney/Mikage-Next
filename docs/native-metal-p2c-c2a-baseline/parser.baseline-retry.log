@@ -1,0 +1,23 @@
+Start testing: Oct 08 14:49 中国标准时间
+----------------------------------------------------------
+3/4 Testing: layer-diagnostics-parser
+3/4 Test: layer-diagnostics-parser
+Command: "C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe" "D:/vn-sim/Tests/MetalLayer/test-layer-diagnostics.py"
+Directory: D:/vn-sim/build/metal-layer-tests
+"layer-diagnostics-parser" start time: Oct 08 14:49 中国标准时间
+Output:
+----------------------------------------------------------
+.........................
+----------------------------------------------------------------------
+Ran 25 tests in 0.064s
+
+OK
+<end of output>
+Test time =   0.25 sec
+----------------------------------------------------------
+Test Passed.
+"layer-diagnostics-parser" end time: Oct 08 14:49 中国标准时间
+"layer-diagnostics-parser" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 08 14:49 中国标准时间

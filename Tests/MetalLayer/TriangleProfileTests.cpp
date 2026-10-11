@@ -1,0 +1,375 @@
+#include "tjsCommHead.h"
+#include "RenderManager.h"
+#include "MetalLayerRenderManager.h"
+#include "LayerTriangleTrace.h"
+#include "../../Engine/KRKRRuntime/Source/host/MikageKRKRRuntime.h"
+#include <atomic>
+#include <algorithm>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <vector>
+#include <thread>
+
+// Compile the exact production bridge. Only host lifecycle/log registration
+// globals are substituted; every field copy and interval reset is production.
+static bool running=true;
+static void TestLog(const char*,int32_t,const char*) {}
+static std::atomic<MikageKRKRLogCallback> diagnosticCallback{TestLog};
+#include "ProductionTriangleProfileBridge.inc"
+
+extern bool TVPTestCaptureLogs;
+extern std::vector<std::string> TVPTestLogs;
+namespace {
+namespace trace=krkrsdl3::layer_triangle_trace;
+using Texture=std::unique_ptr<iTVPTexture2D>;
+void Require(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
+Texture Create(int w=8,int h=6) {
+    return Texture(TVPGetRenderManager()->CreateTexture2D(nullptr,0,w,h,TVPTextureFormat::RGBA));
+}
+void Fill(iTVPTexture2D* t,uint32_t color) {
+    auto* mgr=TVPGetRenderManager();
+    auto* fill=mgr->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,color);
+    mgr->SetParameterInt(mgr->EnumParameterID("StretchType"),0);
+    mgr->OperateRect(fill,t,nullptr,tTVPRect(0,0,t->GetWidth(),t->GetHeight()),tRenderTexRectArray(nullptr,0));
+}
+void Triangle(iTVPTexture2D* t,iTVPTexture2D* s,const tTVPRect& clip,
+              const char* name="Copy",iTVPTexture2D* reference=nullptr) {
+    // Fractional source rectangles deliberately remain unsupported by the
+    // first GPU affine path, so these exercise actual fallback attribution.
+    const tTVPPointD points[]={{1,1},{5.25,1},{1,4},{5.25,1},{1,4},{5.25,4}};
+    auto* mgr=TVPGetRenderManager(); auto* method=mgr->GetRenderMethod(name);
+    method->SetParameterOpa(0,127);
+    std::pair<iTVPTexture2D*,const tTVPPointD*> input(s,points);
+    mgr->OperateTriangles(method,2,t,reference,clip,points,tRenderTexQuadArray(&input,1));
+}
+MikageKRKRLayerTriangleProfile Take() {
+    MikageKRKRLayerTriangleProfile p;
+    std::memset(&p,0xa5,sizeof(p));
+    Require(MikageKRKRTakeLayerTriangleProfile(&p),"production triangle bridge did not sample");
+    Require(std::memchr(p.methods,0,sizeof(p.methods)) && std::memchr(p.targetSizes,0,sizeof(p.targetSizes)) &&
+            std::memchr(p.sources,0,sizeof(p.sources)) && std::memchr(p.stretchModes,0,sizeof(p.stretchModes)),
+            "triangle bridge string was not NUL terminated");
+    return p;
+}
+uint64_t HistogramCalls(const char* histogram) {
+    std::string s(histogram); uint64_t count=0;
+    size_t start=0;
+    while(start<s.size()) {
+        const auto end=s.find(',',start),colon=s.find(':',start);
+        Require(colon!=std::string::npos,"malformed triangle histogram");
+        count+=std::stoull(s.substr(colon+1,end-colon-1));
+        if(end==std::string::npos) break;
+        start=end+1;
+    }
+    return count;
+}
+}
+
+void TriangleProfileTests() {
+    namespace work=krkrsdl3::layer_work;
+    work::SetEnabled(true);
+    work::Record(true,17,1920,1080,8,3,0,false,"bridge.test");
+    work::RecordAMVFrame(4096);
+    work::RecordFrame(100,21);work::RecordFrame(130,33);
+    MikageKRKRLayerWorkProfile workProfile;
+    Require(!MikageKRKRLayerWorkProfileOrigins(nullptr) &&
+            !MikageKRKRLayerWorkProfileTransitions(nullptr) &&
+            !MikageKRKRLayerWorkProfileTransitionOverflow(nullptr) &&
+            !MikageKRKRLayerWorkProfileFrameIntervals(nullptr) &&
+            !MikageKRKRLayerWorkProfileFrameCpuWall(nullptr),"work profile accessor accepted null input");
+    std::memset(&workProfile,0xa5,sizeof(workProfile));
+    Require(!MikageKRKRTakeLayerWorkProfile(nullptr),"work bridge accepted a null output");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge did not sample");
+    Require(std::memchr(workProfile.stages,0,sizeof(workProfile.stages)) &&
+            std::memchr(workProfile.transfers,0,sizeof(workProfile.transfers)),"work bridge strings not terminated");
+    Require(workProfile.amvDecodedFrames==1 && workProfile.amvDecodedBytes==4096 &&
+            std::strstr(workProfile.transfers,"bridge.test@17"),"work bridge dropped decoded/transfer data");
+    Require(workProfile.workProfileVersion==2 &&
+            std::string(workProfile.transferOrigins)=="upload:bridge.test=1/8/3/0" &&
+            std::string(workProfile.originOverflow)=="read=0/0/0/0,upload=0/0/0/0,capacityRecords=0,oversizeRecords=0",
+            "work bridge origin suffix version/metrics were not copied exactly");
+    Require(std::memchr(workProfile.transferOrigins,0,sizeof(workProfile.transferOrigins)) &&
+            std::memchr(workProfile.originOverflow,0,sizeof(workProfile.originOverflow)),"work bridge suffix strings not terminated");
+    Require(workProfile.frameSampleCount==2 && workProfile.frameIntervalNS[0]==0 && workProfile.frameIntervalNS[1]==30 &&
+            workProfile.frameCpuWallNS[0]==21 && workProfile.frameCpuWallNS[1]==33 && workProfile.frameSamplesDropped==0 &&
+            workProfile.frameIntervalNS[2]==0 && workProfile.frameCpuWallNS[2047]==0,
+            "work bridge frame suffix did not preserve nanoseconds or clear unused array tail");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && !workProfile.transfers[0] && !workProfile.amvDecodedFrames,
+            "work bridge did not reset its interval");
+    Require(!workProfile.transferOrigins[0] && workProfile.frameSampleCount==0 && workProfile.frameSamplesDropped==0 &&
+            workProfile.frameIntervalNS[0]==0 && workProfile.frameCpuWallNS[0]==0,
+            "work bridge did not reset origin/frame samples or zero reused output arrays");
+    Require(workProfile.transitionProfileVersion==1 && std::string(workProfile.transitionProfiles)=="[]" &&
+            workProfile.transitionProfilesDropped==0 &&
+            MikageKRKRLayerWorkProfileTransitions(&workProfile)==workProfile.transitionProfiles &&
+            MikageKRKRLayerWorkProfileTransitionOverflow(&workProfile)==workProfile.transitionOverflow,
+            "work bridge transition suffix/version/read-only accessor did not preserve backing views");
+    {
+        work::TransitionScope transition("requested.alias","crossfade",19,17,23,19,29,23,7,5,500,1,"{\"time\":300}");
+        work::RecordTransitionResult(true,"renderManager",35,2,168);
+        work::Record(false,99,7,5,140,13,7);
+    }
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) &&
+            std::strstr(workProfile.transitionProfiles,"\"requested\":\"requested.alias\"") &&
+            std::strstr(workProfile.transitionProfiles,"\"effective\":\"crossfade\"") &&
+            std::strstr(workProfile.transitionProfiles,"\"parameterUploads\":2,\"parameterBytes\":168") &&
+            std::strstr(workProfile.transitionProfiles,"\"readCalls\":1,\"readBytes\":140,\"readWallNS\":13,\"readWaitNS\":7"),
+            "work bridge dropped transition provider/parameter/transfer data");
+    workProfile.transitionProfileVersion=99;
+    Require(!MikageKRKRLayerWorkProfileTransitions(&workProfile) &&
+            !MikageKRKRLayerWorkProfileTransitionOverflow(&workProfile),"work bridge exposed unknown transition schema");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && std::string(workProfile.transitionProfiles)=="[]",
+            "work bridge retained transition rows across Take");
+    Require(!MikageKRKRLayerWorkProfileShrinks(nullptr) && !MikageKRKRLayerWorkProfileShrinkOverflow(nullptr) &&
+            !MikageKRKRLayerWorkProfileShrinkReadWait(nullptr),"C1 accessor accepted null");
+    {
+        work::ShrinkScope shrink("shrinkCopy","{\"targetROI\":[1,2,7,5]}","safeAlias");
+        work::RecordShrinkResult(true,"applied",35);work::RecordShrinkParameters(2,192,448);
+        for(uint64_t i=0;i<work::MaxReadWaitSamples+2;++i) work::Record(false,88,7,5,140,13,i);
+    }
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.shrinkProfileVersion==1 &&
+            workProfile.shrinkProfilesDropped==0 && std::strstr(workProfile.shrinkProfiles,"safeAlias") &&
+            std::strstr(workProfile.shrinkProfiles,"\"parameterBytes\":192,\"temporaryBytes\":448") &&
+            workProfile.shrinkReadWaitSampleCount==2048 && workProfile.shrinkReadWaitSamplesNS[0]==0 &&
+            workProfile.shrinkReadWaitSamplesNS[2047]==2047 && workProfile.shrinkReadWaitSamplesDropped==2,
+            "C1 bridge lost bounded shrink/wait profile tail");
+    Require(MikageKRKRLayerWorkProfileShrinks(&workProfile)==workProfile.shrinkProfiles &&
+            MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile)==workProfile.shrinkOverflow &&
+            MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile)==workProfile.shrinkReadWaitSamplesNS,
+            "C1 bridge returned incorrect backing view");
+    workProfile.shrinkReadWaitSampleCount=2049;
+    Require(!MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile),"C1 bridge exposes out-of-bounds waits");
+    workProfile.shrinkProfileVersion=99;
+    Require(!MikageKRKRLayerWorkProfileShrinks(&workProfile) && !MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile) &&
+            !MikageKRKRLayerWorkProfileShrinkReadWait(&workProfile),"C1 bridge exposes unknown schema");
+    workProfile.shrinkProfileVersion=1;
+    std::memset(workProfile.shrinkProfiles,'x',sizeof(workProfile.shrinkProfiles));
+    std::memset(workProfile.shrinkOverflow,'x',sizeof(workProfile.shrinkOverflow));
+    Require(!MikageKRKRLayerWorkProfileShrinks(&workProfile) && !MikageKRKRLayerWorkProfileShrinkOverflow(&workProfile),
+            "C1 bridge exposes unterminated strings");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && std::string(workProfile.shrinkProfiles)=="[]" &&
+            !workProfile.shrinkReadWaitSampleCount && !workProfile.shrinkReadWaitSamplesNS[2047] &&
+            !workProfile.shrinkReadWaitSamplesDropped,"C1 bridge did not clear reused profile tail");
+    static_assert(sizeof(MikageKRKRLayerWorkProfile)<300000,"C1 bridge profile stack exceeds bounded 300k budget");
+    work::RecordFrame(170,47);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
+            workProfile.frameIntervalNS[0]==40 && workProfile.frameCpuWallNS[0]==47,
+            "work bridge Take reset runtime frame timestamp continuity");
+    work::RecordFrame(180,49);work::ResetFrameHistory();work::RecordFrame(1000,53);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==1 &&
+            workProfile.frameIntervalNS[0]==0 && workProfile.frameCpuWallNS[0]==53,
+            "work bridge reset history retained an old cadence/sample");
+    work::SetEnabled(true);
+    for(const auto* name:work::protectedOrigins) for(bool upload:{false,true})
+        work::Record(upload,1,1,1,1,1,1,false,name);
+    for(size_t i=0;i<work::OriginCapacity-work::protectedOrigins.size()*2;++i) {
+        const auto name=std::string(46,'%')+char(0x80+i);
+        work::Record(false,i+2,1,1,1,1,1,false,name.c_str());
+    }
+    for(uint64_t i=0;i<work::MaxFrameSamples+3;++i) work::RecordFrame(2000+i*5,i+1);
+    const auto maximum=std::numeric_limits<uint64_t>::max();
+    {
+        std::lock_guard<std::mutex> lock(work::mutex);
+        for(auto& origin:work::profile.origins) origin.calls=origin.bytes=origin.ns=origin.waitNS=maximum;
+        for(auto& overflow:work::profile.originOverflow) overflow.calls=overflow.bytes=overflow.ns=overflow.waitNS=maximum;
+        work::profile.capacityRecords=work::profile.oversizeRecords=maximum;
+        work::profile.frameIntervalNS[0]=maximum;
+        work::profile.frameCpuWallNS[2047]=maximum;
+        work::profile.frameSamplesDropped=maximum;
+    }
+    const auto expectedOrigins=work::profile.originSize;
+    for(size_t i=0;i<work::TransitionCapacity;++i) {
+        const auto name="bridge.handler."+std::to_string(i);
+        work::TransitionScope transition(name.c_str(),name.c_str(),999,997,991,983,977,971,967,953,maximum,i);
+        work::SetTransitionMetadata(("{\"fixture\":\""+std::string(230,'x')+"\"}").c_str());
+        work::RecordTransitionResult(true,"applied",maximum,maximum,maximum);
+    }
+    Require(expectedOrigins==64,"work bridge full-capacity suffix fixture lost distinct origin groups");
+    std::memset(&workProfile,0xa5,sizeof(workProfile));
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge rejected bounded full/max-width suffix");
+    Require(std::memchr(workProfile.transferOrigins,0,sizeof(workProfile.transferOrigins)) &&
+            std::memchr(workProfile.originOverflow,0,sizeof(workProfile.originOverflow)) &&
+            std::count(workProfile.transferOrigins,workProfile.transferOrigins+std::strlen(workProfile.transferOrigins),',')==int(expectedOrigins-1),
+            "work bridge silently cut a full-capacity escaped origin row");
+    const std::string maxTuple="18446744073709551615/18446744073709551615/18446744073709551615/18446744073709551615";
+    Require(std::strstr(workProfile.transferOrigins,maxTuple.c_str()) &&
+            std::string(workProfile.originOverflow)=="read="+maxTuple+",upload="+maxTuple+
+                ",capacityRecords=18446744073709551615,oversizeRecords=18446744073709551615",
+            "work bridge shortened maximum-width origin/overflow counters");
+    Require(workProfile.frameSampleCount==2048 && workProfile.frameIntervalNS[0]==maximum &&
+            workProfile.frameIntervalNS[2047]==5 && workProfile.frameCpuWallNS[2047]==maximum &&
+            workProfile.frameSamplesDropped==maximum,"work bridge frame arrays/count/drop suffix failed at capacity");
+    Require(workProfile.transitionProfileVersion==1 && workProfile.transitionProfilesDropped==0 &&
+            std::memchr(workProfile.transitionProfiles,0,sizeof(workProfile.transitionProfiles)) &&
+            std::strstr(workProfile.transitionProfiles,"bridge.handler.63") &&
+            std::strstr(workProfile.transitionProfiles,"\"parameterBytes\":18446744073709551615"),
+            "work bridge silently cut full transition capacity or max-width counters");
+    Require(MikageKRKRLayerWorkProfileOrigins(&workProfile)==workProfile.transferOrigins &&
+            MikageKRKRLayerWorkProfileFrameIntervals(&workProfile)==workProfile.frameIntervalNS &&
+            MikageKRKRLayerWorkProfileFrameCpuWall(&workProfile)==workProfile.frameCpuWallNS,
+            "work profile accessor copied, reset, or returned the wrong backing field");
+    const auto frameCount=workProfile.frameSampleCount;
+    workProfile.frameSampleCount=2049;
+    Require(!MikageKRKRLayerWorkProfileFrameIntervals(&workProfile) &&
+            !MikageKRKRLayerWorkProfileFrameCpuWall(&workProfile),"work profile accessor exposes oversized frame arrays");
+    workProfile.frameSampleCount=frameCount;
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.frameSampleCount==0 &&
+            workProfile.frameSamplesDropped==0 && workProfile.frameIntervalNS[2047]==0,
+            "work bridge maximum-width frame window did not clear after Take");
+    work::SetEnabled(true);
+    const auto expectedWindowID=work::profile.cpuConsumerBudget.spanWindow.id;
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && expectedWindowID!=0 &&
+        MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID,"C2B window accessor did not match captured work window");
+    const auto nextWindowID=work::profile.cpuConsumerBudget.spanWindow.id;
+    Require(MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID &&
+        work::profile.cpuConsumerBudget.spanWindow.id==nextWindowID,"C2B readonly accessor drained profile");
+    uint64_t otherThreadID=99;
+    std::thread other([&]{otherThreadID=MikageKRKRLastLayerWorkProfileWindowID();});other.join();
+    Require(otherThreadID==0 && MikageKRKRLastLayerWorkProfileWindowID()==expectedWindowID,
+        "C2B window accessor leaked across threads");
+    std::thread toggle([]{work::SetEnabled(false);work::SetEnabled(true);});toggle.join();
+    Require(MikageKRKRLastLayerWorkProfileWindowID()==0,"C2B window accessor reused ID after another thread changed generation");
+    Require(!MikageKRKRTakeLayerWorkProfile(nullptr) && MikageKRKRLastLayerWorkProfileWindowID()==0,
+        "C2B failed Take reused stale window ID");
+    running=false; Require(!MikageKRKRTakeLayerWorkProfile(&workProfile) &&
+        MikageKRKRLastLayerWorkProfileWindowID()==0,"work bridge sampled outside session"); running=true;
+    diagnosticCallback.store(nullptr); Require(!MikageKRKRTakeLayerWorkProfile(&workProfile),"work bridge sampled with recording off");
+    diagnosticCallback.store(TestLog); work::SetEnabled(false);
+    work::Record(false,1,1,1,1);work::RecordFrame(30000,77);
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.intervalNS==0 &&
+            workProfile.workProfileVersion==2 && !workProfile.transferOrigins[0] && workProfile.frameSampleCount==0 &&
+            workProfile.frameSamplesDropped==0,"disabled collector bridge kept interval/origin/frame data");
+    Require(MikageKRKRTakeLayerWorkProfile(&workProfile) && workProfile.intervalNS==0,
+            "disabled work bridge restarted interval timing on Take");
+    static_assert(!std::is_copy_constructible<trace::SourceScope>::value);
+    auto t=Create(),s=Create(),r=Create();
+    auto* mgr=TVPGetRenderManager();
+    Require(mgr->GetRenderMethod("AlphaBlend")==mgr->GetRenderMethod("AlphaBlend_HDA") &&
+            mgr->GetRenderMethod("AlphaBlend")->GetName()=="AlphaBlend" &&
+            mgr->GetRenderMethod("AlphaBlend_a")==mgr->GetRenderMethod("PerspectiveAlphaBlend_a") &&
+            mgr->GetRenderMethod("AlphaBlend_a")->GetName()=="AlphaBlend_a",
+            "aliases changed canonical method attribution or object identity");
+    constexpr uint64_t bytes=8*6*4;
+    TVPSetMetalLayerTriangleDiagnostics(false);
+    Fill(t.get(),0xff102030); Fill(s.get(),0xff8090a0);
+    const auto disabledBefore=TVPGetMetalLayerRenderStats();
+    Triangle(t.get(),s.get(),tTVPRect(0,0,8,6));
+    Require(TVPGetMetalLayerRenderStats().cpuFallbacks==disabledBefore.cpuFallbacks+1,
+            "disabling diagnostics changed triangle routing");
+    Require(TVPTakeMetalLayerTriangleProfile().stats.calls==0,"disabled diagnostics collected triangles");
+    { trace::SourceScope disabled(trace::Source::AffineCopy);
+      Require(trace::source==trace::Source::Unknown,"disabled source scope acquired a tag"); }
+
+    TVPSetMetalLayerTriangleDiagnostics(true);
+    Fill(t.get(),0xff102030); Fill(s.get(),0xff8090a0); Fill(r.get(),0xff334455);
+    TVPTestLogs.clear(); TVPTestCaptureLogs=true;
+    const auto before=TVPGetMetalLayerRenderStats();
+    {
+        trace::SourceScope outer(trace::Source::AffineCopy);
+        Triangle(t.get(),s.get(),tTVPRect(-3,-2,99,99),"Copy",r.get());
+        try {
+            trace::SourceScope inner(trace::Source::AffineBlend);
+            auto* mgr=TVPGetRenderManager(); mgr->SetParameterInt(mgr->EnumParameterID("StretchType"),1);
+            Triangle(t.get(),s.get(),tTVPRect(2,2,4,3),"AlphaBlend");
+            throw std::runtime_error("unwind");
+        } catch(const std::runtime_error&) {}
+        Require(trace::source==trace::Source::AffineCopy,"nested source scope failed to restore on unwind");
+    }
+    Require(trace::source==trace::Source::Unknown,"source tag leaked after affine operation");
+    TVPGetRenderManager()->SetParameterInt(TVPGetRenderManager()->EnumParameterID("StretchType"),0);
+    Triangle(t.get(),s.get(),tTVPRect(9,7,10,8));
+    const auto after=TVPGetMetalLayerRenderStats();
+    Require(after.cpuFallbacks-before.cpuFallbacks==3 && after.readbackBytes-before.readbackBytes==bytes*3,
+            "triangle diagnostics changed fallback counts/readbacks");
+    Require(TVPTestLogs.empty(),"triangle diagnostics wrote per-operation logs");
+    TVPTestCaptureLogs=false;
+    // Read-only/HUD stats must not consume the diagnostic interval.
+    TVPGetMetalLayerRenderStats(); TVPGetMetalLayerRenderStats();
+    Require(!MikageKRKRTakeLayerTriangleProfile(nullptr),"bridge accepted null output");
+    running=false; MikageKRKRLayerTriangleProfile ignored{};
+    Require(!MikageKRKRTakeLayerTriangleProfile(&ignored),"bridge sampled stopped host");
+    running=true; diagnosticCallback.store(nullptr);
+    Require(!MikageKRKRTakeLayerTriangleProfile(&ignored),"bridge sampled without diagnostic callback");
+    diagnosticCallback.store(TestLog);
+    const auto p=Take();
+    Require(p.intervalNS>0 && p.calls==3 && p.triangleCount==6,"triangle interval counts lost/reset by other readers");
+    Require(p.clipPixels==50 && p.maxClipPixels==48 && p.maxTargetPixels==48 && p.fullSurfaceCalls==1 &&
+            p.target1920x1080Calls==0,"triangle clip/target area accounting incorrect");
+    Require(p.targetReadbackBytes==bytes && p.sourceReadbackBytes==bytes && p.referenceReadbackBytes==bytes,
+            "triangle actual readback roles/cache hits incorrect");
+    Require(p.cpuTimeNS>0 && p.maxCpuTimeNS>0 && p.cpuTimeNS>=p.softwareTimeNS &&
+            p.cpuTimeNS>=p.maxCpuTimeNS && p.maxCpuTimeNS>=p.maxSoftwareTimeNS &&
+            p.softwareTimeNS>=p.maxSoftwareTimeNS,"triangle timing totals/maxima incorrect");
+    Require(p.count2Calls==3 && p.singleInputCalls==3 && p.referenceCalls==1 && p.sourceTargetAliasCalls==0,
+            "triangle call-shape accounting incorrect");
+    Require(std::string(p.methods)=="Copy:2,AlphaBlend:1","triangle method histogram incorrect");
+    Require(std::string(p.targetSizes)=="8x6:3","triangle target histogram incorrect");
+    Require(std::string(p.sources)=="unknown:1,AffineCopy:1,AffineBlend:1","triangle source histogram incorrect");
+    Require(std::string(p.stretchModes)=="0:2,1:1","triangle sampling histogram incorrect");
+    auto empty=Take();
+    Require(empty.calls==0 && empty.clipPixels==0 && empty.maxClipPixels==0 && empty.cpuTimeNS==0 &&
+            empty.maxCpuTimeNS==0 && empty.maxTargetPixels==0 && empty.methods[0]==0 && empty.sources[0]==0,
+            "triangle interval counters/maxima/histograms did not reset");
+    const auto* pixels=static_cast<const uint32_t*>(t->GetScanLineForRead(0));
+    Require(pixels[0]==0xff102030 && pixels[1+8]==0xff8090a0,
+            "diagnostic instrumentation changed affine fallback pixels");
+
+    // Aliases are charged to the first CPUViews role, never counted twice.
+    Fill(t.get(),0xff123456);
+    { trace::SourceScope tag(trace::Source::AffinePile);
+      Triangle(t.get(),t.get(),tTVPRect(0,0,8,6),"Copy",t.get()); }
+    Fill(r.get(),0xff654321);
+    { trace::SourceScope tag(trace::Source::OperateAffine);
+      Triangle(t.get(),r.get(),tTVPRect(0,0,8,6),"Copy",r.get()); }
+    auto aliases=Take();
+    Require(aliases.calls==2 && aliases.referenceCalls==2 && aliases.sourceTargetAliasCalls==1 &&
+            aliases.targetReadbackBytes==bytes && aliases.referenceReadbackBytes==bytes && aliases.sourceReadbackBytes==0,
+            "aliased target/reference/source readbacks were double counted");
+    Require(std::string(aliases.sources)=="AffinePile:1,OperateAffine:1","affine source attribution missing");
+
+    // Full HD clip versus a tiny raster region proves this measures clip area.
+    auto hd=Create(1920,1080); Fill(hd.get(),0xff112233);
+    Triangle(hd.get(),s.get(),tTVPRect(0,0,1920,1080));
+    auto fullHD=Take();
+    Require(fullHD.target1920x1080Calls==1 && fullHD.maxTargetPixels==1920*1080 &&
+            fullHD.clipPixels==1920*1080 && fullHD.fullSurfaceCalls==1 &&
+            fullHD.targetReadbackBytes==1920*1080*4 && std::string(fullHD.targetSizes)=="1920x1080:1",
+            "full-HD triangle readback/target diagnostics incorrect");
+
+    // A burst of distinct target sizes cannot grow the interval unboundedly.
+    for(int w=8;w<48;++w) {
+        auto varied=Create(w,6); Fill(varied.get(),0xff112233);
+        Triangle(varied.get(),s.get(),tTVPRect(0,0,w,6));
+    }
+    auto bounded=Take();
+    Require(bounded.calls==40 && HistogramCalls(bounded.targetSizes)==40 &&
+            std::string(bounded.targetSizes).find("otherCalls:32")!=std::string::npos,
+            "bounded target histogram lost omitted calls");
+
+    Triangle(t.get(),s.get(),tTVPRect(0,0,8,6));
+    TVPSetMetalLayerTriangleDiagnostics(false);
+    TVPSetMetalLayerTriangleDiagnostics(true);
+    Require(Take().calls==0,"diagnostic disable/re-enable retained an old interval");
+    // Copy does not consume a separate GPU reference, even when it has no CPU cache.
+    const tTVPPointD supported[]={{1,1},{5,1},{1,4},{5,1},{1,4},{5,4}};
+    std::pair<iTVPTexture2D*,const tTVPPointD*> input(s.get(),supported);
+    Fill(t.get(),0xff112233); Fill(s.get(),0xff8090a0); Fill(r.get(),0xff445566);
+    const auto gpuBefore=TVPGetMetalLayerRenderStats();
+    mgr->OperateTriangles(mgr->GetRenderMethod("Copy"),2,t.get(),r.get(),tTVPRect(0,0,8,6),supported,tRenderTexQuadArray(&input,1));
+    const auto gpuAfter=TVPGetMetalLayerRenderStats();
+    auto success=Take();
+    Require(success.calls==0 && success.gpuCalls==1 && success.gpuPixels==12 &&
+            success.referenceReadbackBytes==0 && gpuAfter.readbackBytes==gpuBefore.readbackBytes &&
+            gpuAfter.uploadedBytes==gpuBefore.uploadedBytes,"GPU triangle bridge/reference counters incorrect");
+    auto reset=Take(); Require(reset.gpuCalls==0 && reset.gpuPixels==0,"bridge GPU interval did not reset");
+    TVPSetMetalLayerTriangleDiagnostics(false);
+    mgr->OperateTriangles(mgr->GetRenderMethod("Copy"),2,t.get(),r.get(),tTVPRect(0,0,8,6),supported,tRenderTexQuadArray(&input,1));
+    Require(TVPGetMetalLayerRenderStats().gpuOperations==gpuAfter.gpuOperations+1 &&
+            TVPTakeMetalLayerTriangleProfile().stats.gpuCalls==0,"disabled diagnostics changed GPU triangle routing");
+    std::cout<<"PASS triangle attribution: interval/bridge, areas, actual readbacks/cache/aliases, disabled, bounded histograms\n";
+}

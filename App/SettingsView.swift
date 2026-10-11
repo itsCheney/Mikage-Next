@@ -10,15 +10,17 @@ struct SettingsView: View {
     @State private var showLogExport = false
     @State private var confirmClearLogs = false
     @State private var diagnosticError: String?
+    /// Mirrors `settings.idleOpacity` while dragging; committed on release.
+    @State private var idleOpacity: Double = 0
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("外观") {
                     Picker("外观", selection: $model.settings.appearance) {
-                        Text("跟随系统").tag("跟随系统")
-                        Text("浅色").tag("浅色")
-                        Text("深色").tag("深色")
+                        ForEach(Appearance.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     }
                     .pickerStyle(.segmented)
 
@@ -31,9 +33,9 @@ struct SettingsView: View {
 
                 Section {
                     Picker(selection: $model.settings.renderer) {
-                        Text("Metal").tag("Metal")
-                        Text("软件合成 · Metal").tag("软件合成 · Metal")
-                        Text("OpenGL ES").tag("OpenGL ES")
+                        ForEach(RendererPreference.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     } label: {
                         Label("渲染方式", systemImage: "cpu")
                     }
@@ -41,13 +43,54 @@ struct SettingsView: View {
                 } header: {
                     Text("图形")
                 } footer: {
-                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal 或 OpenGL ES。")
+                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal。")
+                }
+
+                Section {
+                    Toggle(isOn: $model.settings.experimentalEmote) {
+                        Label("Emote 候选动画模式", systemImage: "sparkles")
+                    }
+                    .accessibilityIdentifier("experimental-emote-toggle")
+                } header: {
+                    Text("动画")
+                } footer: {
+                    Text("启用新的 Emote 动画播放方式，用于对比动作流畅度。默认关闭；修改在下次启动游戏时生效。若动作或表情异常，可关闭后重新进入游戏。")
+                }
+
+                Section {
+                    Toggle(isOn: $model.settings.respectSilentMode) {
+                        Label("遵循 iOS 静音模式规则", systemImage: "speaker.slash.fill")
+                    }
+                    .accessibilityIdentifier("respect-ios-silent-mode-toggle")
+                } header: {
+                    Text("声音")
+                } footer: {
+                    Text("开启后，iPhone 处于静音模式时游戏音频会静音；关闭后将忽略静音模式继续播放。修改将在下次启动游戏时生效。")
+                }
+
+                Section {
+                    Toggle("复用未变化的动画节点", isOn: $model.settings.emoteNodeCache)
+                    Toggle("跳过重复画布更新", isOn: $model.settings.emoteCaptureCache)
+                    Toggle("局部图层更新", isOn: $model.settings.emoteLocalUpdate)
+                    Toggle("局部画布复制", isOn: $model.settings.emoteRegionCopy)
+                    Toggle("异步点击检测", isOn: $model.settings.emoteAsyncAlpha)
+#if targetEnvironment(simulator)
+                        .disabled(true)
+#endif
+                    Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
+                    Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
+                        .disabled(!model.settings.emoteNodeCache)
+                } header: {
+                    Text("Emote 性能实验")
+                } footer: {
+                    Text("各项可独立开启对比，默认关闭，下次启动游戏时生效。异步点击保持透明区域判定，通常延迟约一帧；画面未就绪时会继续等待。")
                 }
 
                 Section("游戏内") {
                     Picker(selection: $model.settings.background) {
-                        Text("游戏封面").tag("游戏封面")
-                        Text("纯黑").tag("纯黑")
+                        ForEach(PlayerBackground.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
                     } label: {
                         Label("背景填充", systemImage: "photo.fill")
                     }
@@ -59,9 +102,18 @@ struct SettingsView: View {
 
                     HStack {
                         Label("闲置透明度", systemImage: "circle.lefthalf.filled")
-                        Slider(value: $model.settings.idleOpacity, in: 0.1...1)
-                            .accessibilityLabel("闲置透明度")
-                        Text("\(Int(model.settings.idleOpacity * 100))%")
+                        // Bound to local state: committing every intermediate
+                        // value would re-encode and write the whole preference
+                        // file on each drag callback.
+                        Slider(
+                            value: $idleOpacity,
+                            in: 0.1...1,
+                            onEditingChanged: { editing in
+                                if !editing { model.settings.idleOpacity = idleOpacity }
+                            }
+                        )
+                        .accessibilityLabel("闲置透明度")
+                        Text("\(Int(idleOpacity * 100))%")
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                             .frame(width: 38, alignment: .trailing)
@@ -74,6 +126,11 @@ struct SettingsView: View {
                     Toggle(isOn: $model.settings.performance) {
                         Label("性能分析", systemImage: "gauge.with.dots.needle.33percent")
                     }
+
+                    Toggle(isOn: $model.settings.skipPatchVideos) {
+                        Label("跳过汉化组署名视频", systemImage: "forward.end.fill")
+                    }
+                    .accessibilityIdentifier("skip-patch-videos-toggle")
                 }
 
                 Section("文件与传输") {
@@ -123,11 +180,11 @@ struct SettingsView: View {
                 } header: {
                     Text("诊断与日志")
                 } footer: {
-                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 8 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
+                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 16 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
                 }
 
                 Section("更多") {
-                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
+                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer.displayName)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
                         Label("问题反馈", systemImage: "envelope.fill")
                     }
 
@@ -140,17 +197,24 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("MIKAGE NEXT · 0.1")
-                        .font(.caption2)
-                        .tracking(3)
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity)
+                    let buildInfo = AppBuildInfo()
+                    VStack(spacing: 4) {
+                        Text(buildInfo.versionLine)
+                            .tracking(3)
+                        Text(buildInfo.headLine)
+                            .font(.system(.caption2, design: .monospaced))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("app-build-info")
                 }
                 .listRowBackground(Color.clear)
             }
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("设置")
+            .onAppear { idleOpacity = model.settings.idleOpacity }
         }
         .alert("Mikage", isPresented: $showInfo) {
             Button("好", role: .cancel) { }

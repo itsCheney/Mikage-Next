@@ -1,0 +1,5 @@
+[0/2] Re-checking globbed directories...
+[1/5] Building CXX object CMakeFiles/metal-layer-tests.dir/BitmapOverwriteTests.cpp.obj
+[2/5] Building CXX object CMakeFiles/metal-layer-tests.dir/TransitionHandlerTests.cpp.obj
+[3/5] Building CXX object CMakeFiles/metal-layer-tests.dir/MetalLayerTests.cpp.obj
+[4/5] Linking CXX executable metal-layer-tests.exe

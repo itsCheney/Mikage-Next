@@ -38,7 +38,7 @@ Mikage 已将 KRKRSDL3 封装为可嵌入 SwiftUI 宿主的 `KRKRRuntime.xcframe
 ## 设计约束
 
 - 自动模式不能假设所有游戏共享一个键位；当前不会向真实游戏伪造“自动”按键。
-- iOS runtime 使用 SDL 系统 Metal renderer 或 KRKR OpenGL ES backend，不启用 Vulkan。
+- iOS runtime 使用原生 Metal 或 SDL 系统 Metal renderer，不启用 Vulkan。KRKR 自身的 OpenGL ES backend 仍在 framework 内，但不再作为用户可选项；仅在 Metal 不可用时由 SDL 回退路径上报。
 - framework 自带 `DroidSansFallback.ttf`，资源读取会在主 bundle 失败后回退到 framework bundle。
 - App 不附带游戏或商业素材。
 - 分发修改后的 KRKRSDL3 runtime 或商业游戏移植版前，必须遵守 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的声明和源码公开条件。
