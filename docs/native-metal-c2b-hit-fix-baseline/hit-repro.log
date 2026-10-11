@@ -1,0 +1,11 @@
+PASS Layer operation contract: stable IDs, traits, shared MSL variants, test-only Count extension
+PASS production UnivTrans MSL integer helpers vs tvpgl: 3145728 exact pixels
+PASS production additive/PS/conversion MSL vs tvpgl: 1835008 exact pixels
+PASS P1A extracted production MSL vs initialized software bindings: 21757036 exact pixels
+PASS P1B production MSL vs initialized PS HDA bindings: 46137346 exact pixels
+PASS transition contract and production blend: 32768 exact pixels
+PASS shrink IDs and unsigned modular divisor preflight
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety
+PASS C2B production integer MSL vs original plutovg1.3.3 C, ordered overlaps, CSR and checked budgets
+C2B binding: eligible binding acquired target CPU pixels
+FAIL: C2B production span binding tests failed

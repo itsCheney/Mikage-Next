@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "D:\vn-sim\scripts\analyze-layer-diagnostics.py", line 862, in <module>
+    main()
+  File "D:\vn-sim\scripts\analyze-layer-diagnostics.py", line 854, in main
+    result = json.dumps([s for path in args.logs for s in summarize_sessions(path, args.from_seconds, args.to_seconds)], ensure_ascii=False, indent=2)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\vn-sim\scripts\analyze-layer-diagnostics.py", line 841, in summarize_sessions
+    _, rows, _ = read_rows(path)
+                 ^^^^^^^^^^^^^^^
+  File "D:\vn-sim\scripts\analyze-layer-diagnostics.py", line 584, in read_rows
+    raw = path.read_bytes()
+          ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ayach\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py", line 1019, in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ayach\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'perf_log\\After_P2C_C2A'

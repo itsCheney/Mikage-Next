@@ -1,0 +1,4 @@
+COMMAND ['cmake', '--build', 'build/metal-render-tests', '--parallel', '3']
+[100%] Built target metal-render-tests
+
+EXIT 0

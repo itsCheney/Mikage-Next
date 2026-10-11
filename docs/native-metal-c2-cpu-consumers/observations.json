@@ -1,0 +1,438 @@
+{
+  "date": "2026-10-09",
+  "scope": "Observed samples; not controlled performance baseline; sampled consumer groups may be lower bounds",
+  "metricDefinitions": {
+    "originTuple": "calls / bytes / wallNS / waitNS",
+    "routes": "native v2 aggregates, representatives excluded from sums",
+    "consumerGroups": "admitted read details only; omissions never assigned to a method"
+  },
+  "sources": [
+    {
+      "file": "perf_log/After_P2C_C2B-3/Mikage-diagnostics-BD7898C1-A99B-4E2F-94C1-81A739117769.jsonl",
+      "sha256": "c7c9cd536d7d9b66fd1a14bbbdcd37bdaaff2d8f9dd6fc35e71f7c7a3d85f8ca",
+      "sourceRevision": "e3b0a5e04488",
+      "game": "天使纷扰 RE-BOOT！",
+      "workWindows": 82,
+      "thermalStates": [
+        "0",
+        "1",
+        "2"
+      ],
+      "routeTotals": {
+        "calls": 320,
+        "spanCount": 4470,
+        "sourceBytes": 0,
+        "parameterBytes": 170684,
+        "scratchBytes": 781824,
+        "gpuCalls": 132,
+        "cpuCalls": 188,
+        "noopCalls": 0
+      },
+      "routeGroups": [
+        {
+          "method": "drawLine",
+          "route": "gpu",
+          "reason": "none",
+          "calls": 7,
+          "spanCount": 30,
+          "sourceBytes": 0,
+          "parameterBytes": 1316,
+          "scratchBytes": 10240
+        },
+        {
+          "method": "drawPath",
+          "route": "gpu",
+          "reason": "none",
+          "calls": 125,
+          "spanCount": 4440,
+          "sourceBytes": 0,
+          "parameterBytes": 169368,
+          "scratchBytes": 771584
+        },
+        {
+          "method": "drawPath",
+          "route": "cpu",
+          "reason": "record",
+          "calls": 125,
+          "spanCount": 0,
+          "sourceBytes": 0,
+          "parameterBytes": 0,
+          "scratchBytes": 0
+        },
+        {
+          "method": "drawImageStretch",
+          "route": "cpu",
+          "reason": "vectorSource",
+          "calls": 62,
+          "spanCount": 0,
+          "sourceBytes": 0,
+          "parameterBytes": 0,
+          "scratchBytes": 0
+        },
+        {
+          "method": "drawLine",
+          "route": "cpu",
+          "reason": "record",
+          "calls": 1,
+          "spanCount": 0,
+          "sourceBytes": 0,
+          "parameterBytes": 0,
+          "scratchBytes": 0
+        }
+      ],
+      "routesComplete": true,
+      "originsCallsBytesWallNSWaitNS": {
+        "upload:image.load": [
+          141,
+          414766316,
+          81651501,
+          0
+        ],
+        "upload:bitmap.update": [
+          21686,
+          22606980,
+          405746596,
+          0
+        ],
+        "read:layerExDraw.write": [
+          66,
+          243585196,
+          505782004,
+          486163046
+        ],
+        "upload:layerExDraw.write": [
+          66,
+          243585196,
+          10640376,
+          0
+        ],
+        "upload:AlphaMovie.frame": [
+          37,
+          306892800,
+          33308127,
+          0
+        ],
+        "read:layerExBTOA.alphaToProvince": [
+          1,
+          1955056,
+          21274541,
+          20440875
+        ],
+        "read:bitmap.scanline": [
+          1,
+          553536,
+          10460417,
+          9127500
+        ]
+      },
+      "originsComplete": true,
+      "consumerSampleBudget": {
+        "readRecords": 62,
+        "readExceeded": 6,
+        "callerRecords": 31,
+        "callerExceeded": 31,
+        "producerRecords": 144,
+        "producerExceeded": 43,
+        "oversizeRecords": 0,
+        "selectedWindowCount": 14,
+        "admittedRecordsWithoutDetail": 0
+      },
+      "sampledReadGroups": [
+        {
+          "method": "drawRectangle",
+          "source": "layerExDraw.write",
+          "width": 277,
+          "height": 411,
+          "calls": 1,
+          "bytes": 455388,
+          "waitNS": 82109834
+        },
+        {
+          "method": "drawPath",
+          "source": "layerExDraw.write",
+          "width": 1052,
+          "height": 900,
+          "calls": 2,
+          "bytes": 7574400,
+          "waitNS": 89286875
+        },
+        {
+          "method": "drawImageStretch",
+          "source": "layerExDraw.write",
+          "width": 1052,
+          "height": 900,
+          "calls": 56,
+          "bytes": 212083200,
+          "waitNS": 178598253
+        },
+        {
+          "method": "drawRectangle",
+          "source": "layerExDraw.write",
+          "width": 277,
+          "height": 676,
+          "calls": 1,
+          "bytes": 749008,
+          "waitNS": 88975334
+        },
+        {
+          "method": "Layer.nativePixels",
+          "source": "layerExBTOA.alphaToProvince",
+          "width": 1721,
+          "height": 284,
+          "calls": 1,
+          "bytes": 1955056,
+          "waitNS": 20440875
+        },
+        {
+          "method": "Layer.saveLayerImage",
+          "source": "bitmap.scanline",
+          "width": 496,
+          "height": 279,
+          "calls": 1,
+          "bytes": 553536,
+          "waitNS": 9127500
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2B-3/Mikage-diagnostics-0D60ECF6-DEF2-49EE-B38E-2A87299DB634.jsonl",
+      "sha256": "f5ec540d6efb4043b5cf0ed14072e2f727f6b975e3a39ca1442f36688e7248a7",
+      "sourceRevision": "e3b0a5e04488",
+      "game": "千恋万花",
+      "workWindows": 136,
+      "thermalStates": [
+        "2"
+      ],
+      "routeTotals": {
+        "calls": 11,
+        "spanCount": 3485,
+        "sourceBytes": 0,
+        "parameterBytes": 128692,
+        "scratchBytes": 869376,
+        "gpuCalls": 11,
+        "cpuCalls": 0,
+        "noopCalls": 0
+      },
+      "routeGroups": [
+        {
+          "method": "drawLine",
+          "route": "gpu",
+          "reason": "none",
+          "calls": 1,
+          "spanCount": 3,
+          "sourceBytes": 0,
+          "parameterBytes": 140,
+          "scratchBytes": 1024
+        },
+        {
+          "method": "drawPath",
+          "route": "gpu",
+          "reason": "none",
+          "calls": 10,
+          "spanCount": 3482,
+          "sourceBytes": 0,
+          "parameterBytes": 128552,
+          "scratchBytes": 868352
+        }
+      ],
+      "routesComplete": true,
+      "originsCallsBytesWallNSWaitNS": {
+        "upload:image.load": [
+          509,
+          255601140,
+          57163220,
+          0
+        ],
+        "read:bitmap.scanline": [
+          2,
+          1107072,
+          21304792,
+          18518959
+        ],
+        "read:layerExDraw.write": [
+          6,
+          1029104,
+          71556168,
+          70891792
+        ],
+        "upload:bitmap.update": [
+          56722,
+          61409076,
+          1036865734,
+          0
+        ],
+        "upload:layerExDraw.write": [
+          5,
+          1028080,
+          216584,
+          0
+        ]
+      },
+      "originsComplete": true,
+      "consumerSampleBudget": {
+        "readRecords": 8,
+        "readExceeded": 0,
+        "callerRecords": 8,
+        "callerExceeded": 0,
+        "producerRecords": 2,
+        "producerExceeded": 0,
+        "oversizeRecords": 0,
+        "selectedWindowCount": 4,
+        "admittedRecordsWithoutDetail": 0
+      },
+      "sampledReadGroups": [
+        {
+          "method": "Layer.saveLayerImage",
+          "source": "bitmap.scanline",
+          "width": 496,
+          "height": 279,
+          "calls": 2,
+          "bytes": 1107072,
+          "waitNS": 18518959
+        },
+        {
+          "method": "drawRectangle",
+          "source": "layerExDraw.write",
+          "width": 186,
+          "height": 936,
+          "calls": 1,
+          "bytes": 696384,
+          "waitNS": 7111000
+        },
+        {
+          "method": "clear",
+          "source": "layerExDraw.write",
+          "width": 166,
+          "height": 166,
+          "calls": 3,
+          "bytes": 330672,
+          "waitNS": 62768917
+        },
+        {
+          "method": "clear",
+          "source": "layerExDraw.write",
+          "width": 16,
+          "height": 16,
+          "calls": 2,
+          "bytes": 2048,
+          "waitNS": 1011875
+        }
+      ]
+    },
+    {
+      "file": "perf_log/After_P2C_C2B-3/Mikage-diagnostics-23C12AEE-57C2-4836-94B8-98645DEA54C4.jsonl",
+      "sha256": "8bc5e2f6cb0d820dffc9b72bab7d6de47f05e8311f1e89dd31ae657a5dad2ade",
+      "sourceRevision": "e3b0a5e04488",
+      "game": "天使纷扰 RE-BOOT！",
+      "workWindows": 79,
+      "thermalStates": [
+        "2"
+      ],
+      "routeTotals": {
+        "calls": 0,
+        "spanCount": 0,
+        "sourceBytes": 0,
+        "parameterBytes": 0,
+        "scratchBytes": 0,
+        "gpuCalls": 0,
+        "cpuCalls": 0,
+        "noopCalls": 0
+      },
+      "routeGroups": [],
+      "routesComplete": true,
+      "originsCallsBytesWallNSWaitNS": {
+        "upload:image.load": [
+          219,
+          578470280,
+          137230580,
+          0
+        ],
+        "upload:bitmap.update": [
+          16251,
+          14514656,
+          417591673,
+          0
+        ],
+        "read:layerExDraw.write": [
+          10,
+          2256480,
+          235569625,
+          233886794
+        ],
+        "upload:layerExDraw.write": [
+          8,
+          2251872,
+          532624,
+          0
+        ],
+        "upload:AlphaMovie.frame": [
+          38,
+          315187200,
+          60860209,
+          0
+        ],
+        "read:bitmap.scanline": [
+          1,
+          553536,
+          8777000,
+          8134083
+        ]
+      },
+      "originsComplete": true,
+      "consumerSampleBudget": {
+        "readRecords": 11,
+        "readExceeded": 0,
+        "callerRecords": 11,
+        "callerExceeded": 0,
+        "producerRecords": 42,
+        "producerExceeded": 11,
+        "oversizeRecords": 0,
+        "selectedWindowCount": 13,
+        "admittedRecordsWithoutDetail": 0
+      },
+      "sampledReadGroups": [
+        {
+          "method": "clear",
+          "source": "layerExDraw.write",
+          "width": 306,
+          "height": 306,
+          "calls": 6,
+          "bytes": 2247264,
+          "waitNS": 231959877
+        },
+        {
+          "method": "clear",
+          "source": "layerExDraw.write",
+          "width": 24,
+          "height": 24,
+          "calls": 4,
+          "bytes": 9216,
+          "waitNS": 1926917
+        },
+        {
+          "method": "Layer.saveLayerImage",
+          "source": "bitmap.scanline",
+          "width": 496,
+          "height": 279,
+          "calls": 1,
+          "bytes": 553536,
+          "waitNS": 8134083
+        }
+      ]
+    }
+  ],
+  "samePatternWindowComparison": {
+    "oldFile": "perf_log/After_P2C_C2B-2/Mikage-diagnostics-A900E8F2-83F8-4E37-8486-E73DBF6EFC64.jsonl",
+    "oldSHA256": "4e6501e19ca81fb213dd29cd9e0f9b2c1093bb33683a4e53d0e0e0faa3ad51a7",
+    "oldWindowID": 15,
+    "oldGPU": 4,
+    "oldCPU": 67,
+    "oldOrigins": "read:layerExDraw.write=3/8029788/138398166/136633458,upload:image.load=3/17492752/2633458/0,upload:layerExDraw.write=2/7574400/646666/0,upload:bitmap.update=716/497977/9508416/0",
+    "newWindowID": 10,
+    "newGPU": 37,
+    "newCPU": 34,
+    "newOrigins": "read:layerExDraw.write=3/8029788/126479084/124941501,upload:image.load=3/17492752/2841459/0,upload:layerExDraw.write=3/8029788/459125/0,upload:bitmap.update=716/497977/10675447/0",
+    "limit": "Same 71-call composition supports routing verification; scene duration/thermal not controlled, no speedup claim"
+  },
+  "reproduce": "python scripts/analyze-layer-diagnostics.py <source JSONL> --output <summary>; aggregate native rows independently by windowID and reconcile C0 origins"
+}

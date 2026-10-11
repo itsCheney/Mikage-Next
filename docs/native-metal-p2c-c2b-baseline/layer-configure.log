@@ -1,0 +1,10 @@
+-- The C compiler identification is GNU 13.2.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Strawberry/c/bin/gcc.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+Applied production span capture patch to pinned upstream source
+-- Configuring done (1.9s)
+-- Generating done (0.1s)
+-- Build files have been written to: D:/vn-sim/build/metal-layer-tests

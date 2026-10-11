@@ -34,24 +34,45 @@ def main():
 #include <iostream>
 #include <stdexcept>
 #include <string>
-bool systemAlive, pluginsAlive, vmAlive, backendAlive;
-int saves, stoppedLoaders, nullHolders, cacheAdds;
-const int TVP_COMPACT_LEVEL_MAX=2;
+bool systemAlive, pluginsAlive, vmAlive, backendAlive, emoteCacheRetained;
+bool graphicCacheRetained, emoteSessionRetained;
+int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears, emoteCacheTrims;
+const int TVP_COMPACT_LEVEL_MINIMIZE=15;
+const int TVP_COMPACT_LEVEL_MAX=100;
 bool TVPProjectDirSelected=true, TVPSystemControlAlive=true;
 struct Loader { ~Loader() { assert(systemAlive && pluginsAlive); ++stoppedLoaders; } };
 struct Control {};
 Control* TVPSystemControl=nullptr;
-struct tTVPApplication { Loader* image_load_thread_=nullptr; void OnExit(); };
+struct tTVPApplication { Loader* image_load_thread_=nullptr; ~tTVPApplication(); void OnExit(); };
+struct tTVPCompactEventCallbackIntf {
+    virtual void OnCompact(int) = 0;
+    virtual ~tTVPCompactEventCallbackIntf() = default;
+};
+void TVPAddCompactEventHook(tTVPCompactEventCallbackIntf*, bool=false) {}
+namespace emoteplayer {
+void ResetEmotePlayerSession() {
+    assert(backendAlive && (!emoteSessionRetained || (vmAlive && systemAlive && pluginsAlive)));
+    emoteSessionRetained=false;
+}
+void ClearSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheClears; }
+void TrimSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emoteCacheTrims; }
+}
 void TVPInvalidateMovieSession() {} void TVPFinalizeVideoOverlaySession() {}
+void TVPResetXP3FilterSession() { assert(backendAlive); }
 void* TVPGetScriptEngine() { return vmAlive ? reinterpret_cast<void*>(1) : nullptr; }
 void TVPDeliverCompactEvent(int) {
     // The game's save callback loads another script from its ZIP archive.
     assert(systemAlive && pluginsAlive && vmAlive && backendAlive); ++saves;
+    emoteCacheRetained=true;
 }
 void TVPSystemUninit() { systemAlive=false; }
 void TVPUnloadPlugins() { pluginsAlive=false; }
-void TVPResetEventState() {} void TVPResetGraphicSessionState() {}
-void TVPUninitScriptEngine() { vmAlive=false; }
+void TVPResetEventState() {}
+void TVPResetGraphicSessionState() { graphicCacheRetained=false; }
+void TVPUninitScriptEngine() {
+    assert(!emoteSessionRetained);
+    vmAlive=false; emoteCacheRetained=true; graphicCacheRetained=true;
+}
 void TVPClearAllAutoPath() {} void TVPClearAllWindows() {}
 namespace krkrsdl3 { void TVPClearAllTexture() { assert(backendAlive); } }
 struct iTVPTexture2D { static void RecycleProcess() { assert(backendAlive); } };
@@ -87,6 +108,9 @@ struct tTVPArchiveCache {
 };
 '''
     production = function(CORE / "core/main/TVPApplication.cpp", "void tTVPApplication::OnExit()")
+    production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "tTVPApplication::~tTVPApplication()")
+    production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "struct tTVPClearEmoteResourceCacheCallback") + ";"
+    production += "\nstatic tTVPClearEmoteResourceCacheCallback TVPClearEmoteResourceCacheCallback;"
     production += "\n" + function(CORE / "core/main/TVPWindow.cpp", "void TVPWindow::RequestUserClose()")
     archive = function(CORE / "core/archive/TVPStorage.cpp", "    tTVPArchive* Get(ttstr name)")
     production += "\n" + archive.replace("tTVPArchive* Get(", "tTVPArchive* tTVPArchiveCache::Get(", 1)
@@ -94,21 +118,39 @@ struct tTVPArchiveCache {
 int main() {
     for(int session=0;session<50;++session) {
         systemAlive=pluginsAlive=vmAlive=backendAlive=true;
+        emoteSessionRetained=graphicCacheRetained=true;
         TVPSystemControl=new Control;
         tTVPApplication application;application.image_load_thread_=new Loader;
         application.OnExit();assert(!vmAlive && !systemAlive && !pluginsAlive);
-        assert(application.image_load_thread_==nullptr && backendAlive);
+        assert(application.image_load_thread_==nullptr && backendAlive && !emoteCacheRetained &&
+               !graphicCacheRetained && !emoteSessionRetained);
     }
     assert(saves==50 && stoppedLoaders==50);
+    assert(emoteCacheClears==100);
+    // Games call System.doCompact() routinely, so a compact must shed entries
+    // without discarding the whole decoded-resource cache.
+    const int trimsBefore=emoteCacheTrims, clearsBefore=emoteCacheClears;
+    emoteCacheRetained=true;
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MINIMIZE-1);
+    assert(emoteCacheTrims==trimsBefore && emoteCacheRetained);
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MINIMIZE);
+    assert(emoteCacheTrims==trimsBefore+1 && !emoteCacheRetained);
+    emoteCacheRetained=true;
+    TVPClearEmoteResourceCacheCallback.OnCompact(TVP_COMPACT_LEVEL_MAX);
+    assert(emoteCacheTrims==trimsBefore+2 && emoteCacheClears==clearsBefore);
+    // Startup can fail before OnExit; destruction still drops retained entries.
+    emoteCacheRetained=true;
+    { tTVPApplication partialStartup; }
+    assert(!emoteCacheRetained && emoteCacheClears==101);
     systemAlive=pluginsAlive=backendAlive=true;vmAlive=false;
-    tTVPApplication earlyFailure;earlyFailure.OnExit();assert(saves==50);
+    tTVPApplication earlyFailure;earlyFailure.OnExit();assert(saves==50 && !emoteCacheRetained);
     TVPWindow window;window.RequestUserClose();assert(window.queries==1 && window.forced==0);
     window.RequestUserClose();assert(window.queries==1);
     window.Closing=false;window.RequestUserClose();assert(window.queries==2 && window.forced==0);
     tTVPArchiveCache cache;bool rejected=false;
     try { cache.Get("game.zip"); } catch(const std::runtime_error&) { rejected=true; }
     assert(rejected && nullHolders==0 && cacheAdds==0);
-    std::cout<<"PASS: 50 save-before-storage/plugin-shutdown sessions, early failure, native close cancellation and null archive guard\n";
+    std::cout<<"PASS: 50 save-before-storage/plugin-shutdown sessions, Emote cache teardown, early failure, native close cancellation and null archive guard\n";
 }
 '''
     with tempfile.TemporaryDirectory(prefix="mikage-session-exit-") as directory:

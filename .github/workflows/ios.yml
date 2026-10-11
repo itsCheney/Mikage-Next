@@ -2,7 +2,7 @@ name: iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [main, master, beta]
+    branches: [main, master, beta, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -49,13 +49,59 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-layer-release --parallel
           MTL_DEBUG_LAYER=0 build/metal-layer-release/metal-layer-tests --performance
+          MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_SPECIALIZED_PIPELINES=0 build/metal-layer-release/metal-layer-tests --performance
+          MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_TILE_RENDERER=0 build/metal-layer-release/metal-layer-tests --performance
       - name: Test TJS shutdown and reentrant finalizers
         run: |
           cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests
           cmake --build build/tjs-shutdown-tests --parallel
           ctest --test-dir build/tjs-shutdown-tests --output-on-failure
           python3 scripts/check-krkr-frame-times.py
+          python3 scripts/check-krkr-emote-resource-cache.py
+          python3 scripts/check-krkr-emote-shared-cache.py
           python3 scripts/check-krkr-session-exit.py
+          python3 scripts/check-krkr-point-read-trace.py
+          python3 scripts/check-krkr-graphics-load.py --source Engine/KRKRRuntime/Source/cpp
+      - name: Test bounded AlphaMovie decoding
+        run: |
+          cmake -S Tests/AlphaMovie -B build/alpha-movie-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/alpha-movie-tests --parallel
+          ctest --test-dir build/alpha-movie-tests --output-on-failure
+      - name: Test Emote metadata and shared resource loading
+        run: |
+          cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-metadata-tests --parallel
+          ctest --test-dir build/emote-metadata-tests --output-on-failure
+      - name: Test Emote animation integration
+        run: |
+          cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-animation-tests --parallel
+          ctest --test-dir build/emote-animation-tests --output-on-failure
+      - name: Test Emote performance state and production node evaluation
+        run: |
+          cmake -S Tests/EmotePerformance -B build/emote-performance-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/emote-performance-tests --parallel
+          ctest --test-dir build/emote-performance-tests --output-on-failure --verbose
+      - name: Test native Array and Dictionary construction
+        run: |
+          cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tjs-native-factory-tests --parallel
+          ctest --test-dir build/tjs-native-factory-tests --output-on-failure
+      - name: Test Release script stack attribution
+        run: |
+          cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tjs-stack-trace-tests --parallel
+          ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
+      - name: Test production PSB scene lifecycle attribution
+        run: |
+          cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/psb-file-tests --parallel
+          ctest --test-dir build/psb-file-tests --output-on-failure
+      - name: Test layer input and pointer presentation lifecycle
+        run: |
+          cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/layer-input-tests --parallel
+          ctest --test-dir build/layer-input-tests --output-on-failure
       - name: Test library import and persistence
         run: swift test
       # `build-krkr-ios.sh` falls back to this checkout only when the runner
@@ -116,10 +162,14 @@ jobs:
           path: build/KRKRRuntime.xcframework
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          python3 scripts/check-krkr-work-profile-swift.py
+          python3 scripts/check-app-build-info.py
+          xcodegen generate
       - name: Test app model on a simulator
         run: |
           set -o pipefail
+          MIKAGE_SOURCE_REVISION="$(git rev-parse --short=12 HEAD)"
           # Resolve a real simulator rather than hardcoding a device name that
           # changes with the Xcode version on the runner image.
           SIMULATOR="$(xcrun simctl list devices available \
@@ -138,9 +188,15 @@ jobs:
             -destination "platform=iOS Simulator,id=${SIMULATOR}" \
             -derivedDataPath build/TestDerivedData \
             CODE_SIGNING_ALLOWED=NO \
+            MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
             2>&1 | tee build/app-tests.log
       - name: Build unsigned iPhone app
         run: bash scripts/build-ios.sh
+      - name: Verify app revision metadata
+        run: |
+          python3 scripts/check-app-build-info.py \
+            --plist build/DerivedData/Build/Products/Release-iphoneos/Mikage.app/Info.plist \
+            --expected-revision "$(git rev-parse --short=12 HEAD)"
       - name: Package unsigned IPA
         run: |
           mkdir -p build/package/Payload
@@ -160,4 +216,6 @@ jobs:
           name: Mikage-validation-${{ github.run_number }}
           path: |
             build/*.log
+            build/**/Testing/Temporary/LastTest.log
+            build/**/Testing/Temporary/LastTestsFailed.log
           if-no-files-found: ignore

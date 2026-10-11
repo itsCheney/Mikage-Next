@@ -1,0 +1,3 @@
+PASS extraction rejects direct-exposure production registration drift
+PASS extraction rejects constructor production registration drift
+PASS extraction rejects custom-converter production registration drift

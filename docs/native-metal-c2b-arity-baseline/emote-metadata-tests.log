@@ -1,0 +1,10 @@
+Internal ctest changing into directory: D:/vn-sim/build/emote-metadata-tests
+Test project D:/vn-sim/build/emote-metadata-tests
+    Start 1: emote-metadata-tests
+1/2 Test #1: emote-metadata-tests .............   Passed    0.21 sec
+    Start 2: emote-shared-loader-tests
+2/2 Test #2: emote-shared-loader-tests ........   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.29 sec

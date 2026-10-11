@@ -1,0 +1,32 @@
+Internal ctest changing into directory: D:/vn-sim/build/metal-layer-tests
+Test project D:/vn-sim/build/metal-layer-tests
+    Start 1: plutovg-exact-capture
+1/5 Test #1: plutovg-exact-capture ............   Passed    0.17 sec
+    Start 2: metal-layer-tests
+2/5 Test #2: metal-layer-tests ................***Failed    0.48 sec
+PASS Layer operation contract: stable IDs, traits, shared MSL variants, test-only Count extension
+PASS production UnivTrans MSL integer helpers vs tvpgl: 3145728 exact pixels
+PASS production additive/PS/conversion MSL vs tvpgl: 1835008 exact pixels
+PASS P1A extracted production MSL vs initialized software bindings: 21757036 exact pixels
+PASS P1B production MSL vs initialized PS HDA bindings: 46137346 exact pixels
+PASS transition contract and production blend: 32768 exact pixels
+PASS shrink IDs and unsigned modular divisor preflight
+PASS C2 CPU consumers: scoped identity, bounded read/caller/producer windows, epochs and UTF8 wire safety
+PASS C2B production integer MSL vs original plutovg1.3.3 C, ordered overlaps, CSR and checked budgets
+C2B binding: production binding captured pixels differ
+FAIL: C2B production span binding tests failed
+
+    Start 3: metal-layer-capability-audit
+3/5 Test #3: metal-layer-capability-audit .....   Passed    0.05 sec
+    Start 4: layer-diagnostics-parser
+4/5 Test #4: layer-diagnostics-parser .........   Passed    0.25 sec
+    Start 5: app-build-info-wiring
+5/5 Test #5: app-build-info-wiring ............   Passed    0.09 sec
+
+80% tests passed, 1 tests failed out of 5
+
+Total Test time (real) =   1.05 sec
+
+The following tests FAILED:
+	  2 - metal-layer-tests (Failed)
+Errors while running CTest

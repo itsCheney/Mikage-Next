@@ -1,0 +1,19 @@
+Start testing: Oct 09 03:15 中国标准时间
+----------------------------------------------------------
+1/1 Testing: tjs-shutdown-tests
+1/1 Test: tjs-shutdown-tests
+Command: "D:/vn-sim/build/tjs-shutdown-tests/tjs-shutdown-tests.exe"
+Directory: D:/vn-sim/build/tjs-shutdown-tests
+"tjs-shutdown-tests" start time: Oct 09 03:15 中国标准时间
+Output:
+----------------------------------------------------------
+PASS: 50 XP3 cache/closure reset sessions, 50 TJS shutdown/GC sessions, 50 overlapping game/decoder lifetimes in both exit orders, empty VM and reentrant global-access finalizers
+<end of output>
+Test time =   0.09 sec
+----------------------------------------------------------
+Test Passed.
+"tjs-shutdown-tests" end time: Oct 09 03:15 中国标准时间
+"tjs-shutdown-tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 09 03:15 中国标准时间

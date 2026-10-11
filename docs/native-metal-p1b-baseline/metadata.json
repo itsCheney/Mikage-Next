@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "capturedUtc": "2026-10-06T04:52:12.779484+00:00",
+  "userTimezone": "Asia/Shanghai",
+  "scope": "Remote precheck then P1B local implementation/portable acceptance",
+  "platform": {
+    "os": "Windows",
+    "compiler": "c++.exe (MinGW-W64 x86_64-ucrt-posix-seh, built by Brecht Sanders, r8) 13.2.0",
+    "cxxStandard": 17,
+    "metalLayerBuildType": "Release",
+    "nativeMetalCompiled": false,
+    "deviceDouble": true
+  },
+  "repositories": [
+    {
+      "name": "main",
+      "root": "D:\\vn-sim",
+      "head": "5e9c575c037fc701bcc3de6e1f08b93a9947e688",
+      "branch": "metal_dev",
+      "remote": "5e9c575c037fc701bcc3de6e1f08b93a9947e688",
+      "ahead": 0,
+      "behind": 0,
+      "remoteDifferentFiles": [],
+      "modifiedTracked": [
+        "App/Engine/KRKROverlay.swift",
+        "App/Engine/KRKRSession.swift",
+        "Tests/MetalLayer/CMakeLists.txt",
+        "Tests/MetalLayer/CapabilityAuditTests.cpp",
+        "Tests/MetalLayer/LayerCapabilities.def",
+        "Tests/MetalLayer/MetalLayerTests.cpp",
+        "Tests/MetalLayer/OperationContractExtension.def",
+        "Tests/MetalLayer/OperationContractTests.cpp",
+        "Tests/MetalLayer/README.md",
+        "Tests/MetalLayer/SoftwareCapabilityContracts.def",
+        "Tests/MetalLayer/extract-univ-trans-math.py",
+        "docs/METAL-RENDER-BACKEND.md",
+        "docs/NATIVE-METAL-COMPATIBILITY-PLAN.md"
+      ],
+      "untracked": [
+        "Tests/MetalLayer/P1BShaderTests.cpp",
+        "Tests/MetalLayer/P1BShaderTests.h",
+        "docs/KRKRSDL3-IMPLEMENTATION-GAP-AUDIT-2026-10-06.md",
+        "docs/NATIVE-METAL-P1B-BASELINE.md",
+        "docs/native-metal-p1b-baseline/after-metal-layer.log",
+        "docs/native-metal-p1b-baseline/after-metal-render.log",
+        "docs/native-metal-p1b-baseline/before-metal-layer.log",
+        "docs/native-metal-p1b-baseline/before-metal-render.log",
+        "docs/native-metal-p1b-baseline/capabilities.json"
+      ],
+      "committed": false
+    },
+    {
+      "name": "runtime",
+      "root": "D:\\vn-sim\\Engine\\KRKRRuntime\\Source",
+      "head": "add9561548c834535bbd131b182879769342257e",
+      "branch": "metal_dev",
+      "remote": "add9561548c834535bbd131b182879769342257e",
+      "ahead": 0,
+      "behind": 0,
+      "remoteDifferentFiles": [],
+      "modifiedTracked": [
+        "host/MikageKRKRRuntime.h",
+        "host/MikageKRKRRuntime.mm"
+      ],
+      "untracked": [],
+      "committed": false
+    },
+    {
+      "name": "core",
+      "root": "D:\\vn-sim\\Engine\\KRKRRuntime\\Source\\cpp",
+      "head": "1ee1e6de3a033e316e90882a5654a9278901a2d5",
+      "branch": "metal_dev",
+      "remote": "1ee1e6de3a033e316e90882a5654a9278901a2d5",
+      "ahead": 0,
+      "behind": 0,
+      "remoteDifferentFiles": [],
+      "modifiedTracked": [
+        "core/render/LayerOperationDefinitions.def",
+        "core/render/LayerRenderOperation.h",
+        "core/render/MetalLayerRenderManager.cpp",
+        "core/render/RenderManager.cpp",
+        "core/render/TVPCompositor.h",
+        "core/render/backend/MetalLayerShaders.h",
+        "core/render/backend/MetalRenderBackend.h",
+        "core/render/backend/MetalRenderBackend.mm",
+        "core/render/gl/blend_function.cpp",
+        "core/render/gl/tvpgl.h"
+      ],
+      "untracked": [],
+      "committed": false
+    }
+  ],
+  "precheck": {
+    "fetchSucceeded": true,
+    "allRepositoriesAheadBehind": [
+      0,
+      0
+    ],
+    "trackedWorktreeCleanAtStart": true,
+    "parentSubmodulePointersMatched": true
+  },
+  "preexistingUntracked": {
+    "path": "docs/KRKRSDL3-IMPLEMENTATION-GAP-AUDIT-2026-10-06.md",
+    "beforeSha256": "ea0acae403f93732ee388b634394f7aeb4427624f76bf5837415dd8471fce54c",
+    "afterSha256": "ea0acae403f93732ee388b634394f7aeb4427624f76bf5837415dd8471fce54c",
+    "includedInP1BPatch": false
+  },
+  "commands": [
+    "git fetch --no-recurse-submodules origin (all three repositories)",
+    "git rev-list --left-right --count HEAD...origin/metal_dev",
+    "git diff --name-status HEAD origin/metal_dev",
+    "cmake -S Tests/MetalLayer -B build/metal-layer-tests -DCMAKE_BUILD_TYPE=Release",
+    "cmake --build build/metal-layer-tests --parallel 2",
+    "ctest --test-dir build/metal-layer-tests --output-on-failure",
+    "build/metal-layer-tests/metal-layer-tests.exe --audit-capabilities",
+    "cmake -S Tests/MetalRenderBackend -B build/metal-render-tests",
+    "cmake --build build/metal-render-tests --parallel 2",
+    "ctest --test-dir build/metal-render-tests --output-on-failure --verbose"
+  ],
+  "tests": [
+    {
+      "suite": "MetalLayer",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "deviceDouble": true,
+      "surfaceComparisons": 5491,
+      "sessions": 3,
+      "scalarExactPixels": {
+        "P1B": 46137346,
+        "P1A": 21757036,
+        "UnivTrans": 3145728,
+        "existingExtended": 1835008
+      },
+      "log": "after-metal-layer.log"
+    },
+    {
+      "suite": "MetalRenderBackend",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "nativeMetalTested": false,
+      "log": "after-metal-render.log"
+    }
+  ],
+  "capabilitySummary": {
+    "appendixNames": 85,
+    "registeredNames": 70,
+    "descriptorNames": 70,
+    "softwareOnlyNames": 0,
+    "unknownNames": 15
+  },
+  "backend": {
+    "nativeCompiled": false,
+    "backendAvailable": true,
+    "deviceDouble": true
+  },
+  "PSResource": {
+    "byteCount": 196608,
+    "layout": [
+      "softlight",
+      "dodge",
+      "burn"
+    ],
+    "tableIndex": "source*256+destination",
+    "softwareFormulaChanged": false
+  },
+  "parameterUploadCounters": [
+    "layerPsTableUploads",
+    "layerPsTableUploadedBytes"
+  ],
+  "rejectReason": {
+    "name": "PsTables",
+    "id": 14
+  },
+  "beforeEvidence": {
+    "layer": "before-metal-layer.log",
+    "backend": "before-metal-render.log",
+    "revisionBound": false
+  },
+  "pending": [
+    "macOS native Metal tile/forced compute/snapshot compute",
+    "iOS device/simulator/framework/App/IPA/Swift integration",
+    "fresh P1B iPhone/iPad regression"
+  ],
+  "patches": [
+    {
+      "repository": "main",
+      "path": "D:\\vn-sim\\build\\native-metal-p1b-baseline\\main.patch",
+      "sha256": "c39824f77199719b2c4d709469b1cc78c8e7519b512235dcea44c2f5842250f5",
+      "reverseCheckPassed": true
+    },
+    {
+      "repository": "runtime",
+      "path": "D:\\vn-sim\\build\\native-metal-p1b-baseline\\runtime.patch",
+      "sha256": "e79996a8032e6df639421e3088dceebbdd33f5c61207ed325615109494d0a2de",
+      "reverseCheckPassed": true
+    },
+    {
+      "repository": "core",
+      "path": "D:\\vn-sim\\build\\native-metal-p1b-baseline\\core.patch",
+      "sha256": "773ca602a73270e4d7b38ce9d4995e817acaaaab667b2b932fe26e278f41890d",
+      "reverseCheckPassed": true
+    }
+  ],
+  "fileHashes": [
+    {
+      "repository": "main",
+      "path": "App/Engine/KRKROverlay.swift",
+      "sha256": "d5716aaa1d8840b3d529b8641443a2a87b87520b2a77971558060e501223bca0"
+    },
+    {
+      "repository": "main",
+      "path": "App/Engine/KRKRSession.swift",
+      "sha256": "de3ef70e3366e2088adca0e686bdb9d6d3f8807fd0bbe8ba67589da86eaef31b"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/CMakeLists.txt",
+      "sha256": "99a92afaeaee5dfac18a01e59db3aae852754b2a8c2e4b726c3d607f1ada405a"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/CapabilityAuditTests.cpp",
+      "sha256": "da71adc43e83e5e7511295d9f6b93f381c20dfca126cdc968014680ce43f7dbf"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/LayerCapabilities.def",
+      "sha256": "d6d37f7186fe04422aeb79c5b70312f5ba07f1656f78a7a8b509c2faac7d13dd"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/MetalLayerTests.cpp",
+      "sha256": "213560edf22e41cbc48cf224858bba4549888cad362c58a19d667d243c78ec11"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/OperationContractExtension.def",
+      "sha256": "d4bc59549f33f01a08f0f0265770ec79a809991f50954c5407cd181baf8d3004"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/OperationContractTests.cpp",
+      "sha256": "893481e3213b4d0febde6a39403fc68bb690a29c4683703455acde1def45daf9"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/P1BShaderTests.cpp",
+      "sha256": "3b6f01c4e41c08350a3c02668888174a3ff0776ac9f52e17cd74e78d9f16ef96"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/P1BShaderTests.h",
+      "sha256": "1e055207d0c184d8c7d198a8020f2b39c29dde8cabda49a1c13311bfd4bad8d8"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/README.md",
+      "sha256": "28cb8c4fab03d939eeaac64fce73f3d0e335c6b5ecb1aaaac8fe2e51948bb9cd"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/SoftwareCapabilityContracts.def",
+      "sha256": "d2c567244a84e69d2a309fe766ab61d87330f5444bcb947c9b2f6dad431cc82d"
+    },
+    {
+      "repository": "main",
+      "path": "Tests/MetalLayer/extract-univ-trans-math.py",
+      "sha256": "33f125282eccffaef72c8f061334421573e6c61cff9a8ec30e864ed50d66bab7"
+    },
+    {
+      "repository": "main",
+      "path": "docs/METAL-RENDER-BACKEND.md",
+      "sha256": "a44ba455430986610e7a98794ea7e34d82f9367513adc0bee434bfa951d62a34"
+    },
+    {
+      "repository": "main",
+      "path": "docs/NATIVE-METAL-COMPATIBILITY-PLAN.md",
+      "sha256": "206417f80c547e7e1a3dff3714269f00d066a06a1bbfd4ed5531d1eb2008f437"
+    },
+    {
+      "repository": "main",
+      "path": "docs/NATIVE-METAL-P1B-BASELINE.md",
+      "sha256": "23d19e7de932fa817d4dff5ff7c1e99bdd24b6c2b679cc902e18f0ccae6aedc6"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p1b-baseline/after-metal-layer.log",
+      "sha256": "396266e4f272d005006998c99cd9d60010a13fb450ed0d6540b283b618508e3f"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p1b-baseline/after-metal-render.log",
+      "sha256": "47ccb55bd2cbaea0614b2d74aa40697acf8679ade72870adc1d1b0bdc818d6eb"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p1b-baseline/before-metal-layer.log",
+      "sha256": "ebc9d60c2f181f5f52ad8b136a5abd3b095bf655028123e81b9d68c7d83f0117"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p1b-baseline/before-metal-render.log",
+      "sha256": "bb212d8eaf6b61f7ca40a76a9df96321bf923ee274644efedad6f25f16fe011c"
+    },
+    {
+      "repository": "main",
+      "path": "docs/native-metal-p1b-baseline/capabilities.json",
+      "sha256": "a5652e0b75b7b581a166254bd911e02e092b52424b8bac956cfee8b297e74ee0"
+    },
+    {
+      "repository": "runtime",
+      "path": "host/MikageKRKRRuntime.h",
+      "sha256": "279d056969cbfe7c35733628c8e44a676d1e41adde816a69485d032638745119"
+    },
+    {
+      "repository": "runtime",
+      "path": "host/MikageKRKRRuntime.mm",
+      "sha256": "f955e1ff7f88c5fb6cbfae3b20be00db196e3a527db5a16a9e48b187e1e9fa4a"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/LayerOperationDefinitions.def",
+      "sha256": "c8cb19ebbc2f4b4efba7c961672fe9840b738f8bce5960c59862c8b829ee0b9a"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/LayerRenderOperation.h",
+      "sha256": "a1be3fde75a0be468f3c04d9e04e276910f03ae8d25975969611c91a3c0cddcf"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/MetalLayerRenderManager.cpp",
+      "sha256": "bd8567982e80e8dcc628bed1ee293a06bbf6cf417c27293786074749e94756fc"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/RenderManager.cpp",
+      "sha256": "c6b9729eca0772fd72f045e8d463924618502ad63f9221da49bddc53e2ceb558"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/TVPCompositor.h",
+      "sha256": "711b067fc04017565c4635a100755695cdc3440c52698058abc5718c2d4474d7"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/backend/MetalLayerShaders.h",
+      "sha256": "f85ecbb61f1f722782f813a589601bee0c82e8418d7978db9472ab5d0ddff9ec"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/backend/MetalRenderBackend.h",
+      "sha256": "ccb536f01ed128770711de560afd0af147013f1e9b5887f249d9ecc5f8ac7f57"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/backend/MetalRenderBackend.mm",
+      "sha256": "1dfce2fef6888492ee789603c4a66594b211d09e455d558332215bd4f44ffe1f"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/gl/blend_function.cpp",
+      "sha256": "f420a63dab57243d1ef2d3a954a734dee98eea773ad0d379db27353dbe181815"
+    },
+    {
+      "repository": "core",
+      "path": "core/render/gl/tvpgl.h",
+      "sha256": "36e0c64a5d9746db024d8d4aa8e69fbada5feddf5771539675267183f96c7a30"
+    }
+  ],
+  "patchCapture": "Native Git stdout bytes, new files included; reverse-check only.",
+  "hashScope": "Exclude metadata itself and the unchanged preexisting user audit document."
+}

@@ -47,6 +47,17 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle(isOn: $model.settings.experimentalEmote) {
+                        Label("Emote 候选动画模式", systemImage: "sparkles")
+                    }
+                    .accessibilityIdentifier("experimental-emote-toggle")
+                } header: {
+                    Text("动画")
+                } footer: {
+                    Text("启用新的 Emote 动画播放方式，用于对比动作流畅度。默认关闭；修改在下次启动游戏时生效。若动作或表情异常，可关闭后重新进入游戏。")
+                }
+
+                Section {
                     Toggle(isOn: $model.settings.respectSilentMode) {
                         Label("遵循 iOS 静音模式规则", systemImage: "speaker.slash.fill")
                     }
@@ -55,6 +66,24 @@ struct SettingsView: View {
                     Text("声音")
                 } footer: {
                     Text("开启后，iPhone 处于静音模式时游戏音频会静音；关闭后将忽略静音模式继续播放。修改将在下次启动游戏时生效。")
+                }
+
+                Section {
+                    Toggle("复用未变化的动画节点", isOn: $model.settings.emoteNodeCache)
+                    Toggle("跳过重复画布更新", isOn: $model.settings.emoteCaptureCache)
+                    Toggle("局部图层更新", isOn: $model.settings.emoteLocalUpdate)
+                    Toggle("局部画布复制", isOn: $model.settings.emoteRegionCopy)
+                    Toggle("异步点击检测", isOn: $model.settings.emoteAsyncAlpha)
+#if targetEnvironment(simulator)
+                        .disabled(true)
+#endif
+                    Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
+                    Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
+                        .disabled(!model.settings.emoteNodeCache)
+                } header: {
+                    Text("Emote 性能实验")
+                } footer: {
+                    Text("各项可独立开启对比，默认关闭，下次启动游戏时生效。异步点击保持透明区域判定，通常延迟约一帧；画面未就绪时会继续等待。")
                 }
 
                 Section("游戏内") {
@@ -151,7 +180,7 @@ struct SettingsView: View {
                 } header: {
                     Text("诊断与日志")
                 } footer: {
-                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 8 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
+                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 16 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
                 }
 
                 Section("更多") {
@@ -168,11 +197,17 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("MIKAGE NEXT · 0.1")
-                        .font(.caption2)
-                        .tracking(3)
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity)
+                    let buildInfo = AppBuildInfo()
+                    VStack(spacing: 4) {
+                        Text(buildInfo.versionLine)
+                            .tracking(3)
+                        Text(buildInfo.headLine)
+                            .font(.system(.caption2, design: .monospaced))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("app-build-info")
                 }
                 .listRowBackground(Color.clear)
             }

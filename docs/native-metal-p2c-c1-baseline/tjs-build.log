@@ -1,0 +1,16 @@
+[0/2] Re-checking globbed directories...
+[1/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.cpp.obj
+[2/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/TJSShutdownTests.cpp.obj
+[3/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjs.tab.cpp.obj
+[4/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsBinarySerializer.cpp.obj
+[5/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDate.cpp.obj
+[6/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsArray.cpp.obj
+[7/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsException.cpp.obj
+[8/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsDictionary.cpp.obj
+[9/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsMath.cpp.obj
+[10/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsLex.cpp.obj
+[11/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsNative.cpp.obj
+[12/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsObject.cpp.obj
+[13/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsRandomGenerator.cpp.obj
+[14/16] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsOctPack.cpp.obj
+[15/16] Linking CXX executable tjs-shutdown-tests.exe

@@ -27,6 +27,8 @@ struct KRKRLaunchConfiguration {
     let idleOpacity: Double
     let threeFingerMenu: Bool
     let respectSilentMode: Bool
+    let experimentalEmote: Bool
+    var emotePerformanceOptions: UInt32 = 0
     let performance: Bool
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
@@ -96,8 +98,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var rendererLabel = RendererPreference.storageDefault.displayName
     private var performanceEnabled = false
     private var displayTicks = 0
+    private var previousCommandTicks = 0
+    private var previousCommandCounters: [String: UInt64] = [:]
     private var lastStepResult = "none"
     private var isStepping = false
+    private let threadCPU = ThreadCPUSampler()
 
     override init() {
         super.init()
@@ -161,11 +166,15 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "entryPoint": configuration.entryPoint.lastPathComponent,
                                          "targetKind": String(describing: configuration.targetKind),
                                          "requestedRenderer": configuration.renderer.rawValue,
+                                         "emoteAnimationMode": configuration.experimentalEmote ? "integrated" : "legacy",
+                                         "emotePerformanceOptions": String(configuration.emotePerformanceOptions),
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
                                          "respectSilentMode": String(configuration.respectSilentMode)])
         displayTicks = 0
+        previousCommandTicks = 0
+        previousCommandCounters = [:]
         lastStepResult = "none"
         AppDiagnostics.shared.windows("launch.hostWindow")
         state = .preparingOrientation
@@ -197,7 +206,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             AppDiagnostics.shared.event("bridge", "start.enteredFromRunLoop")
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
-                    MikageKRKRStart(
+                    MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
+                    MikageKRKRSetEmotePerformanceOptions(configuration.emotePerformanceOptions)
+                    return MikageKRKRStart(
                         gamePath,
                         renderer,
                         scenePointer,
@@ -523,6 +534,17 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     private func updateMetrics() {
         guard state == .running || state == .stopping else { return }
+        // One sample per metrics tick keeps the window at one second.
+        let cpuSample = AppDiagnostics.shared.isEnabled || performanceEnabled ? threadCPU.sample() : nil
+        if let cpuSample, AppDiagnostics.shared.isEnabled {
+            AppDiagnostics.shared.event("session", "threadCPU", [
+                "processCPUPercent": String(format: "%.1f", cpuSample.processPercent),
+                "threadCount": String(cpuSample.threadCount),
+                "threads": cpuSample.summary(limit: 16),
+                "foreground": String(isForeground),
+                "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue)
+            ])
+        }
         if AppDiagnostics.shared.isEnabled {
             var diagnosticStats = MikageKRKRStats()
             if MikageKRKRGetStats(&diagnosticStats) {
@@ -533,8 +555,296 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "lock:\(diagnosticStats.layerReadbackLockBytes)/\(diagnosticStats.layerReadbackLockCount)",
                     "fallback:\(diagnosticStats.layerReadbackFallbackBytes)/\(diagnosticStats.layerReadbackFallbackCount)",
                     "persistent:\(diagnosticStats.layerReadbackPersistentBytes)/\(diagnosticStats.layerReadbackPersistentCount)",
-                    "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)"
+                    "pixels:\(diagnosticStats.layerReadbackPixelsBytes)/\(diagnosticStats.layerReadbackPixelsCount)",
+                    "point:\(diagnosticStats.layerReadbackPointBytes)/\(diagnosticStats.layerReadbackPointCount)"
                 ].joined(separator: ",")
+
+                let layerFallbackReadbackByRole: String = [
+                    "target:\(diagnosticStats.layerFallbackTargetReadbackBytes)/\(diagnosticStats.layerFallbackTargetReadbackCount)",
+                    "source:\(diagnosticStats.layerFallbackSourceReadbackBytes)/\(diagnosticStats.layerFallbackSourceReadbackCount)",
+                    "reference:\(diagnosticStats.layerFallbackReferenceReadbackBytes)/\(diagnosticStats.layerFallbackReferenceReadbackCount)"
+                ].joined(separator: ",")
+
+                let layerGPURejects: String = [
+                    "targetUnavailable:\(diagnosticStats.layerGPURejectTargetUnavailable)",
+                    "targetCPUResident:\(diagnosticStats.layerGPURejectTargetCPUResident)",
+                    "multipleInputs:\(diagnosticStats.layerGPURejectMultipleInputs)",
+                    "unsupportedMethod:\(diagnosticStats.layerGPURejectUnsupportedMethod)",
+                    "unsupportedStretch:\(diagnosticStats.layerGPURejectUnsupportedStretch)",
+                    "invalidOpacity:\(diagnosticStats.layerGPURejectInvalidOpacity)",
+                    "sourceUnavailable:\(diagnosticStats.layerGPURejectSourceUnavailable)",
+                    "sourceFormat:\(diagnosticStats.layerGPURejectSourceFormat)",
+                    "invalidGeometry:\(diagnosticStats.layerGPURejectInvalidGeometry)",
+                    "unsupportedKind:\(diagnosticStats.layerGPURejectUnsupportedKind)",
+                    "alphaTables:\(diagnosticStats.layerGPURejectAlphaTables)",
+                    "psTables:\(diagnosticStats.layerGPURejectPsTables)",
+                    "affineAlias:\(diagnosticStats.layerGPURejectAffineAlias)",
+                    "perspectiveAlias:\(diagnosticStats.layerGPURejectPerspectiveAlias)",
+                    "backendFailure:\(diagnosticStats.layerGPURejectBackendFailure)",
+                    "triangles:\(diagnosticStats.layerGPURejectTriangles)",
+                    "perspective:\(diagnosticStats.layerGPURejectPerspective)"
+                ].joined(separator: ",")
+
+                let layerMultipleInputMethods = withUnsafePointer(to: &diagnosticStats.layerMultipleInputMethods) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                }
+                let layerUnsupportedMethods = withUnsafePointer(to: &diagnosticStats.layerUnsupportedMethods) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                }
+
+                let emoteProfile: String = [
+                    "progress:\(diagnosticStats.emoteProgressCalls)/\(diagnosticStats.emoteProgressTimeNS)",
+                    "prepare:\(diagnosticStats.emotePrepareCalls)/\(diagnosticStats.emotePrepareTimeNS)",
+                    "draw:\(diagnosticStats.emoteDrawCalls)/\(diagnosticStats.emoteDrawTimeNS)",
+                    "capture:\(diagnosticStats.emoteCaptureProfileCalls)/\(diagnosticStats.emoteCaptureTimeNS)"
+                ].joined(separator: ",")
+
+                let emotePrepareDetail: String = [
+                    "transformNS:\(diagnosticStats.emotePrepareTransformTimeNS)",
+                    "motionNS:\(diagnosticStats.emotePrepareMotionProgressTimeNS)",
+                    "snapshotNS:\(diagnosticStats.emotePrepareSnapshotTimeNS)",
+                    "nodeCalls:\(diagnosticStats.emoteNodeProgressCalls)",
+                    "nodeNS:\(diagnosticStats.emoteNodeProgressTimeNS)",
+                    "subCreates:\(diagnosticStats.emoteSubmotionCreates)",
+                    "subNS:\(diagnosticStats.emoteSubmotionRebuildTimeNS)",
+                    "shapeCalls:\(diagnosticStats.emoteShapeBuildCalls)",
+                    "shapeNS:\(diagnosticStats.emoteShapeBuildTimeNS)",
+                    "shapeVertices:\(diagnosticStats.emoteShapeVertices)",
+                    "meshCalls:\(diagnosticStats.emoteMeshBuildCalls)",
+                    "meshNS:\(diagnosticStats.emoteMeshBuildTimeNS)",
+                    "meshVertices:\(diagnosticStats.emoteMeshVerticesBuilt)",
+                    "deformedVertices:\(diagnosticStats.emoteDeformedVerticesBuilt)",
+                    "gpuDraws:\(diagnosticStats.emoteGPUDeformDraws)",
+                    "gpuVertices:\(diagnosticStats.emoteGPUDeformVertices)"
+                ].joined(separator: ",")
+
+                let emoteCadenceProfile: String = [
+                    "steps:\(diagnosticStats.emoteRenderSteps)",
+                    "draws:\(diagnosticStats.emotePlayerDraws)",
+                    "players:\(diagnosticStats.emoteDistinctPlayerDraws)",
+                    "repeats:\(diagnosticStats.emoteRepeatedPlayerDraws)",
+                    "targets:\(diagnosticStats.emoteDistinctTargets)",
+                    "maxDrawsStep:\(diagnosticStats.emoteMaxDrawsPerStep)",
+                    "maxPlayersStep:\(diagnosticStats.emoteMaxPlayersPerStep)",
+                    "maxDrawsPlayerStep:\(diagnosticStats.emoteMaxDrawsPerPlayerStep)"
+                ].joined(separator: ",")
+
+                let meshProfile: String = [
+                    "draws:\(diagnosticStats.meshDrawCalls)",
+                    "vertices:\(diagnosticStats.meshVertices)",
+                    "indices:\(diagnosticStats.meshIndices)",
+                    "cpuNS:\(diagnosticStats.meshCPUTimeNS)",
+                    "validationNS:\(diagnosticStats.meshValidationTimeNS)",
+                    "allocs:\(diagnosticStats.meshBufferAllocations)",
+                    "bytes:\(diagnosticStats.meshBufferBytes)",
+                    "allocNS:\(diagnosticStats.meshBufferAllocationTimeNS)"
+                ].joined(separator: ",")
+
+                let metalProfile: String = [
+                    "submits:\(diagnosticStats.metalSubmits)",
+                    "syncWaits:\(diagnosticStats.metalSyncWaits)",
+                    "syncWaitNS:\(diagnosticStats.metalSyncWaitTimeNS)",
+                    "queueWaitNS:\(diagnosticStats.metalQueueWaitTimeNS)"
+                ].joined(separator: ",")
+
+                let metalRingProfile: String = [
+                    "bytes:\(diagnosticStats.metalRingBytes)",
+                    "suballocs:\(diagnosticStats.metalRingSuballocs)",
+                    "suballocNS:\(diagnosticStats.metalRingSuballocTimeNS)",
+                    "wraps:\(diagnosticStats.metalRingWraps)",
+                    "stallNS:\(diagnosticStats.metalRingStallTimeNS)",
+                    "highWater:\(diagnosticStats.metalRingHighWaterBytes)",
+                    "fallbacks:\(diagnosticStats.metalRingFallbackAllocations)",
+                    "fallbackBytes:\(diagnosticStats.metalRingFallbackBytes)"
+                ].joined(separator: ",")
+
+                // Interval counts keep command-generation changes visible next
+                // to this heartbeat's frame time. The first sample establishes
+                // a baseline; divide by ticks for a per-step average.
+                let commandCounters: [(String, UInt64)] = [
+                    ("renderEncoders", diagnosticStats.metalRenderEncoders),
+                    ("computeEncoders", diagnosticStats.metalComputeEncoders),
+                    ("blitEncoders", diagnosticStats.metalBlitEncoders),
+                    ("drawCalls", diagnosticStats.meshDrawCalls),
+                    ("deformedDrawCalls", diagnosticStats.emoteGPUDeformDraws),
+                    ("maskClears", diagnosticStats.emoteMaskClears),
+                    ("maskDraws", diagnosticStats.emoteMaskDraws),
+                    ("uniqueMaskGroups", diagnosticStats.emoteUniqueMaskGroups),
+                    ("layerRectSnapshots", diagnosticStats.metalLayerRectSnapshots),
+                    ("layerRectSnapshotBytes", diagnosticStats.metalLayerRectSnapshotBytes),
+                    ("surfaceUploadBytes", diagnosticStats.metalSurfaceUploadBytes),
+                    ("ringBytes", diagnosticStats.metalRingBytes),
+                    ("commandBuffers", diagnosticStats.metalSubmits),
+                    ("emoteLayerGPUCopies", diagnosticStats.emoteLayerGPUCopies),
+                    ("emoteLayerGPUCopyBytes", diagnosticStats.emoteLayerGPUCopyBytes),
+                    ("emoteCaptureGPUCopies", diagnosticStats.emoteCaptureGPUCopies),
+                    ("emoteCaptureGPUBytes", diagnosticStats.emoteCaptureGPUBytes),
+                    ("emoteCaptureCPUFallbacks", diagnosticStats.emoteCaptureCPUFallbacks),
+                    ("emoteCaptureCPUBytes", diagnosticStats.emoteCaptureCPUBytes),
+                    ("emoteCaptureSkipped", diagnosticStats.emoteCaptureSkipped),
+                    ("emoteLayerCPUReadbacks", diagnosticStats.emoteLayerCPUReadbacks),
+                    ("emoteLayerCPUReadbackBytes", diagnosticStats.emoteLayerCPUReadbackBytes),
+                    ("emoteLayerCPUReadbackNS", diagnosticStats.emoteLayerCPUReadbackTimeNS)
+                ]
+                let commandIntervalProfile = (["ticks:\(displayTicks - previousCommandTicks)"] +
+                    commandCounters.map { entry in
+                        let (name, value) = entry
+                        let previous = previousCommandCounters[name] ?? value
+                        return "\(name):\(value >= previous ? value - previous : value)"
+                    }).joined(separator: ",")
+                previousCommandTicks = displayTicks
+                previousCommandCounters = Dictionary(uniqueKeysWithValues: commandCounters)
+
+                // This separate sampler resets only the triangle interval.
+                // Performance HUD/GetStats calls leave its counters intact.
+                var triangleProfile = MikageKRKRLayerTriangleProfile()
+                if MikageKRKRTakeLayerTriangleProfile(&triangleProfile) {
+                    let triangleMethods = withUnsafePointer(to: &triangleProfile.methods) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    let triangleTargetSizes = withUnsafePointer(to: &triangleProfile.targetSizes) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    let triangleSources = withUnsafePointer(to: &triangleProfile.sources) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
+                    }
+                    let triangleStretchModes = withUnsafePointer(to: &triangleProfile.stretchModes) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 768) { String(cString: $0) }
+                    }
+                    AppDiagnostics.shared.event("session", "layerTriangleProfile", [
+                        "displayTicks": String(displayTicks),
+                        "intervalMS": String(Double(triangleProfile.intervalNS) / 1_000_000),
+                        "calls": String(triangleProfile.calls),
+                        "triangles": String(triangleProfile.triangleCount),
+                        "gpuCalls": String(triangleProfile.gpuCalls),
+                        "gpuPixels": String(triangleProfile.gpuPixels),
+                        "clipPixels": String(triangleProfile.clipPixels),
+                        "maxClipPixels": String(triangleProfile.maxClipPixels),
+                        "maxTargetPixels": String(triangleProfile.maxTargetPixels),
+                        "fullSurfaceCalls": String(triangleProfile.fullSurfaceCalls),
+                        "target1920x1080Calls": String(triangleProfile.target1920x1080Calls),
+                        "targetReadbackBytes": String(triangleProfile.targetReadbackBytes),
+                        "sourceReadbackBytes": String(triangleProfile.sourceReadbackBytes),
+                        "referenceReadbackBytes": String(triangleProfile.referenceReadbackBytes),
+                        "cpuTimeMS": String(Double(triangleProfile.cpuTimeNS) / 1_000_000),
+                        "maxCpuTimeMS": String(Double(triangleProfile.maxCpuTimeNS) / 1_000_000),
+                        "softwareTimeMS": String(Double(triangleProfile.softwareTimeNS) / 1_000_000),
+                        "maxSoftwareTimeMS": String(Double(triangleProfile.maxSoftwareTimeNS) / 1_000_000),
+                        "count2Calls": String(triangleProfile.count2Calls),
+                        "singleInputCalls": String(triangleProfile.singleInputCalls),
+                        "referenceCalls": String(triangleProfile.referenceCalls),
+                        "sourceTargetAliasCalls": String(triangleProfile.sourceTargetAliasCalls),
+                        "triangleMethods": triangleMethods,
+                        "triangleTargetSizes": triangleTargetSizes,
+                        "triangleSources": triangleSources,
+                        "triangleStretchModes": triangleStretchModes,
+                        "fps": String(diagnosticStats.framesPerSecond),
+                        "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
+                        "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds)
+                    ])
+                }
+
+                let stepProfile: String = [
+                    "eventNS:\(diagnosticStats.stepEventTimeNS)",
+                    "iterateNS:\(diagnosticStats.stepIterateTimeNS)"
+                ].joined(separator: ",")
+
+                let emotePerformanceProfile = [
+                    "nodeHits:\(diagnosticStats.emoteNodeCacheHits)",
+                    "nodeMisses:\(diagnosticStats.emoteNodeCacheMisses)",
+                    "shapeHits:\(diagnosticStats.emoteShapeCacheHits)",
+                    "meshHits:\(diagnosticStats.emoteMeshCacheHits)",
+                    "drawListRebuilds:\(diagnosticStats.emoteDrawListRebuilds)",
+                    "captureSkipped:\(diagnosticStats.emoteCaptureSkipped)",
+                    "regionPixels:\(diagnosticStats.emoteCaptureRegionPixels)",
+                    "fullPixels:\(diagnosticStats.emoteCaptureFullPixels)",
+                    "knownBounds:\(diagnosticStats.emoteCaptureKnownBounds)",
+                    "unknownBounds:\(diagnosticStats.emoteCaptureUnknownBounds)",
+                    "cowFallbacks:\(diagnosticStats.emoteCaptureCOWFallbacks)",
+                    "alphaRequests:\(diagnosticStats.emoteAlphaRequests)",
+                    "alphaHits:\(diagnosticStats.emoteAlphaCacheHits)",
+                    "pendingEvents:\(diagnosticStats.emoteAlphaPendingEvents)",
+                    "alphaBytes:\(diagnosticStats.emoteAlphaReadBytes)",
+                    "alphaFailures:\(diagnosticStats.emoteAlphaFailures)",
+                    "uiSyncReads:\(diagnosticStats.emoteUISyncReads)",
+                    "uiSyncWaitNS:\(diagnosticStats.emoteUISyncWaitNS)",
+                    "experimentalBoundsKnown:\(diagnosticStats.emoteCaptureExperimentalBoundsKnown)",
+                    "experimentalBoundsUnknown:\(diagnosticStats.emoteCaptureExperimentalBoundsUnknown)",
+                    "experimentalBoundsPixels:\(diagnosticStats.emoteCaptureExperimentalBoundsPixels)",
+                    "experimentalBoundsNS:\(diagnosticStats.emoteCaptureExperimentalBoundsNS)",
+                    "updatePixels:\(diagnosticStats.emoteCaptureUpdatePixels)",
+                    "updateFullPixels:\(diagnosticStats.emoteCaptureUpdateFullPixels)",
+                    "localPoseHits:\(diagnosticStats.emoteLocalPoseCacheHits)",
+                    "localPoseMisses:\(diagnosticStats.emoteLocalPoseCacheMisses)",
+                    "captureRequests:\(diagnosticStats.emoteCaptureRequests)",
+                    "fullCopies:\(diagnosticStats.emoteCaptureFullCopies)",
+                    "regionCopies:\(diagnosticStats.emoteCaptureRegionCopies)",
+                    "regionFallbacks:\(diagnosticStats.emoteCaptureRegionFallbacks)",
+                    "boundsNS:\(diagnosticStats.emoteCaptureBoundsNS)"
+                ].joined(separator: ",")
+
+                var workProfile = MikageKRKRLayerWorkProfile()
+                if MikageKRKRTakeLayerWorkProfile(&workProfile) {
+                    let spanRouteWindowID = MikageKRKRLastLayerWorkProfileWindowID()
+                    let stages = withUnsafePointer(to: &workProfile.stages) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 1024) { String(cString: $0) }
+                    }
+                    let transfers = withUnsafePointer(to: &workProfile.transfers) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 2048) { String(cString: $0) }
+                    }
+                    let copiedSample = KRKRLayerWorkSample(profile: &workProfile)
+                    let overflow = withUnsafePointer(to: &workProfile.originOverflow) {
+                        $0.withMemoryRebound(to: CChar.self, capacity: 512) { String(cString: $0) }
+                    }
+                    AppDiagnostics.shared.event("session", "layerWorkProfile", [
+                        "workProfileVersion": String(workProfile.workProfileVersion),
+                        "spanRouteWindowID": String(spanRouteWindowID),
+                        "intervalMS": String(Double(workProfile.intervalNS) / 1_000_000),
+                        "displayTicks": String(displayTicks),
+                        "stages": stages,
+                        "transfers": transfers,
+                        "transferOrigins": copiedSample.origins,
+                        "originOverflow": overflow,
+                        "frameSampleCount": String(workProfile.frameSampleCount),
+                        "frameSamplesNS": copiedSample.frameSamplesNS,
+                        "frameSamplesDropped": String(workProfile.frameSamplesDropped),
+                        "transitionProfileVersion": String(workProfile.transitionProfileVersion),
+                        "transitionProfiles": copiedSample.transitionProfiles,
+                        "transitionProfilesDropped": String(workProfile.transitionProfilesDropped),
+                        "transitionOverflow": copiedSample.transitionOverflow,
+                        "shrinkProfileVersion": String(workProfile.shrinkProfileVersion),
+                        "shrinkProfiles": copiedSample.shrinkProfiles,
+                        "shrinkProfilesDropped": String(workProfile.shrinkProfilesDropped),
+                        "shrinkOverflow": copiedSample.shrinkOverflow,
+                        "shrinkReadWaitSampleCount": String(workProfile.shrinkReadWaitSampleCount),
+                        "shrinkReadWaitSamplesNS": copiedSample.shrinkReadWaitSamplesNS,
+                        "shrinkReadWaitSamplesDropped": String(workProfile.shrinkReadWaitSamplesDropped),
+                        "amvDecodedFrames": String(workProfile.amvDecodedFrames),
+                        "amvDecodedBytes": String(workProfile.amvDecodedBytes)
+                    ])
+                }
+
+                AppDiagnostics.shared.event("session", "heartbeat.profile", [
+                    "emotePerformanceProfile": emotePerformanceProfile,
+                    "displayTicks": String(displayTicks),
+                    "fps": String(diagnosticStats.framesPerSecond),
+                    "frameTimeMS": String(diagnosticStats.frameTimeMilliseconds),
+                    "cpuFrameTimeMS": String(diagnosticStats.cpuFrameTimeMilliseconds),
+                    "maxCpuFrameTimeMS": String(diagnosticStats.maxCpuFrameTimeMilliseconds),
+                    "gpuSubmissionTimeMS": String(diagnosticStats.gpuSubmissionTimeMilliseconds),
+                    "presentationWaitTimeMS": String(diagnosticStats.presentationWaitTimeMilliseconds),
+                    "emoteCaptureCalls": String(diagnosticStats.emoteCaptureCalls),
+                    "emoteProfile": emoteProfile,
+                    "emotePrepareDetail": emotePrepareDetail,
+                    "emoteCadenceProfile": emoteCadenceProfile,
+                    "meshProfile": meshProfile,
+                    "metalProfile": metalProfile,
+                    "metalRingProfile": metalRingProfile,
+                    "commandIntervalProfile": commandIntervalProfile,
+                    "stepProfile": stepProfile,
+                    "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
+                    "actualRenderer": rendererName(from: &diagnosticStats)
+                ])
 
                 AppDiagnostics.shared.event("session", "heartbeat", [
                     "displayTicks": String(displayTicks), "stepResult": lastStepResult,
@@ -548,11 +858,33 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "layerGPUOperations": String(diagnosticStats.gpuLayerOperations),
                     "layerCPUFallbacks": String(diagnosticStats.layerCPUFallbacks),
                     "layerUploadedBytes": String(diagnosticStats.layerUploadedBytes),
+                    "layerGammaLUTUploads": String(diagnosticStats.layerGammaLUTUploads),
+                    "layerGammaLUTUploadedBytes": String(diagnosticStats.layerGammaLUTUploadedBytes),
+                    "layerPsTableUploads": String(diagnosticStats.layerPsTableUploads),
+                    "layerPsTableUploadedBytes": String(diagnosticStats.layerPsTableUploadedBytes),
                     "layerReadbackBytes": String(diagnosticStats.layerReadbackBytes),
+                    "layerPointCacheHits": String(diagnosticStats.layerPointCacheHits),
+                    "layerPointCacheMisses": String(diagnosticStats.layerPointCacheMisses),
                     "layerGPUResidentBytes": String(diagnosticStats.layerGPUResidentBytes),
                     "layerCPUCacheBytes": String(diagnosticStats.layerCPUCacheBytes),
                     "layerPinnedCPUTextures": String(diagnosticStats.layerPinnedCPUTextures),
                     "layerReadbackBySource": layerReadbackBySource,
+                    "layerFallbackReadbackByRole": layerFallbackReadbackByRole,
+                    "layerGPURejects": layerGPURejects,
+                    "layerMultipleInputMethods": layerMultipleInputMethods,
+                    "layerUnsupportedMethods": layerUnsupportedMethods,
+                    "emoteCaptureCalls": String(diagnosticStats.emoteCaptureCalls),
+                    "emoteCaptureCPUFallbacks": String(diagnosticStats.emoteCaptureCPUFallbacks),
+                    "emoteCaptureCPUBytes": String(diagnosticStats.emoteCaptureCPUBytes),
+                    "emoteCaptureGPUCopies": String(diagnosticStats.emoteCaptureGPUCopies),
+                    "emoteCaptureGPUBytes": String(diagnosticStats.emoteCaptureGPUBytes),
+                    "emoteProfile": emoteProfile,
+                    "emotePrepareDetail": emotePrepareDetail,
+                    "emoteCadenceProfile": emoteCadenceProfile,
+                    "meshProfile": meshProfile,
+                    "metalProfile": metalProfile,
+                    "metalRingProfile": metalRingProfile,
+                    "stepProfile": stepProfile,
                     "preferredFPS": "60",
                     "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
                     "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled),
@@ -593,7 +925,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerCPUFallbacks: raw.layerCPUFallbacks,
                 layerUploadedBytes: raw.layerUploadedBytes,
                 layerReadbackBytes: raw.layerReadbackBytes,
+                layerGammaLUTUploads: raw.layerGammaLUTUploads,
+                layerGammaLUTUploadedBytes: raw.layerGammaLUTUploadedBytes,
+                layerPsTableUploads: raw.layerPsTableUploads,
+                layerPsTableUploadedBytes: raw.layerPsTableUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
+                processCPUPercent: cpuSample?.processPercent ?? -1,
+                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
                 elapsedSeconds: elapsedSeconds
             )
         )

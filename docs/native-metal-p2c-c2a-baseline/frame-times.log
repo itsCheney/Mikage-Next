@@ -1,0 +1,4 @@
+COMMAND ['C:/Users/Ayach/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe', 'scripts/check-krkr-frame-times.py']
+PASS: cadence/work separation, peak-stage correlation, reset and bounded Emote stall logs
+
+EXIT 0

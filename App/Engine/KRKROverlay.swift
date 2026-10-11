@@ -16,7 +16,14 @@ struct KRKRPerformanceSnapshot {
     var layerCPUFallbacks: UInt64 = 0
     var layerUploadedBytes: UInt64 = 0
     var layerReadbackBytes: UInt64 = 0
+    var layerGammaLUTUploads: UInt64 = 0
+    var layerGammaLUTUploadedBytes: UInt64 = 0
+    var layerPsTableUploads: UInt64 = 0
+    var layerPsTableUploadedBytes: UInt64 = 0
     var residentMemoryBytes: UInt64 = 0
+    /// All threads, percent of one core; negative until the second sample.
+    var processCPUPercent = -1.0
+    var busiestThreads = ""
     var elapsedSeconds = 0
 }
 
@@ -236,6 +243,13 @@ private struct KRKROverlayView: View {
                 Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
             }
             Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            if stats.processCPUPercent >= 0 {
+                Text("全部线程 CPU \(stats.processCPUPercent, specifier: "%.0f")%")
+                if !stats.busiestThreads.isEmpty {
+                    Text(stats.busiestThreads)
+                        .lineLimit(1)
+                }
+            }
             Text("本次游玩 \(duration(stats.elapsedSeconds))")
         }
         .font(.system(size: 12, design: .monospaced))

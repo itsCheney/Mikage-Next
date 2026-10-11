@@ -4,13 +4,13 @@ Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 2
 
 当前实现包括按引擎目录自动扫描、文件夹导入、XP3/startup.tjs 启动目标检测、根目录封面识别、自定义封面、缺失游戏管理、可重入 KRKR 启停、Retina drawable、前后台完整暂停、同窗口游戏菜单、真实性能 HUD、截图分享和 savedata。应用不附带任何游戏内容。
 
-默认 Metal 后端支持原生上屏、Emote 与 D3DLayer GPU 绘制，并保留软件合成 · Metal 选项。普通 KRKR 图层树仍在 CPU 合成，详见 [Metal 后端说明](docs/METAL-RENDER-BACKEND.md)。
+默认 Metal 后端支持原生上屏、Emote、D3DLayer、普通 KRKR 矩形及受限 affine/perspective GPU 绘制，并保留软件合成 · Metal 选项。内置七种 extrans 已接入受限 GPU 驻留路径；支持域及 Apple/真机待验范围见 [Metal 后端说明](docs/METAL-RENDER-BACKEND.md)和 [C4 记录](docs/NATIVE-METAL-P2C-C4-BASELINE.md)。
 
 目前只有 KiriKiri 引擎可启动；ONScripter、Ren’Py 和 Artemis 游戏可以被扫描并显示，但在对应运行时接入前保持禁用。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
 
 ## GitHub Actions 编译
 
-推送至 main，或在 Actions → iOS build → Run workflow 手动运行。
+推送至 main 或 metal_dev，或在 Actions → iOS build → Run workflow 手动运行。
 
 1. macOS 26 runner 运行 VNCore 扫描、路径隔离、导入与持久化测试。
 2. 初始化固定的 KRKRSDL3 fork 递归子模块，并准备 vcpkg 依赖。
@@ -55,3 +55,7 @@ KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`start
 - docs/PHASE-2-MULTI-ENGINE-PLAN.md：KRKR 真机验收通过后的 ONScripter、Ren’Py、Artemis 多引擎计划。
 
 KRKRSDL3 的修改通过仓库固定的 fork 递归子模块提供。分发修改后的 runtime 或商业游戏移植版前，请阅读 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的再分发与源码公开条件。
+
+`metal_dev` 的候选动画接入和额外许可声明见
+[Emote 首轮实现记录](docs/EMOTE-AETHER-INTEGRATION-STATUS.md)。默认仍使用 legacy 动画，
+节点曲线语义与 iPhone 验收完成后再切换默认实现。

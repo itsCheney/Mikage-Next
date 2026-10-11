@@ -1,0 +1,3 @@
+COMMAND ['C:/Strawberry/c/bin/c++.exe', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-IEngine/KRKRRuntime/Source/cpp/core/render', 'Tests/MetalLayer/C2ConsumerTraceTests.cpp', 'build/native-metal-p2c-c2a-baseline/c2a-helper-main.cpp', '-o', 'build/native-metal-p2c-c2a-baseline/c2a-helper-tests.exe']
+
+EXIT 0

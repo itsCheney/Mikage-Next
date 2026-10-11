@@ -1,0 +1,12 @@
+[
+  {
+    "path": "perf_log/Game/天使纷扰/data.xp3",
+    "bytes": 343075290,
+    "sha256": "dfb90386824eb507a67456fbba5859e94e92c50cb022f164b890c009fab7f733"
+  },
+  {
+    "path": "perf_log/Game/天使纷扰/sysscn/hsvcpick.tjs",
+    "bytes": 35064,
+    "sha256": "17f0154ed6f2640e40d5219f2757c2ab51c27dc042099bd3fc4fc1d8e9c69528"
+  }
+]

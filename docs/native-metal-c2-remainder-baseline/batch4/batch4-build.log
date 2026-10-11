@@ -1,0 +1,10 @@
+[0/2] Re-checking globbed directories...
+[1/10] Generating ProductionShrinkCopy.inc
+[2/10] Generating ProductionLayerExBoundary.inc, ProductionLayerExSpanBinding.inc
+[3/10] Building CXX object CMakeFiles/metal-layer-tests.dir/C2ConsumerTraceTests.cpp.obj
+[4/10] Building CXX object CMakeFiles/metal-layer-tests.dir/C2LayerExBoundaryTests.cpp.obj
+[5/10] Building CXX object CMakeFiles/metal-layer-tests.dir/ShrinkCopyTests.cpp.obj
+[6/10] Building CXX object CMakeFiles/metal-layer-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/core/render/MetalLayerRenderManager.cpp.obj
+[7/10] Building CXX object CMakeFiles/metal-layer-tests.dir/C2SpanBindingTests.cpp.obj
+[8/10] Building CXX object CMakeFiles/metal-layer-tests.dir/MetalLayerTests.cpp.obj
+[9/10] Linking CXX executable metal-layer-tests.exe

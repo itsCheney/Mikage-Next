@@ -1,0 +1,3 @@
+UNRUN: Swift executable is unavailable on the Windows host.
+Required Apple CI: swift test --filter DiagnosticLogTests
+Added real production logger export tests cover structured byte caps, full JSON/sample preservation, omissions, ordinary fields, small segments and escaping.

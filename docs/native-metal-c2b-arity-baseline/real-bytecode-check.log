@@ -1,0 +1,2 @@
+mappingByte offset=32114 old=228 new=179
+PASS real bytecode: exact gate, unchanged original, only local mapping bytes, wrong name/digest/size and repeated patched input rejected; no game execution

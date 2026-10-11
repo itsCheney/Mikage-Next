@@ -1,0 +1,9 @@
+[0/2] Re-checking globbed directories...
+[1/9] Building C object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256.c.obj
+[2/9] Building C object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/Sha256Opt.c.obj
+[3/9] Building C object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/plugins/Kirikiroid2/7zip/CpuArch.c.obj
+[4/9] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsScriptCache.cpp.obj
+[5/9] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/D_/vn-sim/Engine/KRKRRuntime/Source/cpp/tjs2/tjsKnownByteCodeCompatibility.cpp.obj
+[6/9] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/ByteCodeCompatibilityTests.cpp.obj
+[7/9] Building CXX object CMakeFiles/tjs-shutdown-tests.dir/TJSShutdownTests.cpp.obj
+[8/9] Linking CXX executable tjs-shutdown-tests.exe

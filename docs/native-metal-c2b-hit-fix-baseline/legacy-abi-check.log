@@ -1,0 +1,2 @@
+PASS eight unchanged legacy logs: 43 observed CPU routes, 39 omitted routes remain unknown, zero parser issues
+PASS existing C profile typedef unchanged byte-for-byte; new accessor adds no struct field
