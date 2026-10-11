@@ -1,5 +1,15 @@
 # Native Metal backend verification
 
+Ordinary Layer specialization adds Copy/Fill/CopyColor/full-opacity HDA Alpha
+fragment PSOs while retaining the generic tile and compute paths. Native tests
+run specialization and Fill coalescing independently off/on, require all four
+specialized PSOs on eligible tile devices, and compare exact bytes across mixed
+write masks, deferred Fill, sampling and submission boundaries. The native test
+body gets a compile-only Windows check. Binder fixtures execute extracted
+production traversal/copy/forwarding methods to check unused temporary removal,
+coordinates, alpha-presentation side effects, nested ownership and exclusions.
+See ../../docs/NATIVE-METAL-ORDINARY-PIPELINES-BASELINE.md for support and gates.
+
 P2D adds production initialization-policy checks and a bounded hotspot recorder,
 the extracted production C++ attribution helpers, and formatter-to-parser tests.
 The native suite also checks logical zero before first use, partial-write borders,

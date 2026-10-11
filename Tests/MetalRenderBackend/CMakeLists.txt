@@ -7,6 +7,8 @@ add_executable(metal-render-tests
     LayerUploadTests.cpp
     LayerInitializationTests.cpp
     PendingFillTests.cpp
+    OrdinaryLayerPipelineTests.cpp
+    BinderDrawTests.cpp
     CPUFrameTests.cpp
     BoundedStackTests.cpp
     ImagePrefetchTests.cpp
@@ -50,6 +52,13 @@ add_custom_command(OUTPUT "${TRANSITION_CACHE}"
     DEPENDS "${CORE}/core/script/tjsNativeLayer.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-cache.py"
     VERBATIM)
 target_sources(metal-render-tests PRIVATE "${TRANSITION_CACHE}")
+set(BINDER_DRAW "${CMAKE_CURRENT_BINARY_DIR}/ProductionBinderDraw.inc")
+add_custom_command(OUTPUT "${BINDER_DRAW}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-binder-draw.py"
+        --source "${CORE}/core/script/tjsNativeLayer.cpp" --output "${BINDER_DRAW}"
+    DEPENDS "${CORE}/core/script/tjsNativeLayer.cpp" "${CMAKE_CURRENT_LIST_DIR}/extract-binder-draw.py"
+    VERBATIM)
+target_sources(metal-render-tests PRIVATE "${BINDER_DRAW}")
 set(BOUNDED_STACK "${CMAKE_CURRENT_BINARY_DIR}/ProductionBoundedStack.inc")
 add_custom_command(OUTPUT "${BOUNDED_STACK}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-cpu-stack.py"

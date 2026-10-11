@@ -24,5 +24,6 @@ extern int g_blitEncoders,g_renderEncoders,g_metalSubmits,g_syncWaits;
 #include "NativeLayerInitializationTests.inc"
 
 #include "NativePendingFillTests.inc"
+#include "NativeOrdinaryLayerPipelineTests.inc"
 
 #include "NativeStaticPresentationTests.inc"

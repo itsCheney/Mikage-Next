@@ -202,6 +202,9 @@ set_tests_properties(c2b-profile-window-wiring PROPERTIES ENVIRONMENT "CC=${CMAK
 set_tests_properties(metal-layer-tests PROPERTIES SKIP_RETURN_CODE 77)
 if(APPLE)
     set_tests_properties(metal-layer-tests PROPERTIES ENVIRONMENT "MTL_DEBUG_LAYER=1")
+    add_test(NAME metal-layer-generic-tests COMMAND metal-layer-tests)
+    set_tests_properties(metal-layer-generic-tests PROPERTIES SKIP_RETURN_CODE 77
+        ENVIRONMENT "MTL_DEBUG_LAYER=1;MIKAGE_METAL_LAYER_SPECIALIZED_PIPELINES=0")
     add_test(NAME metal-layer-compute-tests COMMAND metal-layer-tests)
     set_tests_properties(metal-layer-compute-tests PROPERTIES SKIP_RETURN_CODE 77
         ENVIRONMENT "MTL_DEBUG_LAYER=1;MIKAGE_METAL_LAYER_TILE_RENDERER=0")

@@ -18,6 +18,8 @@ using krkrsdl3::iTVPRenderBackend;
 void LayerUploadLayoutTests();
 void LayerInitializationTests();
 void PendingFillTests();
+void OrdinaryLayerPipelineTests();
+void BinderDrawTests();
 void StaticPresentationTests();
 void StaticPresentationHarnessTests();
 void TransitionCacheTests();
@@ -640,6 +642,7 @@ void ScopedPointReadTests(iTVPRenderBackend& gpu)
 #include "NativeLayerUploadTests.inc"
 #include "NativeLayerInitializationTests.inc"
 #include "NativePendingFillTests.inc"
+#include "NativeOrdinaryLayerPipelineTests.inc"
 #include "NativeStaticPresentationTests.inc"
 void SubmissionCadenceTests(iTVPRenderBackend& gpu)
 {
@@ -716,6 +719,8 @@ int main(int argc,char** argv)
         ImagePrefetchTests();
         ImageAsyncTests();
         ImageHolderTests();
+        OrdinaryLayerPipelineTests();
+        BinderDrawTests();
         DiagnosticAttributionTests();
         StageTimingTests();
         PointQueryScopeTests();
@@ -731,6 +736,7 @@ int main(int argc,char** argv)
         Require(window != nullptr, "SDL Metal window");
         NativeLayerInitializationTests(window);
         NativePendingFillTests(window);
+        NativeOrdinaryLayerPipelineTests(window);
         for (int session = 0; session < 2; ++session) {
             std::unique_ptr<iTVPRenderBackend> gpu(krkrsdl3::MetalRenderBackend::Create(window, false));
             Require(gpu && gpu->IsHardware() && std::strcmp(gpu->GetName(), "metal") == 0, "native backend initialization");
