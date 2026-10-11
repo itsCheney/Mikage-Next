@@ -36,7 +36,7 @@ public final class DiagnosticLog: @unchecked Sendable {
         "shrinkReadWaitSamplesNS": 43008
     ]
 
-    public init(directory: URL, maxBytes: Int = 2 * 1024 * 1024, fileCount: Int = 4) {
+    public init(directory: URL, maxBytes: Int = 4 * 1024 * 1024, fileCount: Int = 4) {
         self.directory = directory
         self.maxBytes = max(1024, maxBytes)
         self.fileCount = max(1, fileCount)
