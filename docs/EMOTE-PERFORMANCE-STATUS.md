@@ -17,8 +17,14 @@
 >   tiles re-reading every frame while dragging.
 > - Bits 5/6 lost in every measured scene.
 >
-> The default path (all options off) is unchanged: Emote players redraw and copy
-> the full canvas each frame and pointer hit tests read alpha synchronously.
+> The default path (all options off) is unchanged: Emote players redraw the full
+> frame each frame and pointer hit tests read alpha synchronously.
+>
+> Since the removal, a clearing player on an ordinary Layer renders straight into
+> the Layer's own texture instead of into its canvas, so the full-frame
+> canvas-to-Layer copy measured below (~670 MB/s) is gone; see
+> `emoteLayerDirectDraws` in DIAGNOSTICS.md. Non-clearing (group-start) players,
+> D3D adaptors and Layers that are locked or sized differently still copy.
 > The rest of this document is the historical record of the experiment.
 
 Implementation branch: `codex/emote-perf` in the app, runtime build and cpp core.

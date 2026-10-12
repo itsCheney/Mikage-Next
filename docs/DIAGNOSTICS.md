@@ -23,7 +23,7 @@
 
 ## 复现 Emote 卡顿
 
-开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
+开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。普通 Layer 上的自清屏立绘直接画进 Layer 纹理，计入 `emoteLayerDirectDraws`；此时 `emoteLayerGPUCopyBytes` 应基本不增长，若它仍随帧增长，说明该 Layer 被锁定、尺寸与画布不符或使用了不清屏的群体启动模式，走了画布复制回退路径。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
 
 ### 图层传输与主线程阶段诊断
 

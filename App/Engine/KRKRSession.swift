@@ -672,6 +672,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     ("surfaceUploadBytes", diagnosticStats.metalSurfaceUploadBytes),
                     ("ringBytes", diagnosticStats.metalRingBytes),
                     ("commandBuffers", diagnosticStats.metalSubmits),
+                    ("emoteLayerDirectDraws", diagnosticStats.emoteLayerDirectDraws),
                     ("emoteLayerGPUCopies", diagnosticStats.emoteLayerGPUCopies),
                     ("emoteLayerGPUCopyBytes", diagnosticStats.emoteLayerGPUCopyBytes),
                     ("emoteCaptureGPUCopies", diagnosticStats.emoteCaptureGPUCopies),
