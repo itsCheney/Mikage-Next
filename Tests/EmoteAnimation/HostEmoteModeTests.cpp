@@ -61,14 +61,13 @@ int main() {
         hint.clear();
         require(applyEmoteAnimationModeForStart() && hint == "legacy", "SDL reset is followed by explicit reapplication");
         const char* options[] = {"MIKAGE_EMOTE_NODE_CACHE", "MIKAGE_EMOTE_CAPTURE_CACHE",
-            "MIKAGE_EMOTE_LOCAL_UPDATE", "MIKAGE_EMOTE_REGION_COPY", "MIKAGE_EMOTE_ASYNC_ALPHA",
-            "MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS", "MIKAGE_EMOTE_LOCAL_POSE_CACHE"};
+            "MIKAGE_EMOTE_LOCAL_UPDATE", "MIKAGE_EMOTE_REGION_COPY", "MIKAGE_EMOTE_ASYNC_ALPHA"};
         for (auto* option : options)
             require(std::strcmp(SDL_GetHint(option), "0") == 0, "performance options default off");
-        for (unsigned bit = 0; bit < 7; ++bit) {
+        for (unsigned bit = 0; bit < 5; ++bit) {
             MikageKRKRSetEmotePerformanceOptions(1u << bit);
             require(applyEmoteAnimationModeForStart(), "performance flag applies at next launch");
-            for (unsigned index = 0; index < 7; ++index) {
+            for (unsigned index = 0; index < 5; ++index) {
                 bool enabled = index == bit;
 #if TARGET_OS_SIMULATOR
                 if (index == 4) enabled = false;
@@ -77,7 +76,7 @@ int main() {
             }
         }
         MikageKRKRSetEmotePerformanceOptions(0xffffffffu);
-        require(applyEmoteAnimationModeForStart() && emotePerformanceOptions.load() == 127u, "unsupported performance bits are masked");
+        require(applyEmoteAnimationModeForStart() && emotePerformanceOptions.load() == 31u, "unsupported and removed performance bits are masked");
         emoteplayer::performanceCounters().nodeCacheHits.store(99);
         MikageKRKRSetEmotePerformanceOptions(0);
         require(applyEmoteAnimationModeForStart() && emoteplayer::performanceStats().nodeCacheHits == 0, "per-session performance counters reset");

@@ -224,10 +224,7 @@ final class AppModelTests: XCTestCase {
         model.settings.emoteCaptureCache = true
         model.settings.emoteLocalUpdate = true
         model.settings.emoteRegionCopy = true
-        model.settings.emoteExperimentalBounds = true
-        XCTAssertEqual(model.settings.emotePerformanceOptions, 63)
-        model.settings.emoteLocalPoseCache = true
-        XCTAssertEqual(model.settings.emotePerformanceOptions, 127)
+        XCTAssertEqual(model.settings.emotePerformanceOptions, 31)
         XCTAssertEqual(enabled.emotePerformanceOptions, 17)
     }
 
@@ -239,6 +236,11 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(mixed.emotePerformanceOptions, 18)
         let restored = try JSONDecoder().decode(PlayerSettings.self, from: JSONEncoder().encode(mixed))
         XCTAssertEqual(restored.emotePerformanceOptions, 18)
+        // Settings saved before bits 5 and 6 were removed still decode; the
+        // stale keys are ignored and never reach the runtime mask.
+        let removed = try JSONDecoder().decode(PlayerSettings.self,
+            from: Data("{\"emoteExperimentalBounds\":true,\"emoteLocalPoseCache\":true,\"emoteAsyncAlpha\":true}".utf8))
+        XCTAssertEqual(removed.emotePerformanceOptions, 16)
     }
 
     func testLegacyDisplayTextAndUnknownValuesMigrate() throws {

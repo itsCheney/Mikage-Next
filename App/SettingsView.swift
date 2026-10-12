@@ -77,9 +77,6 @@ struct SettingsView: View {
 #if targetEnvironment(simulator)
                         .disabled(true)
 #endif
-                    Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
-                    Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
-                        .disabled(!model.settings.emoteNodeCache)
                 } header: {
                     Text("Emote 性能实验")
                 } footer: {

@@ -157,7 +157,6 @@ struct Fixture {
 
 void testStaticAndDependencies() {
     SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "0");
-    SDL_SetHint("MIKAGE_EMOTE_LOCAL_POSE_CACHE", "0");
     Fixture f; auto* shape = f.node("shape");
     f.step(0); check(!f.engine.nodeCachingEnabled(), "node cache defaults off");
     auto generation = f.engine.poseRevision(); f.step(1);
@@ -166,14 +165,12 @@ void testStaticAndDependencies() {
     check(f.engine.poseRevision() == generation, "capture-only content revision remains exact without diagnostics");
     SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "0");
     SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "1"); resetPerformanceStats();
-    f.step(1); check(!f.engine.localPoseCachingEnabled(), "local pose experiment defaults off independently");
-    SDL_SetHint("MIKAGE_EMOTE_LOCAL_POSE_CACHE", "1");
+    f.step(1);
     f.step(2); generation = f.engine.poseRevision();
     const auto original = f.ref(shape)->_shapeArea.vertices;
     for (int i = 3; i < 20; ++i) f.step(float(i));
     auto stats = performanceStats();
     check(stats.nodeCacheHits >= 18 && stats.shapeCacheHits >= 18, "stationary geometry reused");
-    check(stats.localPoseCacheHits >= 17, "stationary local pose reused separately");
     check(f.engine.poseRevision() == generation, "stationary revision stable");
     f.root.front().attachMat = glm::translate(f.root.front().attachMat, glm::vec3(10, 0, 0));
     f.step(20); check(f.engine.poseRevision() > generation, "root transform invalidates");
@@ -335,10 +332,9 @@ void testCacheParityAndEarlySeek() {
     SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "0");
 }
 
-struct BenchResult { double ms; std::uint64_t hits, visits, localHits; };
-BenchResult benchmark(bool enabled, bool local, int animatedEvery, int players) {
+struct BenchResult { double ms; std::uint64_t hits, visits; };
+BenchResult benchmark(bool enabled, int animatedEvery, int players) {
     SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", enabled ? "1" : "0");
-    SDL_SetHint("MIKAGE_EMOTE_LOCAL_POSE_CACHE", local ? "1" : "0");
     std::vector<std::unique_ptr<Fixture>> instances;
     for (int p = 0; p < players; ++p) {
         instances.push_back(std::make_unique<Fixture>());
@@ -353,16 +349,14 @@ BenchResult benchmark(bool enabled, bool local, int animatedEvery, int players) 
     for (int frame = 0; frame < 1200; ++frame)
         for (auto& instance : instances) instance->step(float(frame % 60));
     const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    const auto stats = performanceStats(); return {elapsed, stats.nodeCacheHits, stats.nodeVisits, stats.localPoseCacheHits};
+    const auto stats = performanceStats(); return {elapsed, stats.nodeCacheHits, stats.nodeVisits};
 }
 void runBenchmarks() {
     for (int players : {1, 2}) for (int animatedEvery : {0, 4, 1}) {
-        const auto off = benchmark(false, false, animatedEvery, players), on = benchmark(true, false, animatedEvery, players),
-            local = benchmark(true, true, animatedEvery, players);
+        const auto off = benchmark(false, animatedEvery, players), on = benchmark(true, animatedEvery, players);
         std::cout << "BENCH players=" << players << " animated=" << (animatedEvery ? 100 / animatedEvery : 0)
             << "% baseline_ms=" << off.ms << " cache_ms=" << on.ms << " reduction=" << (off.ms - on.ms) * 100 / off.ms
-            << "% local_experiment_ms=" << local.ms << " local_hits=" << local.localHits
-            << " hits=" << on.hits << '/' << on.visits << '\n';
+            << "% hits=" << on.hits << '/' << on.visits << '\n';
     }
 }
 }

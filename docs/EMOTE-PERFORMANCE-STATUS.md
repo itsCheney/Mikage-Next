@@ -59,8 +59,15 @@ The runtime's next-launch options mask has the following bit order:
 | 2 | `MIKAGE_EMOTE_LOCAL_UPDATE` | Smaller proven Layer damage notification |
 | 3 | `MIKAGE_EMOTE_REGION_COPY` | Smaller GPU transfer when destination is independent |
 | 4 | `MIKAGE_EMOTE_ASYNC_ALPHA` | Deferred built-in UI alpha hit testing |
-| 5 | `MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS` | Candidate GPU bounds area/time diagnostics only |
-| 6 | `MIKAGE_EMOTE_LOCAL_POSE_CACHE` | Experimental local evaluation reuse; requires bit 0 |
+| 5 | — | Removed (was `MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS`); reserved and masked off |
+| 6 | — | Removed (was `MIKAGE_EMOTE_LOCAL_POSE_CACHE`); reserved and masked off |
+
+Bits 5 and 6 were removed on 2026-10-12. The local pose cache lost in every
+benchmark scene below and missed for any node between keyframes; the bounds
+diagnostic cost about 318 ms per session and returned unknown for every device
+draw. Saved settings with those toggles still decode; the keys are ignored. The
+interval-arithmetic code (`bounds_experiment`, `submittedExperimentalBounds`)
+stays in `emotegeometrybounds.h` with its tests, but production never calls it.
 
 The App explicitly overrides stale environment/SDL values per launch. With all
 options off, expensive exact geometry/submotion/draw-order signatures are not
@@ -107,7 +114,7 @@ parent checkout. It excludes game scripts, icon fill, Metal, power and thermals.
 
 Geometry caching is useful when sufficient geometry stays unchanged. Full
 activity can regress; local-pose comparison is not worthwhile in this fixture
-and stays separately disabled. These percentages are not device heat savings.
+(that column is historical; bit 6 has since been removed). These percentages are not device heat savings.
 Most Metal Emote icons use GPU deformation, so production ROI may remain full
 in those scenes; candidate mathematical bounds do not establish a safe Metal
 floating-point raster bound and are never used for production cropping.

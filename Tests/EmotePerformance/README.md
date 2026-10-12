@@ -29,10 +29,11 @@ experimental deformation bound remains diagnostic: production cropping still
 falls back to the full target for every GPU-deformed drawable. Native Metal
 vertex validation and matched-device A/B runs are required before enabling it.
 
-`MIKAGE_EMOTE_CAPTURE_CACHE`, `MIKAGE_EMOTE_LOCAL_UPDATE`,
-`MIKAGE_EMOTE_REGION_COPY`, and `MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS` are independent,
-default-off experiments. `captureBoundsNS` records production CPU-bound cost;
-the experimental-bound counters report candidate area and time separately.
+`MIKAGE_EMOTE_CAPTURE_CACHE`, `MIKAGE_EMOTE_LOCAL_UPDATE` and
+`MIKAGE_EMOTE_REGION_COPY` are independent, default-off experiments.
+`captureBoundsNS` records production CPU-bound cost. The experimental-bounds
+flag and its counters were removed; `submittedExperimentalBounds` is still
+covered here but is not called by production code.
 `captureUpdatePixels/captureUpdateFullPixels` measure Layer update coverage;
 copy-pixel counters measure transfer coverage. Full GPU overwrite after COW may
 still notify a smaller proven update region. CPU readback fallback notifies the

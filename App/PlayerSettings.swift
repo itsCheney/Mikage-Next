@@ -27,13 +27,12 @@ struct PlayerSettings: Codable {
     var emoteLocalUpdate = false
     var emoteRegionCopy = false
     var emoteAsyncAlpha = false
-    var emoteExperimentalBounds = false
-    var emoteLocalPoseCache = false
 
-    /// Bit order is the public runtime performance-options contract.
+    /// Bit order is the public runtime performance-options contract. Bits 5
+    /// (experimental bounds) and 6 (local pose cache) were removed and stay reserved.
     var emotePerformanceOptions: UInt32 {
         [emoteNodeCache, emoteCaptureCache, emoteLocalUpdate, emoteRegionCopy,
-         emoteAsyncAlpha, emoteExperimentalBounds, emoteLocalPoseCache].enumerated().reduce(0) {
+         emoteAsyncAlpha].enumerated().reduce(0) {
             $0 | ($1.element ? UInt32(1) << UInt32($1.offset) : 0)
         }
     }
@@ -67,8 +66,6 @@ struct PlayerSettings: Codable {
         emoteLocalUpdate = value(.emoteLocalUpdate, fallback.emoteLocalUpdate)
         emoteRegionCopy = value(.emoteRegionCopy, fallback.emoteRegionCopy)
         emoteAsyncAlpha = value(.emoteAsyncAlpha, fallback.emoteAsyncAlpha)
-        emoteExperimentalBounds = value(.emoteExperimentalBounds, fallback.emoteExperimentalBounds)
-        emoteLocalPoseCache = value(.emoteLocalPoseCache, fallback.emoteLocalPoseCache)
     }
 }
 
