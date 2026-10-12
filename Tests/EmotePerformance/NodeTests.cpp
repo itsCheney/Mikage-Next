@@ -298,6 +298,21 @@ void testEarlySeek() {
     check(f.ref(shape)->frame == nullptr && f.engine._mainMotionRef->shapeNodeAreas.empty(), "early seek invalidates warm node safely");
 }
 
+void testSourceResolution() {
+    Fixture f; auto* blank = f.node("blank", "src/blank/10:20:3:4");
+    f.step(0); auto* ref = f.ref(blank);
+    check(ref->isNeedDraw && near(ref->width, 10) && near(ref->height, 20) &&
+          near(ref->originX, 3) && near(ref->originY, 4), "blank source parsed");
+    f.step(1);
+    check(near(ref->width, 10) && near(ref->originY, 4), "resolved blank source reused");
+    blank->frameList[0]->src = "blank/30:40:1:2"; f.step(2);
+    check(near(ref->width, 30) && near(ref->height, 40) && near(ref->originX, 1), "edited src re-resolves");
+    blank->frameList[0]->src = "nonsense"; f.step(3);
+    check(!ref->isNeedDraw && !ref->isShape && !ref->isIcon, "unsupported source is not drawn");
+    blank->frameList[0]->src = "shape/rect"; f.step(4);
+    check(ref->isShape && !ref->isNeedDraw, "unsupported source recovers when src changes");
+}
+
 // Pass any argument to time production progress() for a synthetic scene.
 double benchmark(int animatedEvery, int players) {
     std::vector<std::unique_ptr<Fixture>> instances;
@@ -323,7 +338,7 @@ void runBenchmarks() {
 int main(int argc, char**) {
     try {
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesCloneAndRestore();
-        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek();
+        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek(); testSourceResolution();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
         if (argc > 1) runBenchmarks();
         return 0;
