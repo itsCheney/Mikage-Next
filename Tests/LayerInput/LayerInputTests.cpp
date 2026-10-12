@@ -11,6 +11,8 @@
 #include <string>
 #include <typeinfo>
 #include <vector>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace trace = krkrsdl3::point_trace;
 using tjs_int = int;
@@ -18,6 +20,9 @@ using tjs_uint32 = std::uint32_t;
 using tjs_int64 = std::int64_t;
 using tjs_real = double;
 using ttstr = std::string;
+#define TJS_N(text) text
+static int hintWarnings = 0;
+static void TVPAddLog(const char*) { ++hintWarnings; }
 enum tTVPMouseButton { mbLeft };
 constexpr int ltOpaque = 1;
 enum tTVPHitType { htMask, htProvince };
@@ -92,6 +97,10 @@ struct tTJSNI_BaseLayer {
     }
     void Update() { ++updates; }
     bool _HitTestNoVisibleCheck(int,int);
+    std::function<bool(tjs_int, tjs_int)> TransparencyHint;
+    uint64_t TransparencyHintIdentity = 0, TransparencyHintVersion = 0;
+    bool HintSaysTransparent(tjs_int, tjs_int);
+    void SetMainImageTransparencyHint(std::function<bool(tjs_int, tjs_int)>);
     iTJSDispatch2* GetOwnerNoAddRef() { return Owner; }
     uint64_t GetLifetimeID() const { return LifetimeID; }
     void GetMostFrontChildAt(int,int,tTJSNI_BaseLayer**,tTJSNI_BaseLayer*,bool);
@@ -481,7 +490,55 @@ static void multipleManagers() {
             "multi-manager destruction leaked state or references");
 }
 
-int main() {
+static const char* selfPath = nullptr;
+// A producer's "fully transparent here" hint skips the alpha read only after
+// it has agreed with real reads, and only while the image is unchanged.
+static void transparencyHints() {
+    TestImage image; image.texture.alpha = 0;
+    tTJSNI_BaseLayer layer; layer.MainImage = &image;
+    int asked = 0;
+    layer.SetMainImageTransparencyHint([&](tjs_int x, tjs_int) { ++asked; return x < 64; });
+    for (int i = 0; i < 8; ++i)
+        require(!layer._HitTestNoVisibleCheck(10, 10), "transparent pixel hit during verification");
+    require(image.texture.syncReads == 8 && asked == 8, "verification did not read real alpha");
+    require(!layer._HitTestNoVisibleCheck(10, 10) && image.texture.syncReads == 8,
+            "trusted hint still read the GPU");
+    image.texture.alpha = 255;
+    require(layer._HitTestNoVisibleCheck(100, 10) && image.texture.syncReads == 9,
+            "pixel outside the hint skipped its read");
+    ++image.texture.version;
+    require(layer._HitTestNoVisibleCheck(10, 10) && image.texture.syncReads == 10 && !layer.TransparencyHint,
+            "hint survived an image change");
+    layer.HitThreshold = 0;
+    layer.SetMainImageTransparencyHint([](tjs_int, tjs_int) { return true; });
+    require(layer._HitTestNoVisibleCheck(10, 10), "threshold 0 must hit regardless of hints");
+    // A disagreement turns hints off for the process; run it in a child so the
+    // trusted state above is not what is being measured.
+    const pid_t child = fork();
+    if (child == 0) {
+        // This process already trusts hints; re-exec for a fresh verification phase.
+        execl(selfPath, selfPath, "--hint-disagreement", (char*)nullptr);
+        _exit(3);
+    }
+    int status = 0;
+    waitpid(child, &status, 0);
+    require(WIFEXITED(status) && WEXITSTATUS(status) == 0, "hint disagreement did not disable hints");
+}
+static int hintDisagreement() {
+    TestImage image; image.texture.alpha = 200;
+    tTJSNI_BaseLayer layer; layer.MainImage = &image;
+    layer.SetMainImageTransparencyHint([](tjs_int, tjs_int) { return true; });
+    if (!layer._HitTestNoVisibleCheck(5, 5) || hintWarnings != 1) return 1; // read said opaque
+    image.texture.alpha = 0;
+    layer.SetMainImageTransparencyHint([](tjs_int, tjs_int) { return true; });
+    for (int i = 0; i < 20; ++i) layer._HitTestNoVisibleCheck(5, 5);
+    // The disagreeing query read twice (check, then normal path); every later one reads.
+    return image.texture.syncReads == 22 ? 0 : 2;
+}
+
+int main(int argc, char** argv) {
+    selfPath = argv[0];
+    if (argc > 1 && std::string(argv[1]) == "--hint-disagreement") return hintDisagreement();
     try {
         trace::SetEnabled(true);
         propertyCallbacks();
@@ -498,6 +555,7 @@ int main() {
         foreignWindow<D3D>();
         ownerChangesReset();
         multipleManagers();
+        transparencyHints();
         std::cout << "PASS: property callbacks, input/capture, exceptions and device lifecycle\n";
         return 0;
     } catch (const std::exception& error) {

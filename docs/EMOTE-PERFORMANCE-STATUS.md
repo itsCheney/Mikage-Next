@@ -23,8 +23,10 @@
 > Since the removal, a clearing player on an ordinary Layer renders straight into
 > the Layer's own texture instead of into its canvas, so the full-frame
 > canvas-to-Layer copy measured below (~670 MB/s) is gone; see
-> `emoteLayerDirectDraws` in DIAGNOSTICS.md. Non-clearing (group-start) players,
-> D3D adaptors and Layers that are locked or sized differently still copy.
+> `emoteLayerDirectDraws` in DIAGNOSTICS.md. D3D adaptors exchange textures with
+> the layer at `captureCanvas` once the script has cleared the canvas after a
+> few captures. Non-clearing (group-start) players, scripts that draw on a
+> captured canvas, and Layers that are locked or sized differently still copy.
 > The rest of this document is the historical record of the experiment.
 
 Implementation branch: `codex/emote-perf` in the app, runtime build and cpp core.

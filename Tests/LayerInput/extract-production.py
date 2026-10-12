@@ -48,5 +48,8 @@ for source, cls in [(basic, "tTVPBasicDrawDevice"), (d3d, "DrawDeviceD3D")]:
         methods.append(definition(source, "void " + cls + "::" + name + "("))
     methods.append(definition(source, cls + "::~" + cls + "()"))
 (args.output / "ProductionInputMethods.inc").write_text("\n\n".join(methods), encoding="utf-8")
-(args.output / "ProductionInputHitTest.inc").write_text(
-    definition(native,"bool tTJSNI_BaseLayer::_HitTestNoVisibleCheck("),encoding="utf-8")
+(args.output / "ProductionInputHitTest.inc").write_text("\n\n".join(
+    definition(native, signature) for signature in [
+        "bool tTJSNI_BaseLayer::_HitTestNoVisibleCheck(",
+        "void tTJSNI_BaseLayer::SetMainImageTransparencyHint(",
+        "bool tTJSNI_BaseLayer::HintSaysTransparent("]), encoding="utf-8")

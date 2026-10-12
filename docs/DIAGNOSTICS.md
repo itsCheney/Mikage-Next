@@ -23,7 +23,11 @@
 
 ## 复现 Emote 卡顿
 
-开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。普通 Layer 上的自清屏立绘直接画进 Layer 纹理，计入 `emoteLayerDirectDraws`；此时 `emoteLayerGPUCopyBytes` 应基本不增长，若它仍随帧增长，说明该 Layer 被锁定、尺寸与画布不符或使用了不清屏的群体启动模式，走了画布复制回退路径。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
+开启完整诊断日志，进入同一段立绘动画并持续至少五秒，再导出 JSONL。比较相邻 `heartbeat.profile`：`commandIntervalProfile` 的计数是这段时间内的增量，`ticks` 是分母。`emoteLayerCPUReadbackNS` 和 `metalProfile.syncWaitNS` 同时增加时先查同步回读；`renderEncoders` 接近 `drawCalls` 时查网格 pass 切换；`layerRectSnapshotBytes` 高时查 D3D Emote 合成；`maskClears` 明显高于 `uniqueMaskGroups` 时再评估蒙版缓存。普通 Layer 上的自清屏立绘直接画进 Layer 纹理；D3DAdaptor 在脚本连续几次“捕获后清屏”之后，`captureCanvas` 改为与 Layer 交换纹理而非复制。两者都计入 `emoteLayerDirectDraws`，此时 `emoteLayerGPUCopyBytes` 与 `emoteCaptureGPUBytes` 应基本不增长；若仍随帧增长，说明该 Layer 被锁定、尺寸与画布不符、使用了不清屏的群体启动模式，或脚本在捕获后未清屏就继续绘制（会记录 `emote.captureExchange action=restoreLost` 或永久退回复制）。
+
+点击立绘时的 `metal.cpuWait operation=readback` 来自 htMask 命中测试读取 GPU alpha。立绘写入 Layer 后会附带“此处完全透明”的几何提示，点在所有已绘制网格之外时不再读取；前 8 次提示仍与真实读取比对，一旦不一致会记录 `layer transparency hint disagreed` 并在本进程内停用提示。
+
+退出时若脚本在关闭过程中抛错，日志为 `Script exception raised during termination`，不再弹窗或终止整个 App；游戏运行中的脚本错误仍会弹窗，但随后通过正常流程结束本局并返回游戏库。共享 Emote 资源缓存按设备内存的 1/24（64–192 MB）保留，收到系统低内存警告时清空（`emote.resourceCache action=clear reason=lowMemory`）。不同组的时间字段不能直接相加，GPU 提交时间也未必对应同一心跳的 CPU 峰值。
 
 ### 图层传输与主线程阶段诊断
 

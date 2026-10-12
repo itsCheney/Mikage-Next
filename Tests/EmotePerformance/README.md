@@ -17,8 +17,15 @@ node suite downloads GLM 1.0.1 from upstream with a pinned SHA-256.
 
 The node suite covers parent/root/viewport transforms, active sub-motions and
 their pooling, animation variables, clone and save/restore, shared-frame
-sentinels, CPU and GPU icon meshes, draw order and early seeks. It does not
-measure Metal execution, heat or energy.
+sentinels, CPU and GPU icon meshes, draw order, early seeks, and that the
+hit-test coverage query (`mayCoverPixel`) contains every exact mesh hit. It
+does not measure Metal execution, heat or energy.
+
+`emote-capture-exchange-tests` drives the production `D3DAdaptor` capture
+state machine against a pixel model of the backend: textures are exchanged
+only after the script has cleared the canvas after captures, uncleared draws
+and repeated captures still see the drawn frame, and each capture's
+transparency hint names exactly the frames drawn since the last clear.
 
 The opt-in Emote performance experiments (node/capture caches, local update,
 region copy, async pointer alpha, experimental bounds, local pose cache) and

@@ -279,6 +279,45 @@ void testIconAndGPU() {
     krkrsdl3::backend = nullptr;
 }
 
+// Hit-test transparency hints rely on mayCoverPixel never missing a pixel the
+// rasterizer can write: it must contain every exact hit and stay bounded.
+void testCoverage() {
+    using emoteplayer::EmoteVertex;
+    const std::vector<EmoteVertex> tri{{0, 0, 0, 0}, {1, 0, 0, 0}, {0, 1, 0, 0}};
+    const std::vector<uint16_t> idx{0, 1, 2};
+    check(emoteplayer::nearMesh(tri, idx, .2f, .2f, 0), "point inside triangle covered");
+    check(!emoteplayer::nearMesh(tri, idx, .6f, .6f, .1f), "point beyond margin not covered");
+    check(emoteplayer::nearMesh(tri, idx, .6f, .6f, .2f), "point within margin of hypotenuse covered");
+    check(emoteplayer::nearMesh(tri, idx, -.05f, .5f, .1f), "point within margin of an axis edge covered");
+    check(!emoteplayer::nearMesh({{0, 0, 0, 0}, {1, 1, 0, 0}, {2, 2, 0, 0}}, idx, 1, 1, .5f), "degenerate triangle draws nothing");
+
+    Fixture f; RecordingBackend renderer; krkrsdl3::backend = &renderer;
+    emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
+    icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
+    source.icon["icon"] = &icon; f.file._source["source"] = &source;
+    auto* node = f.node("icon", "icon");
+    const auto sweep = [&](const char* what) {
+        emoteplayer::EmoteHitFrame frame{f.engine._mainMotionRef, glm::mat4(1.0f), 200, 200};
+        int covered = 0;
+        for (int y = 0; y < 200; y += 2)
+            for (int x = 0; x < 200; x += 2) {
+                const bool may = frame.mayCoverPixel(x, y);
+                if (frame.contains(nullptr, x + .5f, y + .5f)) check(may, what);
+                covered += may;
+            }
+        return covered;
+    };
+    f.step(0); f.engine.draw(&renderer, &renderer, f.limit, nullptr);
+    const int cpu = sweep("CPU mesh hit outside coverage");
+    check(cpu > 0 && cpu < 100 * 100, "CPU icon covers part of the target");
+    node->frameList.front()->hasbp = true; renderer.gpu = true; f.step(3); f.engine.draw(&renderer, &renderer, f.limit, nullptr);
+    check(f.ref(node)->_useGPUDeform && sweep("GPU-deformed hit outside coverage") > 0, "GPU-deformed icon covered");
+    node->frameList.front()->opa = 0; f.step(9); f.engine.draw(&renderer, &renderer, f.limit, nullptr);
+    check(sweep("undrawn") == 0, "undrawn frame covers nothing");
+    check(emoteplayer::EmoteHitFrame{}.mayCoverPixel(0, 0), "unknown frame size is conservative");
+    krkrsdl3::backend = nullptr;
+}
+
 void testDrawOrder() {
     Fixture f; auto* a = f.node("a"); auto* b = f.node("b");
     a->frameList.front()->coordZ = .1; b->frameList.front()->coordZ = .2;
@@ -338,7 +377,7 @@ void runBenchmarks() {
 int main(int argc, char**) {
     try {
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesCloneAndRestore();
-        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek(); testSourceResolution();
+        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
         if (argc > 1) runBenchmarks();
         return 0;
