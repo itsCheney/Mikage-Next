@@ -1,5 +1,26 @@
 # Emote performance implementation and validation
 
+> **Removed on 2026-10-12.** All seven opt-in options described below (bits
+> 0–6: node cache, capture cache, local update, region copy, async pointer
+> alpha, experimental bounds, local pose cache) were removed from the runtime,
+> host and App, together with their Settings toggles and log fields. A review
+> found that each cost more than it saved on Metal:
+>
+> - Bits 0/1 compared and copied each node's full inherited chain every frame;
+>   any animated ancestor (breathing, sway, fades) invalidated every descendant,
+>   and a hit on Metal saved about what the check cost.
+> - The capture cache only skipped fully static characters; continuous
+>   breathing changed the pose revision every frame.
+> - Bits 2/3 needed bounds that are unknown for GPU-deformed meshes, i.e. for
+>   every device draw in the log below.
+> - Bit 4 called a full-layer `Update()` per hover event and kept demanded
+>   tiles re-reading every frame while dragging.
+> - Bits 5/6 lost in every measured scene.
+>
+> The default path (all options off) is unchanged: Emote players redraw and copy
+> the full canvas each frame and pointer hit tests read alpha synchronously.
+> The rest of this document is the historical record of the experiment.
+
 Implementation branch: `codex/emote-perf` in the app, runtime build and cpp core.
 Base commits: app `24c0d57`, build `a7d7867`, core `386526b`.
 Local verification recorded on 2026-10-04.
@@ -65,9 +86,8 @@ The runtime's next-launch options mask has the following bit order:
 Bits 5 and 6 were removed on 2026-10-12. The local pose cache lost in every
 benchmark scene below and missed for any node between keyframes; the bounds
 diagnostic cost about 318 ms per session and returned unknown for every device
-draw. Saved settings with those toggles still decode; the keys are ignored. The
-interval-arithmetic code (`bounds_experiment`, `submittedExperimentalBounds`)
-stays in `emotegeometrybounds.h` with its tests, but production never calls it.
+draw. Saved settings with those toggles still decode; the keys are ignored.
+(Bits 0–4 followed the same day; see the note at the top.)
 
 The App explicitly overrides stale environment/SDL values per launch. With all
 options off, expensive exact geometry/submotion/draw-order signatures are not

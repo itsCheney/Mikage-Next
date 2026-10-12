@@ -1,7 +1,6 @@
 // Production runner/geometry coverage. Fixtures only construct decoded PSB
 // resources and observe GPU command encoding; no runner code is extracted.
 #include "emoterunner.h"
-#include "emotegeometrybounds.h"
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -156,53 +155,39 @@ struct Fixture {
 };
 
 void testStaticAndDependencies() {
-    SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "0");
     Fixture f; auto* shape = f.node("shape");
-    f.step(0); check(!f.engine.nodeCachingEnabled(), "node cache defaults off");
-    auto generation = f.engine.poseRevision(); f.step(1);
-    check(f.engine.poseRevision() > generation && !f.engine.contentTrackingEnabled(), "all flags off uses cheap conservative content revision");
-    SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "1"); f.step(1); generation = f.engine.poseRevision(); f.step(1);
-    check(f.engine.poseRevision() == generation, "capture-only content revision remains exact without diagnostics");
-    SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "0");
-    SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "1"); resetPerformanceStats();
-    f.step(1);
-    f.step(2); generation = f.engine.poseRevision();
-    const auto original = f.ref(shape)->_shapeArea.vertices;
-    for (int i = 3; i < 20; ++i) f.step(float(i));
-    auto stats = performanceStats();
-    check(stats.nodeCacheHits >= 18 && stats.shapeCacheHits >= 18, "stationary geometry reused");
-    check(f.engine.poseRevision() == generation, "stationary revision stable");
+    f.step(0); const auto original = f.ref(shape)->_shapeArea.vertices;
+    for (int i = 1; i < 20; ++i) f.step(float(i));
+    check(near(original[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "stationary shape keeps its geometry");
     f.root.front().attachMat = glm::translate(f.root.front().attachMat, glm::vec3(10, 0, 0));
-    f.step(20); check(f.engine.poseRevision() > generation, "root transform invalidates");
-    check(!near(original[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "root transform changes vertices");
-    generation = f.engine.poseRevision(); f.limit.viewW = 400; f.step(21);
-    check(f.engine.poseRevision() > generation, "viewport invalidates shape script bounds");
-    generation = f.engine.poseRevision(); shape->removed = true; f.step(22);
-    check(f.engine.poseRevision() > generation && f.engine._mainMotionRef->shapeNodeAreas.empty(), "hide invalidates and removes shape");
+    f.step(20); check(!near(original[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "root transform changes vertices");
+    const float left = f.ref(shape)->_shapeArea.left; f.limit.viewW = 400; f.step(21);
+    check(!near(left, f.ref(shape)->_shapeArea.left), "viewport changes shape script bounds");
+    shape->removed = true; f.step(22);
+    check(f.engine._mainMotionRef->shapeNodeAreas.empty(), "hidden shape removed");
     shape->removed = false; f.step(23); check(f.engine._mainMotionRef->shapeNodeAreas.size() == 1, "shape resurfaces");
-    generation = f.engine.poseRevision(); f.engine._mainmotion = nullptr; f.step(24);
-    check(f.engine.poseRevision() > generation && !f.engine._mainMotionRef, "unload invalidates");
+    f.engine._mainmotion = nullptr; f.step(24);
+    check(!f.engine._mainMotionRef, "unload releases the runtime tree");
     f.engine._mainmotion = &f.motion; f.step(25); check(bool(f.engine._mainMotionRef), "recreate after unload");
 }
 
 void testParentAndSubmotion() {
     Fixture f; auto* parent = f.node("parent", "layout");
     auto* child = f.node("child", "shape/rect", parent);
-    f.step(0); auto old = f.ref(child)->_shapeArea.vertices; auto revision = f.engine.poseRevision();
+    f.step(0); auto old = f.ref(child)->_shapeArea.vertices;
     parent->frameList[0]->coordX = 7; f.step(0);
-    check(f.engine.poseRevision() > revision, "parent pose invalidates descendants");
     check(!near(old[0].x, f.ref(child)->_shapeArea.vertices[0].x), "child geometry follows parent");
     parent->frameList[0]->angle = 20; parent->frameList[0]->zx = -1; f.step(0);
-    check(!near(old[1].x, f.ref(child)->_shapeArea.vertices[1].x), "rotation and mirror invalidate");
+    check(!near(old[1].x, f.ref(child)->_shapeArea.vertices[1].x), "rotation and mirror propagate");
     auto* instance = f.node("instance", "motion/chara/sub");
     auto* sub = f.node("animated", "shape/rect", nullptr, &f.submotion); f.next(sub, 60, 30);
     f.step(0); auto* subref = f.ref(instance)->currentMtnRef;
     check(subref && subref->shapeNodeAreas.size() == 1, "submotion shape collected");
-    old = subref->shapeNodeAreas.front().vertices; revision = f.engine.poseRevision();
+    old = subref->shapeNodeAreas.front().vertices;
     f.step(10); check(f.ref(instance)->currentMtnRef == subref, "submotion instance pooled");
-    check(f.engine.poseRevision() > revision && !near(old[0].x, subref->shapeNodeAreas.front().vertices[0].x), "submotion clock advances under static parent");
-    revision = f.engine.poseRevision(); instance->frameList[0]->timeOffset = 20; f.step(10);
-    check(f.engine.poseRevision() > revision, "submotion time offset invalidates");
+    check(!near(old[0].x, subref->shapeNodeAreas.front().vertices[0].x), "submotion clock advances under static parent");
+    old = subref->shapeNodeAreas.front().vertices; instance->frameList[0]->timeOffset = 20; f.step(10);
+    check(!near(old[0].x, subref->shapeNodeAreas.front().vertices[0].x), "submotion time offset moves its pose");
     instance->frameList[0]->src = "layout"; f.step(10);
     check(f.engine._mainMotionRef->_subMotionRefs.empty(), "submotion removed on selection change");
     instance->frameList[0]->src = "motion/chara/sub"; f.step(10);
@@ -218,7 +203,7 @@ void testVariablesCloneAndRestore() {
     auto* shape = f.node("shape"); shape->isParameterize = true; shape->parameterIdx = 0; f.next(shape, 60, 40);
     f.step(0); const auto old = f.ref(shape)->_shapeArea.vertices;
     f.engine.setAnimationVariable("pose", 1, 30, 0); f.engine.advanceAnimation(250, 20); f.step(float(f.engine._animationClock));
-    check(near(float(f.engine._animationClock), 15) && f.engine.getVariable("pose") > 0, "variable transition and clock advance while cache enabled");
+    check(near(float(f.engine._animationClock), 15) && f.engine.getVariable("pose") > 0, "variable transition and clock advance");
     check(!near(old[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "variable changes prepared geometry");
     emoteengine clone; clone._mainfile = &f.file; clone._mainmotion = &f.motion; clone.inheritAnimationMode(true); clone.copyAnimationStateFrom(f.engine);
     clone.progress(float(clone._animationClock), f.root, f.limit);
@@ -260,11 +245,11 @@ void testSharedSentinelsAndLoop() {
     second.progress(30, f.root, secondLimit);
     check(near(a, -45) && near(second._mainMotionRef->getNodeRef(shape)->currCoordx, -15), "interpolated sentinels isolate viewports");
     f.motion.loopTime = 60; f.step(90); check(near(a, f.ref(shape)->currCoordx), "motion loop still advances and wraps");
-    f.step(5); auto generation = f.engine.poseRevision(); f.step(5);
-    check(generation == f.engine.poseRevision(), "repeated animated tick yields unchanged pose");
+    f.step(5); const float repeated = f.ref(shape)->currCoordx; f.step(5);
+    check(near(repeated, f.ref(shape)->currCoordx), "repeated animated tick yields unchanged pose");
 }
 
-void testIconGPUAndBounds() {
+void testIconAndGPU() {
     Fixture f; RecordingBackend renderer; krkrsdl3::backend = &renderer;
     emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
     icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
@@ -273,27 +258,20 @@ void testIconGPUAndBounds() {
     auto* ref = f.ref(node); check(ref->_meshVertices.size() == 4 && !ref->_useGPUDeform, "production CPU icon rect prepared");
     f.engine.draw(&renderer, &renderer, f.limit, nullptr);
     check(renderer.draws == 1 && ref->wasDrawn, "production draw submits icon");
-    const auto bounds = performance::submittedCPUBounds(f.engine._mainMotionRef->drawNodes(), 200, 200);
-    check(bounds.known && !bounds.rect.empty(), "CPU bounds instantiated with real runner nodes");
-    auto revision = f.engine.poseRevision(); resetPerformanceStats(); f.step(1);
-    check(performanceStats().meshCacheHits == 1 && f.engine.poseRevision() == revision, "stationary icon mesh reused");
     node->frameList.front()->hasbp = true; f.step(2);
     check(f.ref(node)->_meshVertices.size() == 81, "CPU deformation subdivides mesh");
     renderer.gpu = true; f.step(3); check(ref->_useGPUDeform && ref->_meshVertices.empty(), "backend change prepares GPU surface chain");
     f.engine.draw(&renderer, &renderer, f.limit, nullptr);
-    check(!performance::submittedCPUBounds(f.engine._mainMotionRef->drawNodes(), 200, 200).known, "GPU deform excluded from production bounds");
-    check(performance::submittedExperimentalBounds(f.engine._mainMotionRef->drawNodes(), 200, 200).known,
-        "experimental GPU bounds instantiated with production nodes");
-    auto surfaces = ref->_gpuDeformSurfaces; revision = f.engine.poseRevision(); f.step(4);
-    check(f.engine.poseRevision() == revision && ref->_gpuDeformSurfaces.size() == surfaces.size(), "stationary GPU surfaces reused");
+    const auto surfaces = ref->_gpuDeformSurfaces; f.step(4);
+    check(ref->_gpuDeformSurfaces.size() == surfaces.size(), "stationary GPU surface chain stable");
     node->frameList.front()->bp[12] += .1; f.step(5);
-    check(f.engine.poseRevision() > revision, "Bezier control-point edit invalidates");
-    revision = f.engine.poseRevision(); node->meshDivision = 12; f.step(6);
-    check(f.engine.poseRevision() > revision && ref->_meshDivX == 12, "mesh division invalidates");
-    revision = f.engine.poseRevision(); node->frameList.front()->color = 0x80ffffff; node->frameList.front()->hasColor = true; f.step(7);
-    check(f.engine.poseRevision() > revision, "frame color invalidates drawn content");
-    revision = f.engine.poseRevision(); icon.selftexture = &source; f.step(8);
-    check(f.engine.poseRevision() > revision, "texture replacement invalidates content");
+    bool controlChanged = false;
+    for (size_t i = 0; i < surfaces.size() && i < ref->_gpuDeformSurfaces.size(); ++i)
+        for (size_t c = 0; c < std::size(surfaces[i].controlPts); ++c)
+            controlChanged |= surfaces[i].controlPts[c] != ref->_gpuDeformSurfaces[i].controlPts[c];
+    check(controlChanged, "Bezier control-point edit reaches the GPU surface chain");
+    node->meshDivision = 12; f.step(6);
+    check(ref->_meshDivX == 12, "mesh division applies");
     node->frameList.front()->opa = 0; f.step(9); f.engine.draw(&renderer, &renderer, f.limit, nullptr);
     check(!ref->wasDrawn, "zero opacity is not submitted");
     renderer.gpu = false; node->frameList.front()->opa = 1; f.step(10);
@@ -305,36 +283,23 @@ void testDrawOrder() {
     Fixture f; auto* a = f.node("a"); auto* b = f.node("b");
     a->frameList.front()->coordZ = .1; b->frameList.front()->coordZ = .2;
     f.step(0); check(f.engine._mainMotionRef->drawNodes().front()->currentNode == b, "depth sorting uses production draw list");
-    resetPerformanceStats(); f.step(1); check(performanceStats().drawListRebuilds == 0, "unchanged depth list retained");
+    f.step(1); check(f.engine._mainMotionRef->drawNodes().front()->currentNode == b, "unchanged depth keeps ordering");
     b->frameList.front()->coordZ = -.1; f.step(2);
     check(f.engine._mainMotionRef->drawNodes().front()->currentNode == a, "changed depth rebuilds ordering");
 }
 
-void testCacheParityAndEarlySeek() {
-    SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "1");
+void testEarlySeek() {
     Fixture f; auto* parent = f.node("parent", "layout"); auto* shape = f.node("shape", "shape/circle", parent);
     f.next(parent, 60, 15); f.next(shape, 60, -10);
-    for (float tick : {0.f, 1.f, 10.f, 30.f, 59.f, 60.f, 70.f, 2.f, 2.f}) {
-        SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "0"); f.step(tick);
-        const auto exact = f.ref(shape)->_shapeArea.vertices; const auto revision = f.engine.poseRevision();
-        SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", "1"); f.step(tick);
-        const auto& cached = f.ref(shape)->_shapeArea.vertices;
-        check(cached.size() == exact.size(), "cache parity vertex count");
-        bool equal = true;
-        for (size_t i = 0; i < exact.size(); ++i)
-            equal &= cached[i].x == exact[i].x && cached[i].y == exact[i].y && cached[i].u == exact[i].u && cached[i].v == exact[i].v;
-        check(equal && revision == f.engine.poseRevision(), "enabled cache produces exact baseline geometry");
-    }
+    for (float tick : {0.f, 1.f, 10.f, 30.f, 59.f, 60.f, 70.f, 2.f, 2.f}) f.step(tick);
     // A warm node can seek before its first keyframe. It must not dereference
     // a null frame left by checkDrawStatus or retain an earlier visible shape.
     shape->frameList[0]->time = 10; f.step(20); f.step(0);
     check(f.ref(shape)->frame == nullptr && f.engine._mainMotionRef->shapeNodeAreas.empty(), "early seek invalidates warm node safely");
-    SDL_SetHint("MIKAGE_EMOTE_CAPTURE_CACHE", "0");
 }
 
-struct BenchResult { double ms; std::uint64_t hits, visits; };
-BenchResult benchmark(bool enabled, int animatedEvery, int players) {
-    SDL_SetHint("MIKAGE_EMOTE_NODE_CACHE", enabled ? "1" : "0");
+// Pass any argument to time production progress() for a synthetic scene.
+double benchmark(int animatedEvery, int players) {
     std::vector<std::unique_ptr<Fixture>> instances;
     for (int p = 0; p < players; ++p) {
         instances.push_back(std::make_unique<Fixture>());
@@ -344,26 +309,21 @@ BenchResult benchmark(bool enabled, int animatedEvery, int players) {
         }
         instances.back()->step(0);
     }
-    resetPerformanceStats();
     const auto start = std::chrono::steady_clock::now();
     for (int frame = 0; frame < 1200; ++frame)
         for (auto& instance : instances) instance->step(float(frame % 60));
-    const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    const auto stats = performanceStats(); return {elapsed, stats.nodeCacheHits, stats.nodeVisits};
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 void runBenchmarks() {
-    for (int players : {1, 2}) for (int animatedEvery : {0, 4, 1}) {
-        const auto off = benchmark(false, animatedEvery, players), on = benchmark(true, animatedEvery, players);
+    for (int players : {1, 2}) for (int animatedEvery : {0, 4, 1})
         std::cout << "BENCH players=" << players << " animated=" << (animatedEvery ? 100 / animatedEvery : 0)
-            << "% baseline_ms=" << off.ms << " cache_ms=" << on.ms << " reduction=" << (off.ms - on.ms) * 100 / off.ms
-            << "% hits=" << on.hits << '/' << on.visits << '\n';
-    }
+            << "% progress_ms=" << benchmark(animatedEvery, players) << '\n';
 }
 }
 int main(int argc, char**) {
     try {
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesCloneAndRestore();
-        testSharedSentinelsAndLoop(); testIconGPUAndBounds(); testDrawOrder(); testCacheParityAndEarlySeek();
+        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
         if (argc > 1) runBenchmarks();
         return 0;

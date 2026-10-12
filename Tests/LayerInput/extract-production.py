@@ -31,23 +31,11 @@ args.output.mkdir(parents=True, exist_ok=True)
 members = re.search(r"bool PointerPresentationHitTestingEnabled\s*=\s*[^;]+;", header).group()
 members += "\n" + definition(header, "void SetPointerPresentationHitTestingEnabled(bool enabled)")
 members += "\n" + definition(header, "class iTVPLayerTreeOwner* GetLayerTreeOwner() const")
-alpha_start=header.index("    struct AlphaPointerFrame;",header.index("class tTVPLayerManager :"))
-alpha_end=header.index("\npublic:",alpha_start)
-members += "\n" + header[alpha_start:alpha_end]
-members += "\n" + definition(header,"bool IsAsyncAlphaQuery() const")
-members += "\n" + definition(header,"bool SetAsyncAlphaQuery(bool enabled)")
-members += "\n    void ProcessPendingAlphaInput();\n    bool GetPinnedAlpha(tTJSNI_BaseLayer*,tjs_uint32&) const;"
-members += "\n    bool GetPinnedHitType(tTJSNI_BaseLayer*,tjs_int&) const;"
-members += "\n    bool GetPinnedLayerPoint(tTJSNI_BaseLayer*,tjs_int&,tjs_int&,bool&) const;"
-members += "\n    bool HasPinnedLayer(tTJSNI_BaseLayer*) const;"
-members += "\n    void CaptureAlphaForPresentation(tTJSNI_BaseLayer*);"
 (args.output / "ProductionManagerMembers.inc").write_text(members, encoding="utf-8")
 (args.output / "ProductionWindowMembers.inc").write_text(
     definition(window, "bool HasNativePointerPresentation() const"), encoding="utf-8")
 
-alpha_start=manager.index("namespace {\nstd::vector<tTVPLayerManager*> asyncInputManagers;")
-alpha_end=manager.index("//---------------------------------------------------------------------------\n// tTVPLayerManager",alpha_start)
-methods = [manager[alpha_start:alpha_end]]
+methods = []
 for name in ["RegisterSelfToWindow", "UnregisterSelfFromWindow", "NotifyMouseCursorChange",
              "SetMouseCursor", "NotifyHintChange", "SetHint", "SetLayerTreeOwner",
              "PrimaryClick", "PrimaryDoubleClick", "PrimaryMouseDown", "PrimaryMouseUp",

@@ -1,6 +1,4 @@
 #include "PointReadTrace.h"
-#include "AsyncAlphaTileCache.h"
-#include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
 #include <algorithm>
 #include <deque>
 #include <memory>
@@ -25,9 +23,7 @@ constexpr int ltOpaque = 1;
 enum tTVPHitType { htMask, htProvince };
 struct TestRect { int left=0,top=0,right=128,bottom=128;
     int get_width() const { return right-left; } int get_height() const { return bottom-top; } };
-static uint64_t nextTextureID=1, currentFrameSerial=1, nextLayerLifetimeID=1;
-static std::shared_ptr<krkrsdl3::AsyncLayerPresentation> currentAlphaPresentation;
-static auto TVPGetEmoteAlphaPresentation() { return currentAlphaPresentation; }
+static uint64_t nextTextureID=1, nextLayerLifetimeID=1;
 struct iTVPTexture2D {
     uint64_t identity=nextTextureID++, version=1;
     int width=128,height=128, syncReads=0;
@@ -35,7 +31,6 @@ struct iTVPTexture2D {
     bool gpu=true;
     int refs=1;
     void AddRef() { ++refs; } void Release() { --refs; }
-    krkrsdl3::AsyncAlphaTileCache tiles;
     bool GetContentKey(uint64_t& id,uint64_t& v) const { id=identity; v=version; return true; }
     uint32_t GetPointAlpha(int,int) { ++syncReads; return alpha; }
 };
@@ -46,18 +41,6 @@ struct TestImage {
     int GetWidth() const { return texture.width; } int GetHeight() const { return texture.height; }
     uint32_t GetPoint(int x,int y) { return texture.GetPointAlpha(x,y)<<24; }
 };
-static bool TVPIsEmoteAsyncAlphaTexture(iTVPTexture2D* t) {
-    return t && t->gpu && emoteplayer::performanceEnabled("MIKAGE_EMOTE_ASYNC_ALPHA");
-}
-static bool TVPRequestEmoteAsyncAlpha(iTVPTexture2D* t,int x,int y,
-                                    std::shared_ptr<krkrsdl3::AsyncAlphaTile>& tile) {
-    if(!TVPIsEmoteAsyncAlphaTexture(t)) return false;
-    tile=t->tiles.Demand(x,y,t->width,t->height); return true;
-}
-static uint64_t TVPGetEmoteAlphaPresentationSerial() { return currentFrameSerial; }
-static void TVPEncodeFrozenEmoteAsyncAlpha(iTVPTexture2D*,
-    const std::shared_ptr<krkrsdl3::AsyncLayerPresentation>&);
-
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -254,11 +237,9 @@ void tTJSNI_BaseLayer::GetMostFrontChildAt(int x,int y,tTJSNI_BaseLayer** out,tT
     queryTrigger=trace::origin.trigger; queryParent=trace::origin.parentTrigger;
     if(onQuery) onQuery();
     *out=hit;
-    if(hit && (hit->MainImage || (manager && manager->IsAsyncAlphaQuery()))) {
-        int localX=x,localY=y; bool inside=true;
-        if(manager && manager->IsAsyncAlphaQuery()) {
-            if(!manager->GetPinnedLayerPoint(hit,localX,localY,inside) || !inside) { *out=nullptr; return; }
-        } else hit->FromPrimaryCoordinates(localX,localY);
+    if(hit && hit->MainImage) {
+        int localX=x,localY=y;
+        hit->FromPrimaryCoordinates(localX,localY);
         if(!hit->_HitTestNoVisibleCheck(localX,localY)) *out=nullptr;
     }
 }
@@ -500,333 +481,6 @@ static void multipleManagers() {
             "multi-manager destruction leaked state or references");
 }
 
-struct TestAlphaBudget { size_t active=0, peak=0, limit=size_t(-1); };
-static auto alphaBudget=std::make_shared<TestAlphaBudget>();
-static bool completeEncodedAlpha=true;
-static std::vector<std::weak_ptr<krkrsdl3::AsyncLayerReadback>> encodedAlphaReads;
-static std::shared_ptr<krkrsdl3::AsyncLayerPresentation> produceAlpha(
-    iTVPTexture2D& texture,uint64_t serial,bool completed=true,bool presented=true,
-    std::shared_ptr<krkrsdl3::AsyncLayerPresentation> ticket={}) {
-    if(!ticket) ticket=std::make_shared<krkrsdl3::AsyncLayerPresentation>(serial);
-    ticket->presented.store(presented);
-    texture.tiles.EncodeDemanded(texture.version,ticket,[&](const auto& read) {
-        if(alphaBudget->active>=alphaBudget->limit) return false;
-        struct Lease { std::shared_ptr<TestAlphaBudget> budget;
-            explicit Lease(std::shared_ptr<TestAlphaBudget> b):budget(std::move(b)) {
-                ++budget->active; budget->peak=std::max(budget->peak,budget->active);
-            }
-            ~Lease(){--budget->active;}
-        };
-        read->allocationLease=std::make_shared<Lease>(alphaBudget);
-        read->pitch=read->region.Width()*4;
-        read->rgba.resize(size_t(read->pitch)*read->region.Height(),0);
-        for(size_t i=3;i<read->rgba.size();i+=4) read->rgba[i]=texture.alpha;
-        read->completed.store(completed && completeEncodedAlpha);
-        encodedAlphaReads.push_back(read); return true;
-    });
-    return ticket;
-}
-static void TVPEncodeFrozenEmoteAsyncAlpha(iTVPTexture2D* texture,
-    const std::shared_ptr<krkrsdl3::AsyncLayerPresentation>& ticket) {
-    produceAlpha(*texture,ticket->frameSerial,true,ticket->presented.load(),ticket);
-}
-static void completeAlphaRequests() {
-    for(auto it=encodedAlphaReads.begin();it!=encodedAlphaReads.end();) {
-        if(auto read=it->lock()) { read->completed.store(true); ++it; }
-        else it=encodedAlphaReads.erase(it);
-    }
-}
-static auto composeAlpha(tTVPLayerManager& manager,uint64_t serial,bool presented=true) {
-    auto ticket=std::make_shared<krkrsdl3::AsyncLayerPresentation>(serial);
-    ticket->presented.store(presented); currentAlphaPresentation=ticket;
-    manager.BindAlphaPresentation();
-    manager.FinishAlphaPresentation(); // Older frozen requests have FIFO priority.
-    for(auto* layer:manager.GetAllNodes()) {
-        manager.CaptureAlphaForPresentation(layer);
-        if(layer->MainImage) produceAlpha(layer->MainImage->texture,serial,true,presented,ticket);
-    }
-    manager.FinishAlphaPresentation();
-    return ticket;
-}
-static void asyncInputChain() {
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        std::vector<int> order;
-        f.primary.onDown=[&]{ order.push_back(1); };
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        f.manager.PrimaryClick(45,68);
-        f.manager.PrimaryMouseUp(45,68,mbLeft,0);
-        require(f.primary.downs==0 && f.primary.clicks==0 && f.primary.ups==0,
-                "cold alpha cache dispatched a partial pointer chain");
-        require(image.texture.syncReads==0,"cold pointer synchronously read GPU alpha");
-        auto ticket=composeAlpha(f.manager,1,false);
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0,"GPU completion published an unpresented input frame");
-        f.primary.offsetX=100; f.primary.offsetY=200;
-        ++image.texture.version;
-        ticket->presented.store(true);
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && f.primary.clicks==1 && f.primary.ups==1 && order==std::vector<int>{1},
-                "pending down/click/up order or exact once dispatch changed");
-        require(f.primary.eventX==35 && f.primary.eventY==48,
-                "deferred event used a new coordinate mapping");
-        require(image.texture.syncReads==0,"ready alpha event chased a newer texture via sync read");
-        // Explicit queries remain immediate even while the optimization is on.
-        require(f.primary._HitTestNoVisibleCheck(35,48) && image.texture.syncReads==1,
-                "explicit script hit query borrowed the UI frame");
-    }
-    {
-        Fixture f; TestImage first,second; f.primary.MainImage=&first; f.other.MainImage=&second;
-        f.other.manager=&f.manager; f.manager.nodes={&f.primary,&f.other};
-        currentFrameSerial=20;
-        f.manager.PrimaryTouchDown(45.25,68.5,0,0,1);
-        second.texture.alpha=0; produceAlpha(second.texture,19);
-        second.texture.alpha=255; ++second.texture.version;
-        auto a=std::make_shared<krkrsdl3::AsyncLayerPresentation>(20); a->presented.store(true);
-        currentAlphaPresentation=a; f.manager.BindAlphaPresentation();
-        f.manager.CaptureAlphaForPresentation(&f.primary); f.manager.CaptureAlphaForPresentation(&f.other);
-        produceAlpha(first.texture,20,true,true,a);
-        alphaBudget->limit=0;
-        f.manager.FinishAlphaPresentation();
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.touches==0,"mask candidates from different display frames were combined");
-        require(f.manager.PendingAlphaInput.front()->presentation==a,"partial read budget discarded the chosen display frame");
-        alphaBudget->limit=size_t(-1);
-        composeAlpha(f.manager,21);
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.touches==1 && first.texture.syncReads==0 && second.texture.syncReads==0,
-                "common displayed frame did not resolve touch without a GPU wait");
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        currentFrameSerial=30;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        f.manager.PrimaryMouseMove(46,68,1);
-        f.manager.PrimaryMouseUp(46,68,mbLeft,0);
-        f.manager.nodes={&f.other};
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0 && f.primary.moves==0 && f.primary.ups==0,
-                "destroyed alpha candidate canceled only part of a pointer chain");
-        f.manager.PrimaryMouseUp(46,68,mbLeft,0);
-        require(f.other.ups==0,"late up from canceled chain was retargeted to another layer");
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image; image.texture.alpha=15;
-        currentFrameSerial=40;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        composeAlpha(f.manager,40);
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0 && image.texture.syncReads==0,"alpha below hitThreshold received input");
-        image.texture.alpha=16; ++image.texture.version; currentFrameSerial=45;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        composeAlpha(f.manager,45);
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && image.texture.syncReads==0,"alpha equal to hitThreshold rejected input");
-    }
-    {
-        Fixture f; TestImage oldImage,newImage; f.primary.MainImage=&oldImage;
-        currentFrameSerial=50;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        f.primary.MainImage=&newImage; newImage.texture.width=48;
-        f.primary.offsetX=20;
-        auto ticket=composeAlpha(f.manager,50,false);
-        f.primary.offsetX=100; // The submitted frame retains offset 20.
-        ticket->presented.store(true); f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && f.primary.eventX==25 && newImage.texture.syncReads==0,
-                "resize/texture epoch did not bind the first composed frame's mapping");
-    }
-    {
-        // Title-screen containers can be visible without a MainImage. They must
-        // stay as non-hit candidates instead of aborting presentation capture
-        // with the production "Not drawable layer type" exception.
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        f.other.manager=&f.manager; f.manager.nodes={&f.primary,&f.other};
-        currentFrameSerial=55;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        try { composeAlpha(f.manager,55); }
-        catch(const std::exception& error) {
-            throw std::runtime_error(std::string("image-less candidate aborted presentation capture: ")+error.what());
-        }
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && image.texture.syncReads==0,
-                "image-less candidate broke deferred dispatch or forced a sync read");
-        require(f.other.downs==0,"image-less candidate received pointer input");
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        asyncInputManagers.push_back(&f.manager);
-        for(int i=0;i<128;++i) f.manager.PrimaryMouseMove(45,68,0);
-        require(TVPHasPendingLayerPointerBackpressure(),"pointer queue did not stop upstream input at its budget");
-        composeAlpha(f.manager,60);
-        f.manager.ProcessPendingAlphaInput();
-        require(!TVPHasPendingLayerPointerBackpressure(),"ready GPU frames did not release pointer backpressure");
-        while(!f.manager.PendingAlphaInput.empty()) f.manager.ProcessPendingAlphaInput();
-        asyncInputManagers.erase(std::remove(asyncInputManagers.begin(),asyncInputManagers.end(),&f.manager),asyncInputManagers.end());
-        require(image.texture.syncReads==0,"backpressure recovery synchronously read GPU alpha");
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        auto ticket=composeAlpha(f.manager,70,false);
-        ticket->failed.store(true); f.manager.nodes={&f.other};
-        const int updates=f.primary.updates;
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0 && f.primary.updates==updates,
-                "failed presentation retried a removed raw Layer pointer before validating its lifetime");
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        const int ownerRefs=f.primary.object.refs;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        require(f.primary.object.refs==ownerRefs,
-                "async alpha retained the TJS owner instead of using native lifetime identity");
-        composeAlpha(f.manager,80);
-        const auto lifetime=f.primary.LifetimeID;
-        f.primary.LifetimeID=f.other.LifetimeID; // Same native address, different generation.
-        f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==0,"an old pointer event targeted a recycled Layer generation");
-        f.primary.LifetimeID=lifetime;
-    }
-    {
-        Fixture f; TestImage image; f.primary.MainImage=&image;
-        f.manager.PrimaryTouchDown(45.25,68.5,0,0,1);
-        f.manager.PrimaryTouchDown(75.25,68.5,0,0,2);
-        f.manager.PrimaryTouchMove(46.75,68.5,0,0,1);
-        f.manager.PrimaryTouchUp(46.75,68.5,0,0,1);
-        f.manager.PrimaryTouchUp(75.25,68.5,0,0,2);
-        auto ticket=composeAlpha(f.manager,90,false);
-        f.primary.offsetX=100; ticket->presented.store(true);
-        f.manager.ProcessPendingAlphaInput();
-        const std::vector<std::pair<char,tjs_uint32>> expected={{'d',1},{'d',2},{'m',1},{'u',1},{'u',2}};
-        require(f.primary.touchEvents==expected && f.primary.touchX==65.25 && f.primary.touchY==48.5,
-                "multi-pointer async replay changed identity/order/fractional coordinates");
-        require(f.manager.AlphaPointerChains.empty() && f.manager.touchCaptures.empty(),
-                "completed touch chains accumulated pointer-ID metadata or captures");
-        require(image.texture.syncReads==0,"multi-pointer replay synchronously read GPU alpha");
-    }
-    {
-        // Three changing candidates with only TWO concurrent read allocations:
-        // one event must finish by supplementing immutable F, rather than
-        // restarting all three candidates every frame and starving forever.
-        Fixture f; tTJSNI_BaseLayer third;
-        TestImage source[3],current[3],next[3];
-        f.primary.MainImage=&source[0]; f.other.MainImage=&source[1]; third.MainImage=&source[2];
-        f.other.manager=third.manager=&f.manager; f.manager.nodes={&f.primary,&f.other,&third};
-        for(auto& image:source) image.texture.alpha=255;
-        for(auto& image:current) image.texture.alpha=0;
-        alphaBudget=std::make_shared<TestAlphaBudget>(); alphaBudget->limit=2; completeEncodedAlpha=false;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        auto chosen=composeAlpha(f.manager,100);
-        require(f.primary.downs==0 && alphaBudget->active==2,"small budget did not keep incomplete event pending");
-        f.primary.MainImage=&current[0]; f.other.MainImage=&current[1]; third.MainImage=&current[2];
-        f.primary.offsetX=30;
-        completeAlphaRequests(); f.manager.ProcessPendingAlphaInput();
-        require(!f.manager.PendingAlphaInput.empty() && f.manager.PendingAlphaInput.front()->presentation==chosen,
-                "budget retry discarded F while releasing completed candidate storage");
-        require(alphaBudget->active==0,"completed candidates did not free their read allocations for the missing candidate");
-        // A newly arriving event must not fill the budget before the old
-        // incomplete frame's missing candidate has had a chance to encode.
-        f.manager.PrimaryMouseMove(50,68,1);
-        for(auto& image:current) ++image.texture.version;
-        composeAlpha(f.manager,101);
-        require(alphaBudget->active==2 && alphaBudget->peak==2,"FIFO supplemented reads exceeded/lost the bounded budget");
-        completeAlphaRequests(); f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && f.primary.eventX==35 && f.manager.PendingAlphaInput.size()==1,
-                "new arrivals starved the old event or it used a newer transparent alpha/mapping");
-        f.primary.MainImage=&next[0]; f.other.MainImage=&next[1]; third.MainImage=&next[2];
-        for(auto& image:next) { image.texture.alpha=64; ++image.texture.version; }
-        composeAlpha(f.manager,102);
-        completeAlphaRequests(); f.manager.ProcessPendingAlphaInput();
-        require(f.manager.PendingAlphaInput.empty(),"bounded FIFO recovery failed to finish the following event");
-        require(source[0].texture.refs==1 && source[1].texture.refs==1 && source[2].texture.refs==1,
-                "consumed event retained immutable source texture epochs");
-        require(alphaBudget->active==0 && source[0].texture.syncReads==0 && current[0].texture.syncReads==0,
-                "bounded read recovery leaked allocation or synchronously read alpha");
-        completeEncodedAlpha=true; alphaBudget->limit=size_t(-1);
-    }
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
-}
-static void asyncImageCoverage() {
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
-    uint64_t serial=200;
-    for(int threshold:{16,0,-7}) for(bool forceComposition:{false,true}) {
-        struct Case { bool hasImage; int left,top,x,y; bool hit; };
-        const Case cases[]={
-            {true,8,9,7,10,false}, {true,8,9,8,9,true},
-            {true,8,9,39,32,true}, {true,8,9,40,9,false},
-            {true,8,9,8,33,false}, {true,-10,-12,0,0,true},
-            {true,-10,-12,22,0,false}, {false,0,0,5,6,threshold<=0}};
-        for(const auto& test:cases) {
-            Fixture f; TestImage image,other;
-            image.texture.width=32; image.texture.height=24; image.texture.alpha=255;
-            f.primary.MainImage=test.hasImage ? &image : nullptr;
-            f.primary.ImageLeft=test.left; f.primary.ImageTop=test.top;
-            f.primary.HitThreshold=threshold;
-            if(forceComposition) {
-                f.other.MainImage=&other; f.other.manager=&f.manager;
-                f.manager.nodes={&f.primary,&f.other};
-            }
-            // Compare against the unchanged explicit-script production method,
-            // not a reimplementation of its image-bounds/threshold rules.
-            require(f.primary._HitTestNoVisibleCheck(test.x,test.y)==test.hit,
-                    "explicit hit-test image coverage baseline changed");
-            image.texture.syncReads=0;
-            f.manager.PrimaryMouseDown(test.x+10,test.y+20,mbLeft,1);
-            if(!f.manager.PendingAlphaInput.empty()) {
-                composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput();
-            }
-            require((f.primary.downs==1)==test.hit,
-                    "UI snapshot image coverage differed for positive/zero/negative hitThreshold");
-            require(image.texture.syncReads==0,"coverage/threshold handling synchronously read GPU alpha");
-        }
-    }
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
-}
-static void asyncHitTypeSnapshot() {
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
-    uint64_t serial=300;
-    for(bool maskFirst:{false,true}) {
-        Fixture f; TestImage mask,province,other;
-        mask.texture.alpha=0; province.texture.alpha=255; province.texture.gpu=false;
-        f.primary.MainImage=&mask; f.primary.ProvinceImage=&province;
-        f.primary.HitType=maskFirst ? htMask : htProvince;
-        f.other.MainImage=&other; f.other.manager=&f.manager;
-        f.manager.nodes={&f.primary,&f.other}; // Forces a composed display F in both directions.
-        const bool frameStyle=f.primary._HitTestNoVisibleCheck(35,48);
-        require(frameStyle==!maskFirst,"production F hit-type baseline was not distinguished by transparent mask");
-        mask.texture.syncReads=0;
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        auto ticket=composeAlpha(f.manager,serial++,false);
-        f.primary.HitType=maskFirst ? htProvince : htMask;
-        ticket->presented.store(true); f.manager.ProcessPendingAlphaInput();
-        require((f.primary.downs==1)==frameStyle && mask.texture.syncReads==0,
-                "dispatch used a changed HitType or fell back to synchronous unprepared GPU mask alpha");
-        // The next physical event observes the property change with its own F;
-        // an already captured pointer is released to test fresh hit selection.
-        f.manager.ReleaseCapture();
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        if(!f.manager.PendingAlphaInput.empty()) { composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput(); }
-        require(f.primary.downs==1 && mask.texture.syncReads==0,
-                "HitType property change did not apply to the next event without a GPU wait");
-        const bool currentStyle=f.primary._HitTestNoVisibleCheck(35,48);
-        require(currentStyle==maskFirst,"explicit script HitTest still used the earlier F's type");
-        require(mask.texture.syncReads==(maskFirst ? 0 : 1),"explicit current mask query lost immediate semantics");
-    }
-    {
-        Fixture f; TestImage mask,province,other;
-        mask.texture.alpha=0; province.texture.alpha=255; province.texture.gpu=false;
-        f.primary.MainImage=&mask; f.primary.ProvinceImage=&province; f.primary.HitType=htProvince;
-        f.other.MainImage=&other; f.other.manager=&f.manager; f.manager.nodes={&f.primary,&f.other};
-        f.primary.onEnter=[&]{ f.primary.HitType=htMask; };
-        f.manager.PrimaryMouseDown(45,68,mbLeft,1);
-        composeAlpha(f.manager,serial++); f.manager.ProcessPendingAlphaInput();
-        require(f.primary.downs==1 && f.primary.HitType==htMask && mask.texture.syncReads==0,
-                "mouse-enter callback changing HitType caused replay's recheck to synchronously sample a new GPU mask");
-    }
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
-}
-
 int main() {
     try {
         trace::SetEnabled(true);
@@ -844,9 +498,6 @@ int main() {
         foreignWindow<D3D>();
         ownerChangesReset();
         multipleManagers();
-        asyncInputChain();
-        asyncImageCoverage();
-        asyncHitTypeSnapshot();
         std::cout << "PASS: property callbacks, input/capture, exceptions and device lifecycle\n";
         return 0;
     } catch (const std::exception& error) {

@@ -26,7 +26,7 @@ final class AppModel: ObservableObject {
     @Published var missingGames: [GameRecord] = []
     @Published var settings: PlayerSettings {
         didSet {
-            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer.rawValue, "appearance": settings.appearance.rawValue, "respectSilentMode": String(settings.respectSilentMode), "performance": String(settings.performance), "experimentalEmote": String(settings.experimentalEmote), "emotePerformanceOptions": String(settings.emotePerformanceOptions)])
+            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer.rawValue, "appearance": settings.appearance.rawValue, "respectSilentMode": String(settings.respectSilentMode), "performance": String(settings.performance), "experimentalEmote": String(settings.experimentalEmote)])
             if let data = Self.encoded(settings) {
                 defaults.set(data, forKey: Self.settingsKey)
             }
@@ -220,7 +220,6 @@ final class AppModel: ObservableObject {
             threeFingerMenu: settings.threeFingerMenu,
             respectSilentMode: settings.respectSilentMode,
             experimentalEmote: settings.experimentalEmote,
-            emotePerformanceOptions: settings.emotePerformanceOptions,
             performance: settings.performance,
             gameTitle: game.title,
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)

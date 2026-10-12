@@ -8,7 +8,6 @@
 #include "LayerSpanCompositeGeometry.h"
 #include "PointReadTrace.h"
 #include "CPUConsumerTrace.h"
-#include "AsyncAlphaTileCache.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/plugins/emoteplayer/emoteperformance.h"
 #include <SDL3/SDL.h>
 #include "gl/tvpgl.h"
@@ -836,28 +835,10 @@ static void C2SpanFacade(iTVPRenderBackend* backend) {
 #endif
 }
 #ifndef TEST_NATIVE_METAL
-static void AsyncLayerAlpha(DeviceDouble& backend) {
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
-    backend.NextAlphaFrame();
+static void LayerRegionWriteAndPointCache(DeviceDouble& backend) {
     auto pixels=Image(64,64,4,71);
     auto texture=Create(TVPGetRenderManager(),64,64,TVPTextureFormat::RGBA,pixels);
-    std::shared_ptr<krkrsdl3::AsyncAlphaTile> tile;
-    Require(TVPRequestEmoteAsyncAlpha(texture.get(),37,45,tile) && tile,"production Layer refused eligible alpha demand");
-    const auto requests=backend.asyncRequests, waits=backend.syncRegionReads;
     texture->GetTextureHandle(); texture->GetTextureHandleForRegionWrite();
-    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
-    Require(backend.asyncRequests==requests,"ordinary handle/region-write query published a displayed alpha frame");
-    TVPBeginEmoteAlphaPresentation();
-    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
-    TVPEncodeEmoteAsyncAlphaForPresentation(texture.get());
-    TVPEndEmoteAlphaPresentation();
-    Require(backend.asyncRequests==requests+1 && backend.syncRegionReads==waits,
-            "window alpha snapshot duplicated requests or used synchronous reads");
-    backend.CompleteAlphaReads(false);
-    Require(!tile->Latest(),"production Layer published GPU-completed but unpresented alpha");
-    backend.alphaPresentation->presented.store(true);
-    uint8_t alpha=0; std::shared_ptr<krkrsdl3::AsyncAlphaTileSnapshot> sample;
-    Require(tile->Sample(37,45,alpha,sample) && alpha==pixels[(45*64+37)*4+3],"production Layer alpha tile changed pixels");
     uint64_t identity=0,version=0,afterID=0,afterVersion=0;
     Require(texture->GetContentKey(identity,version),"production Layer lacks content identity");
     texture->GetPointAlpha(1,1); const auto cachedReads=backend.syncRegionReads;
@@ -866,29 +847,8 @@ static void AsyncLayerAlpha(DeviceDouble& backend) {
     Require(afterID==identity && afterVersion>version,"region transaction did not advance content version");
     texture->GetPointAlpha(1,1);
     Require(backend.syncRegionReads==cachedReads,"region write invalidated unrelated exact alpha cache");
-    // Script pixel reads still use the current texture, independently of the
-    // UI snapshot and even after a presented old version is held by an event.
     texture->GetPointAlpha(37,45);
-    Require(backend.syncRegionReads==cachedReads+1,"explicit script pixel query borrowed stale UI alpha");
-    TVPStopEmoteAsyncAlphaDemand(texture.get()); backend.NextAlphaFrame();
-    TVPBeginEmoteAlphaPresentation(); TVPEncodeEmoteAsyncAlphaForPresentation(texture.get()); TVPEndEmoteAlphaPresentation();
-    Require(backend.asyncRequests==requests+1,"idle Layer continued GPU alpha prefetch");
-    // A missing tile can be encoded later from an intrusive-ref-held source
-    // epoch, keeping F's display ticket even though the current frame is F+1.
-    auto frozenPixels=Image(64,64,4,93);
-    auto frozen=Create(TVPGetRenderManager(),64,64,TVPTextureFormat::RGBA,frozenPixels);
-    std::shared_ptr<krkrsdl3::AsyncAlphaTile> frozenTile;
-    Require(TVPRequestEmoteAsyncAlpha(frozen.get(),11,12,frozenTile),"frozen alpha demand failed");
-    auto chosen=backend.alphaPresentation; chosen->presented.store(true);
-    frozen->GetTextureHandle(); frozen->AddRef();
-    std::shared_ptr<iTVPTexture2D> epoch(frozen.get(),[](iTVPTexture2D* t){t->Release();});
-    backend.NextAlphaFrame();
-    TVPEncodeFrozenEmoteAsyncAlpha(epoch.get(),chosen);
-    backend.CompleteAlphaReads(false);
-    auto frozenSample=frozenTile->AtFrame(chosen->frameSerial);
-    Require(frozenSample && frozenSample->alpha[size_t(12)*32+11]==frozenPixels[(12*64+11)*4+3],
-            "supplemented production Layer read changed alpha or used the later frame ticket");
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
+    Require(backend.syncRegionReads==cachedReads+1,"point read inside the written region used a stale cache");
 }
 #endif
 static void Equivalence() {
@@ -1343,15 +1303,11 @@ static void ScopedNativePixels() {
     {
         tTVPScopedTexturePixels write; write.Acquire(texture.get(),true,"test.native.write");
         Require(texture->IsCPUResident(),"active native writer allowed GPU mutation");
-        SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","1");
-        Require(!TVPIsEmoteAsyncAlphaTexture(texture.get()),"async alpha sampled a live native writer");
         Require(!texture->GetTextureHandleForOverwrite(),"GPU overwrite raced native writer");
         static_cast<uint32_t*>(write.Data())[3*32+4]=0x70123456;
         write.Written(tTVPRect(4,3,5,4));
     }
     Require(!texture->IsCPUResident(),"completed native write kept CPU authority");
-    Require(TVPIsEmoteAsyncAlphaTexture(texture.get()),"completed native write disabled future async alpha");
-    SDL_SetHint("MIKAGE_EMOTE_ASYNC_ALPHA","0");
     auto before=TVPGetMetalLayerRenderStats(); texture->GetTextureHandle();
     auto after=TVPGetMetalLayerRenderStats();
     Require(after.uploadedBytes-before.uploadedBytes==4,"native ROI write uploaded entire texture");
@@ -2676,7 +2632,7 @@ int main(int argc,char** argv) {
                     newTriangleInterval.methods.empty(),"triangle profile leaked across Layer sessions");
             Require(cached==TVPGetRenderManager()->GetRenderMethod("AlphaBlend_d"),"method lifetime changed");
 #ifndef TEST_NATIVE_METAL
-            AsyncLayerAlpha(*static_cast<DeviceDouble*>(backend.get()));
+            LayerRegionWriteAndPointCache(*static_cast<DeviceDouble*>(backend.get()));
 #endif
             {
                 auto pixels=Image(9,7,4,2);auto texture=Create(TVPGetRenderManager(),9,7,TVPTextureFormat::RGBA,pixels);

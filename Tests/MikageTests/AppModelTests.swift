@@ -208,39 +208,17 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(reloaded.settings.experimentalEmote)
     }
 
-    func testEmotePerformanceOptionsPersistAndAreCapturedAtLaunch() throws {
-        try addGame(named: "Example")
-        let model = makeModel()
-        settle { await model.refreshLibrary() }
-        let game = try XCTUnwrap(model.games.first)
-        XCTAssertEqual(model.settings.emotePerformanceOptions, 0)
-        let baseline = try model.launchConfiguration(for: game)
-        model.settings.emoteNodeCache = true
-        model.settings.emoteAsyncAlpha = true
-        let enabled = try model.launchConfiguration(for: game)
-        XCTAssertEqual(enabled.emotePerformanceOptions, 17)
-        XCTAssertEqual(baseline.emotePerformanceOptions, 0)
-        XCTAssertEqual(makeModel().settings.emotePerformanceOptions, 17)
-        model.settings.emoteCaptureCache = true
-        model.settings.emoteLocalUpdate = true
-        model.settings.emoteRegionCopy = true
-        XCTAssertEqual(model.settings.emotePerformanceOptions, 31)
-        XCTAssertEqual(enabled.emotePerformanceOptions, 17)
-    }
-
-    func testMissingAndMalformedEmotePerformancePreferencesFallBackIndependently() throws {
-        let old = try JSONDecoder().decode(PlayerSettings.self, from: Data("{}".utf8))
-        XCTAssertEqual(old.emotePerformanceOptions, 0)
-        let mixed = try JSONDecoder().decode(PlayerSettings.self,
-            from: Data("{\"emoteNodeCache\":\"bad\",\"emoteCaptureCache\":true,\"emoteAsyncAlpha\":true}".utf8))
-        XCTAssertEqual(mixed.emotePerformanceOptions, 18)
-        let restored = try JSONDecoder().decode(PlayerSettings.self, from: JSONEncoder().encode(mixed))
-        XCTAssertEqual(restored.emotePerformanceOptions, 18)
-        // Settings saved before bits 5 and 6 were removed still decode; the
-        // stale keys are ignored and never reach the runtime mask.
-        let removed = try JSONDecoder().decode(PlayerSettings.self,
-            from: Data("{\"emoteExperimentalBounds\":true,\"emoteLocalPoseCache\":true,\"emoteAsyncAlpha\":true}".utf8))
-        XCTAssertEqual(removed.emotePerformanceOptions, 16)
+    func testRemovedEmotePerformanceOptionsStillDecode() throws {
+        // The Emote performance experiments were removed. Settings saved while
+        // they existed must still load, keeping every other preference.
+        let saved = try JSONDecoder().decode(PlayerSettings.self, from: Data("""
+            {"experimentalEmote":true,"emoteNodeCache":true,"emoteCaptureCache":true,"emoteLocalUpdate":true,\
+            "emoteRegionCopy":true,"emoteAsyncAlpha":true,"emoteExperimentalBounds":true,"emoteLocalPoseCache":true}
+            """.utf8))
+        XCTAssertTrue(saved.experimentalEmote)
+        let reencoded = String(decoding: try JSONEncoder().encode(saved), as: UTF8.self)
+        XCTAssertFalse(reencoded.contains("emoteNodeCache"))
+        XCTAssertFalse(reencoded.contains("emoteAsyncAlpha"))
     }
 
     func testLegacyDisplayTextAndUnknownValuesMigrate() throws {
