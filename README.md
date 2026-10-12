@@ -59,3 +59,7 @@ KRKRSDL3 的修改通过仓库固定的 fork 递归子模块提供。分发修�
 `metal_dev` 的候选动画接入和额外许可声明见
 [Emote 首轮实现记录](docs/EMOTE-AETHER-INTEGRATION-STATUS.md)。默认仍使用 legacy 动画，
 节点曲线语义与 iPhone 验收完成后再切换默认实现。
+
+## 许可证
+
+Mikage Next 以 [GPL-3.0-or-later](LICENSE) 发布。分发的 App 包含 GPL-3.0-or-later 的 Emote 动画代码，后续计划接入的 ONScripter 为 GPL-2.0-or-later，因此整体按 GPL-3.0-or-later 分发，并公开每个发布版本对应的完整源码。KRKRSDL3 及第三方依赖保留各自的许可证，见 `Engine/KRKRRuntime/`。
