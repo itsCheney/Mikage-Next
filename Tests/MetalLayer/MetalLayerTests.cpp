@@ -1290,6 +1290,65 @@ static void OverwriteSkipsReadback() {
     ++comparisons;
 }
 
+// Script raw pointers used to pin a texture to CPU composition for good, and
+// an open write lease re-uploaded the whole surface on every use. A lease now
+// uploads at most once per frame and closes at the frame boundary; the pin
+// ends once script stops asking for the pointer.
+static void RawPointerFrameLifetime() {
+    auto* gpu=TVPGetRenderManager(); auto image=Image(32,24,4,23);
+    auto texture=Create(gpu,32,24,TVPTextureFormat::RGBA,image);
+    constexpr uint64_t surface=32*24*4;
+    TVPEndMetalLayerFrame();
+    const auto initial=TVPGetMetalLayerRenderStats();
+    auto* raw=static_cast<uint32_t*>(texture->GetPersistentCPUData(true));
+    Require(texture->IsCPUResident(),"raw pointer did not take CPU authority");
+    Require(TVPGetMetalLayerRenderStats().pinnedCPUTextures==initial.pinnedCPUTextures+1,"raw pointer was not counted as pinned");
+    raw[0]=0x01020304;
+    auto before=TVPGetMetalLayerRenderStats();
+    texture->GetTextureHandle(); texture->GetTextureHandle(); texture->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes-before.uploadedBytes==surface,
+            "open raw write lease uploaded more than once in a frame");
+    // A write after this frame's upload is carried by the lease closing.
+    raw[1]=0x05060708;
+    TVPEndMetalLayerFrame();
+    before=TVPGetMetalLayerRenderStats();
+    texture->GetTextureHandle(); texture->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes-before.uploadedBytes==surface,
+            "closing the raw write lease lost writes made after the upload");
+    texture->InvalidateCPUCache();
+    Require(texture->GetPoint(0,0)==0x01020304 && texture->GetPoint(1,0)==0x05060708,"raw writes did not reach the GPU");
+    // Closed lease: later frames upload nothing.
+    TVPEndMetalLayerFrame();
+    before=TVPGetMetalLayerRenderStats();
+    texture->GetTextureHandle();
+    Require(TVPGetMetalLayerRenderStats().uploadedBytes==before.uploadedBytes,"closed raw lease kept re-uploading");
+    // Still asked for recently: stays CPU-resident (no readback ping-pong).
+    for(int frame=0;frame<57;++frame) TVPEndMetalLayerFrame();
+    Require(texture->IsCPUResident(),"raw pointer pin dropped before script stopped asking");
+    // Asking again restarts the idle window.
+    Require(texture->GetPersistentCPUData(false)!=nullptr,"raw read pointer unavailable");
+    for(int frame=0;frame<59;++frame) TVPEndMetalLayerFrame();
+    Require(texture->IsCPUResident(),"renewed raw pointer pin dropped early");
+    TVPEndMetalLayerFrame();
+    Require(!texture->IsCPUResident(),"idle raw pointer kept the texture on the CPU");
+    Require(TVPGetMetalLayerRenderStats().pinnedCPUTextures==initial.pinnedCPUTextures,"unpinned texture still counted");
+    // Back on the GPU: a GPU fill applies there and the pixels follow it.
+    auto* fill=gpu->GetRenderMethod("FillARGB"); fill->SetParameterColor4B(0,0x11223344);
+    const auto fallbacks=TVPGetMetalLayerRenderStats().cpuFallbacks;
+    Operation(gpu,fill,texture.get(),tTVPRect(0,0,32,24),nullptr,tTVPRect());
+    Require(TVPGetMetalLayerRenderStats().cpuFallbacks==fallbacks,"unpinned texture still composed on the CPU");
+    Require(texture->GetPoint(5,5)==0x11223344,"GPU fill after unpin lost");
+    // An active native lock keeps the pin until it is released.
+    texture->GetPersistentCPUData(false);
+    {
+        tTVPScopedTexturePixels hold; hold.Acquire(texture.get(),false,"test.hold");
+        for(int frame=0;frame<61;++frame) TVPEndMetalLayerFrame();
+        Require(texture->IsCPUResident(),"pin dropped under an active lock");
+    }
+    TVPEndMetalLayerFrame();
+    Require(!texture->IsCPUResident(),"pin outlived the lock and idle window");
+    ++comparisons;
+}
 static void ScopedNativePixels() {
     auto* gpu=TVPGetRenderManager(); auto image=Image(32,24,4,18);
     auto texture=Create(gpu,32,24,TVPTextureFormat::RGBA,image);
@@ -1322,7 +1381,8 @@ static void ScopedNativePixels() {
         static_cast<uint32_t*>(write.Data())[0]=0x11223344; write.Written(tTVPRect(0,0,1,1));
     }
     texture->GetTextureHandle(); before=TVPGetMetalLayerRenderStats();
-    raw[1]=0x8899aabb; texture->GetTextureHandle();
+    // Raw writes after this frame's lease upload reach the GPU at the frame boundary.
+    raw[1]=0x8899aabb; TVPEndMetalLayerFrame(); texture->GetTextureHandle();
     Require(TVPGetMetalLayerRenderStats().uploadedBytes-before.uploadedBytes==32*24*4,"native write revoked raw script lease");
     Require(texture->GetPoint(1,0)==0x8899aabb,"raw script pointer no longer synchronized");
     // Exception unwind commits the original texture even after owner replacement.
@@ -2640,7 +2700,7 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); C0ProfileTests(); C0ProductionDiagnostics(backend.get()); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); PrimaryCompletionTests(); UpdateRegionCoalescingTests(true); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); RawPointerFrameLifetime(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); C0ProfileTests(); C0ProductionDiagnostics(backend.get()); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); PrimaryCompletionTests(); UpdateRegionCoalescingTests(true); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
 #ifndef TEST_NATIVE_METAL
             auto& glyphDevice=*static_cast<DeviceDouble*>(backend.get());
             GlyphCallerTests(backend.get(),[&](int stage) {

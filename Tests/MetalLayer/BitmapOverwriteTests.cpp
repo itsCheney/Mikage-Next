@@ -483,6 +483,7 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
         Require(layer.CopyMainImageFromCPU(input.data(),sourcePitchPixels*4,sourceWidth,sourceHeight),
                 "valid strided CPU copy rejected");
         Require(layer.ImageModified,"CPU copy did not mark image modified");
+        Require(!bitmap.GetTexture()->IsCPUResident(),"completed CPU copy pinned the layer to CPU composition");
         if(sizeDelta>=0)
             Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes,
                     "complete CPU overwrite unnecessarily fetched destination");
