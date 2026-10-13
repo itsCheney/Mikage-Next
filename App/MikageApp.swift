@@ -9,6 +9,7 @@ struct MikageApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
+                .tint(.indigo)
                 .preferredColorScheme(model.settings.appearance.colorScheme)
         }
     }
@@ -140,9 +141,15 @@ final class AppModel: ObservableObject {
 
     var displayedGames: [GameRecord] { games }
 
+    /// Games matching the search query, in the chosen sort order.
     var filteredGames: [GameRecord] {
+        sortedGames.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
+    }
+
+    /// Every game in the chosen sort order. The library tab shows these; the
+    /// search tab narrows them with `query`.
+    var sortedGames: [GameRecord] {
         displayedGames
-            .filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
             .sorted {
                 switch settings.sort {
                 case .title:
