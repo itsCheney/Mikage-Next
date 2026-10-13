@@ -15,7 +15,7 @@ Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 2
 1. macOS 26 runner 运行 VNCore 扫描、路径隔离、导入与持久化测试。
 2. 初始化固定的 KRKRSDL3 fork 递归子模块，并准备 vcpkg 依赖。
 3. 构建 device 与 Apple Silicon simulator 两个 KRKRRuntime framework，并合成 XCFramework。
-4. XcodeGen 生成 Mikage 工程，Xcode 26 编译未签名 arm64 App 并打包 `Mikage-unsigned.ipa`。
+4. XcodeGen 生成 Mikage 工程，Xcode 26 编译未签名 arm64 App 并打包 `Mikage-unsigned-<运行编号>.ipa`（直接上传 IPA，不再套 zip）。
 5. 上传 IPA 和完整构建日志。
 
 未签名 IPA 不能直接安装，需要使用自己的工具和证书签名。CI 不需要 Apple 密码或证书。
