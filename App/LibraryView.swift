@@ -84,33 +84,20 @@ struct LibraryView: View {
         model.sortedGames.filter { $0.availability == .unsupported }
     }
 
-    /// Bottom edge of the continue card in the scroll view's space, used to
-    /// tell when it has scrolled under or past the navigation bar.
-    @State private var heroBottom: CGFloat = .infinity
+    /// Height of the pinned header, including the status bar area.
+    @State private var headerHeight: CGFloat = 0
 
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let barBottom = proxy.safeAreaInsets.top
-                let hasHero = model.latest != nil
-                // On iPhone the continue card runs up under the bar; on iPad it
-                // is an inset card below it.
-                let heroBehindBar = hasHero && !regular
-                let heroUnderBar = heroBehindBar && heroBottom > barBottom
-                let heroScrolledAway = hasHero && heroBottom <= (heroBehindBar ? barBottom : 0)
+                let topInset = proxy.safeAreaInsets.top
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if let latest = model.latest {
-                            continueCard(latest, topInset: heroBehindBar ? barBottom : 0)
-                                .background(
-                                    GeometryReader { card in
-                                        Color.clear.preference(
-                                            key: HeroBottomKey.self,
-                                            value: card.frame(in: .named(Self.scrollSpace)).maxY
-                                        )
-                                    }
-                                )
+                            continueCard(latest, topInset: topInset)
+                        } else {
+                            Color.clear.frame(height: headerHeight)
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -133,47 +120,24 @@ struct LibraryView: View {
                         .padding(.bottom, 24)
                     }
                 }
-                .coordinateSpace(name: Self.scrollSpace)
-                .onPreferenceChange(HeroBottomKey.self) { heroBottom = $0 }
                 .refreshable {
                     await model.refreshLibrary()
                 }
-                .ignoresSafeArea(edges: heroBehindBar ? .top : [])
-                // A real navigation bar, so the system blurs content that
-                // scrolls under it (the scroll edge effect on iOS 26).
-                .toolbar {
-                    if hasHero {
-                        ToolbarItem(placement: .principal) {
-                            Text("游戏库")
-                                .font(.headline)
-                                .opacity(heroScrolledAway ? 1 : 0)
-                                .animation(.easeOut(duration: 0.15), value: heroScrolledAway)
-                        }
-                    }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        if !model.missingGames.isEmpty {
-                            Button {
-                                showMissingGames = true
-                            } label: {
-                                Label(
-                                    "缺失游戏 \(model.missingGames.count)",
-                                    systemImage: "exclamationmark.folder"
-                                )
+                // Content runs under the status bar and the pinned header.
+                .ignoresSafeArea(edges: .top)
+                .overlay(alignment: .top) {
+                    header(topInset: topInset)
+                        .background(
+                            GeometryReader { header in
+                                Color.clear.preference(key: HeaderHeightKey.self, value: header.size.height)
                             }
-                            .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
-                            .accessibilityIdentifier("missing-games-button")
-                        }
-                        viewMenu
-                        importMenu
-                    }
+                        )
+                        .ignoresSafeArea(edges: .top)
                 }
-                // While the cover art is under the bar it stays clear; the
-                // blur returns once the art has scrolled away.
-                .barOverCoverArt(heroUnderBar)
+                .onPreferenceChange(HeaderHeightKey.self) { headerHeight = $0 }
             }
             .background(AppBackground())
-            .navigationTitle("游戏库")
-            .navigationBarTitleDisplayMode(model.latest == nil ? .large : .inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .fileImporter(isPresented: $importPicker, allowedContentTypes: [.folder]) { result in
             switch result {
@@ -212,23 +176,66 @@ struct LibraryView: View {
         }
     }
 
-    private static let scrollSpace = "library-scroll"
-
     // MARK: Header
 
-    /// The last played game fills the top of the library, with the page's
-    /// large title on the cover art and Resume as the one prominent action.
-    /// `topInset` is the navigation bar's bottom edge when the card runs under
-    /// the bar, otherwise zero.
+    /// Pinned like the Photos library header: the large title and its count on
+    /// the left, glass buttons on the same row, over a blur that fades out
+    /// downward so covers and cards scroll softly underneath.
+    private func header(topInset: CGFloat) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("游戏库")
+                    .font(.largeTitle.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Text("\(model.displayedGames.count) 部作品")
+                    .font(.subheadline.weight(.semibold))
+            }
+            Spacer(minLength: 0)
+            headerButtons
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 20)
+        .padding(.trailing, 16)
+        .padding(.top, topInset + 6)
+        .padding(.bottom, 22)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .top) {
+            ProgressiveHeaderBlur()
+        }
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var headerButtons: some View {
+        HStack(spacing: 0) {
+            if !model.missingGames.isEmpty {
+                Button {
+                    showMissingGames = true
+                } label: {
+                    Image(systemName: "exclamationmark.folder")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
+                .accessibilityIdentifier("missing-games-button")
+            }
+            viewMenu
+            importMenu
+        }
+        .font(.title3.weight(.medium))
+        .tint(Color.primary)
+        .nativeGlassCapsule()
+    }
+
+    /// The last played game fills the top of the library under the pinned
+    /// header, with Resume as the one prominent action.
     private func continueCard(_ game: GameRecord, topInset: CGFloat) -> some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             GameCover(game: game)
                 .accessibilityHidden(true)
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.28), location: 0),
-                    .init(color: .clear, location: 0.3),
-                    .init(color: .clear, location: 0.5),
+                    .init(color: .clear, location: 0.45),
                     .init(color: .black.opacity(0.72), location: 1)
                 ],
                 startPoint: .top,
@@ -236,46 +243,35 @@ struct LibraryView: View {
             )
             .allowsHitTesting(false)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("游戏库")
-                    .font(.largeTitle.bold())
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 12)
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("继续上次")
-                            .font(.caption.weight(.semibold))
-                            .tracking(2)
-                            .opacity(0.9)
-                        Text(game.title)
-                            .font(regular ? .largeTitle.bold() : .title2.bold())
-                            .lineLimit(2)
-                        Text("\(model.recency(game)) · 已玩 \(game.playTime.playTimeSummary)")
-                            .font(regular ? .subheadline : .footnote)
-                            .opacity(0.88)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Button { model.launch(game) } label: {
-                        Label("继续", systemImage: "play.fill")
-                            .font(.headline)
-                            .padding(.horizontal, 4)
-                    }
-                    .nativeGlassButtonStyle(prominent: true)
-                    .controlSize(.large)
-                    .accessibilityLabel("继续上次：\(game.title)")
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("继续上次")
+                        .font(.caption.weight(.semibold))
+                        .tracking(2)
+                        .opacity(0.9)
+                    Text(game.title)
+                        .font(regular ? .largeTitle.bold() : .title2.bold())
+                        .lineLimit(2)
+                    Text("\(model.recency(game)) · 已玩 \(game.playTime.playTimeSummary)")
+                        .font(regular ? .subheadline : .footnote)
+                        .opacity(0.88)
+                        .lineLimit(1)
                 }
+                Spacer(minLength: 0)
+                Button { model.launch(game) } label: {
+                    Label("继续", systemImage: "play.fill")
+                        .font(.headline)
+                        .padding(.horizontal, 4)
+                }
+                .nativeGlassButtonStyle(prominent: true)
+                .controlSize(.large)
+                .accessibilityLabel("继续上次：\(game.title)")
             }
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, regular ? 28 : 20)
-            .padding(.top, regular ? 26 : topInset + 4)
             .padding(.bottom, regular ? 26 : 22)
         }
-        .frame(height: regular ? 320 : 220 + topInset)
-        .clipShape(RoundedRectangle(cornerRadius: regular ? 28 : 0, style: .continuous))
-        .padding(.horizontal, regular ? 12 : 0)
-        .padding(.top, regular ? 12 : 0)
+        .frame(height: (regular ? 380 : 266) + topInset)
         .environment(\.colorScheme, .dark)
     }
 
@@ -383,27 +379,39 @@ struct LibraryView: View {
     }
 }
 
-private struct HeroBottomKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
+private struct HeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = min(value, nextValue())
+        value = max(value, nextValue())
     }
 }
 
-private extension View {
-    /// Keeps the navigation bar clear over the continue card's art. iOS 26
-    /// otherwise lays its scroll edge effect over the art as a frosted band;
-    /// earlier systems draw their bar material there. Before iOS 26 the bar
-    /// items are also forced light, since that bar does not adapt to the art.
-    @ViewBuilder
-    func barOverCoverArt(_ overArt: Bool) -> some View {
-        if #available(iOS 26.0, *) {
-            scrollEdgeEffectHidden(overArt, for: .top)
-                .toolbarBackgroundVisibility(overArt ? .hidden : .automatic, for: .navigationBar)
-        } else {
-            toolbarBackground(overArt ? .hidden : .automatic, for: .navigationBar)
-                .toolbarColorScheme(overArt ? .dark : nil, for: .navigationBar)
+/// A blur that is full strength under the status bar and fades to nothing at
+/// the bottom of the header, with a dark scrim so white text stays legible
+/// over any cover or card.
+private struct ProgressiveHeaderBlur: View {
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.45),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            LinearGradient(
+                colors: [.black.opacity(0.5), .black.opacity(0.2), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
+        .allowsHitTesting(false)
     }
 }
 
