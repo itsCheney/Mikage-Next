@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: moe.cheney233
   deploymentTarget:
     iOS: '16.0'
-  developmentLanguage: zh-Hans
+  developmentLanguage: en
   xcodeVersion: '26.0'
 settings:
   base:
@@ -33,6 +33,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
 
   MikageTests:
     type: bundle.unit-test

@@ -60,7 +60,7 @@ final class LibraryTests: XCTestCase {
 
         let snapshot = try repository.scan()
         XCTAssertEqual(snapshot.active.map(\.folderName), ["Wrapper"])
-        XCTAssertEqual(snapshot.active.first?.availability, .invalid("未找到有效的 startup.tjs 或 XP3"))
+        XCTAssertEqual(snapshot.active.first?.availability, .invalid(String(localized: "No valid startup.tjs or XP3 found")))
     }
 
     func testStartupScriptWinsAndXP3UsesFixedPriority() throws {

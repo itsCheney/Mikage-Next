@@ -49,17 +49,17 @@ enum KRKRSessionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .alreadyRunning:
-            return "已有 KRKR 游戏正在运行。"
+            return String(localized: "A KRKR game is already running.")
         case .missingHostWindow:
-            return "无法取得当前 iOS 窗口，KRKR 未启动。"
+            return String(localized: "Couldn’t get the current iOS window, so KRKR wasn’t started.")
         case .invalidGameDirectory:
-            return "游戏目录或启动入口已经不存在。"
+            return String(localized: "The game folder or its launch entry no longer exists.")
         case .orientationUnavailable:
-            return "无法切换到横屏。请确认方向锁定允许横屏，然后旋转设备后重试。"
+            return String(localized: "Couldn’t switch to landscape. Make sure Orientation Lock allows landscape, rotate the device, then try again.")
         case .audioSession(let message):
-            return "音频会话切换失败，游戏将保持静音：\(message)"
+            return String(localized: "Couldn’t switch the audio session, so the game will stay muted: \(message)")
         case .runtime(let message):
-            return message.isEmpty ? "KRKR 启动失败。" : "KRKR 启动失败：\(message)"
+            return message.isEmpty ? String(localized: "KRKR failed to start.") : String(localized: "KRKR failed to start: \(message)")
         }
     }
 }
@@ -237,9 +237,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard let engineWindow else {
             AppDiagnostics.shared.event("UIKit", "SDL.window.missing")
             MikageKRKRRequestStop()
-            state = .failed("KRKR 没有创建可用的 SDL window。")
+            state = .failed(String(localized: "KRKR didn’t create a usable SDL window."))
             await restorePreviousOrientation()
-            throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
+            throw KRKRSessionError.runtime(String(localized: "KRKR didn’t create a usable SDL window."))
         }
 
         rendererLabel = configuration.renderer.displayName
@@ -414,7 +414,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             state = .idle
             completion?(.success(()))
         } else {
-            let detail = message ?? "KRKR runtime 已停止。"
+            let detail = message ?? String(localized: "KRKR runtime stopped.")
             state = .failed(detail)
             completion?(.failure(KRKRSessionError.runtime(detail)))
         }
@@ -944,7 +944,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         case "opengl":
             return "OpenGL ES"
         case "software/opengles2":
-            return "软件合成 · OpenGL ES"
+            return String(localized: "Software Compositing · OpenGL ES")
         case "vulkan":
             return "Vulkan"
         case "":

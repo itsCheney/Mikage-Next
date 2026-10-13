@@ -19,12 +19,14 @@ extension TimeInterval {
         return String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
     }
 
-    /// Short form for summaries: "3 小时 12 分" / "12 分" / "不到 1 分钟".
+    /// Short form for summaries: "3 hr 12 min" / "12 min" / "Less than 1 min".
     var playTimeSummary: String {
-        guard isFinite, self >= 60 else { return "不到 1 分钟" }
+        guard isFinite, self >= 60 else { return String(localized: "Less than 1 min") }
         let minutes = Int(self) / 60
         let hours = minutes / 60
-        return hours > 0 ? "\(hours) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+        return hours > 0
+            ? String(localized: "\(hours) hr \(minutes % 60) min")
+            : String(localized: "\(minutes) min")
     }
 }
 
@@ -67,10 +69,10 @@ extension View {
 
 /// Settings row label whose icon takes the app accent, as in the redesign.
 struct SettingLabel: View {
-    let title: String
+    let title: LocalizedStringKey
     let symbol: String
 
-    init(_ title: String, systemImage symbol: String) {
+    init(_ title: LocalizedStringKey, systemImage symbol: String) {
         self.title = title
         self.symbol = symbol
     }
@@ -88,7 +90,7 @@ struct SettingLabel: View {
 
 struct RoundButton: View {
     let symbol: String
-    let label: String
+    let label: LocalizedStringKey
     let action: () -> Void
 
     var body: some View {

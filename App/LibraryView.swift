@@ -21,11 +21,11 @@ struct RootView: View {
                     Task { await model.refreshLibrary(showErrors: false) }
                 }
             }
-            .alert("提示", isPresented: Binding(
+            .alert("Notice", isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }
             )) {
-                Button("好", role: .cancel) { model.alert = nil }
+                Button("OK", role: .cancel) { model.alert = nil }
             } message: {
                 Text(model.alert ?? "")
             }
@@ -38,10 +38,10 @@ struct RootView: View {
     private var tabs: some View {
         if #available(iOS 18.0, *) {
             TabView(selection: $model.tab) {
-                Tab("游戏库", systemImage: "books.vertical", value: 0) {
+                Tab("Library", systemImage: "books.vertical", value: 0) {
                     LibraryView()
                 }
-                Tab("设置", systemImage: "gearshape", value: 1) {
+                Tab("Settings", systemImage: "gearshape", value: 1) {
                     SettingsView()
                 }
                 Tab(value: 2, role: .search) {
@@ -52,13 +52,13 @@ struct RootView: View {
         } else {
             TabView(selection: $model.tab) {
                 LibraryView()
-                    .tabItem { Label("游戏库", systemImage: "books.vertical.fill") }
+                    .tabItem { Label("Library", systemImage: "books.vertical.fill") }
                     .tag(0)
                 SettingsView()
-                    .tabItem { Label("设置", systemImage: "gearshape.fill") }
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                     .tag(1)
                 LibrarySearchView()
-                    .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
                     .tag(2)
             }
         }
@@ -104,7 +104,7 @@ struct LibraryView: View {
                             if model.importing || model.scanning {
                                 HStack {
                                     ProgressView()
-                                    Text(model.importing ? "正在复制游戏文件…" : "正在扫描游戏目录…")
+                                    Text(model.importing ? LocalizedStringKey("Copying game files…") : LocalizedStringKey("Scanning game folders…"))
                                 }
                                 .font(.subheadline)
                             }
@@ -151,7 +151,7 @@ struct LibraryView: View {
             MissingGamesView().environmentObject(model)
         }
         .confirmationDialog(
-            "选择游戏引擎",
+            "Choose Game Engine",
             isPresented: Binding(
                 get: { model.pendingImport != nil },
                 set: { if !$0 { model.pendingImport = nil } }
@@ -164,14 +164,14 @@ struct LibraryView: View {
                     Task { await model.importPending(pending, as: engine) }
                 }
             }
-            Button("取消", role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 model.pendingImport = nil
             }
         } message: { pending in
             if pending.detectedEngines.isEmpty {
-                Text("未能自动识别“\(pending.url.lastPathComponent)”，请选择它所属的引擎。")
+                Text("Couldn’t recognize “\(pending.url.lastPathComponent)”. Choose the engine it uses.")
             } else {
-                Text("检测到多个可能的引擎，请确认“\(pending.url.lastPathComponent)”的类型。")
+                Text("Several engines match “\(pending.url.lastPathComponent)”. Confirm which one it uses.")
             }
         }
     }
@@ -184,10 +184,10 @@ struct LibraryView: View {
     private func header(topInset: CGFloat) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("游戏库")
+                Text("Library")
                     .font(.largeTitle.bold())
                     .accessibilityAddTraits(.isHeader)
-                Text("\(model.displayedGames.count) 部作品")
+                Text("\(model.displayedGames.count) games")
                     .font(.subheadline.weight(.semibold))
             }
             Spacer(minLength: 0)
@@ -216,7 +216,7 @@ struct LibraryView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
+                .accessibilityLabel("Missing games: \(model.missingGames.count)")
                 .accessibilityIdentifier("missing-games-button")
             }
             viewMenu
@@ -245,27 +245,27 @@ struct LibraryView: View {
 
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("继续上次")
+                    Text("Continue Playing")
                         .font(.caption.weight(.semibold))
                         .tracking(2)
                         .opacity(0.9)
                     Text(game.title)
                         .font(regular ? .largeTitle.bold() : .title2.bold())
                         .lineLimit(2)
-                    Text("\(model.recency(game)) · 已玩 \(game.playTime.playTimeSummary)")
+                    Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
                         .font(regular ? .subheadline : .footnote)
                         .opacity(0.88)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button { model.launch(game) } label: {
-                    Label("继续", systemImage: "play.fill")
+                    Label("Resume", systemImage: "play.fill")
                         .font(.headline)
                         .padding(.horizontal, 4)
                 }
                 .nativeGlassButtonStyle(prominent: true)
                 .controlSize(.large)
-                .accessibilityLabel("继续上次：\(game.title)")
+                .accessibilityLabel("Continue Playing: \(game.title)")
             }
             .foregroundStyle(.white)
             .padding(.horizontal, regular ? 28 : 20)
@@ -277,42 +277,42 @@ struct LibraryView: View {
 
     private var viewMenu: some View {
         Menu {
-            Section("显示方式") {
-                Picker("显示方式", selection: $model.settings.listLayout) {
-                    Label("网格", systemImage: "square.grid.2x2").tag(false)
-                    Label("列表", systemImage: "list.bullet").tag(true)
+            Section("Layout") {
+                Picker("Layout", selection: $model.settings.listLayout) {
+                    Label("Grid", systemImage: "square.grid.2x2").tag(false)
+                    Label("List", systemImage: "list.bullet").tag(true)
                 }
             }
-            Section("排序方式") {
-                Picker("排序方式", selection: $model.settings.sort) {
+            Section("Sort By") {
+                Picker("Sort By", selection: $model.settings.sort) {
                     ForEach(LibrarySort.allCases, id: \.self) {
                         Text($0.displayName).tag($0)
                     }
                 }
             }
         } label: {
-            Label("显示与排序", systemImage: "ellipsis")
+            Label("View & Sort", systemImage: "ellipsis")
                 .labelStyle(.iconOnly)
         }
-        .accessibilityLabel("显示与排序")
+        .accessibilityLabel("View & Sort")
     }
 
     private var importMenu: some View {
         Menu {
             Button { importPicker = true } label: {
-                Label("导入文件夹", systemImage: "folder.badge.plus")
+                Label("Import Folder", systemImage: "folder.badge.plus")
             }
             Button {
-                model.alert = "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents 下的 krkr、ons、renpy 或 artemis 目录。"
+                model.alert = String(localized: "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly into the krkr, ons, renpy or artemis folder under Documents.")
             } label: {
-                Label("ZIP 与 Wi-Fi 导入", systemImage: "wifi")
+                Label("ZIP & Wi-Fi Import", systemImage: "wifi")
             }
         } label: {
-            Label("添加游戏", systemImage: "plus")
+            Label("Add Game", systemImage: "plus")
                 .labelStyle(.iconOnly)
         }
         .disabled(model.importing)
-        .accessibilityLabel("添加游戏")
+        .accessibilityLabel("Add Game")
     }
 
     // MARK: Sections
@@ -324,11 +324,12 @@ struct LibraryView: View {
 
         if !playable.isEmpty {
             HStack(alignment: .firstTextBaseline) {
-                Text("全部作品")
+                Text("All Games")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Text("\(playable.count) 部 · \(AppModel.size(playable.reduce(0) { $0 + $1.byteCount }))")
+                (Text("\(playable.count) games")
+                    + Text(verbatim: " · \(AppModel.size(playable.reduce(0) { $0 + $1.byteCount }))"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -337,10 +338,10 @@ struct LibraryView: View {
 
         if !comingSoon.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
-                Text("即将支持")
+                Text("Coming Soon")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
-                Text("已识别引擎，运行时接入后即可游玩")
+                Text("Engine recognized. Playable once its runtime is added.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -353,23 +354,23 @@ struct LibraryView: View {
     private var emptyLibrary: some View {
         if #available(iOS 17.0, *) {
             ContentUnavailableView {
-                Label("故事，从这里开始", systemImage: "books.vertical")
+                Label("Your Stories Start Here", systemImage: "books.vertical")
             } description: {
-                Text("把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。")
+                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
             } actions: {
-                Button("导入游戏") { importPicker = true }
+                Button("Import Game") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
             }
             .padding(.top, 60)
         } else {
             VStack(spacing: 15) {
-                Label("故事，从这里开始", systemImage: "books.vertical")
+                Label("Your Stories Start Here", systemImage: "books.vertical")
                     .font(.title3.weight(.semibold))
-                Text("把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。")
+                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("导入游戏") { importPicker = true }
+                Button("Import Game") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
             }
@@ -433,8 +434,8 @@ struct LibrarySearchView: View {
                 .padding(.bottom, 24)
             }
             .background(AppBackground())
-            .navigationTitle("搜索")
-            .searchable(text: $model.query, prompt: "搜索游戏")
+            .navigationTitle("Search")
+            .searchable(text: $model.query, prompt: "Search Games")
             .autocorrectionDisabled()
             .scrollDismissesKeyboard(.interactively)
         }
@@ -442,8 +443,8 @@ struct LibrarySearchView: View {
 
     @ViewBuilder
     private var emptyResults: some View {
-        let title = model.displayedGames.isEmpty ? "游戏库还是空的" : "没有找到游戏"
-        let detail = model.displayedGames.isEmpty ? "先在游戏库中导入游戏" : "试试其他名称"
+        let title: LocalizedStringKey = model.displayedGames.isEmpty ? "Your Library Is Empty" : "No Games Found"
+        let detail: LocalizedStringKey = model.displayedGames.isEmpty ? "Import games in the Library first" : "Try a different name"
         if #available(iOS 17.0, *) {
             ContentUnavailableView(
                 title,
@@ -488,13 +489,13 @@ struct GameGrid: View {
                 .disabled(!game.availability.canLaunch)
                 .contextMenu {
                     Button { selectedGame = game } label: {
-                        Label("作品详情", systemImage: "info.circle")
+                        Label("Game Details", systemImage: "info.circle")
                     }
                 }
                 .accessibilityLabel(
                     game.availability.canLaunch
-                        ? "运行 \(game.title)"
-                        : "\(game.title)，\(model.availabilityText(game))"
+                        ? Text("Play \(game.title)")
+                        : Text("\(game.title), \(model.availabilityText(game))")
                 )
             }
         }
@@ -620,9 +621,9 @@ struct MissingGamesView: View {
                 if model.missingGames.isEmpty {
                     if #available(iOS 17.0, *) {
                         ContentUnavailableView(
-                            "没有缺失游戏",
+                            "No Missing Games",
                             systemImage: "checkmark.circle",
-                            description: Text("被移走的游戏文件夹会显示在这里。")
+                            description: Text("Game folders that were moved away appear here.")
                         )
                     }
                 } else {
@@ -634,14 +635,14 @@ struct MissingGamesView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(game.title).font(.headline)
-                                    Text("Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
+                                    Text(verbatim: "Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
-                                    Text("累计游玩 \(game.playTime.playTimeClock)")
+                                    Text("Total play time: \(game.playTime.playTimeClock)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Text("最近游玩 \(model.recency(game))")
+                                    Text("Last played: \(model.recency(game))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -651,13 +652,13 @@ struct MissingGamesView: View {
                                     relinkGame = game
                                     relinkPickerShown = true
                                 } label: {
-                                    Label("重新关联", systemImage: "folder.badge.plus")
+                                    Label("Relink", systemImage: "folder.badge.plus")
                                 }
                                 Spacer()
                                 Button(role: .destructive) {
                                     deleteGame = game
                                 } label: {
-                                    Label("删除记录", systemImage: "trash")
+                                    Label("Delete Record", systemImage: "trash")
                                 }
                             }
                             .buttonStyle(.borderless)
@@ -666,11 +667,11 @@ struct MissingGamesView: View {
                     }
                 }
             }
-            .navigationTitle("缺失游戏")
+            .navigationTitle("Missing Games")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -690,7 +691,7 @@ struct MissingGamesView: View {
             }
         }
         .confirmationDialog(
-            "永久删除这条游戏记录？",
+            "Permanently delete this game record?",
             isPresented: Binding(
                 get: { deleteGame != nil },
                 set: { if !$0 { deleteGame = nil } }
@@ -698,13 +699,13 @@ struct MissingGamesView: View {
             titleVisibility: .visible,
             presenting: deleteGame
         ) { game in
-            Button("删除记录与历史", role: .destructive) {
+            Button("Delete Record and History", role: .destructive) {
                 deleteGame = nil
                 Task { await model.forget(game) }
             }
-            Button("取消", role: .cancel) { deleteGame = nil }
+            Button("Cancel", role: .cancel) { deleteGame = nil }
         } message: { _ in
-            Text("这不会删除你另外存放的游戏文件夹，但会移除游玩历史和手动封面。")
+            Text("This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover.")
         }
     }
 
@@ -726,13 +727,13 @@ struct GameDetailView: View {
                 GameCover(game: current)
                     .frame(height: 170)
                     .listRowInsets(EdgeInsets())
-                LabeledContent("名称", value: current.title)
-                LabeledContent("引擎", value: current.engine.displayName)
-                LabeledContent("目录", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
-                LabeledContent("状态", value: model.availabilityText(current))
-                LabeledContent("文件大小", value: AppModel.size(current.byteCount))
-                LabeledContent("最近游玩", value: model.recency(current))
-                LabeledContent("累计游玩") {
+                LabeledContent("Name", value: current.title)
+                LabeledContent("Engine", value: current.engine.displayName)
+                LabeledContent("Folder", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
+                LabeledContent("Status", value: model.availabilityText(current))
+                LabeledContent("File Size", value: AppModel.size(current.byteCount))
+                LabeledContent("Last Played", value: model.recency(current))
+                LabeledContent("Total Play Time") {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(current.playTime.playTimeClock)
                             .monospacedDigit()
@@ -743,20 +744,20 @@ struct GameDetailView: View {
                         }
                     }
                 }
-                .accessibilityLabel("累计游玩 \(current.playTime.playTimeSummary)")
-                LabeledContent("启动次数", value: "\(current.launchCount) 次")
+                .accessibilityLabel("Total play time: \(current.playTime.playTimeSummary)")
+                LabeledContent("Launches", value: String(localized: "\(current.launchCount) times"))
                 PhotosPicker(selection: $photo, matching: .images) {
-                    Label("更换封面", systemImage: "photo")
+                    Label("Change Cover", systemImage: "photo")
                 }
-                Text("长按游戏卡片可打开此页面。只有 KiriKiri 引擎已接入运行时；引擎识别不代表已经验证兼容性。")
+                Text("Long-press a game card to open this page. Only the KiriKiri engine has a runtime so far; a recognized engine doesn’t mean compatibility has been verified.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            .navigationTitle("作品详情")
+            .navigationTitle("Game Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("Done") { dismiss() }
                 }
             }
             .onChange(of: photo) { item in

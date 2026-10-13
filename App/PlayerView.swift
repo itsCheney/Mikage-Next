@@ -24,7 +24,7 @@ struct PlayerView: View {
             .allowsHitTesting(false)
 
             if engineStarting || engineStopping {
-                ProgressView(engineStopping ? "正在结束游戏…" : "正在准备横屏…")
+                ProgressView(engineStopping ? LocalizedStringKey("Ending game…") : LocalizedStringKey("Preparing landscape…"))
                     .tint(.white)
                     .foregroundStyle(.white)
             }

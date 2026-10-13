@@ -83,9 +83,9 @@ enum Appearance: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .system: return "自动"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return String(localized: "Automatic")
+        case .light: return String(localized: "Light")
+        case .dark: return String(localized: "Dark")
         }
     }
 
@@ -120,7 +120,7 @@ enum RendererPreference: String, StoredSetting {
     var displayName: String {
         switch self {
         case .metal: return "Metal"
-        case .softwareMetal: return "软件合成 · Metal"
+        case .softwareMetal: return String(localized: "Software Compositing · Metal")
         }
     }
 }
@@ -136,8 +136,8 @@ enum PlayerBackground: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .cover: return "游戏封面"
-        case .black: return "纯黑"
+        case .cover: return String(localized: "Game Cover")
+        case .black: return String(localized: "Black")
         }
     }
 }
@@ -158,10 +158,10 @@ enum LibrarySort: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .recentlyPlayed: return "最近游玩"
-        case .dateAdded: return "添加时间"
-        case .title: return "名称"
-        case .size: return "大小"
+        case .recentlyPlayed: return String(localized: "Recently Played")
+        case .dateAdded: return String(localized: "Date Added")
+        case .title: return String(localized: "Name")
+        case .size: return String(localized: "Size")
         }
     }
 }

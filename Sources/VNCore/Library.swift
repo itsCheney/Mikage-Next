@@ -463,21 +463,21 @@ public enum LibraryError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .noGame:
-            return "没有识别到支持的游戏结构，请手动选择引擎。"
+            return String(localized: "No supported game structure was found. Choose the engine manually.")
         case .unsafePath:
-            return "游戏文件路径超出了允许的目录。"
+            return String(localized: "The game file path is outside the allowed folder.")
         case .symbolicLink:
-            return "游戏目录包含符号链接，暂不支持导入。"
+            return String(localized: "The game folder contains symbolic links, which can’t be imported yet.")
         case .unsupportedSchema(let version):
-            return "游戏库版本 \(version) 暂不受支持，请升级应用。"
+            return String(localized: "Library version \(version) isn’t supported. Please update the app.")
         case .duplicateName(let name):
-            return "“\(name)”已存在于目标引擎目录中，请先重命名文件夹。"
+            return String(localized: "“\(name)” already exists in the target engine folder. Rename the folder first.")
         case .invalidFolderName:
-            return "游戏文件夹名称无效。"
+            return String(localized: "The game folder name is invalid.")
         case .engineMismatch(let expected, let detected):
-            return "所选文件夹识别为 \(detected.displayName)，无法关联到 \(expected.displayName) 游戏。"
+            return String(localized: "The selected folder was recognized as \(detected.displayName) and can’t be linked to a \(expected.displayName) game.")
         case .recordNotFound:
-            return "游戏记录已经不存在。"
+            return String(localized: "The game record no longer exists.")
         }
     }
 }
@@ -505,7 +505,7 @@ public enum GameScanner {
         if !engine.isLaunchSupported {
             availability = .unsupported
         } else if launch == nil {
-            availability = .invalid("未找到有效的 startup.tjs 或 XP3")
+            availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
         } else {
             availability = .ready
         }

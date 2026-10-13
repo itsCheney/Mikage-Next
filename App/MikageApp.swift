@@ -100,7 +100,7 @@ final class AppModel: ObservableObject {
                 try AppDiagnostics.shared.configure(enabled: defaults.bool(forKey: AppDiagnostics.preferenceKey))
             } catch {
                 defaults.set(false, forKey: AppDiagnostics.preferenceKey)
-                alert = "无法启动日志记录：\(error.localizedDescription)"
+                alert = String(localized: "Couldn’t start logging: \(error.localizedDescription)")
             }
             AppDiagnostics.shared.event("app", "launch")
         }
@@ -113,10 +113,10 @@ final class AppModel: ObservableObject {
         } catch {
             libraryReadable = false
             AppDiagnostics.shared.event("library", "initialization.failed", ["error": error.localizedDescription])
-            alert = """
-                无法读取游戏库：\(error.localizedDescription)
-                原文件已保留在 Application Support/Mikage/library-v2.json。下拉刷新可重试。
-                """
+            alert = String(localized: """
+                Couldn’t read the library: \(error.localizedDescription)
+                The original file was kept at Application Support/Mikage/library-v2.json. Pull down to refresh and try again.
+                """)
         }
     }
 
@@ -181,9 +181,10 @@ final class AppModel: ObservableObject {
     }
 
     func recency(_ game: GameRecord) -> String {
-        guard let date = game.lastPlayedAt else { return "尚未游玩" }
+        guard let date = game.lastPlayedAt else { return String(localized: "Not played yet") }
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
+        // Match the language the UI resolved to, not the device region.
+        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 
@@ -191,14 +192,14 @@ final class AppModel: ObservableObject {
         switch game.availability {
         case .ready:
             return game.launchTargetKind == .archive
-                ? "启动：\(game.launchTarget ?? "XP3")"
-                : "可以启动"
+                ? String(localized: "Launches \(game.launchTarget ?? "XP3")")
+                : String(localized: "Ready to launch")
         case .invalid(let reason):
             return reason
         case .unsupported:
-            return "\(game.engine.displayName) 引擎尚未接入"
+            return String(localized: "The \(game.engine.displayName) engine isn’t supported yet")
         case .missing:
-            return "文件夹已移除"
+            return String(localized: "Folder removed")
         }
     }
 
@@ -238,7 +239,7 @@ final class AppModel: ObservableObject {
         // A pull-to-refresh is the retry path out of a failed launch load.
         guard retryLoadIfNeeded() else {
             if showErrors {
-                alert = "游戏库文件仍无法读取。请检查 Application Support/Mikage/library-v2.json。"
+                alert = String(localized: "The library file still can’t be read. Check Application Support/Mikage/library-v2.json.")
             }
             return
         }
@@ -255,7 +256,7 @@ final class AppModel: ObservableObject {
         } catch {
             AppDiagnostics.shared.event("library", "scan.failed", ["error": error.localizedDescription])
             if showErrors {
-                alert = "扫描游戏目录失败：\(error.localizedDescription)"
+                alert = String(localized: "Couldn’t scan game folders: \(error.localizedDescription)")
             }
         }
     }
@@ -368,14 +369,14 @@ final class AppModel: ObservableObject {
             guard let updated else {
                 // The folder was forgotten or relinked while the game ran.
                 AppDiagnostics.shared.event("library", "history.recordMissing", ["folder": game.folderName])
-                alert = "游玩记录未能保存：“\(game.title)”的记录已不存在。"
+                alert = String(localized: "Play history wasn’t saved: the record for “\(game.title)” no longer exists.")
                 return
             }
             if let activeIndex = games.firstIndex(where: { $0.id == game.id }) {
                 games[activeIndex] = updated
             }
         } catch {
-            alert = "游玩记录保存失败：\(error.localizedDescription)"
+            alert = String(localized: "Couldn’t save play history: \(error.localizedDescription)")
         }
     }
 

@@ -166,7 +166,7 @@ final class KRKROverlayCoordinator: NSObject {
         let button = UIButton(configuration: configuration)
         button.tintColor = .systemIndigo
         button.setImage(UIImage(systemName: "moon.stars.fill"), for: .normal)
-        button.accessibilityLabel = "唤出游戏菜单"
+        button.accessibilityLabel = String(localized: "Open Game Menu")
         button.alpha = max(0.1, min(opacity, 1))
         button.frame = CGRect(
             x: max(view.bounds.width - 72, 12),
@@ -241,29 +241,29 @@ private struct KRKROverlayView: View {
     private var performanceHUD: some View {
         let stats = model.performance
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · 间隔 \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
-            Text("主线程 \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · 峰值 \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · interval \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("Main thread \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · peak \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
             if stats.gpuSubmissionTimeMilliseconds >= 0 {
-                Text("GPU 提交 \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
+                Text("GPU submit \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
             }
             if stats.presentationWaitTimeMilliseconds >= 0 {
-                Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
+                Text("Present wait \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
             }
-            Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
-            Text("图层合成 · \(stats.gpuLayerComposition ? "GPU Metal" : "软件")")
+            Text(verbatim: "\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
+            stats.gpuLayerComposition ? Text("Layer compositing · GPU Metal") : Text("Layer compositing · Software")
             if stats.gpuLayerComposition {
-                Text("算子 \(stats.gpuLayerOperations) · CPU 回退 \(stats.layerCPUFallbacks)")
-                Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
+                Text("Ops \(stats.gpuLayerOperations) · CPU fallbacks \(stats.layerCPUFallbacks)")
+                Text("Upload \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · readback \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
             }
-            Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            Text("Memory \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
             if stats.processCPUPercent >= 0 {
-                Text("全部线程 CPU \(stats.processCPUPercent, specifier: "%.0f")%")
+                Text("All threads CPU \(stats.processCPUPercent, specifier: "%.0f%%")")
                 if !stats.busiestThreads.isEmpty {
                     Text(stats.busiestThreads)
                         .lineLimit(1)
                 }
             }
-            Text("本次游玩 \(duration(stats.elapsedSeconds))")
+            Text("Session \(duration(stats.elapsedSeconds))")
         }
         .font(.system(size: 12, design: .monospaced))
         .foregroundStyle(.white)
@@ -279,13 +279,13 @@ private struct KRKROverlayView: View {
                     Text(model.gameTitle)
                         .font(.headline)
                         .lineLimit(1)
-                    Text("本次已游玩 \(duration(model.performance.elapsedSeconds))")
+                    Text("Played \(duration(model.performance.elapsedSeconds)) this session")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
                 Spacer(minLength: 0)
-                RoundButton(symbol: "xmark", label: "关闭菜单") {
+                RoundButton(symbol: "xmark", label: "Close Menu") {
                     model.onCloseMenu?()
                 }
             }
@@ -311,19 +311,19 @@ private struct KRKROverlayView: View {
 
     private var actionGrid: some View {
         HStack(spacing: 8) {
-            action("截图", "camera") {
+            action("Screenshot", "camera") {
                 model.sharedImage = model.onScreenshot?()
             }
             action(
-                "性能",
+                "Performance",
                 "gauge.with.dots.needle.33percent",
                 highlighted: model.performanceVisible
             ) {
                 model.onTogglePerformance?()
             }
-            .accessibilityValue(model.performanceVisible ? "已开启" : "已关闭")
+            .accessibilityValue(model.performanceVisible ? Text("On") : Text("Off"))
             .accessibilityIdentifier("krkr-performance-toggle")
-            action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
+            action("Quit", "rectangle.portrait.and.arrow.right", destructive: true) {
                 model.onExit?()
             }
         }
@@ -331,7 +331,7 @@ private struct KRKROverlayView: View {
 
     @ViewBuilder
     private func action(
-        _ title: String,
+        _ title: LocalizedStringKey,
         _ icon: String,
         destructive: Bool = false,
         highlighted: Bool = false,
