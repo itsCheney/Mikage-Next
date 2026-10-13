@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage
 import PhotosUI
 import UniformTypeIdentifiers
 import VNCore
@@ -95,7 +96,7 @@ struct LibraryView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if let latest = model.latest {
-                            continueCard(latest, topInset: topInset)
+                            ContinueBanner(game: latest, topPadding: headerHeight, regular: regular)
                         } else {
                             Color.clear.frame(height: headerHeight)
                         }
@@ -227,54 +228,6 @@ struct LibraryView: View {
         .nativeGlassCapsule()
     }
 
-    /// The last played game fills the top of the library under the pinned
-    /// header, with Resume as the one prominent action.
-    private func continueCard(_ game: GameRecord, topInset: CGFloat) -> some View {
-        ZStack(alignment: .bottom) {
-            GameCover(game: game)
-                .accessibilityHidden(true)
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.45),
-                    .init(color: .black.opacity(0.72), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .allowsHitTesting(false)
-
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Continue Playing")
-                        .font(.caption.weight(.semibold))
-                        .tracking(2)
-                        .opacity(0.9)
-                    Text(game.title)
-                        .font(regular ? .largeTitle.bold() : .title2.bold())
-                        .lineLimit(2)
-                    Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
-                        .font(regular ? .subheadline : .footnote)
-                        .opacity(0.88)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Button { model.launch(game) } label: {
-                    Label("Resume", systemImage: "play.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 4)
-                }
-                .nativeGlassButtonStyle(prominent: true)
-                .controlSize(.large)
-                .accessibilityLabel("Continue Playing: \(game.title)")
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, regular ? 28 : 20)
-            .padding(.bottom, regular ? 26 : 22)
-        }
-        .frame(height: (regular ? 380 : 266) + topInset)
-        .environment(\.colorScheme, .dark)
-    }
-
     private var viewMenu: some View {
         Menu {
             Section("Layout") {
@@ -381,6 +334,158 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity)
             .padding(.top, 60)
         }
+    }
+}
+
+/// The last played game under the pinned header. The whole cover is shown
+/// as a card, so none of it is cropped by the status bar or the header, over
+/// a backdrop built from the cover itself: its average color, then a heavily
+/// blurred copy, which also gives the header blur something to work with.
+private struct ContinueBanner: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.displayScale) private var displayScale
+    let game: GameRecord
+    /// Height of the pinned header the banner starts under.
+    let topPadding: CGFloat
+    let regular: Bool
+    @State private var image: UIImage?
+    @State private var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            artwork
+                .frame(maxWidth: .infinity, maxHeight: regular ? 320 : 220)
+
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Continue Playing")
+                        .font(.caption.weight(.semibold))
+                        .tracking(2)
+                        .opacity(0.9)
+                    Text(game.title)
+                        .font(regular ? .largeTitle.bold() : .title2.bold())
+                        .lineLimit(2)
+                    Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
+                        .font(regular ? .subheadline : .footnote)
+                        .opacity(0.88)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button { model.launch(game) } label: {
+                    Label("Resume", systemImage: "play.fill")
+                        .font(.headline)
+                        .padding(.horizontal, 4)
+                }
+                .nativeGlassButtonStyle(prominent: true)
+                .controlSize(.large)
+                .accessibilityLabel("Continue Playing: \(game.title)")
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, regular ? 28 : 20)
+        .padding(.top, topPadding + 8)
+        .padding(.bottom, regular ? 26 : 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { backdrop }
+        .environment(\.colorScheme, .dark)
+        .task(id: model.coverURL(game)?.path ?? game.id.uuidString) {
+            await load()
+        }
+    }
+
+    /// The cover at its own aspect ratio, never cropped.
+    @ViewBuilder
+    private var artwork: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Color.white.opacity(0.08)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .overlay(
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(.secondary)
+                    )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .accessibilityHidden(true)
+    }
+
+    private var backdrop: some View {
+        ZStack {
+            (tint ?? Color(white: 0.22))
+            if let image {
+                // Laid out as an overlay on a flexible view so the oversized
+                // fill image cannot grow the backdrop past the banner.
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .blur(radius: 60, opaque: true)
+                            .opacity(0.8)
+                    }
+                    .clipped()
+            }
+            // Keeps white text readable on light covers.
+            LinearGradient(
+                colors: [.black.opacity(0.15), .black.opacity(0.45)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func load() async {
+        guard let url = model.coverURL(game) else {
+            image = nil
+            tint = nil
+            return
+        }
+        let decoded = await CoverCache.shared.image(
+            for: url,
+            size: CGSize(width: 600, height: 600),
+            scale: displayScale
+        )
+        guard !Task.isCancelled else { return }
+        let color = await Task.detached(priority: .utility) {
+            decoded.flatMap(ContinueBanner.averageColor(of:))
+        }.value
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            image = decoded
+            tint = color
+        }
+    }
+
+    /// The cover's mean color, from Core Image's area-average filter.
+    private static func averageColor(of image: UIImage) -> Color? {
+        guard let cgImage = image.cgImage else { return nil }
+        let input = CIImage(cgImage: cgImage)
+        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
+            kCIInputImageKey: input,
+            kCIInputExtentKey: CIVector(cgRect: input.extent)
+        ]), let output = filter.outputImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: NSNull()]).render(
+            output,
+            toBitmap: &pixel,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: nil
+        )
+        return Color(
+            red: Double(pixel[0]) / 255,
+            green: Double(pixel[1]) / 255,
+            blue: Double(pixel[2]) / 255
+        )
     }
 }
 
