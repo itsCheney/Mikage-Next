@@ -1,6 +1,11 @@
 name: iOS build
 on:
   workflow_dispatch:
+    inputs:
+      force_native_tests:
+        description: Run the native runtime tests even if this runtime already passed them
+        type: boolean
+        default: false
   push:
     branches: [main, master, beta, metal_dev, codex/emote-perf]
   pull_request:
@@ -31,19 +36,57 @@ jobs:
           fi
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
+      # The native runtime tests below (Metal Layer comparison, Emote, TJS,
+      # PSB...) only read the KRKR runtime, their C++ harnesses, the scripts
+      # they run, and the App/Engine bridge two wiring checks inspect. When
+      # none of those, nor the toolchain, changed since a run that passed
+      # them, skip them: a pass marker is cached under a fingerprint of
+      # exactly those inputs. Git tree hashes cover the runtime submodule's
+      # pinned commit. Dispatch with force_native_tests to run them anyway.
+      - name: Fingerprint native runtime tests
+        id: native-fingerprint
+        run: |
+          {
+            echo "xcode=${XCODE_CACHE_KEY}"
+            echo "sdl3=$(brew list --versions sdl3)"
+            cmake --version | head -n 1
+            python3 --version
+            for path in Engine scripts App/Engine .github/workflows/ios.yml; do
+              echo "${path}=$(git rev-parse "HEAD:${path}")"
+            done
+            # Swift test targets run in their own steps below.
+            git ls-tree HEAD Tests/ | grep -Ev 'Tests/(MikageTests|VNCoreTests)$'
+          } | tee build-native-fingerprint.txt
+          echo "hash=$(shasum -a 256 build-native-fingerprint.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          rm build-native-fingerprint.txt
+      - name: Restore native runtime test result
+        id: native-tests
+        if: ${{ !inputs.force_native_tests }}
+        uses: actions/cache/restore@v4
+        with:
+          path: build/native-tests-passed
+          key: native-tests-passed-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-fingerprint.outputs.hash }}
+      - name: Report skipped native runtime tests
+        if: steps.native-tests.outputs.cache-hit == 'true'
+        run: |
+          echo "Runtime inputs unchanged since a passing run; skipping native runtime tests."
+          cat build/native-tests-passed
       - name: Build and test native Metal backend
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/MetalRenderBackend -B build/metal-render-tests \
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
       - name: Compare Metal Layer with software RenderManager
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/MetalLayer -B build/metal-layer-tests \
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-layer-tests --parallel
           ctest --test-dir build/metal-layer-tests --output-on-failure --verbose
       - name: Measure release Layer composition without validation
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/MetalLayer -B build/metal-layer-release \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
@@ -52,6 +95,7 @@ jobs:
           MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_SPECIALIZED_PIPELINES=0 build/metal-layer-release/metal-layer-tests --performance
           MTL_DEBUG_LAYER=0 MIKAGE_METAL_LAYER_TILE_RENDERER=0 build/metal-layer-release/metal-layer-tests --performance
       - name: Test TJS shutdown and reentrant finalizers
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/KRKRRuntime -B build/tjs-shutdown-tests
           cmake --build build/tjs-shutdown-tests --parallel
@@ -63,45 +107,64 @@ jobs:
           python3 scripts/check-krkr-point-read-trace.py
           python3 scripts/check-krkr-graphics-load.py --source Engine/KRKRRuntime/Source/cpp
       - name: Test bounded AlphaMovie decoding
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/AlphaMovie -B build/alpha-movie-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/alpha-movie-tests --parallel
           ctest --test-dir build/alpha-movie-tests --output-on-failure
       - name: Test Emote metadata and shared resource loading
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-metadata-tests --parallel
           ctest --test-dir build/emote-metadata-tests --output-on-failure
       - name: Test Emote animation integration
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-animation-tests --parallel
           ctest --test-dir build/emote-animation-tests --output-on-failure
       - name: Test Emote performance state and production node evaluation
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/EmotePerformance -B build/emote-performance-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-performance-tests --parallel
           ctest --test-dir build/emote-performance-tests --output-on-failure --verbose
       - name: Test native Array and Dictionary construction
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/TJSNativeFactories -B build/tjs-native-factory-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tjs-native-factory-tests --parallel
           ctest --test-dir build/tjs-native-factory-tests --output-on-failure
       - name: Test Release script stack attribution
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/TJSStackTrace -B build/tjs-stack-trace-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tjs-stack-trace-tests --parallel
           ctest --test-dir build/tjs-stack-trace-tests --output-on-failure
       - name: Test production PSB scene lifecycle attribution
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/psb-file-tests --parallel
           ctest --test-dir build/psb-file-tests --output-on-failure
       - name: Test layer input and pointer presentation lifecycle
+        if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/layer-input-tests --parallel
           ctest --test-dir build/layer-input-tests --output-on-failure
+      - name: Record native runtime test result
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          echo "Passed at ${GITHUB_SHA} in run ${GITHUB_RUN_ID} (${GITHUB_REF_NAME})" > build/native-tests-passed
+      - name: Save native runtime test result
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/native-tests-passed
+          key: native-tests-passed-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-fingerprint.outputs.hash }}
       - name: Test library import and persistence
         run: swift test
       # `build-krkr-ios.sh` falls back to this checkout only when the runner
