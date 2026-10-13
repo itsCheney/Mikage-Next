@@ -347,9 +347,8 @@ private struct CoverWall: View {
     @Environment(\.displayScale) private var displayScale
     let games: [GameRecord]
     @State private var covers: [WallCover] = []
-    @State private var moving = false
 
-    private struct WallCover {
+    fileprivate struct WallCover {
         let image: UIImage
         let dim: Bool
 
@@ -383,8 +382,6 @@ private struct CoverWall: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .task(id: coverKey) { await load() }
-        .onAppear { moving = !reduceMotion }
-        .onChange(of: reduceMotion) { moving = !$0 }
     }
 
     private var coverKey: String {
@@ -407,17 +404,39 @@ private struct CoverWall: View {
     }
 
     private func laneView(_ lane: Int) -> some View {
-        let picks = (0..<Self.perLane).map { covers[(lane * 3 + $0 * 5) % covers.count] }
-        let width = picks.reduce(0) { $0 + $1.width(at: Self.height) + Self.spacing }
-        let leftward = lane % 2 == 0
-        let duration = Double(48 + (lane * 7) % 20)
-        return HStack(spacing: Self.spacing) {
+        CoverLane(
+            covers: (0..<Self.perLane).map { covers[(lane * 3 + $0 * 5) % covers.count] },
+            height: Self.height,
+            spacing: Self.spacing,
+            leftward: lane % 2 == 0,
+            stagger: lane % 2 == 1 ? -Self.height : 0,
+            duration: Double(48 + (lane * 7) % 20),
+            reduceMotion: reduceMotion
+        )
+    }
+}
+
+/// One sliding row of the wall. It starts moving when it appears, which is
+/// after the covers have loaded, so the animation is never skipped.
+private struct CoverLane: View {
+    let covers: [CoverWall.WallCover]
+    let height: CGFloat
+    let spacing: CGFloat
+    let leftward: Bool
+    let stagger: CGFloat
+    let duration: Double
+    let reduceMotion: Bool
+    @State private var moving = false
+
+    var body: some View {
+        let width = covers.reduce(0) { $0 + $1.width(at: height) + spacing }
+        HStack(spacing: spacing) {
             // Doubled so the loop has no seam.
-            ForEach(Array((picks + picks).enumerated()), id: \.offset) { _, cover in
+            ForEach(Array((covers + covers).enumerated()), id: \.offset) { _, cover in
                 Image(uiImage: cover.image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: cover.width(at: Self.height), height: Self.height)
+                    .frame(width: cover.width(at: height), height: height)
                     .clipped()
                     .grayscale(cover.dim ? 0.85 : 0)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -425,11 +444,18 @@ private struct CoverWall: View {
             }
         }
         .fixedSize()
-        .offset(x: (lane % 2 == 1 ? -Self.height : 0) + (leftward == moving ? -width : 0))
-        .animation(
-            moving ? .linear(duration: duration).repeatForever(autoreverses: false) : .default,
-            value: moving
-        )
+        .offset(x: stagger + (leftward == moving ? -width : 0))
+        .onAppear { start(!reduceMotion) }
+        .onChange(of: reduceMotion) { start(!$0) }
+    }
+
+    private func start(_ move: Bool) {
+        // A fresh transaction, so the lane's insertion fade does not swallow it.
+        DispatchQueue.main.async {
+            withAnimation(move ? .linear(duration: duration).repeatForever(autoreverses: false) : .default) {
+                moving = move
+            }
+        }
     }
 }
 
