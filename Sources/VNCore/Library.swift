@@ -29,7 +29,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var isLaunchSupported: Bool { self == .kirikiri }
+    public var isLaunchSupported: Bool { self == .kirikiri || self == .onscripter }
 }
 
 public enum LaunchTargetKind: String, Codable, Sendable {
@@ -69,7 +69,7 @@ public struct LibraryRepository: Sendable {
     /// Saves of games removed with "keep saves", one folder per record id.
     public var keptSavesRoot: URL { metadataRoot.appendingPathComponent("KeptSaves", isDirectory: true) }
 
-    /// The folder KiriKiri games write their saves to, inside the game folder.
+    /// The folder games write their saves to, inside the game folder.
     public static let savesFolderName = "savedata"
 
     public func keptSavesURL(for id: UUID) -> URL {
@@ -608,6 +608,8 @@ public enum LibraryError: LocalizedError, Equatable {
 public enum GameScanner {
     private static let xp3Signature = Data([0x58, 0x50, 0x33, 0x0D, 0x0A, 0x20, 0x0A, 0x1A, 0x8B, 0x67, 0x01])
     private static let preferredXP3Names = ["启动游戏.xp3", "startup.xp3", "start.xp3", "boot.xp3", "data.xp3"]
+    /// Script files ONScripter Yuri opens, plain or obfuscated.
+    private static let onscripterScriptNames: Set<String> = ["0.txt", "00.txt", "nscript.dat", "nscr_sec.dat", "onscript.nt2", "onscript.nt3"]
     private static let preferredCoverNames = ["cover", "folder", "poster", "thumbnail", "icon"]
     private static let coverExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "webp"]
 
@@ -628,7 +630,9 @@ public enum GameScanner {
         if !engine.isLaunchSupported {
             availability = .unsupported
         } else if launch == nil {
-            availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
+            availability = .invalid(engine == .onscripter
+                ? String(localized: "No ONScripter script found (0.txt, 00.txt or nscript.dat)")
+                : String(localized: "No valid startup.tjs or XP3 found"))
         } else {
             availability = .ready
         }
@@ -646,6 +650,11 @@ public enum GameScanner {
     }
 
     public static func launchTarget(in directory: URL, engine: EngineID) throws -> (kind: LaunchTargetKind, relativePath: String)? {
+        if engine == .onscripter {
+            // ONScripter finds its script and archives in the game folder itself.
+            let names = Set(try rootFiles(in: directory).map { normalized($0.lastPathComponent) })
+            return names.isDisjoint(with: onscripterScriptNames) ? nil : (.directory, ".")
+        }
         guard engine == .kirikiri else { return nil }
         let entries = try rootFiles(in: directory)
         if entries.contains(where: { normalized($0.lastPathComponent) == normalized("startup.tjs") }) {
@@ -701,7 +710,7 @@ public enum GameScanner {
         if try launchTarget(in: directory, engine: .kirikiri) != nil {
             matches.append(.kirikiri)
         }
-        if !names.isDisjoint(with: ["0.txt", "00.txt", "nscript.dat", "nscr_sec.dat", "arc.nsa"]) {
+        if !names.isDisjoint(with: onscripterScriptNames.union(["arc.nsa"])) {
             matches.append(.onscripter)
         }
 

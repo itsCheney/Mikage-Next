@@ -2,7 +2,7 @@
 
 简体中文 · [English](README.en.md)
 
-Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏。ONScripter、Ren’Py 和 Artemis 是接下来的目标：这些游戏已经能被识别并显示在游戏库中，但在对应运行时接入之前暂时无法启动。
+Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏，通过 [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri) 支持 ONScripter 游戏。Ren’Py 和 Artemis 是接下来的目标：这些游戏已经能被识别并显示在游戏库中，但在对应运行时接入之前暂时无法启动。
 
 Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 
@@ -11,6 +11,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 **游戏库**
 - 每个引擎在 App 的“文稿”中有自己的文件夹：`krkr/`、`ons/`、`renpy/` 和 `artemis/`。用“文件”App 把游戏文件夹放进去，或者在游戏库右上角点 + 导入文件夹。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
+- ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏优先使用根目录的 `startup.tjs`；没有的话，依次在 `启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、`data.xp3` 中选择第一个通过签名校验的 XP3。
 - 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。
 - 可按最近游玩、添加日期、名称或大小排序。文件夹不见了的游戏会标为“缺失”，可以重新关联或删除。
@@ -40,7 +41,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 | 引擎 | 识别 | 运行 |
 | --- | --- | --- |
 | KiriKiri（KRKRSDL3） | 支持 | 支持 |
-| ONScripter | 支持 | 尚未支持 |
+| ONScripter（ONScripter Yuri） | 支持 | 支持（暂不支持 MIDI 和视频） |
 | Ren’Py | 支持 | 尚未支持 |
 | Artemis | 支持 | 尚未支持 |
 
@@ -56,6 +57,7 @@ cd Mikage-Next
 brew install cmake xcodegen
 bash scripts/build-sdl3-ios.sh   # 生成各引擎共享的 build/SDL3.xcframework
 bash scripts/build-krkr-ios.sh   # 生成 build/KRKRRuntime.xcframework
+bash scripts/build-ons-ios.sh    # 生成 build/ONSRuntime.xcframework
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -76,9 +78,10 @@ open Mikage.xcodeproj
 | 路径 | 内容 |
 | --- | --- |
 | `App/` | SwiftUI App：游戏库、游戏详情、播放器、设置、存储空间、Bangumi/VNDB 关联、字符串目录 |
-| `App/Engine/` | 在 App 内承载 KiriKiri 运行时的桥接层 |
+| `App/Engine/` | 在 App 内承载 KiriKiri 和 ONScripter 运行时的桥接层 |
 | `Sources/VNCore/` | Swift 包：游戏库扫描与导入、路径安全、Bangumi 和 VNDB 客户端、条目匹配 |
 | `Engine/KRKRRuntime/` | 以子模块固定版本的 KRKRSDL3 运行时（[krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)） |
+| `Engine/ONSRuntime/` | 以子模块固定版本的 ONScripter Yuri（[Mikage 分支](https://github.com/itsCheney/OnscripterYuri)），经 sdl2-compat 运行在共享的 SDL3 上 |
 | `Tests/` | Swift 单元测试和原生运行时测试 |
 | `scripts/` | 构建脚本和诊断分析工具 |
 | `docs/` | 设计笔记、问题排查记录和性能基线 |
@@ -87,6 +90,6 @@ open Mikage.xcodeproj
 
 Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
 
-内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。分发构建产物前请先阅读。
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。分发构建产物前请先阅读。
 
 KiriKiri、ONScripter、Ren’Py、Artemis、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。

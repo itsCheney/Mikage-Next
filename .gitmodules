@@ -6,3 +6,7 @@
 	path = Engine/SDL3/Source
 	url = https://github.com/libsdl-org/SDL.git
 	shallow = true
+[submodule "Engine/ONSRuntime/Source"]
+	path = Engine/ONSRuntime/Source
+	url = https://github.com/itsCheney/OnscripterYuri.git
+	branch = shared-sdl3/ons

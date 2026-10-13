@@ -31,6 +31,8 @@ targets:
       - package: VNCore
       - framework: build/KRKRRuntime.xcframework
         embed: true
+      - framework: build/ONSRuntime.xcframework
+        embed: true
       # One SDL3 shared by every engine runtime (scripts/build-sdl3-ios.sh).
       - framework: build/SDL3.xcframework
         embed: true

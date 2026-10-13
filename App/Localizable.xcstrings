@@ -3301,18 +3301,18 @@
         }
       }
     },
-    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime, which scans for and launches KiriKiri games automatically. ONScripter, Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content." : {
+    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games and ONScripter Yuri for ONScripter games. Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKRKRSDL3 ランタイムを内蔵し、KiriKiri ゲームの自動スキャンと起動に対応しています。ONScripter、Ren’Py、Artemis のフォルダはライブラリに表示されますが、ランタイムは今後対応予定です。\n\nアプリにゲームは含まれていません。"
+            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイムと、ONScripter ゲーム用の ONScripter Yuri を内蔵しています。Ren’Py と Artemis のフォルダはライブラリに表示されますが、ランタイムは今後対応予定です。\n\nアプリにゲームは含まれていません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n当前内置 KRKRSDL3 runtime，支持自动扫描并启动 KiriKiri 游戏。ONScripter、Ren’Py 与 Artemis 目录已接入游戏库，运行时将在后续阶段适配。\n\n应用不附带游戏内容。"
+            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime，以及用于 ONScripter 游戏的 ONScripter Yuri。Ren’Py 与 Artemis 目录已接入游戏库，运行时将在后续阶段适配。\n\n应用不附带游戏内容。"
           }
         }
       }
@@ -3543,6 +3543,24 @@
         }
       }
     },
+    "No ONScripter script found (0.txt, 00.txt or nscript.dat)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter のスクリプト（0.txt、00.txt、nscript.dat）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 ONScripter 脚本（0.txt、00.txt 或 nscript.dat）"
+          }
+        }
+      }
+    },
     "No supported game structure was found. Choose the engine manually." : {
       "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
       "extractionState" : "manual",
@@ -3751,6 +3769,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搁置"
+          }
+        }
+      }
+    },
+    "ONScripter didn’t create a usable window." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が使用可能なウインドウを作成しませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 没有创建可用的窗口。"
+          }
+        }
+      }
+    },
+    "ONScripter failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 启动失败。"
+          }
+        }
+      }
+    },
+    "ONScripter failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 启动失败：%@"
+          }
+        }
+      }
+    },
+    "ONScripter stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 已停止。"
+          }
+        }
+      }
+    },
+    "ONScripter stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 已停止：%@"
           }
         }
       }

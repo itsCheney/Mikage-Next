@@ -143,7 +143,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime, which scans for and launches KiriKiri games automatically. ONScripter, Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content."))
+                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games and ONScripter Yuri for ONScripter games. Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content."))
                     } label: {
                         SettingLabel("About Mikage", systemImage: "info.circle")
                     }

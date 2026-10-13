@@ -34,6 +34,8 @@ struct KRKRLaunchConfiguration {
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
     let skippedMovies: String?
+    /// Which runtime plays the game. KiriKiri-only fields are ignored by others.
+    var engine: EngineID = .kirikiri
 }
 
 enum KRKRSessionState: Equatable {
@@ -440,89 +442,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         window: UIWindow,
         controller: UIViewController
     ) async throws {
-        controller.setNeedsUpdateOfSupportedInterfaceOrientations()
-        window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        let preferences = UIWindowScene.GeometryPreferences.iOS(
-            interfaceOrientations: [.landscapeLeft, .landscapeRight]
-        )
-        AppDiagnostics.shared.event("UIKit", "geometry.landscape.request")
-        scene.requestGeometryUpdate(preferences) { error in
-            AppDiagnostics.shared.event("UIKit", "geometry.landscape.rejected", ["error": error.localizedDescription])
-        }
-        UIViewController.attemptRotationToDeviceOrientation()
-
-        for _ in 0..<80 {
-            let sceneLandscape = scene.interfaceOrientation.isLandscape
-            let sceneBounds = scene.coordinateSpace.bounds
-            let windowBounds = window.bounds
-            if sceneLandscape,
-               sceneBounds.width > sceneBounds.height,
-               windowBounds.width > windowBounds.height {
-                AppDiagnostics.shared.windows("geometry.landscape.ready")
-                await Task.yield()
-                return
-            }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-        AppDiagnostics.shared.windows("geometry.landscape.timeout")
-        throw KRKRSessionError.orientationUnavailable
+        try await EngineOrientation.prepareLandscape(scene: scene, window: window, controller: controller)
     }
 
     private func restorePreviousOrientation() async {
         guard let scene = windowScene else { return }
-        let targetOrientation = previousOrientation
-        let mask: UIInterfaceOrientationMask
-        switch targetOrientation {
-        case .portrait:
-            mask = .portrait
-        case .portraitUpsideDown:
-            mask = .portraitUpsideDown
-        case .landscapeLeft:
-            mask = .landscapeLeft
-        case .landscapeRight:
-            mask = .landscapeRight
-        default:
-            mask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-        }
-        hostWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
-        AppDiagnostics.shared.event("UIKit", "geometry.restore.request", ["orientation": String(targetOrientation.rawValue)])
-        scene.requestGeometryUpdate(preferences) { error in
-            AppDiagnostics.shared.event("UIKit", "geometry.restore.rejected", ["error": error.localizedDescription])
-        }
-        UIViewController.attemptRotationToDeviceOrientation()
-
-        let expectsPortrait = targetOrientation.isPortrait ||
-            (targetOrientation == .unknown && UIDevice.current.userInterfaceIdiom != .pad)
-        let expectsLandscape = targetOrientation.isLandscape
-        var stableLayoutSamples = 0
-        for _ in 0..<60 {
-            let sceneBounds = scene.coordinateSpace.bounds
-            let windowBounds = hostWindow?.bounds ?? .zero
-            let layoutMatches: Bool
-            if expectsPortrait {
-                layoutMatches = scene.interfaceOrientation.isPortrait &&
-                    sceneBounds.height > sceneBounds.width &&
-                    windowBounds.height > windowBounds.width
-            } else if expectsLandscape {
-                layoutMatches = scene.interfaceOrientation.isLandscape &&
-                    sceneBounds.width > sceneBounds.height &&
-                    windowBounds.width > windowBounds.height
-            } else {
-                layoutMatches = true
-            }
-
-            if layoutMatches {
-                stableLayoutSamples += 1
-                if stableLayoutSamples >= 3 { break }
-            } else {
-                stableLayoutSamples = 0
-            }
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-        hostWindow?.layoutIfNeeded()
-        AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        await EngineOrientation.restore(scene: scene, to: previousOrientation, hostWindow: hostWindow)
         windowScene = nil
         previousOrientation = .unknown
     }

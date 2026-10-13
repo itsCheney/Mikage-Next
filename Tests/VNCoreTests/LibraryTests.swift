@@ -141,13 +141,35 @@ final class LibraryTests: XCTestCase {
 
     func testUnsupportedEngineIsVisibleButCannotLaunch() throws {
         try repository.ensureStructure()
-        let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("ONS Game")
-        try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
-        try Data("ons".utf8).write(to: ons.appendingPathComponent("0.txt"))
+        let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("RenPy Game")
+        try FileManager.default.createDirectory(at: renpy.appendingPathComponent("game"), withIntermediateDirectories: true)
+        try Data("label start:".utf8).write(to: renpy.appendingPathComponent("game/script.rpy"))
         let game = try repository.scan().active[0]
-        XCTAssertEqual(game.engine, .onscripter)
+        XCTAssertEqual(game.engine, .renpy)
         XCTAssertEqual(game.availability, .unsupported)
         XCTAssertFalse(game.availability.canLaunch)
+    }
+
+    func testOnscripterGameLaunchesFromItsFolder() throws {
+        try repository.ensureStructure()
+        let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("ONS Game")
+        try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
+        try Data("ons".utf8).write(to: ons.appendingPathComponent("nscript.dat"))
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .onscripter)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(try repository.entryPoint(for: game).standardizedFileURL, try repository.directory(for: game).standardizedFileURL)
+    }
+
+    func testOnscripterFolderWithoutScriptIsInvalid() throws {
+        try repository.ensureStructure()
+        let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("Archives Only")
+        try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
+        try Data("nsa".utf8).write(to: ons.appendingPathComponent("arc.nsa"))
+        let game = try repository.scan().active[0]
+        XCTAssertFalse(game.availability.canLaunch)
+        XCTAssertNotEqual(game.availability, .unsupported)
     }
 
     func testOldUUIDLibraryIsIgnoredAndUntouched() throws {

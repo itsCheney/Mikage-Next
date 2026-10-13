@@ -114,7 +114,10 @@ final class AppModel: ObservableObject {
     ) {
         self.defaults = defaults
         self.repository = repository ?? Self.appRepository()
-        krkrSession = session ?? NativeKRKRSession()
+        krkrSession = session ?? EngineSessionRouter(sessions: [
+            .kirikiri: NativeKRKRSession(),
+            .onscripter: NativeONSSession()
+        ])
         self.tokens = tokens ?? KeychainTokenStore()
 
         let stored = defaults.data(forKey: Self.settingsKey)
@@ -256,7 +259,7 @@ final class AppModel: ObservableObject {
 
     func launch(_ game: GameRecord) {
         AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName])
-        guard game.engine == .kirikiri, game.availability.canLaunch else {
+        guard game.engine.isLaunchSupported, game.availability.canLaunch else {
             alert = availabilityText(game)
             return
         }
@@ -264,7 +267,7 @@ final class AppModel: ObservableObject {
     }
 
     func launchConfiguration(for game: GameRecord) throws -> KRKRLaunchConfiguration {
-        guard game.engine == .kirikiri, game.availability.canLaunch else {
+        guard game.engine.isLaunchSupported, game.availability.canLaunch else {
             throw LibraryError.noGame
         }
         let directory = try repository.directory(for: game)
@@ -281,7 +284,8 @@ final class AppModel: ObservableObject {
             experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,
             gameTitle: displayTitle(game),
-            skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)
+            skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos),
+            engine: game.engine
         )
     }
 

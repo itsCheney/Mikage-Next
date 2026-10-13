@@ -70,7 +70,8 @@ final class AppModelTests: XCTestCase {
         try repository.ensureStructure()
         let folder = repository.engineRoot(for: engine).appendingPathComponent(name)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try Data("// sample".utf8).write(to: folder.appendingPathComponent("startup.tjs"))
+        let script = engine == .onscripter ? "0.txt" : "startup.tjs"
+        try Data("// sample".utf8).write(to: folder.appendingPathComponent(script))
     }
 
     func testRecordPlaybackAccumulatesTimeAndLaunchCount() throws {
@@ -128,7 +129,7 @@ final class AppModelTests: XCTestCase {
     }
 
     func testUnsupportedEngineIsRefusedBeforeReachingTheRuntime() throws {
-        try addGame(named: "ONS Game", engine: .onscripter)
+        try addGame(named: "RenPy Game", engine: .renpy)
         let model = makeModel()
         settle { await model.refreshLibrary() }
         let game = try XCTUnwrap(model.games.first)
@@ -138,6 +139,20 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.player)
         XCTAssertNotNil(model.alert)
         XCTAssertThrowsError(try model.launchConfiguration(for: game))
+    }
+
+    func testOnscripterGameLaunchesWithItsEngine() throws {
+        try addGame(named: "ONS Game", engine: .onscripter)
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.launch(game)
+        let configuration = try model.launchConfiguration(for: game)
+
+        XCTAssertEqual(model.player?.id, game.id)
+        XCTAssertEqual(configuration.engine, .onscripter)
+        XCTAssertEqual(configuration.entryPoint.standardizedFileURL, configuration.gameDirectory.standardizedFileURL)
     }
 
     func testLaunchConfigurationCarriesTheStoredRendererRawValue() throws {

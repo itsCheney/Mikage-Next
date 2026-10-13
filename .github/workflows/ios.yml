@@ -37,6 +37,9 @@ jobs:
       - name: Record shared SDL3 revision
         id: sdl3-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/SDL3/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record ONScripter runtime revision
+        id: ons-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/ONSRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -255,6 +258,27 @@ jobs:
         with:
           path: build/KRKRRuntime.xcframework
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
+      # ONScripter runs on the shared SDL3 through sdl2-compat, which its
+      # CMake build fetches at a pinned commit along with SDL2_image,
+      # SDL2_mixer, SDL2_ttf and Lua.
+      - name: Restore ONScripter runtime framework
+        id: cache-ons-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/ONSRuntime.xcframework
+          key: ons-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ons-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.ons-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Build ONScripter runtime framework
+        if: steps.cache-ons-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-ons-ios.sh 2>&1 | tee build/ons-runtime-build.log
+      - name: Save ONScripter runtime framework
+        if: steps.cache-ons-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/ONSRuntime.xcframework
+          key: ${{ steps.cache-ons-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py
