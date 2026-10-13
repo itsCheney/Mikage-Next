@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import VNCore
 
@@ -483,8 +484,10 @@ extension AppModel {
     /// Downloads the poster and banner the current settings call for.
     /// Each file gets a fresh name, so cached decodes of the old one never
     /// show for the new art.
-    func refreshArtwork(for id: UUID) async {
-        guard let link = record(id)?.link else { return }
+    /// Returns why the banner could not be fetched, if it could not.
+    @discardableResult
+    func refreshArtwork(for id: UUID) async -> String? {
+        guard let link = record(id)?.link else { return nil }
         let hide = settings.hideSensitiveImages
         // The details page's cover is the service's own and never chosen.
         let poster = link.metadata.poster(hidingSensitive: hide)?.url
@@ -494,14 +497,17 @@ extension AppModel {
         var bannerName = link.bannerName
         var posterSource = link.posterSource
         var bannerSource = link.bannerSource
+        var bannerFailure: String?
         // A file that never arrived, or was lost, is fetched again.
         if poster != link.posterSource || repository.artworkURL(named: link.posterName) == nil {
-            posterName = await download(poster, for: id, kind: "poster")
+            posterName = await download(poster, for: id, kind: "poster").name
             // A failed download keeps nothing, so the next refresh retries.
             posterSource = posterName == nil ? nil : poster
         }
         if banner != link.bannerSource || repository.artworkURL(named: link.bannerName) == nil {
-            bannerName = await download(banner, for: id, kind: "banner")
+            let result = await download(banner, for: id, kind: "banner")
+            bannerName = result.name
+            bannerFailure = result.failure
             bannerSource = bannerName == nil ? nil : banner
         }
         let oldPoster = link.posterName
@@ -523,6 +529,7 @@ extension AppModel {
             if posterName != oldPoster { repository.removeArtwork(named: posterName) }
             if bannerName != oldBanner { repository.removeArtwork(named: bannerName) }
         }
+        return bannerFailure
     }
 
     func refreshAllArtwork() async {
@@ -531,28 +538,44 @@ extension AppModel {
         }
     }
 
-    private func download(_ source: String?, for id: UUID, kind: String) async -> String? {
-        guard let source, let url = URL(string: source) else { return nil }
+    /// Fetches one image the same way the picker's thumbnails load, so an
+    /// image the player can see always downloads. Returns the stored file's
+    /// name, or why it failed.
+    private func download(_ source: String?, for id: UUID, kind: String) async -> (name: String?, failure: String?) {
+        guard let source, let url = URL(string: source) else { return (nil, nil) }
+        let data: Data
         do {
-            var request = URLRequest(url: url, timeoutInterval: 30)
-            // Image hosts answer browsers most reliably.
-            request.setValue(BangumiWebSession.userAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue("image/webp,image/avif,image/jpeg,image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (body, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 30))
             let status = (response as? HTTPURLResponse)?.statusCode ?? 200
-            guard (200..<300).contains(status), UIImage(data: data) != nil else {
-                AppDiagnostics.shared.event("linking", "artwork.rejected", ["kind": kind, "status": String(status), "bytes": String(data.count)])
-                return nil
+            guard (200..<300).contains(status) else {
+                AppDiagnostics.shared.event("linking", "artwork.rejected", ["kind": kind, "status": String(status)])
+                return (nil, String(localized: "The image server answered with error \(status)."))
             }
-            let ext = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased())
-                ? url.pathExtension.lowercased() : "jpg"
-            let name = "\(id.uuidString)-\(kind)-\(UUID().uuidString.prefix(8)).\(ext)"
-            try repository.writeArtwork(data, named: name)
-            return name
+            data = body
         } catch {
             AppDiagnostics.shared.event("linking", "artwork.failed", ["kind": kind, "error": error.localizedDescription])
-            return nil
+            return (nil, error.localizedDescription)
         }
+        guard Self.isImage(data) else {
+            AppDiagnostics.shared.event("linking", "artwork.undecodable", ["kind": kind, "bytes": String(data.count)])
+            return (nil, String(localized: "The server didn’t send an image."))
+        }
+        let ext = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased())
+            ? url.pathExtension.lowercased() : "jpg"
+        let name = "\(id.uuidString)-\(kind)-\(UUID().uuidString.prefix(8)).\(ext)"
+        do {
+            try repository.writeArtwork(data, named: name)
+            return (name, nil)
+        } catch {
+            AppDiagnostics.shared.event("linking", "artwork.unsaved", ["kind": kind, "error": String(describing: error)])
+            return (nil, String(localized: "Mikage couldn’t save the image: \(error.localizedDescription)"))
+        }
+    }
+
+    private static func isImage(_ data: Data) -> Bool {
+        if UIImage(data: data) != nil { return true }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return CGImageSourceGetCount(source) > 0
     }
 
     // MARK: Status, rating and sync
@@ -780,9 +803,10 @@ extension AppModel {
         }
         repository.removeArtwork(named: custom)
         CoverCache.shared.invalidateAll()
-        await refreshArtwork(for: game.id)
+        let failure = await refreshArtwork(for: game.id)
         if record(game.id)?.link?.bannerSource != candidate.url {
-            alert = String(localized: "Mikage couldn’t download that image. Check your connection and try again.")
+            let reason = failure ?? String(localized: "Check your connection and try again.")
+            alert = String(localized: "Mikage couldn’t download that image. \(reason)")
         }
     }
 

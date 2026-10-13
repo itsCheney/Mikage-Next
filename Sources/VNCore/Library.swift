@@ -654,21 +654,25 @@ public enum GameScanner {
               !relative.split(separator: "/").contains("..") else { throw LibraryError.unsafePath }
         let base = root.standardizedFileURL.resolvingSymlinksInPath()
         var candidate = base
-        for component in relative.split(separator: "/") {
+        for component in relative.split(separator: "/") where component != "." {
             candidate.appendPathComponent(String(component))
             do {
                 let attributes = try FileManager.default.attributesOfItem(atPath: candidate.path)
                 if attributes[.type] as? FileAttributeType == .typeSymbolicLink {
                     throw LibraryError.unsafePath
                 }
-            } catch let error as NSError where
-                error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain
+                        && [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) {
                 // Missing leaves are valid when constructing a future destination.
+                // Apple's Foundation reports them as NSFileReadNoSuchFileError.
             }
         }
-        let result = candidate.standardizedFileURL
-        guard result.path.hasPrefix(base.path + "/") else { throw LibraryError.unsafePath }
-        return result
+        // Every component was checked above, so the candidate is inside the
+        // base already. Standardizing it again could drop or keep iOS's
+        // "/private" prefix depending on whether the file exists yet, which
+        // made new files look like they escaped the base.
+        guard candidate.path.hasPrefix(base.path + "/") else { throw LibraryError.unsafePath }
+        return candidate
     }
 
     public static func normalized(_ value: String) -> String {

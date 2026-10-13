@@ -204,6 +204,13 @@ final class LibraryTests: XCTestCase {
         XCTAssertThrowsError(try GameScanner.containedURL("link/file", in: root))
     }
 
+    func testNewArtworkFileCanBeWritten() throws {
+        let data = Data([0xFF, 0xD8, 0xFF])
+        try repository.writeArtwork(data, named: "new-banner.jpg")
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(repository.artworkURL(named: "new-banner.jpg"))), data)
+        XCTAssertEqual(try GameScanner.containedURL("./a.jpg", in: repository.coversURL).lastPathComponent, "a.jpg")
+    }
+
     func testCorruptV2LibraryIsNotTreatedAsEmpty() throws {
         try repository.ensureStructure()
         try Data("broken".utf8).write(to: repository.libraryURL)

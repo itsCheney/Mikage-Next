@@ -924,6 +924,22 @@
         }
       }
     },
+    "Check your connection and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続を確認してもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查网络后重试。"
+          }
+        }
+      }
+    },
     "Choose Cover" : {
       "localizations" : {
         "ja" : {
@@ -2783,18 +2799,34 @@
         }
       }
     },
-    "Mikage couldn’t download that image. Check your connection and try again." : {
+    "Mikage couldn’t download that image. %@" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "その画像をダウンロードできませんでした。接続を確認してもう一度お試しください。"
+            "value" : "その画像をダウンロードできませんでした。%@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 无法下载该图片，请检查网络后重试。"
+            "value" : "Mikage 无法下载该图片。%@"
+          }
+        }
+      }
+    },
+    "Mikage couldn’t save the image: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像を保存できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikage 无法保存该图片：%@"
           }
         }
       }
@@ -4573,6 +4605,22 @@
         }
       }
     },
+    "The image server answered with error %lld." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像サーバーがエラー %lld を返しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片服务器返回了错误 %lld。"
+          }
+        }
+      }
+    },
     "The library file still can’t be read. Check Application Support/Mikage/library-v2.json." : {
       "localizations" : {
         "ja" : {
@@ -4603,6 +4651,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所选文件夹识别为 %1$@，无法关联到 %2$@ 游戏。"
+          }
+        }
+      }
+    },
+    "The server didn’t send an image." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーから画像が届きませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器返回的不是图片。"
           }
         }
       }
