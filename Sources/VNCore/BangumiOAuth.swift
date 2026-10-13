@@ -161,9 +161,10 @@ public enum BangumiOAuth {
         return request
     }
 
-    static func formBody(_ fields: [(String, String)]) -> Data {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
+    public static func formBody(_ fields: [(String, String)]) -> Data {
+        // RFC 3986 unreserved characters only; everything else, CJK
+        // included, is percent-encoded.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         let body = fields.map { name, value in
             "\(name)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")"
         }.joined(separator: "&")

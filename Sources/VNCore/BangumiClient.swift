@@ -302,7 +302,52 @@ public enum BangumiWeb {
               let input = html.range(of: #"<input\b[^>]*\bname\s*=\s*["']?formhash\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]) else {
             return nil
         }
-        let tag = String(html[input])
+        return inputValue(String(html[input]))
+    }
+
+    public static let signInURL = URL(string: "https://bgm.tv/FollowTheRabbit")!
+
+    /// A fresh captcha for the sign-in form; the query only defeats caches.
+    public static func captchaURL(now: Date = Date()) -> URL {
+        URL(string: "https://bgm.tv/signup/captcha?\(Int(now.timeIntervalSince1970 * 1000))\(Int.random(in: 1...6))")!
+    }
+
+    /// The sign-in form's formhash, from bgm.tv/login.
+    public static func signInFormhash(in html: String) -> String? {
+        guard let input = html.range(of: #"<input\b[^>]*\bname\s*=\s*["']?formhash\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]) else {
+            return nil
+        }
+        return inputValue(String(html[input]))
+    }
+
+    /// The sign-in form's fields, as the website's own form posts them.
+    public static func signInForm(formhash: String, email: String, password: String, captcha: String) -> [(String, String)] {
+        [
+            ("formhash", formhash),
+            ("referer", ""),
+            ("dreferer", ""),
+            ("email", email),
+            ("password", password),
+            ("captcha_challenge_field", captcha),
+            ("loginsubmit", "登录")
+        ]
+    }
+
+    /// The notice a refused sign-in shows (wrong password, wrong captcha,
+    /// too many attempts), as plain text.
+    public static func signInError(in html: String) -> String? {
+        guard let notice = html.range(of: "colunmNotice") else { return nil }
+        let rest = html[notice.upperBound...]
+        guard let text = rest.range(of: #"class\s*=\s*["']text["'][^>]*>"#, options: .regularExpression),
+              let end = rest[text.upperBound...].range(of: "</div>") else { return nil }
+        let message = String(rest[text.upperBound..<end.lowerBound])
+            .replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? nil : message
+    }
+
+    private static func inputValue(_ tag: String) -> String? {
         guard let expression = try? NSRegularExpression(pattern: #"\bvalue\s*=\s*["']?([A-Za-z0-9]+)"#, options: .caseInsensitive),
               let match = expression.firstMatch(in: tag, range: NSRange(tag.startIndex..., in: tag)),
               let range = Range(match.range(at: 1), in: tag) else { return nil }

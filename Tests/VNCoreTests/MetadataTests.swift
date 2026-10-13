@@ -259,4 +259,18 @@ final class MetadataTests: XCTestCase {
         let signIn = #"<form action="/FollowTheRabbit" method="post"><input type="hidden" name="formhash" value="f00"></form>"#
         XCTAssertNil(BangumiWeb.authorizeFormhash(in: signIn))
     }
+
+    func testBangumiSignInFormAndErrors() {
+        let login = #"<form id="loginForm" action="/FollowTheRabbit" method="post"><input type="hidden" name="formhash" value="a1b2c3"><input type="text" name="email"></form>"#
+        XCTAssertEqual(BangumiWeb.signInFormhash(in: login), "a1b2c3")
+        let fields = BangumiWeb.signInForm(formhash: "a1b2c3", email: "me@example.com", password: "p w", captcha: "abcd")
+        XCTAssertEqual(fields.map(\.0), ["formhash", "referer", "dreferer", "email", "password", "captcha_challenge_field", "loginsubmit"])
+        XCTAssertEqual(
+            String(decoding: BangumiOAuth.formBody(fields), as: UTF8.self),
+            "formhash=a1b2c3&referer=&dreferer=&email=me%40example.com&password=p%20w&captcha_challenge_field=abcd&loginsubmit=%E7%99%BB%E5%BD%95"
+        )
+        let refused = #"<div id="colunmNotice"><div class="message"><h2>出错了</h2><div class="text"> 验证码错误 <br/>请重试 </div></div></div>"#
+        XCTAssertEqual(BangumiWeb.signInError(in: refused), "验证码错误 请重试")
+        XCTAssertNil(BangumiWeb.signInError(in: "<html></html>"))
+    }
 }

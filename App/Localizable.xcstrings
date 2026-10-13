@@ -716,6 +716,22 @@
         }
       }
     },
+    "Bangumi didn’t accept the email, password or code. Check them and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi がメールアドレス、パスワード、または認証コードを受け付けませんでした。確認してもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 未接受邮箱、密码或验证码，请检查后重试。"
+          }
+        }
+      }
+    },
     "Bangumi didn’t let Mikage connect to your account. Try signing in again." : {
       "localizations" : {
         "ja" : {
@@ -1036,6 +1052,22 @@
         }
       }
     },
+    "Code" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証コード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码"
+          }
+        }
+      }
+    },
     "Coming Soon" : {
       "localizations" : {
         "ja" : {
@@ -1324,6 +1356,22 @@
         }
       }
     },
+    "Create a Bangumi Account" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi アカウントを作成"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注册 Bangumi 账号"
+          }
+        }
+      }
+    },
     "Create a personal access token on Bangumi, then paste it here. Signing in also lets search find R18 titles." : {
       "localizations" : {
         "ja" : {
@@ -1576,6 +1624,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "抛弃"
+          }
+        }
+      }
+    },
+    "Email" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールアドレス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邮箱"
           }
         }
       }
@@ -2799,6 +2863,22 @@
         }
       }
     },
+    "New Code" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のコード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "换一张验证码"
+          }
+        }
+      }
+    },
     "No account connected" : {
       "localizations" : {
         "ja" : {
@@ -3169,6 +3249,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原名"
+          }
+        }
+      }
+    },
+    "Password" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码"
           }
         }
       }
@@ -4607,6 +4703,22 @@
         }
       }
     },
+    "Type the characters in the picture. Tap the picture for a new one." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像の文字を入力してください。画像をタップすると新しいものに変わります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入图片中的字符。点按图片可换一张。"
+          }
+        }
+      }
+    },
     "Unbearable" : {
       "localizations" : {
         "ja" : {
@@ -4715,6 +4827,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改用 Bangumi 访问令牌"
+          }
+        }
+      }
+    },
+    "Verification Code" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証コード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码"
           }
         }
       }
@@ -4923,6 +5051,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游戏库还是空的"
+          }
+        }
+      }
+    },
+    "Your password goes only to bgm.tv and is not stored by Mikage." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードは bgm.tv にだけ送信され、Mikage には保存されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码只会发送给 bgm.tv，Mikage 不会保存。"
           }
         }
       }

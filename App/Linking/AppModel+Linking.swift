@@ -112,7 +112,7 @@ extension AppModel {
         saveAccounts()
         if service == .bangumi {
             bangumiSignInExpired = false
-            Task { await signOutOfBangumiWeb() }
+            signOutOfBangumiWeb()
         }
     }
 
@@ -651,11 +651,11 @@ extension AppModel {
     }
 
     func refreshBangumiWebSession() async {
-        bangumiWebSignedIn = await BangumiWebSession.shared.isSignedIn()
+        bangumiWebSignedIn = (try? await BangumiWebSession.shared.isSignedIn()) == true
     }
 
-    func signOutOfBangumiWeb() async {
-        await BangumiWebSession.shared.signOut()
+    func signOutOfBangumiWeb() {
+        BangumiWebSession.shared.signOut()
         bangumiWebSignedIn = false
     }
 

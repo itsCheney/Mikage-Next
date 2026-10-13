@@ -10,8 +10,6 @@ struct AccountsSettingsView: View {
     @State private var showingBangumiWeb = false
     @State private var confirmingWebSignOut = false
     @State private var showingBangumiSignIn = false
-    @State private var connectingBangumi = false
-    @State private var bangumiError: String?
 
     /// Bangumi signs in on its website when Mikage has a registered app;
     /// otherwise, and for anyone who prefers it, a pasted token works too.
@@ -26,11 +24,6 @@ struct AccountsSettingsView: View {
                 if bangumiSignInAvailable, model.accounts[.bangumi] == nil {
                     Button("Use a Bangumi Access Token Instead") { tokenService = .bangumi }
                         .font(.footnote)
-                }
-                if let bangumiError {
-                    Text(bangumiError)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
                 }
             } header: {
                 Text("Accounts")
@@ -95,13 +88,13 @@ struct AccountsSettingsView: View {
             TokenEntryView(service: service).environmentObject(model)
         }
         .sheet(isPresented: $showingBangumiSignIn) {
-            BangumiWebLoginView {
-                Task { await finishBangumiSignIn() }
+            BangumiSignInView {
+                try await model.connectBangumiWithWebSession()
             }
         }
         .sheet(isPresented: $showingBangumiWeb) {
-            BangumiWebLoginView {
-                Task { await model.refreshBangumiWebSession() }
+            BangumiSignInView {
+                await model.refreshBangumiWebSession()
             }
         }
         .confirmationDialog(
@@ -110,7 +103,7 @@ struct AccountsSettingsView: View {
             titleVisibility: .visible
         ) {
             Button("Sign Out", role: .destructive) {
-                Task { await model.signOutOfBangumiWeb() }
+                model.signOutOfBangumiWeb()
             }
         } message: {
             Text("Games you clear the status of will stay in your Bangumi collection until you sign in again.")
@@ -140,7 +133,6 @@ struct AccountsSettingsView: View {
             let expired = service == .bangumi && model.bangumiSignInExpired && bangumiSignInAvailable
             Button {
                 if expired {
-                    bangumiError = nil
                     showingBangumiSignIn = true
                 } else {
                     disconnectService = service
@@ -164,13 +156,9 @@ struct AccountsSettingsView: View {
                     }
                     Spacer()
                     if expired {
-                        if connectingBangumi {
-                            ProgressView()
-                        } else {
-                            Text("Sign In")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
+                        Text("Sign In")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
                     } else {
                         Image(systemName: "chevron.right")
                             .font(.footnote.weight(.semibold))
@@ -202,29 +190,10 @@ struct AccountsSettingsView: View {
         }
     }
 
-    @ViewBuilder
     private var signInButton: some View {
-        if connectingBangumi {
-            ProgressView()
-        } else {
-            Button("Sign In") {
-                bangumiError = nil
-                showingBangumiSignIn = true
-            }
+        Button("Sign In") { showingBangumiSignIn = true }
             .buttonStyle(.bordered)
             .buttonBorderShape(.capsule)
-        }
-    }
-
-    /// The website is signed in; approve Mikage with it and read the account.
-    private func finishBangumiSignIn() async {
-        connectingBangumi = true
-        defer { connectingBangumi = false }
-        do {
-            try await model.connectBangumiWithWebSession()
-        } catch {
-            bangumiError = error.localizedDescription
-        }
     }
 
     private var bangumiWebRow: some View {
