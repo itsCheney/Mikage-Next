@@ -293,6 +293,8 @@ struct LibraryView: View {
         } label: {
             Label("View & Sort", systemImage: "ellipsis")
                 .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("View & Sort")
     }
@@ -310,6 +312,8 @@ struct LibraryView: View {
         } label: {
             Label("Add Game", systemImage: "plus")
                 .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .disabled(model.importing)
         .accessibilityLabel("Add Game")
