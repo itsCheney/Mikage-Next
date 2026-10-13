@@ -219,8 +219,8 @@ public struct BangumiClient: Sendable {
         )
     }
 
-    /// Creates or updates the collection entry. Bangumi's API cannot remove
-    /// a collection, so an entry without a status is left as it is there.
+    /// Creates or updates the collection entry. API v0 cannot remove a
+    /// collection; an entry without a status goes through `BangumiWeb`.
     /// - Returns: false when there was nothing Bangumi can store.
     @discardableResult
     public func updateCollection(
@@ -249,5 +249,48 @@ public struct BangumiClient: Sendable {
             body["comment"] = entry.comment ?? ""
         }
         return body
+    }
+}
+
+/// Bangumi's website, used only for what API v0 cannot do: removing a
+/// subject from the collection. Third-party clients (Bangumi for Android,
+/// czy0729's Bangumi) do the same through this undocumented endpoint:
+/// `GET https://bgm.tv/subject/{id}/remove?gh={formhash}` with a signed-in
+/// web session. Kept apart from `BangumiClient` because it depends on page
+/// markup that can change without notice.
+public enum BangumiWeb {
+    public static let baseURL = URL(string: "https://bgm.tv")!
+    public static let loginURL = URL(string: "https://bgm.tv/login")!
+
+    public static func subjectURL(_ subjectID: Int) -> URL {
+        baseURL.appendingPathComponent("subject/\(subjectID)")
+    }
+
+    public static func removeURL(subjectID: Int, formhash: String) -> URL {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("subject/\(subjectID)/remove"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "gh", value: formhash)]
+        return components.url!
+    }
+
+    /// The session's formhash from a page's markup: the subject's own
+    /// remove link first, then the logout link every signed-in page has.
+    /// Nil means the page was served signed out. (The sign-in form has a
+    /// formhash field too, so form fields are deliberately not used.)
+    public static func formhash(in html: String, subjectID: Int? = nil) -> String? {
+        var patterns: [String] = []
+        if let subjectID {
+            patterns.append(#"/subject/\#(subjectID)/remove\?gh=([A-Za-z0-9]+)"#)
+        }
+        patterns.append(#"/logout/([A-Za-z0-9]+)"#)
+        for pattern in patterns {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+                  let range = Range(match.range(at: 1), in: html) else { continue }
+            return String(html[range])
+        }
+        return nil
     }
 }

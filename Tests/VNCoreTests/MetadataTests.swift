@@ -173,4 +173,37 @@ final class MetadataTests: XCTestCase {
         XCTAssertEqual(rescanned.listEntry.status, .playing)
         XCTAssertEqual(rescanned.listEntry.rating, 9)
     }
+
+    func testBangumiFormhashComesFromSignedInLinks() {
+        let subject = #"<a href="/subject/123/remove?gh=abc123" class="l">删除</a><a href="/logout/zzz999">登出</a>"#
+        XCTAssertEqual(BangumiWeb.formhash(in: subject, subjectID: 123), "abc123")
+        XCTAssertEqual(BangumiWeb.formhash(in: subject, subjectID: 456), "zzz999")
+        let signedOut = #"<form action="/FollowTheRabbit"><input type="hidden" name="formhash" value="f00"/></form>"#
+        XCTAssertNil(BangumiWeb.formhash(in: signedOut))
+    }
+
+    func testBangumiRemoveURLCarriesTheFormhash() {
+        XCTAssertEqual(
+            BangumiWeb.removeURL(subjectID: 42, formhash: "abc").absoluteString,
+            "https://bgm.tv/subject/42/remove?gh=abc"
+        )
+    }
+
+    func testCardArtPrefersSixteenByNineThenFourByThree() {
+        var metadata = LinkedMetadata(fetchedAt: Date())
+        metadata.posters = [ArtworkCandidate(url: "poster", sensitive: false, aspectRatio: 0.7)]
+        metadata.screenshots = [
+            ArtworkCandidate(url: "four-three", sensitive: false, aspectRatio: 800.0 / 600.0),
+            ArtworkCandidate(url: "nsfw-wide", sensitive: true, aspectRatio: 1280.0 / 720.0),
+            ArtworkCandidate(url: "wide", sensitive: false, aspectRatio: 1920.0 / 1080.0),
+        ]
+        XCTAssertEqual(
+            metadata.cardArt(hidingSensitive: false).map(\.url),
+            ["nsfw-wide", "wide", "four-three", "poster"]
+        )
+        XCTAssertEqual(metadata.cardArt(hidingSensitive: true).map(\.url), ["wide", "four-three", "poster"])
+        XCTAssertEqual(metadata.banner(hidingSensitive: true)?.url, "wide")
+        metadata.screenshots = []
+        XCTAssertNil(metadata.banner(hidingSensitive: true))
+    }
 }

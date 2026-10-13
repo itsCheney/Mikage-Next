@@ -668,6 +668,22 @@
         }
       }
     },
+    "Bangumi and VNDB have no images for this game." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB にこのゲームの画像はありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 和 VNDB 没有这部游戏的图片。"
+          }
+        }
+      }
+    },
     "Bangumi Chinese" : {
       "localizations" : {
         "ja" : {
@@ -696,6 +712,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅 Bangumi"
+          }
+        }
+      }
+    },
+    "Bangumi still lists the game after the removal request. The website may have changed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除をリクエストしたあとも Bangumi にこのゲームが残っています。ウェブサイトが変更された可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送移除请求后，Bangumi 仍显示该游戏，网站可能已有改动。"
+          }
+        }
+      }
+    },
+    "Bangumi Website" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi ウェブサイト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 网站"
+          }
+        }
+      }
+    },
+    "Bangumi’s API cannot remove a game from your collection, so Mikage uses the website for that. Sign in once here; Mikage only uses the session to remove collections." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi の API ではコレクションから外せないため、Mikage はウェブサイトを使います。ここで一度サインインしてください。このセッションはコレクションを外すときだけ使います。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 的 API 无法移除收藏，因此 Mikage 通过网站完成移除。在此登录一次即可，Mikage 只会用此登录来移除收藏。"
+          }
+        }
+      }
+    },
+    "Bangumi’s website returned error %lld." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi のウェブサイトがエラー %lld を返しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 网站返回了错误 %lld。"
           }
         }
       }
@@ -792,6 +872,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更换封面"
+          }
+        }
+      }
+    },
+    "Choose Cover" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カバーを選ぶ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择封面"
+          }
+        }
+      }
+    },
+    "Choose Cover from Bangumi & VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB からカバーを選ぶ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 Bangumi 和 VNDB 选择封面"
           }
         }
       }
@@ -1756,6 +1868,22 @@
         }
       }
     },
+    "Games you clear the status of will stay in your Bangumi collection until you sign in again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再びサインインするまで、ステータスを外したゲームは Bangumi のコレクションに残ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在重新登录前，你清除状态的游戏会保留在 Bangumi 收藏中。"
+          }
+        }
+      }
+    },
     "Games: %lld\nMissing records: %lld\nGame files: %@\n\nFiles are stored in the krkr, ons, renpy and artemis folders under “Files → On My iPhone → Mikage Next”. KiriKiri saves stay in each game’s savedata folder." : {
       "localizations" : {
         "ja" : {
@@ -1960,6 +2088,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "画面异常时可切换为软件合成 · Metal。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。性能分析也可以在游戏菜单中随时开关。"
+          }
+        }
+      }
+    },
+    "Image" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片"
           }
         }
       }
@@ -2821,6 +2965,22 @@
         }
       }
     },
+    "Not Signed In" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未サインイン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未登录"
+          }
+        }
+      }
+    },
     "Notice" : {
       "localizations" : {
         "ja" : {
@@ -3349,6 +3509,22 @@
         }
       }
     },
+    "Removal Pending" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待移除"
+          }
+        }
+      }
+    },
     "Remove Rating" : {
       "localizations" : {
         "ja" : {
@@ -3377,6 +3553,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除状态"
+          }
+        }
+      }
+    },
+    "Removing a game from your Bangumi collection needs Bangumi web sign-in. Sign in under Settings › Accounts & Sync." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi のコレクションから外すには Bangumi のウェブサイトへのサインインが必要です。「設定 › アカウントと同期」でサインインしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 Bangumi 收藏中移除游戏需要登录 Bangumi 网站，请在“设置 › 账号与同步”中登录。"
           }
         }
       }
@@ -3681,6 +3873,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启动时显示性能分析"
+          }
+        }
+      }
+    },
+    "Sign In" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录"
+          }
+        }
+      }
+    },
+    "Sign In to Bangumi" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi にサインイン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 Bangumi"
+          }
+        }
+      }
+    },
+    "Sign In to Bangumi Website to Remove" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外すには Bangumi にサインイン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 Bangumi 网站后才能移除"
+          }
+        }
+      }
+    },
+    "Sign Out" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインアウト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
+    },
+    "Sign out of the Bangumi website?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi のウェブサイトからサインアウトしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要退出 Bangumi 网站吗？"
+          }
+        }
+      }
+    },
+    "Signed In" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已登录"
           }
         }
       }
@@ -4559,6 +4847,22 @@
         }
       }
     },
+    "Wide" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワイド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宽幅"
+          }
+        }
+      }
+    },
     "Your Library Is Empty" : {
       "localizations" : {
         "ja" : {
@@ -4637,6 +4941,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@”已存在于目标引擎目录中，请先重命名文件夹。"
+          }
+        }
+      }
+    },
+    "“%@” is still in your Bangumi collection. %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」はまだ Bangumi のコレクションにあります。%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@”仍在你的 Bangumi 收藏中。%2$@"
           }
         }
       }

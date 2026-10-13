@@ -17,6 +17,7 @@ struct GameDetailView: View {
     @State private var synopsisExpanded = false
     @State private var confirmUnlink = false
     @State private var refreshing = false
+    @State private var choosingArt = false
 
     private var current: GameRecord { model.record(game.id) ?? game }
     private var metadata: LinkedMetadata? { current.link?.metadata }
@@ -51,6 +52,9 @@ struct GameDetailView: View {
         }
         .sheet(item: $ratingMode) { mode in
             RatingSheet(game: current, mode: mode).environmentObject(model)
+        }
+        .sheet(isPresented: $choosingArt) {
+            ArtworkChoiceView(game: current).environmentObject(model)
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photo, matching: .images)
         .onChange(of: photo) { item in
@@ -99,6 +103,11 @@ struct GameDetailView: View {
         Menu {
             Button { showPhotoPicker = true } label: {
                 Label("Change Cover", systemImage: "photo")
+            }
+            if current.link != nil {
+                Button { choosingArt = true } label: {
+                    Label("Choose Cover from Bangumi & VNDB", systemImage: "photo.on.rectangle")
+                }
             }
             Button { matching = true } label: {
                 Label(
@@ -294,7 +303,13 @@ struct GameDetailView: View {
             Text("Not Connected")
         } else if model.pendingServices(current).contains(service) {
             HStack(spacing: 6) {
-                Text("Waiting to Sync")
+                if service == .bangumi, current.listEntry.status == nil, !model.bangumiWebSignedIn {
+                    Text("Sign In to Bangumi Website to Remove")
+                } else if service == .bangumi, current.listEntry.status == nil {
+                    Text("Removal Pending")
+                } else {
+                    Text("Waiting to Sync")
+                }
                 Image(systemName: "clock")
                     .foregroundStyle(.orange)
             }

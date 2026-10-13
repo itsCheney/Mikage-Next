@@ -130,6 +130,9 @@ public struct GameLink: Codable, Equatable, Sendable {
     /// Source URLs of the files above, so a refresh only downloads changes.
     public var posterSource: String?
     public var bannerSource: String?
+    /// Card art the player picked from the services' images; overrides
+    /// the automatic 16:9-then-4:3 choice.
+    public var bannerChoice: String?
 
     public init(
         vndbID: String? = nil,
@@ -138,7 +141,8 @@ public struct GameLink: Codable, Equatable, Sendable {
         posterName: String? = nil,
         bannerName: String? = nil,
         posterSource: String? = nil,
-        bannerSource: String? = nil
+        bannerSource: String? = nil,
+        bannerChoice: String? = nil
     ) {
         self.vndbID = vndbID
         self.bangumiID = bangumiID
@@ -147,6 +151,7 @@ public struct GameLink: Codable, Equatable, Sendable {
         self.bannerName = bannerName
         self.posterSource = posterSource
         self.bannerSource = bannerSource
+        self.bannerChoice = bannerChoice
     }
 
     public var services: [MetadataService] {
@@ -252,11 +257,35 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         posters.first { !hidingSensitive || !$0.sensitive }
     }
 
-    /// The first landscape screenshot, skipping sensitive ones when asked.
-    /// Falls back to any allowed screenshot when none reports its size.
+    /// Art for library cards and the continue hero: the first landscape
+    /// image, 16:9 before 4:3 before other wide shapes, skipping sensitive
+    /// ones when asked. Nil when no image is known to be landscape, so the
+    /// cards fall back to the poster.
     public func banner(hidingSensitive: Bool) -> ArtworkCandidate? {
-        let allowed = screenshots.filter { !hidingSensitive || !$0.sensitive }
-        return allowed.first { ($0.aspectRatio ?? 0) >= 1.2 } ?? allowed.first
+        cardArt(hidingSensitive: hidingSensitive).first { Self.cardRank($0) <= 2 }
+    }
+
+    /// Every image either service offers, best card art first: 16:9, then
+    /// 4:3, other landscape shapes, unknown sizes, then portrait covers.
+    /// Screenshots come before posters at the same rank.
+    public func cardArt(hidingSensitive: Bool) -> [ArtworkCandidate] {
+        var seen = Set<String>()
+        return (screenshots + posters)
+            .filter { (!hidingSensitive || !$0.sensitive) && seen.insert($0.url).inserted }
+            .enumerated()
+            .sorted { lhs, rhs in
+                let (a, b) = (Self.cardRank(lhs.element), Self.cardRank(rhs.element))
+                return a != b ? a < b : lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
+
+    public static func cardRank(_ candidate: ArtworkCandidate) -> Int {
+        guard let aspect = candidate.aspectRatio else { return 3 }
+        if abs(aspect - 16.0 / 9.0) < 0.1 { return 0 }
+        if abs(aspect - 4.0 / 3.0) < 0.08 { return 1 }
+        if aspect >= 1.2 { return 2 }
+        return 4
     }
 
     /// Combines details from the two services by the preference above.

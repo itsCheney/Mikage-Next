@@ -649,6 +649,7 @@ struct GameGrid: View {
     @State private var matchGame: GameRecord?
     @State private var finishGame: GameRecord?
     @State private var coverGame: GameRecord?
+    @State private var artGame: GameRecord?
     @State private var showCoverPicker = false
     @State private var coverPhoto: PhotosPickerItem?
     let games: [GameRecord]
@@ -688,6 +689,9 @@ struct GameGrid: View {
         }
         .sheet(item: $finishGame) {
             RatingSheet(game: $0, mode: .finish).environmentObject(model)
+        }
+        .sheet(item: $artGame) {
+            ArtworkChoiceView(game: $0).environmentObject(model)
         }
         .photosPicker(isPresented: $showCoverPicker, selection: $coverPhoto, matching: .images)
         .onChange(of: coverPhoto) { item in
@@ -741,6 +745,11 @@ struct GameGrid: View {
             showCoverPicker = true
         } label: {
             Label("Change Cover", systemImage: "photo")
+        }
+        if game.link != nil {
+            Button { artGame = game } label: {
+                Label("Choose Cover from Bangumi & VNDB", systemImage: "photo.on.rectangle")
+            }
         }
         Button { matchGame = game } label: {
             Label(

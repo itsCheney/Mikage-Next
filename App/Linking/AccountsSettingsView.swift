@@ -7,6 +7,8 @@ struct AccountsSettingsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var tokenService: MetadataService?
     @State private var disconnectService: MetadataService?
+    @State private var showingBangumiWeb = false
+    @State private var confirmingWebSignOut = false
 
     var body: some View {
         Form {
@@ -18,6 +20,12 @@ struct AccountsSettingsView: View {
                 Text("Accounts")
             } footer: {
                 Text("Covers and synopses load without an account. Connect to sync your status, ratings and comments to your lists.")
+            }
+
+            Section {
+                bangumiWebRow
+            } footer: {
+                Text("Bangumi’s API cannot remove a game from your collection, so Mikage uses the website for that. Sign in once here; Mikage only uses the session to remove collections.")
             }
 
             Section {
@@ -67,6 +75,23 @@ struct AccountsSettingsView: View {
         .sheet(item: $tokenService) { service in
             TokenEntryView(service: service).environmentObject(model)
         }
+        .sheet(isPresented: $showingBangumiWeb) {
+            BangumiWebLoginView {
+                Task { await model.refreshBangumiWebSession() }
+            }
+        }
+        .confirmationDialog(
+            "Sign out of the Bangumi website?",
+            isPresented: $confirmingWebSignOut,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                Task { await model.signOutOfBangumiWeb() }
+            }
+        } message: {
+            Text("Games you clear the status of will stay in your Bangumi collection until you sign in again.")
+        }
+        .task { await model.refreshBangumiWebSession() }
         .confirmationDialog(
             "Disconnect this account?",
             isPresented: Binding(
@@ -125,6 +150,38 @@ struct AccountsSettingsView: View {
             }
             .padding(.vertical, 6)
         }
+    }
+
+    private var bangumiWebRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "globe")
+                .font(.headline)
+                .frame(width: 40, height: 40)
+                .foregroundStyle(model.bangumiWebSignedIn ? Color.accentColor : Color.secondary)
+                .background(
+                    (model.bangumiWebSignedIn ? Color.accentColor.opacity(0.16) : Color(uiColor: .tertiarySystemFill)),
+                    in: Circle()
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Bangumi Website")
+                    .font(.body.weight(.semibold))
+                Text(model.bangumiWebSignedIn ? LocalizedStringKey("Signed In") : LocalizedStringKey("Not Signed In"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if model.bangumiWebSignedIn {
+                Button("Sign Out") { confirmingWebSignOut = true }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+            } else {
+                Button("Sign In") { showingBangumiWeb = true }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     private func badge(_ service: MetadataService, connected: Bool) -> some View {

@@ -272,7 +272,7 @@ extension AppModel {
         guard let link = record(id)?.link else { return }
         let hide = settings.hideSensitiveImages
         let poster = link.metadata.poster(hidingSensitive: hide)?.url
-        let banner = link.metadata.banner(hidingSensitive: hide)?.url
+        let banner = link.bannerChoice ?? link.metadata.banner(hidingSensitive: hide)?.url
 
         var posterName = link.posterName
         var bannerName = link.bannerName
@@ -446,6 +446,7 @@ extension AppModel {
                     failed = true
                     lastSyncError = error.localizedDescription
                     AppDiagnostics.shared.event("linking", "sync.failed", ["service": service.rawValue, "error": error.localizedDescription])
+                    reportRemovalFailure(error, of: game, service: service, entry: entry)
                 }
             }
             synced += done
@@ -490,6 +491,10 @@ extension AppModel {
         switch service {
         case .bangumi:
             guard let id = link.bangumiID else { return }
+            if entry.status == nil {
+                try await removeBangumiCollection(subjectID: id)
+                return
+            }
             try await bangumiClient().updateCollection(
                 subjectID: id,
                 entry: entry,
@@ -504,6 +509,51 @@ extension AppModel {
                 includeDates: settings.syncDates
             )
         }
+    }
+
+    /// Removes the subject through Bangumi's website, which API v0 cannot
+    /// do, and confirms through the API that it is gone. Nothing is sent
+    /// when the collection already lacks the subject.
+    private func removeBangumiCollection(subjectID: Int) async throws {
+        guard let username = accounts[.bangumi]?.username else { return }
+        let api = bangumiClient()
+        guard try await api.collection(username: username, subjectID: subjectID) != nil else { return }
+        try await BangumiWebSession.shared.removeCollection(subjectID: subjectID)
+        if try await api.collection(username: username, subjectID: subjectID) != nil {
+            throw BangumiWebError.notRemoved
+        }
+    }
+
+    /// A status removed here but still on Bangumi is said out loud, once per
+    /// game per launch, rather than left looking cleared. The change stays
+    /// pending, so Sync Now retries it after signing in.
+    private func reportRemovalFailure(_ error: Error, of game: GameRecord, service: MetadataService, entry: ListEntry) {
+        guard service == .bangumi, entry.status == nil,
+              !reportedRemovalFailures.contains(game.id) else { return }
+        reportedRemovalFailures.insert(game.id)
+        alert = String(localized: "“\(displayTitle(game))” is still in your Bangumi collection. \(error.localizedDescription)")
+    }
+
+    func refreshBangumiWebSession() async {
+        bangumiWebSignedIn = await BangumiWebSession.shared.isSignedIn()
+    }
+
+    func signOutOfBangumiWeb() async {
+        await BangumiWebSession.shared.signOut()
+        bangumiWebSignedIn = false
+    }
+
+    /// Uses one of the services' images as the game's card art, replacing
+    /// a cover the player set by hand.
+    func chooseCardArt(_ candidate: ArtworkCandidate, for game: GameRecord) async {
+        guard let current = record(game.id), current.link != nil else { return }
+        let custom = current.customCoverName
+        updateRecord(game.id) { record in
+            record.link?.bannerChoice = candidate.url
+            record.customCoverName = nil
+        }
+        repository.removeArtwork(named: custom)
+        await refreshArtwork(for: game.id)
     }
 
     private func updateToast(for id: UUID, synced: [MetadataService], failed: Bool) {

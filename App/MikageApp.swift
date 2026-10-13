@@ -63,6 +63,10 @@ final class AppModel: ObservableObject {
     @Published var finishRequest: GameRecord?
     /// Games with a sync request in flight, so two cannot overlap.
     var syncingGames: Set<UUID> = []
+    /// Whether Bangumi's website is signed in, which removing a collection needs.
+    @Published var bangumiWebSignedIn = false
+    /// Games whose failed Bangumi removal was already reported this launch.
+    var reportedRemovalFailures: Set<UUID> = []
     let tokens: any ServiceTokenStore
 
     private(set) var libraryReadable = true
@@ -424,12 +428,13 @@ final class AppModel: ObservableObject {
     /// wins, then the linked banner or poster, then an image in the folder.
     func coverURL(_ game: GameRecord) -> URL? {
         if let custom = repository.customCoverURL(for: game) { return custom }
-        let linked = settings.bannerArt == .screenshot
-            ? repository.artworkURL(named: game.link?.bannerName)
-            : repository.artworkURL(named: game.link?.posterName)
-        return linked
+        let banner = repository.artworkURL(named: game.link?.bannerName)
+        let poster = repository.artworkURL(named: game.link?.posterName)
+        // A picked image always shows; otherwise the setting decides which
+        // linked art leads. Linked art beats an image found in the folder.
+        let preferBanner = settings.bannerArt == .screenshot || game.link?.bannerChoice != nil
+        return (preferBanner ? banner ?? poster : poster ?? banner)
             ?? repository.detectedCoverURL(for: game)
-            ?? repository.artworkURL(named: game.link?.posterName)
     }
 
     /// Portrait package art for the details page.
