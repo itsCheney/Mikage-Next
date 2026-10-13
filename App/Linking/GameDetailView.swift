@@ -53,6 +53,7 @@ struct GameDetailView: View {
         .sheet(item: $ratingMode) { mode in
             RatingSheet(game: current, mode: mode).environmentObject(model)
         }
+        .task { await model.refreshLinked(game.id) }
         .sheet(isPresented: $choosingArt) {
             ArtworkChoiceView(game: current).environmentObject(model)
         }

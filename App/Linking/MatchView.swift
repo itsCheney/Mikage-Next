@@ -15,6 +15,7 @@ struct MatchView: View {
     @State private var linking = false
     @State private var error: String?
     @State private var searchedOnce = false
+    @State private var choosingCover = false
 
     var body: some View {
         NavigationStack {
@@ -41,7 +42,12 @@ struct MatchView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) { actions }
+            // Picking the cover is the next step once linking is done.
+            .navigationDestination(isPresented: $choosingCover) {
+                ArtworkChoiceView(game: game, afterLinking: true) { dismiss() }
+            }
         }
+        .interactiveDismissDisabled(choosingCover)
         .task {
             guard !searchedOnce else { return }
             searchedOnce = true
@@ -248,7 +254,13 @@ struct MatchView: View {
         defer { linking = false }
         do {
             try await model.link(game, to: candidate)
-            dismiss()
+            let art = model.record(game.id)?.link?.metadata
+                .cardArt(hidingSensitive: model.settings.hideSensitiveImages) ?? []
+            if art.isEmpty {
+                dismiss()
+            } else {
+                choosingCover = true
+            }
         } catch {
             model.alert = error.localizedDescription
         }

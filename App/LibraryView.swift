@@ -24,6 +24,7 @@ struct RootView: View {
                     Task {
                         await model.refreshLibrary(showErrors: false)
                         await model.syncPending()
+                        await model.refreshLinkedGames()
                     }
                 }
             }

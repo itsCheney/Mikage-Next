@@ -2559,6 +2559,22 @@
         }
       }
     },
+    "Linked. Pick the cover for this game, or keep Mikage’s choice." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクしました。このゲームのカバーを選ぶか、Mikage の選択のままにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关联。为这部游戏选择封面，或保留 Mikage 的选择。"
+          }
+        }
+      }
+    },
     "Linking fetches the cover, synopsis and tags. Game files are never changed, and you can change the link later in the game’s details." : {
       "localizations" : {
         "ja" : {

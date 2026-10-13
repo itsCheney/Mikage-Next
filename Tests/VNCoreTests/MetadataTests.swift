@@ -273,4 +273,19 @@ final class MetadataTests: XCTestCase {
         XCTAssertEqual(BangumiWeb.signInError(in: refused), "验证码错误 请重试")
         XCTAssertNil(BangumiWeb.signInError(in: "<html></html>"))
     }
+
+    func testVNDBCoverLeadsAndOnlyExplicitArtIsSensitive() throws {
+        let novel = VNDBVisualNovel(
+            id: "v1",
+            title: "Title",
+            image: .init(url: "https://t.vndb.org/cv/1.jpg", sexual: 1.0, violence: 0, dims: [256, 363])
+        )
+        let subject = BangumiSubject(id: 2, name: "Title", images: .init(large: "https://lain.bgm.tv/l/2.jpg"), nsfw: true)
+        let metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject)
+        XCTAssertEqual(metadata.posters.map(\.url), ["https://t.vndb.org/cv/1.jpg", "https://lain.bgm.tv/l/2.jpg"])
+        XCTAssertEqual(metadata.poster(hidingSensitive: true)?.url, "https://t.vndb.org/cv/1.jpg")
+        XCTAssertFalse(metadata.isStale)
+        let old = try JSONDecoder().decode(LinkedMetadata.self, from: Data(#"{"tags":[],"posters":[],"screenshots":[]}"#.utf8))
+        XCTAssertTrue(old.isStale)
+    }
 }

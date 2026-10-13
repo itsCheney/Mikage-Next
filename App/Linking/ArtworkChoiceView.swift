@@ -2,11 +2,15 @@ import SwiftUI
 import VNCore
 
 /// Picks the card art for a linked game from the screenshots and covers
-/// Bangumi and VNDB supplied, widest 16:9 images first, then 4:3.
+/// Bangumi and VNDB supplied, widest 16:9 images first, then 4:3. Also the
+/// step right after linking, pushed inside the match sheet.
 struct ArtworkChoiceView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let game: GameRecord
+    /// Shown as the last step of linking, which `onFinish` closes.
+    var afterLinking = false
+    var onFinish: (() -> Void)?
 
     @State private var saving: String?
 
@@ -19,33 +23,52 @@ struct ArtworkChoiceView: View {
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                if candidates.isEmpty {
-                    Text("Bangumi and VNDB have no images for this game.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
-                } else {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(candidates, id: \.url) { candidate in
-                            tile(candidate)
-                        }
-                    }
-                    .padding(16)
-                }
+        if afterLinking {
+            content
+        } else {
+            NavigationStack { content }
+                .interactiveDismissDisabled(saving != nil)
+        }
+    }
+
+    private func finish() {
+        if let onFinish { onFinish() } else { dismiss() }
+    }
+
+    private var content: some View {
+        ScrollView {
+            if afterLinking {
+                Text("Linked. Pick the cover for this game, or keep Mikage’s choice.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
             }
-            .background(AppBackground())
-            .navigationTitle("Choose Cover")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(saving != nil)
+            if candidates.isEmpty {
+                Text("Bangumi and VNDB have no images for this game.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+            } else {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(candidates, id: \.url) { candidate in
+                        tile(candidate)
+                    }
                 }
+                .padding(16)
             }
         }
-        .interactiveDismissDisabled(saving != nil)
+        .background(AppBackground())
+        .navigationTitle("Choose Cover")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(afterLinking)
+        .toolbar {
+            ToolbarItem(placement: afterLinking ? .confirmationAction : .cancellationAction) {
+                Button(afterLinking ? LocalizedStringKey("Done") : LocalizedStringKey("Cancel")) { finish() }
+                    .disabled(saving != nil)
+            }
+        }
     }
 
     private func tile(_ candidate: ArtworkCandidate) -> some View {
@@ -56,7 +79,7 @@ struct ArtworkChoiceView: View {
             Task {
                 await model.chooseCardArt(candidate, for: current)
                 saving = nil
-                dismiss()
+                finish()
             }
         } label: {
             VStack(alignment: .leading, spacing: 6) {

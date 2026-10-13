@@ -133,6 +133,9 @@ public struct GameLink: Codable, Equatable, Sendable {
     /// Card art the player picked from the services' images; overrides
     /// the automatic 16:9-then-4:3 choice.
     public var bannerChoice: String?
+    /// Cover the player picked for the details page, when they picked
+    /// one of the services' covers rather than a screenshot.
+    public var posterChoice: String?
 
     public init(
         vndbID: String? = nil,
@@ -142,7 +145,8 @@ public struct GameLink: Codable, Equatable, Sendable {
         bannerName: String? = nil,
         posterSource: String? = nil,
         bannerSource: String? = nil,
-        bannerChoice: String? = nil
+        bannerChoice: String? = nil,
+        posterChoice: String? = nil
     ) {
         self.vndbID = vndbID
         self.bangumiID = bangumiID
@@ -152,6 +156,7 @@ public struct GameLink: Codable, Equatable, Sendable {
         self.posterSource = posterSource
         self.bannerSource = bannerSource
         self.bannerChoice = bannerChoice
+        self.posterChoice = posterChoice
     }
 
     public var services: [MetadataService] {
@@ -203,6 +208,15 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
     public var posters: [ArtworkCandidate]
     public var screenshots: [ArtworkCandidate]
     public var fetchedAt: Date?
+    /// How the details were put together. Details from an older format are
+    /// fetched again, since sensitivity flags and poster order changed.
+    public var format: Int
+
+    /// Format 2: VNDB's cover leads, and only explicit images count as
+    /// sensitive (Bangumi's R18 flag marks the game, not its cover).
+    public static let currentFormat = 2
+
+    public var isStale: Bool { format < Self.currentFormat }
 
     public init(
         originalTitle: String? = nil,
@@ -215,7 +229,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         tags: [String] = [],
         posters: [ArtworkCandidate] = [],
         screenshots: [ArtworkCandidate] = [],
-        fetchedAt: Date? = nil
+        fetchedAt: Date? = nil,
+        format: Int = LinkedMetadata.currentFormat
     ) {
         self.originalTitle = originalTitle
         self.romanizedTitle = romanizedTitle
@@ -228,6 +243,7 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         self.posters = posters
         self.screenshots = screenshots
         self.fetchedAt = fetchedAt
+        self.format = format
     }
 
     public init(from decoder: Decoder) throws {
@@ -243,6 +259,7 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         posters = try container.decodeIfPresent([ArtworkCandidate].self, forKey: .posters) ?? []
         screenshots = try container.decodeIfPresent([ArtworkCandidate].self, forKey: .screenshots) ?? []
         fetchedAt = try container.decodeIfPresent(Date.self, forKey: .fetchedAt)
+        format = (try? container.decodeIfPresent(Int.self, forKey: .format)) ?? 1
     }
 
     /// The four-digit year of `released`, if it has one.
@@ -309,13 +326,14 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         }
         let bangumiTags = bangumi?.topTags(limit: 6) ?? []
         result.tags = bangumiTags.isEmpty ? (vndb?.topTags(limit: 6) ?? []) : bangumiTags
-        // Bangumi covers are the package art; VNDB's is usually the same and
-        // carries a sensitivity rating, so it follows as the fallback.
-        if let poster = bangumi?.posterURL {
-            result.posters.append(ArtworkCandidate(url: poster, sensitive: bangumi?.nsfw ?? false))
-        }
+        // VNDB's cover leads, with its own sensitivity rating; Bangumi's
+        // package art follows. Bangumi's R18 flag describes the game rather
+        // than the cover, which is the same art sold in shops.
         if let image = vndb?.image {
             result.posters.append(image.candidate)
+        }
+        if let poster = bangumi?.posterURL {
+            result.posters.append(ArtworkCandidate(url: poster, sensitive: false))
         }
         result.screenshots = vndb?.screenshots.map(\.candidate) ?? []
         return result

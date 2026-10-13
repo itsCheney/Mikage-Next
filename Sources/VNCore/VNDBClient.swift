@@ -19,9 +19,10 @@ public struct VNDBVisualNovel: Decodable, Equatable, Sendable {
         public var violence: Double?
         public var dims: [Int]?
 
-        /// Anything rated suggestive or worse counts as sensitive.
+        /// Explicit images count as sensitive. Suggestive is the norm for
+        /// these games' covers, and hiding it left most games without one.
         public var isSensitive: Bool {
-            (sexual ?? 0) >= 0.5 || (violence ?? 0) >= 1
+            (sexual ?? 0) >= 1.5 || (violence ?? 0) >= 1.5
         }
 
         public var candidate: ArtworkCandidate {

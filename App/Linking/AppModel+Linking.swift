@@ -339,7 +339,7 @@ extension AppModel {
     }
 
     /// Fetches the linked entries again, keeping the link itself.
-    func refreshMetadata(_ game: GameRecord) async {
+    func refreshMetadata(_ game: GameRecord, showErrors: Bool = true) async {
         guard let link = record(game.id)?.link else { return }
         let vndb = vndbClient()
         let bangumi = await bangumiClient()
@@ -350,7 +350,67 @@ extension AppModel {
             updateRecord(game.id) { $0.link?.metadata = metadata }
             await refreshArtwork(for: game.id)
         } catch {
-            alert = error.localizedDescription
+            AppDiagnostics.shared.event("linking", "metadata.failed", ["error": error.localizedDescription])
+            if showErrors { alert = error.localizedDescription }
+        }
+    }
+
+    // MARK: Keeping linked games current
+
+    /// Brings every linked game up to date: details fetched in an older
+    /// format, artwork that never downloaded, and statuses changed on the
+    /// services. Runs when the app comes to the front, at most every few
+    /// minutes.
+    func refreshLinkedGames() async {
+        if let last = lastLinkedRefresh, Date().timeIntervalSince(last) < 5 * 60 { return }
+        lastLinkedRefresh = Date()
+        for game in games + missingGames where game.link != nil {
+            await refreshLinked(game.id)
+        }
+    }
+
+    /// The same for one game, when its details page opens.
+    func refreshLinked(_ id: UUID) async {
+        guard let game = record(id), let link = game.link else { return }
+        if link.metadata.isStale {
+            await refreshMetadata(game, showErrors: false)
+        } else if needsArtwork(link) {
+            await refreshArtwork(for: id)
+        }
+        await pullListEntry(id)
+    }
+
+    /// True when the art the settings call for is not on disk, such as
+    /// after a download failed.
+    private func needsArtwork(_ link: GameLink) -> Bool {
+        let hide = settings.hideSensitiveImages
+        let wantsPoster = link.posterChoice ?? link.metadata.poster(hidingSensitive: hide)?.url
+        let wantsBanner = link.bannerChoice ?? link.metadata.banner(hidingSensitive: hide)?.url
+        return (wantsPoster != nil && repository.artworkURL(named: link.posterName) == nil)
+            || (wantsBanner != nil && repository.artworkURL(named: link.bannerName) == nil)
+    }
+
+    /// Adopts the status, rating and comment the player's Bangumi or VNDB
+    /// list holds, so a game played elsewhere shows its state here. Changes
+    /// made in Mikage and not yet sent win; a work missing from the lists
+    /// leaves the local state alone.
+    func pullListEntry(_ id: UUID) async {
+        guard let game = record(id), let link = game.link, game.listEntry.pendingSync.isEmpty,
+              let remote = await remoteEntry(vndbID: link.vndbID, bangumiID: link.bangumiID),
+              remote.status != nil else { return }
+        // The record may have changed while the lists answered.
+        guard let current = record(id), current.listEntry.pendingSync.isEmpty else { return }
+        let entry = current.listEntry
+        guard entry.status != remote.status || entry.rating != remote.rating
+            || (remote.comment != nil && entry.comment != remote.comment) else { return }
+        AppDiagnostics.shared.event("linking", "entry.pulled", ["status": remote.status?.rawValue ?? ""])
+        updateRecord(id) { record in
+            record.listEntry.status = remote.status
+            record.listEntry.rating = remote.rating
+            record.listEntry.comment = remote.comment ?? record.listEntry.comment
+            record.listEntry.startedAt = remote.startedAt ?? record.listEntry.startedAt
+            record.listEntry.finishedAt = remote.finishedAt ?? record.listEntry.finishedAt
+            record.listEntry.lastSyncedAt = Date()
         }
     }
 
@@ -371,7 +431,7 @@ extension AppModel {
     /// What the player's own lists already hold for the work, Bangumi first.
     private func remoteEntry(vndbID: String?, bangumiID: Int?) async -> ListEntry? {
         if let bangumiID, let username = accounts[.bangumi]?.username,
-           let entry = try? await bangumiClient().collection(username: username, subjectID: bangumiID) {
+           let entry = try? await withBangumi({ try await $0.collection(username: username, subjectID: bangumiID) }) {
             return entry
         }
         if let vndbID, let userID = accounts[.vndb]?.userID,
@@ -389,16 +449,22 @@ extension AppModel {
     func refreshArtwork(for id: UUID) async {
         guard let link = record(id)?.link else { return }
         let hide = settings.hideSensitiveImages
-        let poster = link.metadata.poster(hidingSensitive: hide)?.url
+        let poster = link.posterChoice ?? link.metadata.poster(hidingSensitive: hide)?.url
         let banner = link.bannerChoice ?? link.metadata.banner(hidingSensitive: hide)?.url
 
         var posterName = link.posterName
         var bannerName = link.bannerName
-        if poster != link.posterSource {
+        var posterSource = link.posterSource
+        var bannerSource = link.bannerSource
+        // A file that never arrived, or was lost, is fetched again.
+        if poster != link.posterSource || repository.artworkURL(named: link.posterName) == nil {
             posterName = await download(poster, for: id, kind: "poster")
+            // A failed download keeps nothing, so the next refresh retries.
+            posterSource = posterName == nil ? nil : poster
         }
-        if banner != link.bannerSource {
+        if banner != link.bannerSource || repository.artworkURL(named: link.bannerName) == nil {
             bannerName = await download(banner, for: id, kind: "banner")
+            bannerSource = bannerName == nil ? nil : banner
         }
         let oldPoster = link.posterName
         let oldBanner = link.bannerName
@@ -407,9 +473,9 @@ extension AppModel {
             // The link may have changed while the files downloaded.
             guard record.link?.vndbID == link.vndbID, record.link?.bangumiID == link.bangumiID else { return }
             record.link?.posterName = posterName
-            record.link?.posterSource = poster
+            record.link?.posterSource = posterSource
             record.link?.bannerName = bannerName
-            record.link?.bannerSource = banner
+            record.link?.bannerSource = bannerSource
             applied = true
         }
         if applied {
@@ -431,9 +497,13 @@ extension AppModel {
         guard let source, let url = URL(string: source) else { return nil }
         do {
             var request = URLRequest(url: url, timeoutInterval: 30)
-            request.setValue("itsCheney/Mikage-Next (https://github.com/itsCheney/Mikage-Next)", forHTTPHeaderField: "User-Agent")
+            // Image hosts answer browsers most reliably.
+            request.setValue(BangumiWebSession.userAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("image/webp,image/avif,image/jpeg,image/png,image/*;q=0.8", forHTTPHeaderField: "Accept")
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode ?? 200 < 300, UIImage(data: data) != nil else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+            guard (200..<300).contains(status), UIImage(data: data) != nil else {
+                AppDiagnostics.shared.event("linking", "artwork.rejected", ["kind": kind, "status": String(status), "bytes": String(data.count)])
                 return nil
             }
             let ext = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased())
@@ -664,8 +734,12 @@ extension AppModel {
     func chooseCardArt(_ candidate: ArtworkCandidate, for game: GameRecord) async {
         guard let current = record(game.id), current.link != nil else { return }
         let custom = current.customCoverName
+        // A cover picked from the services' covers is the details page's
+        // poster too; a screenshot only changes the card art.
+        let isCover = current.link?.metadata.posters.contains { $0.url == candidate.url } == true
         updateRecord(game.id) { record in
             record.link?.bannerChoice = candidate.url
+            record.link?.posterChoice = isCover ? candidate.url : nil
             record.customCoverName = nil
         }
         repository.removeArtwork(named: custom)

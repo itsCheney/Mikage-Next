@@ -72,6 +72,8 @@ final class AppModel: ObservableObject {
     var bangumiRenewal: Task<BangumiToken, Error>?
     /// Games whose failed Bangumi removal was already reported this launch.
     var reportedRemovalFailures: Set<UUID> = []
+    /// When linked games were last brought up to date.
+    var lastLinkedRefresh: Date?
     let tokens: any ServiceTokenStore
 
     private(set) var libraryReadable = true
