@@ -133,8 +133,8 @@ public struct GameLink: Codable, Equatable, Sendable {
     /// Card art the player picked from the services' images; overrides
     /// the automatic 16:9-then-4:3 choice.
     public var bannerChoice: String?
-    /// Cover the player picked for the details page, when they picked
-    /// one of the services' covers rather than a screenshot.
+    /// No longer used: the details page always shows VNDB's cover. Kept
+    /// so libraries saved by earlier builds still decode.
     public var posterChoice: String?
 
     public init(

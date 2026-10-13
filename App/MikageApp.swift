@@ -446,11 +446,15 @@ final class AppModel: ObservableObject {
             ?? repository.detectedCoverURL(for: game)
     }
 
-    /// Portrait package art for the details page.
+    /// The package art for the details page, portrait or landscape.
     func posterURL(_ game: GameRecord) -> URL? {
-        repository.artworkURL(named: game.link?.posterName)
-            ?? repository.customCoverURL(for: game)
-            ?? repository.detectedCoverURL(for: game)
+        // A linked game shows the service's cover and nothing the player
+        // set; the player's covers belong to the library card and banner.
+        if game.link != nil {
+            return repository.artworkURL(named: game.link?.posterName)
+                ?? repository.detectedCoverURL(for: game)
+        }
+        return repository.customCoverURL(for: game) ?? repository.detectedCoverURL(for: game)
     }
 
     /// Encodes and writes off the main thread: a picked photo can be several

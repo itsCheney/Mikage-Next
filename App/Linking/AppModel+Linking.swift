@@ -404,7 +404,7 @@ extension AppModel {
     /// after a download failed.
     private func needsArtwork(_ link: GameLink) -> Bool {
         let hide = settings.hideSensitiveImages
-        let wantsPoster = link.posterChoice ?? link.metadata.poster(hidingSensitive: hide)?.url
+        let wantsPoster = link.metadata.poster(hidingSensitive: hide)?.url
         let wantsBanner = link.bannerChoice ?? link.metadata.banner(hidingSensitive: hide)?.url
         return (wantsPoster != nil && repository.artworkURL(named: link.posterName) == nil)
             || (wantsBanner != nil && repository.artworkURL(named: link.bannerName) == nil)
@@ -486,7 +486,8 @@ extension AppModel {
     func refreshArtwork(for id: UUID) async {
         guard let link = record(id)?.link else { return }
         let hide = settings.hideSensitiveImages
-        let poster = link.posterChoice ?? link.metadata.poster(hidingSensitive: hide)?.url
+        // The details page's cover is the service's own and never chosen.
+        let poster = link.metadata.poster(hidingSensitive: hide)?.url
         let banner = link.bannerChoice ?? link.metadata.banner(hidingSensitive: hide)?.url
 
         var posterName = link.posterName
@@ -771,12 +772,10 @@ extension AppModel {
     func chooseCardArt(_ candidate: ArtworkCandidate, for game: GameRecord) async {
         guard let current = record(game.id), current.link != nil else { return }
         let custom = current.customCoverName
-        // A cover picked from the services' covers is the details page's
-        // poster too; a screenshot only changes the card art.
-        let isCover = current.link?.metadata.posters.contains { $0.url == candidate.url } == true
+        // Only the card art changes; the details page keeps VNDB's cover.
         updateRecord(game.id) { record in
             record.link?.bannerChoice = candidate.url
-            record.link?.posterChoice = isCover ? candidate.url : nil
+            record.link?.posterChoice = nil
             record.customCoverName = nil
         }
         repository.removeArtwork(named: custom)
