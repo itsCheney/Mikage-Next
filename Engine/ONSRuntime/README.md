@@ -4,7 +4,7 @@ Mikage Next runs ONScripter games with [ONScripter Yuri](https://github.com/Yuri
 
 Pinned inputs:
 
-- `Source/` submodule: `71c40983d74b49457cc3c43876e97003467d7933` (`itsCheney/OnscripterYuri`, branch `shared-sdl3/ons`, based on upstream `master`)
+- `Source/` submodule: `365f1e2b050969cd1d8008e7474de22bc1bf844d` (`itsCheney/OnscripterYuri`, branch `shared-sdl3/ons`, based on upstream `master`)
 - sdl2-compat: `7f8f1c7293decab05c59aa28a2c9b095546efa29` (`itsCheney/sdl2-compat`, branch `shared-sdl3/ons`, based on `release-2.32.74`)
 - SDL_image `release-2.8.12`, SDL_mixer `release-2.8.2`, SDL_ttf `release-2.24.0` and Lua `v5.4.7`, pinned by commit in `Source/src/onsyuri_mikage/CMakeLists.txt`
 
