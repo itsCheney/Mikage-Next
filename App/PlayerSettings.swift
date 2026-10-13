@@ -22,6 +22,16 @@ struct PlayerSettings: Codable {
     var skipPatchVideos = false
     /// Captured at game launch; existing Emote players keep their current mode.
     var experimentalEmote = false
+    /// Sets Playing after a session of a game that had no status or was
+    /// on the wishlist or on hold.
+    var autoStatus = true
+    /// Sends ratings and comments along with the status.
+    var syncRatings = true
+    /// Records start and finish dates, which go to the VNDB list.
+    var syncDates = true
+    var titleDisplay = TitleDisplay.storageDefault
+    var bannerArt = BannerArt.storageDefault
+    var hideSensitiveImages = true
 
     init() {}
 
@@ -47,6 +57,12 @@ struct PlayerSettings: Codable {
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
         experimentalEmote = value(.experimentalEmote, fallback.experimentalEmote)
+        autoStatus = value(.autoStatus, fallback.autoStatus)
+        syncRatings = value(.syncRatings, fallback.syncRatings)
+        syncDates = value(.syncDates, fallback.syncDates)
+        titleDisplay = value(.titleDisplay, fallback.titleDisplay)
+        bannerArt = value(.bannerArt, fallback.bannerArt)
+        hideSensitiveImages = value(.hideSensitiveImages, fallback.hideSensitiveImages)
     }
 }
 
@@ -83,9 +99,9 @@ enum Appearance: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .system: return "自动"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return String(localized: "Automatic")
+        case .light: return String(localized: "Light")
+        case .dark: return String(localized: "Dark")
         }
     }
 
@@ -120,7 +136,7 @@ enum RendererPreference: String, StoredSetting {
     var displayName: String {
         switch self {
         case .metal: return "Metal"
-        case .softwareMetal: return "软件合成 · Metal"
+        case .softwareMetal: return String(localized: "Software Compositing · Metal")
         }
     }
 }
@@ -136,8 +152,8 @@ enum PlayerBackground: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .cover: return "游戏封面"
-        case .black: return "纯黑"
+        case .cover: return String(localized: "Game Cover")
+        case .black: return String(localized: "Black")
         }
     }
 }
@@ -158,10 +174,53 @@ enum LibrarySort: String, StoredSetting {
 
     var displayName: String {
         switch self {
-        case .recentlyPlayed: return "最近游玩"
-        case .dateAdded: return "添加时间"
-        case .title: return "名称"
-        case .size: return "大小"
+        case .recentlyPlayed: return String(localized: "Recently Played")
+        case .dateAdded: return String(localized: "Date Added")
+        case .title: return String(localized: "Name")
+        case .size: return String(localized: "Size")
+        }
+    }
+}
+
+/// Which title a linked game shows in the library.
+enum TitleDisplay: String, StoredSetting {
+    /// Bangumi's Chinese title when the app runs in Chinese, else the original.
+    case automatic
+    case chinese
+    case original
+    case romanized
+    case folder
+
+    static let legacyValues: [String: Self] = [:]
+    static let storageDefault: Self = .automatic
+
+    init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
+
+    var displayName: String {
+        switch self {
+        case .automatic: return String(localized: "Automatic")
+        case .chinese: return String(localized: "Bangumi Chinese")
+        case .original: return String(localized: "Original Title")
+        case .romanized: return String(localized: "Romanized")
+        case .folder: return String(localized: "Folder Name")
+        }
+    }
+}
+
+/// The art library cards and the continue hero use for a linked game.
+enum BannerArt: String, StoredSetting {
+    case screenshot
+    case cover
+
+    static let legacyValues: [String: Self] = [:]
+    static let storageDefault: Self = .screenshot
+
+    init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
+
+    var displayName: String {
+        switch self {
+        case .screenshot: return String(localized: "VNDB Screenshot")
+        case .cover: return String(localized: "Cover")
         }
     }
 }

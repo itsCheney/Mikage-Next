@@ -66,6 +66,25 @@ public struct LibraryRepository: Sendable {
     public var libraryURL: URL { metadataRoot.appendingPathComponent("library-v2.json") }
     public var coversURL: URL { metadataRoot.appendingPathComponent("Covers", isDirectory: true) }
 
+    /// Saves of games removed with "keep saves", one folder per record id.
+    public var keptSavesRoot: URL { metadataRoot.appendingPathComponent("KeptSaves", isDirectory: true) }
+
+    /// The folder KiriKiri games write their saves to, inside the game folder.
+    public static let savesFolderName = "savedata"
+
+    public func keptSavesURL(for id: UUID) -> URL {
+        keptSavesRoot.appendingPathComponent(id.uuidString, isDirectory: true)
+    }
+
+    /// Whether this game's folder was removed with its saves kept for later.
+    public func hasKeptSaves(_ game: GameRecord) -> Bool {
+        FileManager.default.fileExists(atPath: keptSavesURL(for: game.id).path)
+    }
+
+    public func savesURL(for game: GameRecord) throws -> URL {
+        try directory(for: game).appendingPathComponent(Self.savesFolderName, isDirectory: true)
+    }
+
     public func engineRoot(for engine: EngineID) -> URL {
         documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
     }
@@ -150,14 +169,18 @@ public struct LibraryRepository: Sendable {
                 $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
             }
 
-            for child in children {
-                let values = try child.resourceValues(forKeys: [
-                    .isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey
-                ])
+            for var child in children {
+                let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
                 guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
                 let recordKey = key(engine: engine, folderName: child.lastPathComponent)
                 let old = existingByKey.removeValue(forKey: recordKey)
-                let modifiedAt = values.contentModificationDate
+                // A game removed with its saves kept is back: return the saves
+                // before measuring, so the size includes them.
+                if let old, restoreKeptSaves(for: old.id, into: child) {
+                    child.removeAllCachedResourceValues()
+                }
+                let modifiedAt = try child.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate
 
                 // Adding, removing or replacing a file updates its parent's
                 // modification date, so an unchanged date means this folder's
@@ -258,10 +281,91 @@ public struct LibraryRepository: Sendable {
         try mutate { records in
             records.removeAll { $0.id == record.id }
         }
-        if let name = record.customCoverName {
-            try? FileManager.default.removeItem(
-                at: try GameScanner.containedURL(name, in: coversURL)
-            )
+        for file in [record.customCoverName, record.link?.posterName, record.link?.bannerName] {
+            guard let name = file, let url = try? GameScanner.containedURL(name, in: coversURL) else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+        try? FileManager.default.removeItem(at: keptSavesURL(for: record.id))
+    }
+
+    /// Deletes the game folder but keeps its saves and its record.
+    ///
+    /// The saves move to `keptSavesRoot` and the next scan lists the record
+    /// as missing. When a folder with the same name is imported or relinked,
+    /// the scan matches it to this record and moves the saves back.
+    public func offload(_ game: GameRecord) throws {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
+        let fm = FileManager.default
+        let directory = try directory(for: game)
+        guard fm.fileExists(atPath: directory.path) else { throw LibraryError.noGame }
+        try fm.createDirectory(at: keptSavesRoot, withIntermediateDirectories: true)
+        let kept = keptSavesURL(for: game.id)
+        let saves = directory.appendingPathComponent(Self.savesFolderName, isDirectory: true)
+        if fm.fileExists(atPath: saves.path) {
+            // Saves kept from an earlier removal were not restored because
+            // the game made new ones; the newer saves win.
+            if fm.fileExists(atPath: kept.path) { try fm.removeItem(at: kept) }
+            try fm.moveItem(at: saves, to: kept)
+        } else if !fm.fileExists(atPath: kept.path) {
+            // An empty folder still marks the record as removed on purpose.
+            try fm.createDirectory(at: kept, withIntermediateDirectories: true)
+        }
+        try fm.removeItem(at: directory)
+    }
+
+    /// Deletes the game folder, its saves and its record.
+    public func delete(_ game: GameRecord) throws {
+        let directory = try directory(for: game)
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+        try forget(game)
+    }
+
+    /// Moves saves kept by `offload` back into the game folder, unless the
+    /// folder already has saves of its own. Returns whether anything moved.
+    @discardableResult
+    func restoreKeptSaves(for id: UUID, into directory: URL) -> Bool {
+        let fm = FileManager.default
+        let kept = keptSavesURL(for: id)
+        guard fm.fileExists(atPath: kept.path) else { return false }
+        let saves = directory.appendingPathComponent(Self.savesFolderName, isDirectory: true)
+        if fm.fileExists(atPath: saves.path) {
+            let contents = (try? fm.contentsOfDirectory(atPath: saves.path)) ?? []
+            guard contents.isEmpty, (try? fm.removeItem(at: saves)) != nil else { return false }
+        }
+        return (try? fm.moveItem(at: kept, to: saves)) != nil
+    }
+
+    /// Downloaded Bangumi or VNDB artwork, if the file is still present.
+    public func artworkURL(named name: String?) -> URL? {
+        guard let name, let url = try? GameScanner.containedURL(name, in: coversURL),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    /// Stores downloaded artwork under `name` in the Covers folder.
+    public func writeArtwork(_ data: Data, named name: String) throws {
+        try ensureStructure()
+        try data.write(to: try GameScanner.containedURL(name, in: coversURL), options: .atomic)
+    }
+
+    public func removeArtwork(named name: String?) {
+        guard let name, let url = try? GameScanner.containedURL(name, in: coversURL) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Applies `transform` to one record and returns the result.
+    @discardableResult
+    public func update(_ id: UUID, _ transform: (inout GameRecord) throws -> Void) throws -> GameRecord {
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == id }) else {
+                throw LibraryError.recordNotFound
+            }
+            try transform(&records[index])
+            return records[index]
         }
     }
 
@@ -276,11 +380,16 @@ public struct LibraryRepository: Sendable {
     }
 
     public func coverURL(for game: GameRecord) -> URL? {
-        if let custom = game.customCoverName,
-           let customURL = try? GameScanner.containedURL(custom, in: coversURL),
-           FileManager.default.fileExists(atPath: customURL.path) {
-            return customURL
-        }
+        customCoverURL(for: game) ?? detectedCoverURL(for: game)
+    }
+
+    /// A cover the player picked, if its file is still present.
+    public func customCoverURL(for game: GameRecord) -> URL? {
+        artworkURL(named: game.customCoverName)
+    }
+
+    /// An image found in the game folder itself.
+    public func detectedCoverURL(for game: GameRecord) -> URL? {
         guard let detected = game.detectedCoverPath,
               let directory = try? directory(for: game),
               let detectedURL = try? GameScanner.containedURL(detected, in: directory),
@@ -357,7 +466,9 @@ public struct LibraryRepository: Sendable {
             sizeMeasuredAt: scanned.sizeMeasuredAt,
             detectedCoverPath: scanned.detectedCoverPath,
             customCoverName: metadata.customCoverName,
-            availability: scanned.availability
+            availability: scanned.availability,
+            link: metadata.link,
+            listEntry: metadata.listEntry
         )
     }
 }
@@ -383,6 +494,10 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
     public var detectedCoverPath: String?
     public var customCoverName: String?
     public var availability: GameAvailability
+    /// The Bangumi and VNDB entries this game is linked to, if any.
+    public var link: GameLink?
+    /// Status, rating and dates; kept with or without a link.
+    public var listEntry: ListEntry
 
     public init(
         id: UUID = UUID(),
@@ -399,7 +514,9 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         sizeMeasuredAt: Date? = nil,
         detectedCoverPath: String? = nil,
         customCoverName: String? = nil,
-        availability: GameAvailability = .unsupported
+        availability: GameAvailability = .unsupported,
+        link: GameLink? = nil,
+        listEntry: ListEntry = ListEntry()
     ) {
         self.id = id
         self.title = title
@@ -416,6 +533,8 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         self.detectedCoverPath = detectedCoverPath
         self.customCoverName = customCoverName
         self.availability = availability
+        self.link = link
+        self.listEntry = listEntry
     }
 
     /// Hand-written so that fields added after a library was written decode to
@@ -437,6 +556,10 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         detectedCoverPath = try container.decodeIfPresent(String.self, forKey: .detectedCoverPath)
         customCoverName = try container.decodeIfPresent(String.self, forKey: .customCoverName)
         availability = try container.decode(GameAvailability.self, forKey: .availability)
+        // A link that no longer decodes is dropped rather than failing the
+        // library; the game can simply be matched again.
+        link = try? container.decodeIfPresent(GameLink.self, forKey: .link)
+        listEntry = (try? container.decodeIfPresent(ListEntry.self, forKey: .listEntry)) ?? ListEntry()
     }
 }
 
@@ -463,21 +586,21 @@ public enum LibraryError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .noGame:
-            return "没有识别到支持的游戏结构，请手动选择引擎。"
+            return String(localized: "No supported game structure was found. Choose the engine manually.")
         case .unsafePath:
-            return "游戏文件路径超出了允许的目录。"
+            return String(localized: "The game file path is outside the allowed folder.")
         case .symbolicLink:
-            return "游戏目录包含符号链接，暂不支持导入。"
+            return String(localized: "The game folder contains symbolic links, which can’t be imported yet.")
         case .unsupportedSchema(let version):
-            return "游戏库版本 \(version) 暂不受支持，请升级应用。"
+            return String(localized: "Library version \(version) isn’t supported. Please update the app.")
         case .duplicateName(let name):
-            return "“\(name)”已存在于目标引擎目录中，请先重命名文件夹。"
+            return String(localized: "“\(name)” already exists in the target engine folder. Rename the folder first.")
         case .invalidFolderName:
-            return "游戏文件夹名称无效。"
+            return String(localized: "The game folder name is invalid.")
         case .engineMismatch(let expected, let detected):
-            return "所选文件夹识别为 \(detected.displayName)，无法关联到 \(expected.displayName) 游戏。"
+            return String(localized: "The selected folder was recognized as \(detected.displayName) and can’t be linked to a \(expected.displayName) game.")
         case .recordNotFound:
-            return "游戏记录已经不存在。"
+            return String(localized: "The game record no longer exists.")
         }
     }
 }
@@ -505,7 +628,7 @@ public enum GameScanner {
         if !engine.isLaunchSupported {
             availability = .unsupported
         } else if launch == nil {
-            availability = .invalid("未找到有效的 startup.tjs 或 XP3")
+            availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
         } else {
             availability = .ready
         }
@@ -606,21 +729,25 @@ public enum GameScanner {
               !relative.split(separator: "/").contains("..") else { throw LibraryError.unsafePath }
         let base = root.standardizedFileURL.resolvingSymlinksInPath()
         var candidate = base
-        for component in relative.split(separator: "/") {
+        for component in relative.split(separator: "/") where component != "." {
             candidate.appendPathComponent(String(component))
             do {
                 let attributes = try FileManager.default.attributesOfItem(atPath: candidate.path)
                 if attributes[.type] as? FileAttributeType == .typeSymbolicLink {
                     throw LibraryError.unsafePath
                 }
-            } catch let error as NSError where
-                error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain
+                        && [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) {
                 // Missing leaves are valid when constructing a future destination.
+                // Apple's Foundation reports them as NSFileReadNoSuchFileError.
             }
         }
-        let result = candidate.standardizedFileURL
-        guard result.path.hasPrefix(base.path + "/") else { throw LibraryError.unsafePath }
-        return result
+        // Every component was checked above, so the candidate is inside the
+        // base already. Standardizing it again could drop or keep iOS's
+        // "/private" prefix depending on whether the file exists yet, which
+        // made new files look like they escaped the base.
+        guard candidate.path.hasPrefix(base.path + "/") else { throw LibraryError.unsafePath }
+        return candidate
     }
 
     public static func normalized(_ value: String) -> String {
@@ -644,6 +771,13 @@ public enum GameScanner {
             let values = try? $0.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             return values?.isRegularFile == true && values?.isSymbolicLink != true
         }
+    }
+
+    /// Total size of the regular files under `directory`; zero when it
+    /// does not exist.
+    public static func directorySize(_ directory: URL) -> Int64 {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return 0 }
+        return (try? byteCount(in: directory)) ?? 0
     }
 
     private static func byteCount(in directory: URL) throws -> Int64 {

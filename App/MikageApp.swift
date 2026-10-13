@@ -31,6 +31,9 @@ final class AppModel: ObservableObject {
             if let data = Self.encoded(settings) {
                 defaults.set(data, forKey: Self.settingsKey)
             }
+            if oldValue.hideSensitiveImages != settings.hideSensitiveImages {
+                Task { await refreshAllArtwork() }
+            }
         }
     }
     @Published var tab = 0
@@ -45,10 +48,40 @@ final class AppModel: ObservableObject {
     @Published var player: GameRecord?
     @Published var pendingImport: PendingGameImport?
 
-    private var libraryReadable = true
+    // MARK: Bangumi and VNDB
+
+    /// Accounts whose tokens are in the Keychain, by service.
+    @Published var accounts: [MetadataService: ServiceAccount] = [:]
+    @Published var syncing = false
+    @Published var lastSyncedAt: Date?
+    @Published var lastSyncError: String?
+    /// The glass notice over the library after a status changed by itself.
+    @Published var toast: LibraryToast?
+    /// A just-imported game waiting for its Bangumi/VNDB match.
+    @Published var matchRequest: GameRecord?
+    /// A game marked finished from the in-game menu, waiting for its rating.
+    @Published var finishRequest: GameRecord?
+    /// Games with a sync request in flight, so two cannot overlap.
+    var syncingGames: Set<UUID> = []
+    /// Whether Bangumi's website is signed in, which removing a collection needs.
+    @Published var bangumiWebSignedIn = false
+    /// Set when Bangumi refused both the refresh token and the website
+    /// session, so the account has to sign in again.
+    @Published var bangumiSignInExpired = false
+    /// The Bangumi token renewal in flight, shared by concurrent requests.
+    var bangumiRenewal: Task<BangumiToken, Error>?
+    /// Games whose failed Bangumi removal was already reported this launch.
+    var reportedRemovalFailures: Set<UUID> = []
+    /// When linked games were last brought up to date.
+    var lastLinkedRefresh: Date?
+    /// Bangumi-only games already searched on VNDB this launch.
+    var vndbLookups: Set<UUID> = []
+    let tokens: any ServiceTokenStore
+
+    private(set) var libraryReadable = true
     let repository: LibraryRepository
     let krkrSession: any KRKRSession
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
 
     private static let settingsKey = "settings.v1"
 
@@ -76,11 +109,13 @@ final class AppModel: ObservableObject {
         repository: LibraryRepository? = nil,
         session: (any KRKRSession)? = nil,
         defaults: UserDefaults = .standard,
+        tokens: (any ServiceTokenStore)? = nil,
         configureDiagnostics: Bool = true
     ) {
         self.defaults = defaults
         self.repository = repository ?? Self.appRepository()
         krkrSession = session ?? NativeKRKRSession()
+        self.tokens = tokens ?? KeychainTokenStore()
 
         let stored = defaults.data(forKey: Self.settingsKey)
         let loadedSettings = stored
@@ -94,13 +129,14 @@ final class AppModel: ObservableObject {
         }
 
         settings = loadedSettings
+        loadAccounts()
 
         if configureDiagnostics {
             do {
                 try AppDiagnostics.shared.configure(enabled: defaults.bool(forKey: AppDiagnostics.preferenceKey))
             } catch {
                 defaults.set(false, forKey: AppDiagnostics.preferenceKey)
-                alert = "无法启动日志记录：\(error.localizedDescription)"
+                alert = String(localized: "Couldn’t start logging: \(error.localizedDescription)")
             }
             AppDiagnostics.shared.event("app", "launch")
         }
@@ -113,10 +149,10 @@ final class AppModel: ObservableObject {
         } catch {
             libraryReadable = false
             AppDiagnostics.shared.event("library", "initialization.failed", ["error": error.localizedDescription])
-            alert = """
-                无法读取游戏库：\(error.localizedDescription)
-                原文件已保留在 Application Support/Mikage/library-v2.json。下拉刷新可重试。
-                """
+            alert = String(localized: """
+                Couldn’t read the library: \(error.localizedDescription)
+                The original file was kept at Application Support/Mikage/library-v2.json. Pull down to refresh and try again.
+                """)
         }
     }
 
@@ -143,7 +179,11 @@ final class AppModel: ObservableObject {
 
     /// Games matching the search query, in the chosen sort order.
     var filteredGames: [GameRecord] {
-        sortedGames.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
+        sortedGames.filter { game in
+            query.isEmpty
+                || game.title.localizedCaseInsensitiveContains(query)
+                || searchableTitles(game).contains { $0.localizedCaseInsensitiveContains(query) }
+        }
     }
 
     /// Every game in the chosen sort order. The library tab shows these; the
@@ -153,7 +193,7 @@ final class AppModel: ObservableObject {
             .sorted {
                 switch settings.sort {
                 case .title:
-                    return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                    return displayTitle($0).localizedStandardCompare(displayTitle($1)) == .orderedAscending
                 case .size:
                     return $0.byteCount > $1.byteCount
                 case .dateAdded:
@@ -180,10 +220,22 @@ final class AppModel: ObservableObject {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
+    /// Game sizes in the library are always in GB, so cards compare at a glance.
+    static func librarySize(_ count: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = .useGB
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: count)
+    }
+
     func recency(_ game: GameRecord) -> String {
-        guard let date = game.lastPlayedAt else { return "尚未游玩" }
+        guard let date = game.lastPlayedAt else { return String(localized: "Not played yet") }
+        // Under a minute reads as "just now" rather than a count of seconds.
+        if Date().timeIntervalSince(date) < 60 { return String(localized: "Just now") }
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
+        // Match the language the UI resolved to, not the device region.
+        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 
@@ -191,14 +243,14 @@ final class AppModel: ObservableObject {
         switch game.availability {
         case .ready:
             return game.launchTargetKind == .archive
-                ? "启动：\(game.launchTarget ?? "XP3")"
-                : "可以启动"
+                ? String(localized: "Launches \(game.launchTarget ?? "XP3")")
+                : String(localized: "Ready to launch")
         case .invalid(let reason):
             return reason
         case .unsupported:
-            return "\(game.engine.displayName) 引擎尚未接入"
+            return String(localized: "The \(game.engine.displayName) engine isn’t supported yet")
         case .missing:
-            return "文件夹已移除"
+            return String(localized: "Folder removed")
         }
     }
 
@@ -228,7 +280,7 @@ final class AppModel: ObservableObject {
             respectSilentMode: settings.respectSilentMode,
             experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,
-            gameTitle: game.title,
+            gameTitle: displayTitle(game),
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)
         )
     }
@@ -238,7 +290,7 @@ final class AppModel: ObservableObject {
         // A pull-to-refresh is the retry path out of a failed launch load.
         guard retryLoadIfNeeded() else {
             if showErrors {
-                alert = "游戏库文件仍无法读取。请检查 Application Support/Mikage/library-v2.json。"
+                alert = String(localized: "The library file still can’t be read. Check Application Support/Mikage/library-v2.json.")
             }
             return
         }
@@ -255,7 +307,7 @@ final class AppModel: ObservableObject {
         } catch {
             AppDiagnostics.shared.event("library", "scan.failed", ["error": error.localizedDescription])
             if showErrors {
-                alert = "扫描游戏目录失败：\(error.localizedDescription)"
+                alert = String(localized: "Couldn’t scan game folders: \(error.localizedDescription)")
             }
         }
     }
@@ -281,6 +333,7 @@ final class AppModel: ObservableObject {
                     try repository.importFolder(url, engine: engine)
                 }.value
                 await refreshLibrary()
+                requestMatch(forImported: url, engine: engine)
             } else {
                 AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
                 pendingImport = PendingGameImport(url: url, detectedEngines: detected)
@@ -307,6 +360,7 @@ final class AppModel: ObservableObject {
                 try repository.importFolder(url, engine: engine)
             }.value
             await refreshLibrary()
+            requestMatch(forImported: url, engine: engine)
         } catch {
             alert = error.localizedDescription
         }
@@ -368,19 +422,39 @@ final class AppModel: ObservableObject {
             guard let updated else {
                 // The folder was forgotten or relinked while the game ran.
                 AppDiagnostics.shared.event("library", "history.recordMissing", ["folder": game.folderName])
-                alert = "游玩记录未能保存：“\(game.title)”的记录已不存在。"
+                alert = String(localized: "Play history wasn’t saved: the record for “\(game.title)” no longer exists.")
                 return
             }
             if let activeIndex = games.firstIndex(where: { $0.id == game.id }) {
                 games[activeIndex] = updated
             }
         } catch {
-            alert = "游玩记录保存失败：\(error.localizedDescription)"
+            alert = String(localized: "Couldn’t save play history: \(error.localizedDescription)")
         }
     }
 
+    /// Art for cards and the continue hero: a cover the player chose always
+    /// wins, then the linked banner or poster, then an image in the folder.
     func coverURL(_ game: GameRecord) -> URL? {
-        repository.coverURL(for: game)
+        if let custom = repository.customCoverURL(for: game) { return custom }
+        let banner = repository.artworkURL(named: game.link?.bannerName)
+        let poster = repository.artworkURL(named: game.link?.posterName)
+        // A picked image always shows; otherwise the setting decides which
+        // linked art leads. Linked art beats an image found in the folder.
+        let preferBanner = settings.bannerArt == .screenshot || game.link?.bannerChoice != nil
+        return (preferBanner ? banner ?? poster : poster ?? banner)
+            ?? repository.detectedCoverURL(for: game)
+    }
+
+    /// The package art for the details page, portrait or landscape.
+    func posterURL(_ game: GameRecord) -> URL? {
+        // A linked game shows the service's cover and nothing the player
+        // set; the player's covers belong to the library card and banner.
+        if game.link != nil {
+            return repository.artworkURL(named: game.link?.posterName)
+                ?? repository.detectedCoverURL(for: game)
+        }
+        return repository.customCoverURL(for: game) ?? repository.detectedCoverURL(for: game)
     }
 
     /// Encodes and writes off the main thread: a picked photo can be several

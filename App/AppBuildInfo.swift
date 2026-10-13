@@ -19,7 +19,7 @@ struct AppBuildInfo: Equatable {
     }
 
     var versionLine: String { "MIKAGE NEXT · \(version)" }
-    var headLine: String { sourceRevision == "unknown" ? "HEAD 未知" : "HEAD \(sourceRevision)" }
+    var headLine: String { sourceRevision == "unknown" ? String(localized: "HEAD unknown") : "HEAD \(sourceRevision)" }
 
     private static func metadataString(_ value: Any?) -> String {
         guard let value = value as? String else { return "unknown" }

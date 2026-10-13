@@ -12,20 +12,39 @@ struct RootView: View {
             .fullScreenCover(item: $model.player) { game in
                 PlayerView(game: game).environmentObject(model)
             }
+            .sheet(item: $model.finishRequest) { game in
+                RatingSheet(game: game, mode: .finish).environmentObject(model)
+            }
             .task {
                 await model.refreshLibrary(showErrors: false)
             }
             .onChange(of: scenePhase) { phase in
                 AppDiagnostics.shared.event("app", "scenePhase.changed", ["phase": String(describing: phase)])
                 if phase == .active {
-                    Task { await model.refreshLibrary(showErrors: false) }
+                    Task {
+                        await model.refreshLibrary(showErrors: false)
+                        await model.syncPending()
+                        await model.refreshLinkedGames()
+                    }
                 }
             }
-            .alert("提示", isPresented: Binding(
+            .sheet(item: $model.matchRequest) { game in
+                MatchView(game: game).environmentObject(model)
+            }
+            .overlay(alignment: .bottom) {
+                if let toast = model.toast {
+                    LibraryToastView(toast: toast)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 72)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast)
+            .alert("Notice", isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }
             )) {
-                Button("好", role: .cancel) { model.alert = nil }
+                Button("OK", role: .cancel) { model.alert = nil }
             } message: {
                 Text(model.alert ?? "")
             }
@@ -38,10 +57,10 @@ struct RootView: View {
     private var tabs: some View {
         if #available(iOS 18.0, *) {
             TabView(selection: $model.tab) {
-                Tab("游戏库", systemImage: "books.vertical", value: 0) {
+                Tab("Library", systemImage: "books.vertical", value: 0) {
                     LibraryView()
                 }
-                Tab("设置", systemImage: "gearshape", value: 1) {
+                Tab("Settings", systemImage: "gearshape", value: 1) {
                     SettingsView()
                 }
                 Tab(value: 2, role: .search) {
@@ -52,13 +71,13 @@ struct RootView: View {
         } else {
             TabView(selection: $model.tab) {
                 LibraryView()
-                    .tabItem { Label("游戏库", systemImage: "books.vertical.fill") }
+                    .tabItem { Label("Library", systemImage: "books.vertical.fill") }
                     .tag(0)
                 SettingsView()
-                    .tabItem { Label("设置", systemImage: "gearshape.fill") }
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                     .tag(1)
                 LibrarySearchView()
-                    .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
                     .tag(2)
             }
         }
@@ -84,40 +103,32 @@ struct LibraryView: View {
         model.sortedGames.filter { $0.availability == .unsupported }
     }
 
-    /// Bottom edge of the continue card in the scroll view's space, used to
-    /// tell when it has scrolled under or past the navigation bar.
-    @State private var heroBottom: CGFloat = .infinity
+    /// Height of the pinned header, including the status bar area.
+    @State private var headerHeight: CGFloat = 0
 
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let barBottom = proxy.safeAreaInsets.top
-                let hasHero = model.latest != nil
-                // On iPhone the continue card runs up under the bar; on iPad it
-                // is an inset card below it.
-                let heroBehindBar = hasHero && !regular
-                let heroUnderBar = heroBehindBar && heroBottom > barBottom
-                let heroScrolledAway = hasHero && heroBottom <= (heroBehindBar ? barBottom : 0)
+                let topInset = proxy.safeAreaInsets.top
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if let latest = model.latest {
-                            continueCard(latest, topInset: heroBehindBar ? barBottom : 0)
-                                .background(
-                                    GeometryReader { card in
-                                        Color.clear.preference(
-                                            key: HeroBottomKey.self,
-                                            value: card.frame(in: .named(Self.scrollSpace)).maxY
-                                        )
-                                    }
-                                )
+                            ContinueBanner(
+                                game: latest,
+                                topInset: topInset,
+                                headerHeight: headerHeight,
+                                regular: regular
+                            )
+                        } else {
+                            Color.clear.frame(height: headerHeight)
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
                             if model.importing || model.scanning {
                                 HStack {
                                     ProgressView()
-                                    Text(model.importing ? "正在复制游戏文件…" : "正在扫描游戏目录…")
+                                    Text(model.importing ? LocalizedStringKey("Copying game files…") : LocalizedStringKey("Scanning game folders…"))
                                 }
                                 .font(.subheadline)
                             }
@@ -133,47 +144,24 @@ struct LibraryView: View {
                         .padding(.bottom, 24)
                     }
                 }
-                .coordinateSpace(name: Self.scrollSpace)
-                .onPreferenceChange(HeroBottomKey.self) { heroBottom = $0 }
                 .refreshable {
                     await model.refreshLibrary()
                 }
-                .ignoresSafeArea(edges: heroBehindBar ? .top : [])
-                // A real navigation bar, so the system blurs content that
-                // scrolls under it (the scroll edge effect on iOS 26).
-                .toolbar {
-                    if hasHero {
-                        ToolbarItem(placement: .principal) {
-                            Text("游戏库")
-                                .font(.headline)
-                                .opacity(heroScrolledAway ? 1 : 0)
-                                .animation(.easeOut(duration: 0.15), value: heroScrolledAway)
-                        }
-                    }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        if !model.missingGames.isEmpty {
-                            Button {
-                                showMissingGames = true
-                            } label: {
-                                Label(
-                                    "缺失游戏 \(model.missingGames.count)",
-                                    systemImage: "exclamationmark.folder"
-                                )
+                // Content runs under the status bar and the pinned header.
+                .ignoresSafeArea(edges: .top)
+                .overlay(alignment: .top) {
+                    header(topInset: topInset)
+                        .background(
+                            GeometryReader { header in
+                                Color.clear.preference(key: HeaderHeightKey.self, value: header.size.height)
                             }
-                            .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
-                            .accessibilityIdentifier("missing-games-button")
-                        }
-                        viewMenu
-                        importMenu
-                    }
+                        )
+                        .ignoresSafeArea(edges: .top)
                 }
-                // Over the cover art the bar items read light-on-dark.
-                .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
-                .legacyBarBackgroundHidden(heroUnderBar)
+                .onPreferenceChange(HeaderHeightKey.self) { headerHeight = $0 }
             }
             .background(AppBackground())
-            .navigationTitle("游戏库")
-            .navigationBarTitleDisplayMode(model.latest == nil ? .large : .inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .fileImporter(isPresented: $importPicker, allowedContentTypes: [.folder]) { result in
             switch result {
@@ -187,7 +175,7 @@ struct LibraryView: View {
             MissingGamesView().environmentObject(model)
         }
         .confirmationDialog(
-            "选择游戏引擎",
+            "Choose Game Engine",
             isPresented: Binding(
                 get: { model.pendingImport != nil },
                 set: { if !$0 { model.pendingImport = nil } }
@@ -200,123 +188,111 @@ struct LibraryView: View {
                     Task { await model.importPending(pending, as: engine) }
                 }
             }
-            Button("取消", role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 model.pendingImport = nil
             }
         } message: { pending in
             if pending.detectedEngines.isEmpty {
-                Text("未能自动识别“\(pending.url.lastPathComponent)”，请选择它所属的引擎。")
+                Text("Couldn’t recognize “\(pending.url.lastPathComponent)”. Choose the engine it uses.")
             } else {
-                Text("检测到多个可能的引擎，请确认“\(pending.url.lastPathComponent)”的类型。")
+                Text("Several engines match “\(pending.url.lastPathComponent)”. Confirm which one it uses.")
             }
         }
     }
 
-    private static let scrollSpace = "library-scroll"
-
     // MARK: Header
 
-    /// The last played game fills the top of the library, with the page's
-    /// large title on the cover art and Resume as the one prominent action.
-    /// `topInset` is the navigation bar's bottom edge when the card runs under
-    /// the bar, otherwise zero.
-    private func continueCard(_ game: GameRecord, topInset: CGFloat) -> some View {
-        ZStack {
-            GameCover(game: game)
-                .accessibilityHidden(true)
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.28), location: 0),
-                    .init(color: .clear, location: 0.3),
-                    .init(color: .clear, location: 0.5),
-                    .init(color: .black.opacity(0.72), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .allowsHitTesting(false)
-
+    /// Pinned like the Photos library header: the large title and its count on
+    /// the left, glass buttons on the same row, over a blur that fades out
+    /// downward so covers and cards scroll softly underneath.
+    private func header(topInset: CGFloat) -> some View {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("游戏库")
+                Text("Library")
                     .font(.largeTitle.bold())
                     .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 12)
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("继续上次")
-                            .font(.caption.weight(.semibold))
-                            .tracking(2)
-                            .opacity(0.9)
-                        Text(game.title)
-                            .font(regular ? .largeTitle.bold() : .title2.bold())
-                            .lineLimit(2)
-                        Text("\(model.recency(game)) · 已玩 \(game.playTime.playTimeSummary)")
-                            .font(regular ? .subheadline : .footnote)
-                            .opacity(0.88)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Button { model.launch(game) } label: {
-                        Label("继续", systemImage: "play.fill")
-                            .font(.headline)
-                            .padding(.horizontal, 4)
-                    }
-                    .nativeGlassButtonStyle(prominent: true)
-                    .controlSize(.large)
-                    .accessibilityLabel("继续上次：\(game.title)")
-                }
+                Text("\(model.displayedGames.count) games")
+                    .font(.subheadline.weight(.semibold))
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, regular ? 28 : 20)
-            .padding(.top, regular ? 26 : topInset + 4)
-            .padding(.bottom, regular ? 26 : 22)
+            Spacer(minLength: 0)
+            headerButtons
         }
-        .frame(height: regular ? 320 : 220 + topInset)
-        .clipShape(RoundedRectangle(cornerRadius: regular ? 28 : 0, style: .continuous))
-        .padding(.horizontal, regular ? 12 : 0)
-        .padding(.top, regular ? 12 : 0)
+        .foregroundStyle(.white)
+        .padding(.leading, 20)
+        .padding(.trailing, 16)
+        .padding(.top, topInset + 6)
+        .padding(.bottom, 22)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .top) {
+            ProgressiveHeaderBlur()
+        }
         .environment(\.colorScheme, .dark)
+    }
+
+    private var headerButtons: some View {
+        HStack(spacing: 0) {
+            if !model.missingGames.isEmpty {
+                Button {
+                    showMissingGames = true
+                } label: {
+                    Image(systemName: "exclamationmark.folder")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Missing games: \(model.missingGames.count)")
+                .accessibilityIdentifier("missing-games-button")
+            }
+            viewMenu
+            importMenu
+        }
+        .font(.title3.weight(.medium))
+        .tint(Color.primary)
+        .nativeGlassCapsule()
     }
 
     private var viewMenu: some View {
         Menu {
-            Section("显示方式") {
-                Picker("显示方式", selection: $model.settings.listLayout) {
-                    Label("网格", systemImage: "square.grid.2x2").tag(false)
-                    Label("列表", systemImage: "list.bullet").tag(true)
+            Section("Layout") {
+                Picker("Layout", selection: $model.settings.listLayout) {
+                    Label("Grid", systemImage: "square.grid.2x2").tag(false)
+                    Label("List", systemImage: "list.bullet").tag(true)
                 }
             }
-            Section("排序方式") {
-                Picker("排序方式", selection: $model.settings.sort) {
+            Section("Sort By") {
+                Picker("Sort By", selection: $model.settings.sort) {
                     ForEach(LibrarySort.allCases, id: \.self) {
                         Text($0.displayName).tag($0)
                     }
                 }
             }
         } label: {
-            Label("显示与排序", systemImage: "ellipsis")
+            Label("View & Sort", systemImage: "ellipsis")
                 .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
-        .accessibilityLabel("显示与排序")
+        .accessibilityLabel("View & Sort")
     }
 
     private var importMenu: some View {
         Menu {
             Button { importPicker = true } label: {
-                Label("导入文件夹", systemImage: "folder.badge.plus")
+                Label("Import Folder", systemImage: "folder.badge.plus")
             }
             Button {
-                model.alert = "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents 下的 krkr、ons、renpy 或 artemis 目录。"
+                model.alert = String(localized: "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly into the krkr, ons, renpy or artemis folder under Documents.")
             } label: {
-                Label("ZIP 与 Wi-Fi 导入", systemImage: "wifi")
+                Label("ZIP & Wi-Fi Import", systemImage: "wifi")
             }
         } label: {
-            Label("添加游戏", systemImage: "plus")
+            Label("Add Game", systemImage: "plus")
                 .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .disabled(model.importing)
-        .accessibilityLabel("添加游戏")
+        .accessibilityLabel("Add Game")
     }
 
     // MARK: Sections
@@ -328,11 +304,12 @@ struct LibraryView: View {
 
         if !playable.isEmpty {
             HStack(alignment: .firstTextBaseline) {
-                Text("全部作品")
+                Text("All Games")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Text("\(playable.count) 部 · \(AppModel.size(playable.reduce(0) { $0 + $1.byteCount }))")
+                (Text("\(playable.count) games")
+                    + Text(verbatim: " · \(AppModel.librarySize(playable.reduce(0) { $0 + $1.byteCount }))"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -341,10 +318,10 @@ struct LibraryView: View {
 
         if !comingSoon.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
-                Text("即将支持")
+                Text("Coming Soon")
                     .font(.title2.bold())
                     .accessibilityAddTraits(.isHeader)
-                Text("已识别引擎，运行时接入后即可游玩")
+                Text("Engine recognized. Playable once its runtime is added.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -357,23 +334,23 @@ struct LibraryView: View {
     private var emptyLibrary: some View {
         if #available(iOS 17.0, *) {
             ContentUnavailableView {
-                Label("故事，从这里开始", systemImage: "books.vertical")
+                Label("Your Stories Start Here", systemImage: "books.vertical")
             } description: {
-                Text("把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。")
+                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
             } actions: {
-                Button("导入游戏") { importPicker = true }
+                Button("Import Game") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
             }
             .padding(.top, 60)
         } else {
             VStack(spacing: 15) {
-                Label("故事，从这里开始", systemImage: "books.vertical")
+                Label("Your Stories Start Here", systemImage: "books.vertical")
                     .font(.title3.weight(.semibold))
-                Text("把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。")
+                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("导入游戏") { importPicker = true }
+                Button("Import Game") { importPicker = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.importing)
             }
@@ -383,24 +360,237 @@ struct LibraryView: View {
     }
 }
 
-private struct HeroBottomKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = min(value, nextValue())
+/// The last played game under the pinned header, as one composition built
+/// from its cover:
+/// - the top band (about the status bar plus 70 pt) is the color of the
+///   cover's top edge, fading into
+/// - a full-bleed, pre-blurred copy of the cover behind everything;
+/// - the cover itself, sharp and fitted rather than cropped, starts below
+///   the header text, and its edges are masked into the blur;
+/// - the bottom darkens behind the title, play history and Resume.
+private struct ContinueBanner: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.displayScale) private var displayScale
+    let game: GameRecord
+    /// Safe-area top (status bar) the banner extends behind.
+    let topInset: CGFloat
+    /// Bottom edge of the pinned header, including its fade.
+    let headerHeight: CGFloat
+    let regular: Bool
+    @ObservedObject private var covers = CoverCache.shared
+    @State private var artwork: HeroArtwork?
+
+    /// Same total height as before the redesign: about 313 pt on an iPhone 13
+    /// Pro (266 + its 47 pt status bar).
+    private var heroHeight: CGFloat { (regular ? 380 : 266) + topInset }
+
+    /// Decode size for the cover; also the cache key, so it stays fixed.
+    private static let decodeSize = CGSize(width: 600, height: 600)
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack(alignment: .topLeading) {
+                backdrop(size: size)
+                if let artwork {
+                    foreground(artwork, in: size)
+                }
+                // Contrast for the text and Resume at the bottom.
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.5),
+                        .init(color: .black.opacity(0.65), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+                info
+                    .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+            }
+        }
+        .frame(height: heroHeight)
+        .clipped()
+        .environment(\.colorScheme, .dark)
+        .task(id: "\(model.coverURL(game)?.path ?? game.id.uuidString)|\(covers.generation)") {
+            await load()
+        }
+    }
+
+    // MARK: Layers
+
+    private func backdrop(size: CGSize) -> some View {
+        let top = Color(uiColor: artwork?.topColor ?? UIColor(white: 0.22, alpha: 1))
+        // The color band covers the status bar and about 70 pt more.
+        let band = min(1, (topInset + 70) / max(size.height, 1))
+        return ZStack {
+            top
+            if let artwork {
+                Image(uiImage: artwork.blurred)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .opacity(0.9)
+            }
+            LinearGradient(
+                stops: [
+                    .init(color: top, location: 0),
+                    .init(color: top.opacity(0.6), location: band * 0.6),
+                    .init(color: top.opacity(0), location: band)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .frame(width: size.width, height: size.height)
+        .accessibilityHidden(true)
+    }
+
+    private func foreground(_ artwork: HeroArtwork, in size: CGSize) -> some View {
+        let frame = Self.foregroundFrame(
+            aspect: artwork.aspectRatio,
+            in: size,
+            preferredTop: max(topInset + 50, headerHeight - 22),
+            minimumTop: topInset + 40
+        )
+        // Portrait covers are narrower than the hero: fade their sides too.
+        let sideStops: [Gradient.Stop] = frame.width >= size.width - 0.5
+            ? [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+            : [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.12),
+                .init(color: .black, location: 0.88),
+                .init(color: .clear, location: 1)
+            ]
+        return Image(uiImage: artwork.cover)
+            .resizable()
+            .scaledToFit()
+            .frame(width: frame.width, height: frame.height)
+            // Fade the top into the color band and the bottom into the
+            // darkened info area, so no edge of the cover shows.
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.14),
+                        .init(color: .black, location: 0.62),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .mask(LinearGradient(stops: sideStops, startPoint: .leading, endPoint: .trailing))
+            .offset(x: frame.minX, y: frame.minY)
+            .accessibilityHidden(true)
+    }
+
+    /// Fits the cover in the hero below `preferredTop`. A cover too tall to
+    /// fit there moves up, but never above `minimumTop`, before it is scaled
+    /// down to the remaining height; wide covers span the full width.
+    static func foregroundFrame(
+        aspect: CGFloat,
+        in size: CGSize,
+        preferredTop: CGFloat,
+        minimumTop: CGFloat
+    ) -> CGRect {
+        guard aspect > 0, size.width > 0, size.height > 0 else { return .zero }
+        let fullWidthHeight = size.width / aspect
+        // Room below the header that keeps the whole cover inside the hero.
+        let top = min(preferredTop, max(minimumTop, size.height - fullWidthHeight))
+        let available = size.height - top
+        if fullWidthHeight <= available {
+            return CGRect(x: 0, y: top, width: size.width, height: fullWidthHeight)
+        }
+        let width = available * aspect
+        return CGRect(x: (size.width - width) / 2, y: top, width: width, height: available)
+    }
+
+    private var info: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Continue Playing")
+                    .font(.caption.weight(.semibold))
+                    .tracking(2)
+                    .opacity(0.9)
+                Text(model.displayTitle(game))
+                    .font(regular ? .largeTitle.bold() : .title2.bold())
+                    .lineLimit(2)
+                Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
+                    .font(regular ? .subheadline : .footnote)
+                    .opacity(0.88)
+                    .lineLimit(1)
+            }
+            .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
+            Spacer(minLength: 0)
+            Button { model.launch(game) } label: {
+                Label("Resume", systemImage: "play.fill")
+                    .font(.headline)
+                    .padding(.horizontal, 4)
+            }
+            .nativeGlassButtonStyle(prominent: true)
+            .controlSize(.large)
+            .accessibilityLabel("Continue Playing: \(model.displayTitle(game))")
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, regular ? 28 : 20)
+        .padding(.bottom, regular ? 26 : 22)
+    }
+
+    private func load() async {
+        guard let url = model.coverURL(game) else {
+            artwork = nil
+            return
+        }
+        // A cache hit appears without a fade so returning to the tab is calm.
+        if let hit = CoverCache.shared.cachedHeroArtwork(url, size: Self.decodeSize, scale: displayScale) {
+            artwork = hit
+            return
+        }
+        let processed = await CoverCache.shared.heroArtwork(
+            for: url,
+            size: Self.decodeSize,
+            scale: displayScale
+        )
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.25)) { artwork = processed }
     }
 }
 
-private extension View {
-    /// Before iOS 26 the bar draws its own material; hide it while the cover
-    /// art is under the bar. iOS 26 bars have no background and blur scrolled
-    /// content with the scroll edge effect on their own.
-    @ViewBuilder
-    func legacyBarBackgroundHidden(_ hidden: Bool) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-        } else {
-            toolbarBackground(hidden ? .hidden : .automatic, for: .navigationBar)
+private struct HeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// A blur that is full strength under the status bar and fades to nothing at
+/// the bottom of the header, with a dark scrim so white text stays legible
+/// over any cover or card.
+private struct ProgressiveHeaderBlur: View {
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.45),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            LinearGradient(
+                colors: [.black.opacity(0.5), .black.opacity(0.2), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
+        .allowsHitTesting(false)
     }
 }
 
@@ -422,8 +612,8 @@ struct LibrarySearchView: View {
                 .padding(.bottom, 24)
             }
             .background(AppBackground())
-            .navigationTitle("搜索")
-            .searchable(text: $model.query, prompt: "搜索游戏")
+            .navigationTitle("Search")
+            .searchable(text: $model.query, prompt: "Search Games")
             .autocorrectionDisabled()
             .scrollDismissesKeyboard(.interactively)
         }
@@ -431,8 +621,8 @@ struct LibrarySearchView: View {
 
     @ViewBuilder
     private var emptyResults: some View {
-        let title = model.displayedGames.isEmpty ? "游戏库还是空的" : "没有找到游戏"
-        let detail = model.displayedGames.isEmpty ? "先在游戏库中导入游戏" : "试试其他名称"
+        let title: LocalizedStringKey = model.displayedGames.isEmpty ? "Your Library Is Empty" : "No Games Found"
+        let detail: LocalizedStringKey = model.displayedGames.isEmpty ? "Import games in the Library first" : "Try a different name"
         if #available(iOS 17.0, *) {
             ContentUnavailableView(
                 title,
@@ -452,12 +642,18 @@ struct LibrarySearchView: View {
     }
 }
 
-/// Game cards in the chosen layout. Tapping launches; long-press opens the
-/// game's details.
+/// Game cards in the chosen layout. Tapping launches; long-press shows a
+/// preview with the game's details, status and match actions.
 struct GameGrid: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selectedGame: GameRecord?
+    @State private var matchGame: GameRecord?
+    @State private var finishGame: GameRecord?
+    @State private var coverGame: GameRecord?
+    @State private var artGame: GameRecord?
+    @State private var showCoverPicker = false
+    @State private var coverPhoto: PhotosPickerItem?
     let games: [GameRecord]
 
     private var columns: [GridItem] {
@@ -476,20 +672,129 @@ struct GameGrid: View {
                 .buttonStyle(.plain)
                 .disabled(!game.availability.canLaunch)
                 .contextMenu {
-                    Button { selectedGame = game } label: {
-                        Label("作品详情", systemImage: "info.circle")
-                    }
+                    menu(for: game)
+                } preview: {
+                    GamePreview(game: game).environmentObject(model)
                 }
                 .accessibilityLabel(
                     game.availability.canLaunch
-                        ? "运行 \(game.title)"
-                        : "\(game.title)，\(model.availabilityText(game))"
+                        ? Text("Play \(model.displayTitle(game))")
+                        : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
                 )
             }
         }
         .sheet(item: $selectedGame) {
             GameDetailView(game: $0).environmentObject(model)
         }
+        .sheet(item: $matchGame) {
+            MatchView(game: $0).environmentObject(model)
+        }
+        .sheet(item: $finishGame) {
+            RatingSheet(game: $0, mode: .finish).environmentObject(model)
+        }
+        .sheet(item: $artGame) {
+            ArtworkChoiceView(game: $0).environmentObject(model)
+        }
+        .photosPicker(isPresented: $showCoverPicker, selection: $coverPhoto, matching: .images)
+        .onChange(of: coverPhoto) { item in
+            guard let item, let game = coverGame else { return }
+            coverPhoto = nil
+            Task {
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else { return }
+                    await model.updateCover(game, image: image)
+                } catch {
+                    model.alert = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menu(for game: GameRecord) -> some View {
+        Button { selectedGame = game } label: {
+            Label("Game Details", systemImage: "info.circle")
+        }
+        Menu {
+            StatusMenuItems(current: game.listEntry.status) { status in
+                if status == .finished {
+                    finishGame = game
+                } else {
+                    model.setStatus(status, for: game)
+                }
+            }
+        } label: {
+            if let status = game.listEntry.status {
+                Label {
+                    Text("Status")
+                    Text(status.displayName)
+                } icon: {
+                    Image(systemName: status.symbol)
+                }
+            } else {
+                Label("Status", systemImage: "circle.dashed")
+            }
+        }
+        if game.listEntry.status != .finished {
+            Button { finishGame = game } label: {
+                Label("Mark as Finished", systemImage: "checkmark.seal")
+            }
+        }
+        Divider()
+        Button {
+            coverGame = game
+            showCoverPicker = true
+        } label: {
+            Label("Change Cover", systemImage: "photo")
+        }
+        if game.link != nil {
+            Button { artGame = game } label: {
+                Label("Choose Cover from Bangumi & VNDB", systemImage: "photo.on.rectangle")
+            }
+        }
+        Button { matchGame = game } label: {
+            Label(
+                game.link == nil ? LocalizedStringKey("Find on Bangumi & VNDB") : LocalizedStringKey("Match Again"),
+                systemImage: "link"
+            )
+        }
+    }
+}
+
+/// The lifted card shown while a game is long-pressed.
+private struct GamePreview: View {
+    @EnvironmentObject private var model: AppModel
+    let game: GameRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GameCover(game: game)
+                .frame(width: 320, height: 180)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.displayTitle(game))
+                    .font(.headline)
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    if let status = game.listEntry.status {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.displayName)
+                    } else {
+                        Text(game.engine.displayName)
+                    }
+                    if game.playTime >= 60 {
+                        Text(verbatim: "·")
+                        Text("Played \(game.playTime.playTimeSummary)")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(width: 320, alignment: .leading)
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 }
 
@@ -507,7 +812,7 @@ struct GameCard: View {
     }
 
     private var meta: String {
-        var parts = [game.engine.displayName, AppModel.size(game.byteCount)]
+        var parts = [game.engine.displayName, AppModel.librarySize(game.byteCount)]
         if !comingSoon { parts.append(model.recency(game)) }
         return parts.joined(separator: " · ")
     }
@@ -526,6 +831,31 @@ struct GameCard: View {
             .opacity(comingSoon ? 0.55 : 1)
     }
 
+    /// The status leads the line when the player set one, as in the
+    /// redesign: "Finished · Sep 2". Otherwise engine, size and recency.
+    @ViewBuilder
+    private var metaLine: some View {
+        if let status = game.listEntry.status, !comingSoon {
+            HStack(spacing: 4) {
+                Image(systemName: status.symbol)
+                    .imageScale(.small)
+                    .foregroundStyle(status.color)
+                Text(status.displayName)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(status == .wish ? Color.secondary : status.color)
+                if status != .wish {
+                    Text(verbatim: "· \(model.recency(game))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
+        } else {
+            Text(meta)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
     private var tile: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear
@@ -533,14 +863,12 @@ struct GameCard: View {
                 .overlay { cover }
                 .clipped()
             VStack(alignment: .leading, spacing: 2) {
-                Text(game.title)
+                Text(model.displayTitle(game))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                Text(meta)
+                metaLine
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 if showsReason {
                     Text(model.availabilityText(game))
                         .font(.caption2)
@@ -564,14 +892,12 @@ struct GameCard: View {
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(game.title)
+                Text(model.displayTitle(game))
                     .font(.headline)
                     .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                Text(meta)
+                metaLine
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 if showsReason {
                     Text(model.availabilityText(game))
                         .font(.caption)
@@ -609,9 +935,9 @@ struct MissingGamesView: View {
                 if model.missingGames.isEmpty {
                     if #available(iOS 17.0, *) {
                         ContentUnavailableView(
-                            "没有缺失游戏",
+                            "No Missing Games",
                             systemImage: "checkmark.circle",
-                            description: Text("被移走的游戏文件夹会显示在这里。")
+                            description: Text("Game folders that were moved away appear here.")
                         )
                     }
                 } else {
@@ -622,17 +948,22 @@ struct MissingGamesView: View {
                                     .frame(width: 72, height: 52)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(game.title).font(.headline)
-                                    Text("Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
+                                    Text(model.displayTitle(game)).font(.headline)
+                                    Text(verbatim: "Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
-                                    Text("累计游玩 \(game.playTime.playTimeClock)")
+                                    Text("Total play time: \(game.playTime.playTimeClock)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Text("最近游玩 \(model.recency(game))")
+                                    Text("Last played: \(model.recency(game))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if model.repository.hasKeptSaves(game) {
+                                        Label("Removed with saves kept. Import the folder again to restore them.", systemImage: "externaldrive.badge.checkmark")
+                                            .font(.caption)
+                                            .foregroundStyle(.tint)
+                                    }
                                 }
                             }
                             HStack {
@@ -640,13 +971,13 @@ struct MissingGamesView: View {
                                     relinkGame = game
                                     relinkPickerShown = true
                                 } label: {
-                                    Label("重新关联", systemImage: "folder.badge.plus")
+                                    Label("Relink", systemImage: "folder.badge.plus")
                                 }
                                 Spacer()
                                 Button(role: .destructive) {
                                     deleteGame = game
                                 } label: {
-                                    Label("删除记录", systemImage: "trash")
+                                    Label("Delete Record", systemImage: "trash")
                                 }
                             }
                             .buttonStyle(.borderless)
@@ -655,11 +986,11 @@ struct MissingGamesView: View {
                     }
                 }
             }
-            .navigationTitle("缺失游戏")
+            .navigationTitle("Missing Games")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -679,7 +1010,7 @@ struct MissingGamesView: View {
             }
         }
         .confirmationDialog(
-            "永久删除这条游戏记录？",
+            "Permanently delete this game record?",
             isPresented: Binding(
                 get: { deleteGame != nil },
                 set: { if !$0 { deleteGame = nil } }
@@ -687,78 +1018,18 @@ struct MissingGamesView: View {
             titleVisibility: .visible,
             presenting: deleteGame
         ) { game in
-            Button("删除记录与历史", role: .destructive) {
+            Button("Delete Record and History", role: .destructive) {
                 deleteGame = nil
                 Task { await model.forget(game) }
             }
-            Button("取消", role: .cancel) { deleteGame = nil }
-        } message: { _ in
-            Text("这不会删除你另外存放的游戏文件夹，但会移除游玩历史和手动封面。")
-        }
-    }
-
-}
-
-struct GameDetailView: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var photo: PhotosPickerItem?
-    let game: GameRecord
-
-    private var current: GameRecord {
-        model.games.first { $0.id == game.id } ?? game
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                GameCover(game: current)
-                    .frame(height: 170)
-                    .listRowInsets(EdgeInsets())
-                LabeledContent("名称", value: current.title)
-                LabeledContent("引擎", value: current.engine.displayName)
-                LabeledContent("目录", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
-                LabeledContent("状态", value: model.availabilityText(current))
-                LabeledContent("文件大小", value: AppModel.size(current.byteCount))
-                LabeledContent("最近游玩", value: model.recency(current))
-                LabeledContent("累计游玩") {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(current.playTime.playTimeClock)
-                            .monospacedDigit()
-                        if current.playTime >= 60 {
-                            Text(current.playTime.playTimeSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .accessibilityLabel("累计游玩 \(current.playTime.playTimeSummary)")
-                LabeledContent("启动次数", value: "\(current.launchCount) 次")
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Label("更换封面", systemImage: "photo")
-                }
-                Text("长按游戏卡片可打开此页面。只有 KiriKiri 引擎已接入运行时；引擎识别不代表已经验证兼容性。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .navigationTitle("作品详情")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
-            .onChange(of: photo) { item in
-                Task {
-                    do {
-                        guard let data = try await item?.loadTransferable(type: Data.self),
-                              let image = UIImage(data: data) else { return }
-                        await model.updateCover(game, image: image)
-                    } catch {
-                        model.alert = error.localizedDescription
-                    }
-                }
+            Button("Cancel", role: .cancel) { deleteGame = nil }
+        } message: { game in
+            if model.repository.hasKeptSaves(game) {
+                Text("This removes its play history, custom cover and the saves kept when the game was removed.")
+            } else {
+                Text("This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover.")
             }
         }
     }
+
 }

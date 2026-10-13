@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: moe.cheney233
   deploymentTarget:
     iOS: '16.0'
-  developmentLanguage: zh-Hans
+  developmentLanguage: en
   xcodeVersion: '26.0'
 settings:
   base:
@@ -12,6 +12,11 @@ settings:
     MARKETING_VERSION: '0.1.0'
     CURRENT_PROJECT_VERSION: '1'
     MIKAGE_SOURCE_REVISION: unknown
+    # Mikage's app from bgm.tv/dev/app. Empty leaves Bangumi on pasted
+    # access tokens; filled in, Bangumi signs in on its website.
+    BANGUMI_APP_ID: ''
+    BANGUMI_APP_SECRET: ''
+    BANGUMI_REDIRECT_URI: mikage://bangumi/callback
 packages:
   VNCore:
     path: .
@@ -33,6 +38,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
 
   MikageTests:
     type: bundle.unit-test
