@@ -63,13 +63,12 @@ Choose the Mikage scheme, set your own signing team, and run. The deployment tar
 
 To use Bangumi website sign-in instead of pasted tokens, register an app at [bgm.tv/dev/app](https://bgm.tv/dev/app) and pass `BANGUMI_APP_ID` and `BANGUMI_APP_SECRET` as build settings (see `project.yml`). Left empty, Bangumi falls back to access tokens.
 
-Every push to `main`, `beta` or `metal_dev` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
+Every push to `main` or `beta` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
 
 ## Branches
 
 - `main`: stable.
 - `beta`: testing ahead of `main`.
-- `metal_dev`: active development.
 
 ## Repository layout
 
