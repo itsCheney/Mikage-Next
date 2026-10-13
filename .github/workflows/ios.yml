@@ -254,6 +254,11 @@ jobs:
             MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
             2>&1 | tee build/app-tests.log
       - name: Build unsigned iPhone app
+        env:
+          # Mikage's Bangumi app (bgm.tv/dev/app), from repository secrets.
+          # Without them the app falls back to pasted access tokens.
+          BANGUMI_APP_ID: ${{ secrets.BANGUMI_APP_ID }}
+          BANGUMI_APP_SECRET: ${{ secrets.BANGUMI_APP_SECRET }}
         run: bash scripts/build-ios.sh
       - name: Verify app revision metadata
         run: |

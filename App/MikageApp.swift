@@ -65,6 +65,11 @@ final class AppModel: ObservableObject {
     var syncingGames: Set<UUID> = []
     /// Whether Bangumi's website is signed in, which removing a collection needs.
     @Published var bangumiWebSignedIn = false
+    /// Set when Bangumi refused both the refresh token and the website
+    /// session, so the account has to sign in again.
+    @Published var bangumiSignInExpired = false
+    /// The Bangumi token renewal in flight, shared by concurrent requests.
+    var bangumiRenewal: Task<BangumiToken, Error>?
     /// Games whose failed Bangumi removal was already reported this launch.
     var reportedRemovalFailures: Set<UUID> = []
     let tokens: any ServiceTokenStore

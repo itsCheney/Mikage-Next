@@ -6,22 +6,25 @@ enum BangumiWebError: LocalizedError, Equatable {
     case signInRequired
     case http(Int)
     case notRemoved
+    case authorizationRefused
 
     var errorDescription: String? {
         switch self {
         case .signInRequired:
-            return String(localized: "Removing a game from your Bangumi collection needs Bangumi web sign-in. Sign in under Settings › Accounts & Sync.")
+            return String(localized: "Your Bangumi sign-in has expired. Sign in again under Settings › Accounts & Sync.")
         case .http(let code):
             return String(localized: "Bangumi’s website returned error \(code).")
         case .notRemoved:
             return String(localized: "Bangumi still lists the game after the removal request. The website may have changed.")
+        case .authorizationRefused:
+            return String(localized: "Bangumi didn’t let Mikage connect to your account. Try signing in again.")
         }
     }
 }
 
 /// A Bangumi website session, kept as cookies in the app's default web
-/// data store. Personal access tokens cannot act on the website, so
-/// removing a collection signs in here once through `BangumiWebLoginView`.
+/// data store. Signing in through `BangumiWebLoginView` approves Mikage
+/// for the API and lets it remove collections, which API v0 cannot do.
 @MainActor
 final class BangumiWebSession {
     static let shared = BangumiWebSession()
@@ -37,21 +40,55 @@ final class BangumiWebSession {
         await cookieStore.allCookies().filter { $0.domain.hasSuffix("bgm.tv") }
     }
 
-    /// Loads a page with the session's cookies.
-    private func page(_ url: URL) async throws -> String {
+    /// Sends a request with the session's cookies. Redirects are not
+    /// followed, so the authorize step can read the code from one.
+    private func send(_ url: URL, method: String = "GET", form: Data? = nil) async throws -> (String, HTTPURLResponse) {
         let cookies = await cookies()
         guard !cookies.isEmpty else { throw BangumiWebError.signInRequired }
         var request = URLRequest(url: url, timeoutInterval: 20)
+        request.httpMethod = method
         request.httpShouldHandleCookies = false
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         for (field, value) in HTTPCookie.requestHeaderFields(with: cookies) {
             request.setValue(value, forHTTPHeaderField: field)
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<400).contains(http.statusCode) {
+        if let form {
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
+            request.httpBody = form
+        }
+        let (data, response) = try await URLSession.shared.data(for: request, delegate: NoRedirects.shared)
+        guard let http = response as? HTTPURLResponse else { throw BangumiWebError.http(0) }
+        if !(200..<400).contains(http.statusCode) {
             throw BangumiWebError.http(http.statusCode)
         }
-        return String(decoding: data, as: UTF8.self)
+        return (String(decoding: data, as: UTF8.self), http)
+    }
+
+    /// Loads a page with the session's cookies.
+    private func page(_ url: URL) async throws -> String {
+        try await send(url).0
+    }
+
+    /// Approves Mikage on Bangumi with the website session, as the
+    /// community clients do, and exchanges the code for a token pair.
+    func authorize(_ app: BangumiAppCredentials) async throws -> BangumiToken {
+        let url = BangumiOAuth.authorizeURL(app)
+        let (html, page) = try await send(url)
+        var response = page
+        // An app approved before may be sent straight back with a code.
+        if page.value(forHTTPHeaderField: "Location").flatMap(BangumiOAuth.code(fromRedirect:)) == nil {
+            guard let formhash = BangumiWeb.formhash(in: html) else {
+                throw BangumiWebError.signInRequired
+            }
+            response = try await send(url, method: "POST", form: BangumiOAuth.authorizeForm(formhash: formhash, app: app)).1
+        }
+        guard let location = response.value(forHTTPHeaderField: "Location"),
+              let code = BangumiOAuth.code(fromRedirect: location) else {
+            AppDiagnostics.shared.event("accounts", "bangumi.authorize.refused", ["status": String(response.statusCode)])
+            throw BangumiWebError.authorizationRefused
+        }
+        return try await BangumiOAuth.requestToken(BangumiOAuth.tokenRequest(code: code, app: app))
     }
 
     /// Whether the stored cookies still sign the website in.
@@ -81,6 +118,21 @@ final class BangumiWebSession {
         for cookie in await cookies() {
             await cookieStore.deleteCookie(cookie)
         }
+    }
+}
+
+/// Keeps a request's redirect as the response.
+private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    static let shared = NoRedirects()
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }
 

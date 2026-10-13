@@ -303,8 +303,8 @@ struct GameDetailView: View {
             Text("Not Connected")
         } else if model.pendingServices(current).contains(service) {
             HStack(spacing: 6) {
-                if service == .bangumi, current.listEntry.status == nil, !model.bangumiWebSignedIn {
-                    Text("Sign In to Bangumi Website to Remove")
+                if service == .bangumi, model.bangumiSignInExpired {
+                    Text("Sign In Again to Sync")
                 } else if service == .bangumi, current.listEntry.status == nil {
                     Text("Removal Pending")
                 } else {

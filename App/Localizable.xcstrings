@@ -332,6 +332,22 @@
         }
       }
     },
+    "@%@ · Sign-In Expired" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@%@ · サインインの期限切れ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@%@ · 登录已过期"
+          }
+        }
+      }
+    },
     "A cover you set yourself is never replaced." : {
       "localizations" : {
         "ja" : {
@@ -696,6 +712,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bangumi 中文名"
+          }
+        }
+      }
+    },
+    "Bangumi didn’t let Mikage connect to your account. Try signing in again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi が Mikage とアカウントの連携を許可しませんでした。もう一度サインインしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 未允许 Mikage 连接你的账号，请重新登录。"
           }
         }
       }
@@ -3557,22 +3589,6 @@
         }
       }
     },
-    "Removing a game from your Bangumi collection needs Bangumi web sign-in. Sign in under Settings › Accounts & Sync." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bangumi のコレクションから外すには Bangumi のウェブサイトへのサインインが必要です。「設定 › アカウントと同期」でサインインしてください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从 Bangumi 收藏中移除游戏需要登录 Bangumi 网站，请在“设置 › 账号与同步”中登录。"
-          }
-        }
-      }
-    },
     "Renderer" : {
       "localizations" : {
         "ja" : {
@@ -3893,6 +3909,22 @@
         }
       }
     },
+    "Sign In Again to Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するには再サインイン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新登录后同步"
+          }
+        }
+      }
+    },
     "Sign In to Bangumi" : {
       "localizations" : {
         "ja" : {
@@ -3905,22 +3937,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登录 Bangumi"
-          }
-        }
-      }
-    },
-    "Sign In to Bangumi Website to Remove" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "外すには Bangumi にサインイン"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "登录 Bangumi 网站后才能移除"
           }
         }
       }
@@ -4687,6 +4703,22 @@
         }
       }
     },
+    "Use a Bangumi Access Token Instead" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代わりに Bangumi のアクセストークンを使う"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用 Bangumi 访问令牌"
+          }
+        }
+      }
+    },
     "Very Bad" : {
       "localizations" : {
         "ja" : {
@@ -4859,6 +4891,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "宽幅"
+          }
+        }
+      }
+    },
+    "Your Bangumi sign-in has expired. Sign in again under Settings › Accounts & Sync." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi のサインインの有効期限が切れました。「設定 › アカウントと同期」でもう一度サインインしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Bangumi 登录已过期，请在“设置 › 账号与同步”中重新登录。"
           }
         }
       }

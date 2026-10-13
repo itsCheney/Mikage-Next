@@ -16,6 +16,9 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>MikageSourceRevision</key><string>$(MIKAGE_SOURCE_REVISION)</string>
+    <key>BangumiAppID</key><string>$(BANGUMI_APP_ID)</string>
+    <key>BangumiAppSecret</key><string>$(BANGUMI_APP_SECRET)</string>
+    <key>BangumiRedirectURI</key><string>$(BANGUMI_REDIRECT_URI)</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>CADisableMinimumFrameDurationOnPhone</key><true/>
     <key>UILaunchScreen</key><dict/>

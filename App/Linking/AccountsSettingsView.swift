@@ -9,6 +9,13 @@ struct AccountsSettingsView: View {
     @State private var disconnectService: MetadataService?
     @State private var showingBangumiWeb = false
     @State private var confirmingWebSignOut = false
+    @State private var showingBangumiSignIn = false
+    @State private var connectingBangumi = false
+    @State private var bangumiError: String?
+
+    /// Bangumi signs in on its website when Mikage has a registered app;
+    /// otherwise, and for anyone who prefers it, a pasted token works too.
+    private var bangumiSignInAvailable: Bool { AppModel.bangumiApp != nil }
 
     var body: some View {
         Form {
@@ -16,16 +23,28 @@ struct AccountsSettingsView: View {
                 ForEach(MetadataService.allCases) { service in
                     accountRow(service)
                 }
+                if bangumiSignInAvailable, model.accounts[.bangumi] == nil {
+                    Button("Use a Bangumi Access Token Instead") { tokenService = .bangumi }
+                        .font(.footnote)
+                }
+                if let bangumiError {
+                    Text(bangumiError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Accounts")
             } footer: {
                 Text("Covers and synopses load without an account. Connect to sync your status, ratings and comments to your lists.")
             }
 
-            Section {
-                bangumiWebRow
-            } footer: {
-                Text("Bangumi’s API cannot remove a game from your collection, so Mikage uses the website for that. Sign in once here; Mikage only uses the session to remove collections.")
+            // Signing in covers the website already; a pasted token does not.
+            if model.accounts[.bangumi] != nil, !model.bangumiUsesSignIn {
+                Section {
+                    bangumiWebRow
+                } footer: {
+                    Text("Bangumi’s API cannot remove a game from your collection, so Mikage uses the website for that. Sign in once here; Mikage only uses the session to remove collections.")
+                }
             }
 
             Section {
@@ -75,6 +94,11 @@ struct AccountsSettingsView: View {
         .sheet(item: $tokenService) { service in
             TokenEntryView(service: service).environmentObject(model)
         }
+        .sheet(isPresented: $showingBangumiSignIn) {
+            BangumiWebLoginView {
+                Task { await finishBangumiSignIn() }
+            }
+        }
         .sheet(isPresented: $showingBangumiWeb) {
             BangumiWebLoginView {
                 Task { await model.refreshBangumiWebSession() }
@@ -113,8 +137,14 @@ struct AccountsSettingsView: View {
     @ViewBuilder
     private func accountRow(_ service: MetadataService) -> some View {
         if let account = model.accounts[service] {
+            let expired = service == .bangumi && model.bangumiSignInExpired && bangumiSignInAvailable
             Button {
-                disconnectService = service
+                if expired {
+                    bangumiError = nil
+                    showingBangumiSignIn = true
+                } else {
+                    disconnectService = service
+                }
             } label: {
                 HStack(spacing: 12) {
                     badge(service, connected: true)
@@ -122,14 +152,30 @@ struct AccountsSettingsView: View {
                         Text(service.displayName)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text("@\(account.username) · Connected")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        if service == .bangumi, model.bangumiSignInExpired {
+                            Text("@\(account.username) · Sign-In Expired")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        } else {
+                            Text("@\(account.username) · Connected")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    if expired {
+                        if connectingBangumi {
+                            ProgressView()
+                        } else {
+                            Text("Sign In")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.vertical, 6)
             }
@@ -144,11 +190,40 @@ struct AccountsSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Add Token") { tokenService = service }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                if service == .bangumi, bangumiSignInAvailable {
+                    signInButton
+                } else {
+                    Button("Add Token") { tokenService = service }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                }
             }
             .padding(.vertical, 6)
+        }
+    }
+
+    @ViewBuilder
+    private var signInButton: some View {
+        if connectingBangumi {
+            ProgressView()
+        } else {
+            Button("Sign In") {
+                bangumiError = nil
+                showingBangumiSignIn = true
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+        }
+    }
+
+    /// The website is signed in; approve Mikage with it and read the account.
+    private func finishBangumiSignIn() async {
+        connectingBangumi = true
+        defer { connectingBangumi = false }
+        do {
+            try await model.connectBangumiWithWebSession()
+        } catch {
+            bangumiError = error.localizedDescription
         }
     }
 

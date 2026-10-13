@@ -12,6 +12,11 @@ settings:
     MARKETING_VERSION: '0.1.0'
     CURRENT_PROJECT_VERSION: '1'
     MIKAGE_SOURCE_REVISION: unknown
+    # Mikage's app from bgm.tv/dev/app. Empty leaves Bangumi on pasted
+    # access tokens; filled in, Bangumi signs in on its website.
+    BANGUMI_APP_ID: ''
+    BANGUMI_APP_SECRET: ''
+    BANGUMI_REDIRECT_URI: mikage://bangumi/callback
 packages:
   VNCore:
     path: .

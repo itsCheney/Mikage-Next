@@ -110,10 +110,128 @@ extension AppModel {
         tokens.removeToken(for: service)
         accounts[service] = nil
         saveAccounts()
+        if service == .bangumi {
+            bangumiSignInExpired = false
+            Task { await signOutOfBangumiWeb() }
+        }
     }
 
-    func bangumiClient() -> BangumiClient {
-        BangumiClient(token: tokens.token(for: .bangumi))
+    /// A client with the current Bangumi token, renewed first when it is
+    /// about to lapse. Reads fall back to signed-out requests when renewal
+    /// fails; writes go through `withBangumi` to see the error.
+    func bangumiClient() async -> BangumiClient {
+        BangumiClient(token: try? await bangumiAccessToken())
+    }
+
+    /// Runs a Bangumi request, renewing the token and retrying once when
+    /// Bangumi rejects it, as the community clients do.
+    @discardableResult
+    func withBangumi<T>(_ operation: (BangumiClient) async throws -> T) async throws -> T {
+        do {
+            return try await operation(BangumiClient(token: try await bangumiAccessToken()))
+        } catch MetadataError.unauthorized(.bangumi) {
+            guard let stored = tokens.token(for: .bangumi), let token = BangumiToken(stored: stored) else {
+                throw MetadataError.unauthorized(.bangumi)
+            }
+            let renewed = try await renewBangumiToken(token)
+            return try await operation(BangumiClient(token: renewed.accessToken))
+        }
+    }
+
+    // MARK: Bangumi sign-in
+
+    /// Mikage's Bangumi app from the build settings. Nil until one is
+    /// registered, which leaves an access token as the only way in.
+    static let bangumiApp: BangumiAppCredentials? = {
+        let info = Bundle.main.infoDictionary ?? [:]
+        func value(_ key: String) -> String? {
+            guard let text = (info[key] as? String)?.trimmingCharacters(in: .whitespaces),
+                  !text.isEmpty, !text.hasPrefix("$(") else { return nil }
+            return text
+        }
+        guard let id = value("BangumiAppID"), let secret = value("BangumiAppSecret") else { return nil }
+        return BangumiAppCredentials(
+            clientID: id,
+            clientSecret: secret,
+            redirectURI: value("BangumiRedirectURI") ?? "mikage://bangumi/callback"
+        )
+    }()
+
+    /// Finishes signing in once the website session exists: approves
+    /// Mikage with it, then reads the account.
+    func connectBangumiWithWebSession() async throws {
+        guard let app = Self.bangumiApp else { throw BangumiWebError.authorizationRefused }
+        AppDiagnostics.shared.event("accounts", "connect.begin", ["service": "bangumi", "method": "web"])
+        let token = try await BangumiWebSession.shared.authorize(app)
+        let account = try await BangumiClient(token: token.accessToken).account()
+        try tokens.setToken(token.stored, for: .bangumi)
+        accounts[.bangumi] = account
+        saveAccounts()
+        bangumiSignInExpired = false
+        bangumiWebSignedIn = true
+        AppDiagnostics.shared.event("accounts", "connect.end", ["service": "bangumi", "method": "web"])
+        Task { await syncPending() }
+    }
+
+    /// Whether the Bangumi account came from signing in, rather than a
+    /// pasted access token.
+    var bangumiUsesSignIn: Bool {
+        tokens.token(for: .bangumi).flatMap { BangumiToken(stored: $0) } != nil
+    }
+
+    /// The Bangumi access token, renewed when it is within a day of lapsing.
+    /// A pasted access token is used as is.
+    func bangumiAccessToken() async throws -> String? {
+        guard let stored = tokens.token(for: .bangumi) else { return nil }
+        guard let token = BangumiToken(stored: stored) else { return stored }
+        if token.needsRefresh() {
+            return try await renewBangumiToken(token).accessToken
+        }
+        return token.accessToken
+    }
+
+    /// One renewal at a time; callers arriving meanwhile share its result.
+    private func renewBangumiToken(_ old: BangumiToken) async throws -> BangumiToken {
+        if let running = bangumiRenewal {
+            return try await running.value
+        }
+        let task = Task { try await self.performBangumiRenewal(old) }
+        bangumiRenewal = task
+        defer { bangumiRenewal = nil }
+        return try await task.value
+    }
+
+    /// The refresh token first; when Bangumi refuses it, the website
+    /// session approves Mikage again. Only when both are refused does the
+    /// account need signing in again. Being offline changes nothing.
+    private func performBangumiRenewal(_ old: BangumiToken) async throws -> BangumiToken {
+        guard let app = Self.bangumiApp else { throw MetadataError.unauthorized(.bangumi) }
+        var renewed: BangumiToken?
+        do {
+            renewed = try await BangumiOAuth.requestToken(BangumiOAuth.refreshRequest(refreshToken: old.refreshToken, app: app))
+        } catch let error as URLError {
+            throw error
+        } catch {
+            AppDiagnostics.shared.event("accounts", "bangumi.refresh.failed", ["error": error.localizedDescription])
+        }
+        if renewed == nil {
+            do {
+                renewed = try await BangumiWebSession.shared.authorize(app)
+            } catch let error as URLError {
+                throw error
+            } catch {
+                AppDiagnostics.shared.event("accounts", "bangumi.reauthorize.failed", ["error": error.localizedDescription])
+            }
+        }
+        guard let renewed else {
+            bangumiSignInExpired = true
+            bangumiWebSignedIn = false
+            throw BangumiWebError.signInRequired
+        }
+        try tokens.setToken(renewed.stored, for: .bangumi)
+        bangumiSignInExpired = false
+        AppDiagnostics.shared.event("accounts", "bangumi.renewed")
+        return renewed
     }
 
     func vndbClient() -> VNDBClient {
@@ -126,7 +244,7 @@ extension AppModel {
     /// service being down still leaves the other's candidates.
     func searchCandidates(_ query: String) async throws -> [MatchCandidate] {
         let vndb = vndbClient()
-        let bangumi = bangumiClient()
+        let bangumi = await bangumiClient()
         async let vndbResults = Self.attempt { try await vndb.search(query) }
         async let bangumiResults = Self.attempt { try await bangumi.search(query) }
         let (novels, subjects) = await (vndbResults, bangumiResults)
@@ -224,7 +342,7 @@ extension AppModel {
     func refreshMetadata(_ game: GameRecord) async {
         guard let link = record(game.id)?.link else { return }
         let vndb = vndbClient()
-        let bangumi = bangumiClient()
+        let bangumi = await bangumiClient()
         do {
             async let novel = link.vndbID.asyncFlatMap { try await vndb.visualNovel(id: $0) }
             async let subject = link.bangumiID.asyncFlatMap { try await bangumi.subject(id: $0) }
@@ -495,11 +613,10 @@ extension AppModel {
                 try await removeBangumiCollection(subjectID: id)
                 return
             }
-            try await bangumiClient().updateCollection(
-                subjectID: id,
-                entry: entry,
-                includeRating: settings.syncRatings
-            )
+            let includeRating = settings.syncRatings
+            try await withBangumi {
+                try await $0.updateCollection(subjectID: id, entry: entry, includeRating: includeRating)
+            }
         case .vndb:
             guard let id = link.vndbID else { return }
             try await vndbClient().updateList(
@@ -516,10 +633,9 @@ extension AppModel {
     /// when the collection already lacks the subject.
     private func removeBangumiCollection(subjectID: Int) async throws {
         guard let username = accounts[.bangumi]?.username else { return }
-        let api = bangumiClient()
-        guard try await api.collection(username: username, subjectID: subjectID) != nil else { return }
+        guard try await withBangumi({ try await $0.collection(username: username, subjectID: subjectID) }) != nil else { return }
         try await BangumiWebSession.shared.removeCollection(subjectID: subjectID)
-        if try await api.collection(username: username, subjectID: subjectID) != nil {
+        if try await withBangumi({ try await $0.collection(username: username, subjectID: subjectID) }) != nil {
             throw BangumiWebError.notRemoved
         }
     }

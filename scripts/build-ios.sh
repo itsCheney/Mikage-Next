@@ -11,4 +11,6 @@ xcodebuild build \
   -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
+  BANGUMI_APP_ID="${BANGUMI_APP_ID:-}" \
+  BANGUMI_APP_SECRET="${BANGUMI_APP_SECRET:-}" \
   | tee build/device-build.log

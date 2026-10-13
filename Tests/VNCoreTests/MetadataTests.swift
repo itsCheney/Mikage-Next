@@ -206,4 +206,48 @@ final class MetadataTests: XCTestCase {
         metadata.screenshots = []
         XCTAssertNil(metadata.banner(hidingSensitive: true))
     }
+
+    private let bangumiApp = BangumiAppCredentials(clientID: "bgm123", clientSecret: "s3cret", redirectURI: "mikage://bangumi/callback")
+
+    func testBangumiAuthorizeStepsMatchTheWebsiteForm() throws {
+        let url = BangumiOAuth.authorizeURL(bangumiApp)
+        XCTAssertEqual(url.host, "bgm.tv")
+        XCTAssertEqual(url.path, "/oauth/authorize")
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(query.first { $0.name == "client_id" }?.value, "bgm123")
+        XCTAssertEqual(query.first { $0.name == "response_type" }?.value, "code")
+        let form = String(decoding: BangumiOAuth.authorizeForm(formhash: "abc", app: bangumiApp), as: UTF8.self)
+        XCTAssertEqual(form, "formhash=abc&redirect_uri=&client_id=bgm123&submit=%E6%8E%88%E6%9D%83")
+        XCTAssertEqual(BangumiOAuth.code(fromRedirect: "mikage://bangumi/callback?code=c0de&state="), "c0de")
+        XCTAssertNil(BangumiOAuth.code(fromRedirect: "https://bgm.tv/login"))
+    }
+
+    func testBangumiTokenRequestsCarryTheGrant() throws {
+        let exchange = BangumiOAuth.tokenRequest(code: "c0de", app: bangumiApp)
+        XCTAssertEqual(exchange.httpMethod, "POST")
+        XCTAssertEqual(exchange.url, BangumiOAuth.tokenURL)
+        let body = String(decoding: exchange.httpBody ?? Data(), as: UTF8.self)
+        XCTAssertTrue(body.contains("grant_type=authorization_code"))
+        XCTAssertTrue(body.contains("code=c0de"))
+        XCTAssertTrue(body.contains("redirect_uri=mikage%3A%2F%2Fbangumi%2Fcallback"))
+        let refresh = String(decoding: BangumiOAuth.refreshRequest(refreshToken: "r1", app: bangumiApp).httpBody ?? Data(), as: UTF8.self)
+        XCTAssertTrue(refresh.contains("grant_type=refresh_token"))
+        XCTAssertTrue(refresh.contains("refresh_token=r1"))
+        XCTAssertTrue(refresh.contains("client_secret=s3cret"))
+    }
+
+    func testBangumiTokenDecodesAndRoundTrips() throws {
+        let json = #"{"access_token":"a1","expires_in":604800,"token_type":"Bearer","scope":null,"refresh_token":"r1","user_id":"42"}"#
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let token = try BangumiOAuth.token(from: Data(json.utf8), receivedAt: now)
+        XCTAssertEqual(token.accessToken, "a1")
+        XCTAssertEqual(token.refreshToken, "r1")
+        XCTAssertEqual(token.userID, 42)
+        XCTAssertEqual(token.expiresAt, now.addingTimeInterval(604_800))
+        XCTAssertFalse(token.needsRefresh(now: now))
+        XCTAssertTrue(token.needsRefresh(now: now.addingTimeInterval(6.5 * 24 * 60 * 60)))
+        XCTAssertEqual(BangumiToken(stored: token.stored), token)
+        XCTAssertNil(BangumiToken(stored: "plainPersonalToken"))
+        XCTAssertThrowsError(try BangumiOAuth.token(from: Data(#"{"error":"invalid_grant"}"#.utf8)))
+    }
 }
