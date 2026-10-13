@@ -63,13 +63,12 @@ open Mikage.xcodeproj
 
 如需通过 Bangumi 网页登录（而不是粘贴 Token），请在 [bgm.tv/dev/app](https://bgm.tv/dev/app) 注册应用，并通过构建设置传入 `BANGUMI_APP_ID` 和 `BANGUMI_APP_SECRET`（见 `project.yml`）。留空时 Bangumi 使用 Access Token 登录。
 
-每次推送到 `main`、`beta` 或 `metal_dev` 时，GitHub Actions 会运行 [iOS 构建流程](.github/workflows/ios.yml)：运行测试、构建运行时和 App，并上传未签名的 `Mikage-unsigned-<编号>.ipa`。安装前需要自行签名。
+每次推送到 `main` 或 `beta` 时，GitHub Actions 会运行 [iOS 构建流程](.github/workflows/ios.yml)：运行测试、构建运行时和 App，并上传未签名的 `Mikage-unsigned-<编号>.ipa`。安装前需要自行签名。
 
 ## 分支
 
 - `main`：稳定版。
 - `beta`：先于 `main` 的测试版。
-- `metal_dev`：日常开发。
 
 ## 目录结构
 
