@@ -19,12 +19,14 @@ extension TimeInterval {
         return String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
     }
 
-    /// Short form for summaries: "3 小时 12 分" / "12 分" / "不到 1 分钟".
+    /// Short form for summaries: "3 hr 12 min" / "12 min" / "Less than 1 min".
     var playTimeSummary: String {
-        guard isFinite, self >= 60 else { return "不到 1 分钟" }
+        guard isFinite, self >= 60 else { return String(localized: "Less than 1 min") }
         let minutes = Int(self) / 60
         let hours = minutes / 60
-        return hours > 0 ? "\(hours) 小时 \(minutes % 60) 分" : "\(minutes) 分"
+        return hours > 0
+            ? String(localized: "\(hours) hr \(minutes % 60) min")
+            : String(localized: "\(minutes) min")
     }
 }
 
@@ -52,11 +54,43 @@ extension View {
             background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
         }
     }
+
+    /// Interactive glass capsule for a toolbar-like group of icon buttons
+    /// drawn inside content, such as the pinned library header.
+    @ViewBuilder
+    func nativeGlassCapsule() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+}
+
+/// Settings row label whose icon takes the app accent, as in the redesign.
+struct SettingLabel: View {
+    let title: LocalizedStringKey
+    let symbol: String
+
+    init(_ title: LocalizedStringKey, systemImage symbol: String) {
+        self.title = title
+        self.symbol = symbol
+    }
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(.tint)
+        }
+    }
 }
 
 struct RoundButton: View {
     let symbol: String
-    let label: String
+    let label: LocalizedStringKey
     let action: () -> Void
 
     var body: some View {
@@ -73,57 +107,9 @@ struct RoundButton: View {
 
 struct GameCover: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.displayScale) private var displayScale
     let game: GameRecord
-    @State private var image: UIImage?
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                placeholder
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .clipped()
-                        .transition(.opacity)
-                }
-            }
-            // Re-runs when the cover file or the laid-out size changes. Decoding
-            // happens off the main thread and is cached at display size.
-            .task(id: coverIdentity(proxy.size)) {
-                await load(size: proxy.size)
-            }
-        }
-    }
-
-    private var placeholder: some View {
-        Color(uiColor: .secondarySystemGroupedBackground)
-            .overlay(
-                Image(systemName: "book.closed.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.secondary)
-            )
-    }
-
-    private func coverIdentity(_ size: CGSize) -> String {
-        let url = model.coverURL(game)?.path ?? "none"
-        return "\(url)|\(Int(size.width))x\(Int(size.height))"
-    }
-
-    private func load(size: CGSize) async {
-        guard size.width > 0, size.height > 0, let url = model.coverURL(game) else {
-            image = nil
-            return
-        }
-        // Show a cache hit without an animation so scrolling does not flicker.
-        if let hit = CoverCache.shared.cached(url, size: size, scale: displayScale) {
-            image = hit
-            return
-        }
-        let decoded = await CoverCache.shared.image(for: url, size: size, scale: displayScale)
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.18)) { image = decoded }
+        ArtworkImage(url: model.coverURL(game))
     }
 }

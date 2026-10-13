@@ -20,9 +20,13 @@ final class AppDiagnostics: @unchecked Sendable {
     }
     var lastError: String? { log.lastError }
 
+    /// Where the log files live, for the storage page's total.
+    let logDirectory: URL
+
     private init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        log = DiagnosticLog(directory: support.appendingPathComponent("Mikage/Logs", isDirectory: true))
+        logDirectory = support.appendingPathComponent("Mikage/Logs", isDirectory: true)
+        log = DiagnosticLog(directory: logDirectory)
     }
 
     @MainActor func configure(enabled: Bool) throws {

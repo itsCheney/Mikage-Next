@@ -19,6 +19,9 @@ tjs_uint64 TVPGetRoughTickCount()
     return static_cast<tjs_uint64>(std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
 }
+#include "Platform.h"
+// Unknown RAM keeps the 64 MB floor that the padded trim fixtures assume.
+void TVPGetMemoryInfo(TVPMemoryInfo& m) { m = {}; }
 #include "LoaderTestSupport.hpp"
 #include "ProductionDecode.inc"
 
@@ -375,6 +378,17 @@ void trimToHonorsLruOrder()
 // clear turns the next load of a still-hot resource into a full re-read. The
 // fixtures are padded past a quarter of the 64MB budget so the trim is
 // observable end to end through the production load path.
+// One decoded character is ~8-10 MB; the budget must hold a scene's cast on
+// phones without growing unbounded on large-memory devices.
+void budgetScalesWithDeviceMemory()
+{
+    constexpr std::uint64_t MB = 1024 * 1024, GB = 1024 * MB;
+    require(emoteplayer::SharedEmoteCacheBudgetBytes(0) == 64 * MB, "unknown RAM changed the floor");
+    require(emoteplayer::SharedEmoteCacheBudgetBytes(1 * GB) == 64 * MB, "small devices exceeded the floor");
+    require(emoteplayer::SharedEmoteCacheBudgetBytes(4 * GB) == 4 * GB / 24, "4 GB phone budget not RAM/24");
+    require(emoteplayer::SharedEmoteCacheBudgetBytes(4 * GB) >= 12 * 10 * MB, "4 GB phone cannot hold a 12-character cast");
+    require(emoteplayer::SharedEmoteCacheBudgetBytes(64 * GB) == 192 * MB, "large devices exceeded the cap");
+}
 void compactTrimEvictsLeastRecentlyUsed()
 {
     resetFixture();
@@ -523,6 +537,7 @@ int main()
         archiveInvalidation();
         dynamicArchiveFilterBypass();
         trimToHonorsLruOrder();
+        budgetScalesWithDeviceMemory();
         compactTrimEvictsLeastRecentlyUsed();
         callbackAndWorkLayerSessionLifetime();
         resetFixture();

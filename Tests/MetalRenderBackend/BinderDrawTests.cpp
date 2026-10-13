@@ -66,8 +66,6 @@ struct tTVPBaseTexture {
     tTVPBaseTexture* GetTexture() { return this; }
 };
 using iTVPBaseBitmap=tTVPBaseTexture;
-int emoteCaptures=0;
-void TVPEncodeEmoteAsyncAlphaForPresentation(tTVPBaseTexture*) { ++emoteCaptures; }
 struct tTVPTempBitmapHolder {
     static inline int gets=0,frees=0,level=0,maxLevel=0;
     static inline std::vector<std::unique_ptr<tTVPBaseTexture>> slots;
@@ -81,7 +79,7 @@ struct tTVPTempBitmapHolder {
         ++frees; --level;
     }
     static int Fills() { int n=0; for(const auto& p:slots) n+=p->fills; return n; }
-    static void Reset() { gets=frees=level=maxLevel=0; slots.clear(); emoteCaptures=0; }
+    static void Reset() { gets=frees=level=maxLevel=0; slots.clear(); }
 };
 struct tTVPDrawable {
     virtual ~tTVPDrawable()=default;
@@ -90,12 +88,7 @@ struct tTVPDrawable {
 };
 class tTJSNI_BaseLayer;
 struct ManagerFixture {
-    int captures=0,invalidations=0;
-    std::vector<tTJSNI_BaseLayer*> bound;
-    void CaptureAlphaForPresentation(tTJSNI_BaseLayer* layer) {
-        ++captures;
-        if(std::find(bound.begin(),bound.end(),layer)==bound.end()) bound.push_back(layer);
-    }
+    int invalidations=0;
     void InvalidateOverallIndex() { ++invalidations; }
 };
 template<class T> struct ChildList {
@@ -231,13 +224,11 @@ void SafeBinderCases() {
         for(const auto& completion:target.completions)
             Require(completion.bitmap==&target.image && completion.type==ltAlpha && completion.opacity==137,
                     "binder preserves child buffer/type/opacity");
-        Require(manager.bound==std::vector<tTJSNI_BaseLayer*>({&binder}) && manager.captures==1,
-                "image-less alpha presentation capture preserved");
         Require(!binder.DirectTransferToParent && !binder.ChildrenArrayValid && !binder.ChildrenOrderIndexValid,
                 "traversal bookkeeping preserved");
         // A second frame must not leave a stale temporary/offset or unbalanced level.
         Run(binder,target,cpu,{10,5,90,75});
-        Require(tTVPTempBitmapHolder::gets==0 && manager.bound.size()==1,"repeat draw stays allocation-free");
+        Require(tTVPTempBitmapHolder::gets==0,"repeat draw stays allocation-free");
     }
 }
 
@@ -264,8 +255,8 @@ void UnsafeBinderCases() {
         Require(tTVPTempBitmapHolder::gets==1 && tTVPTempBitmapHolder::frees==1 &&
                 tTVPTempBitmapHolder::level==0,"unsafe binder retains balanced temporary path");
         if(unsafe!=5 && unsafe!=8) Require(tTVPTempBitmapHolder::Fills()==1,"unsafe binder transparent fill retained");
-        if(unsafe==5) Require(image.fills==0 && tTVPTempBitmapHolder::slots[0]->copies==1 && emoteCaptures==2,
-                              "unexpected image retains copy and Emote alpha capture");
+        if(unsafe==5) Require(image.fills==0 && tTVPTempBitmapHolder::slots[0]->copies==1,
+                              "unexpected image retains copy");
         if(unsafe==8) Require(binder.transitionCopies==1,"transition-without-children keeps transition copy");
     }
     tTVPTempBitmapHolder::Reset();
@@ -323,8 +314,8 @@ void OrdinaryAndNestedCases() {
         tTVPTempBitmapHolder::Reset();
         tTJSNI_BaseLayer empty; ManagerFixture manager; empty.Manager=&manager;
         Target emptyTarget; Run(empty,emptyTarget,cpu,{0,0,90,70});
-        Require(tTVPTempBitmapHolder::gets==0 && emptyTarget.completions.empty() && manager.bound.size()==1,
-                "empty binder retains DrawSelf alpha capture without image work");
+        Require(tTVPTempBitmapHolder::gets==0 && emptyTarget.completions.empty(),
+                "empty binder performs no image work");
     }
     for(bool safe:{false,true}) for(bool cpu:{false,true}) {
         tTVPTempBitmapHolder::Reset();

@@ -1,61 +1,92 @@
 # Mikage Next
 
-Mikage Next 是原生 iOS 视觉小说播放器。界面使用 SwiftUI 与 iOS 26 原生 Liquid Glass 控件；当前可运行 KiriKiri 游戏，并为后续引擎预留统一游戏库。
+简体中文 · [English](README.en.md)
 
-当前实现包括按引擎目录自动扫描、文件夹导入、XP3/startup.tjs 启动目标检测、根目录封面识别、自定义封面、缺失游戏管理、可重入 KRKR 启停、Retina drawable、前后台完整暂停、同窗口游戏菜单、真实性能 HUD、截图分享和 savedata。应用不附带任何游戏内容。
+Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏。ONScripter、Ren’Py 和 Artemis 是接下来的目标：这些游戏已经能被识别并显示在游戏库中，但在对应运行时接入之前暂时无法启动。
 
-默认 Metal 后端支持原生上屏、Emote、D3DLayer、普通 KRKR 矩形及受限 affine/perspective GPU 绘制，并保留软件合成 · Metal 选项。内置七种 extrans 已接入受限 GPU 驻留路径；支持域及 Apple/真机待验范围见 [Metal 后端说明](docs/METAL-RENDER-BACKEND.md)和 [C4 记录](docs/NATIVE-METAL-P2C-C4-BASELINE.md)。
+Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 
-目前只有 KiriKiri 引擎可启动；ONScripter、Ren’Py 和 Artemis 游戏可以被扫描并显示，但在对应运行时接入前保持禁用。ZIP 解压、Wi-Fi 上传和替换 App 图标尚未接入。
+## 功能
 
-## GitHub Actions 编译
+**游戏库**
+- 每个引擎在 App 的“文稿”中有自己的文件夹：`krkr/`、`ons/`、`renpy/` 和 `artemis/`。用“文件”App 把游戏文件夹放进去，或者在游戏库右上角点 + 导入文件夹。
+- 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
+- KiriKiri 游戏优先使用根目录的 `startup.tjs`；没有的话，依次在 `启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、`data.xp3` 中选择第一个通过签名校验的 XP3。
+- 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。
+- 可按最近游玩、添加日期、名称或大小排序。文件夹不见了的游戏会标为“缺失”，可以重新关联或删除。
 
-推送至 main 或 metal_dev，或在 Actions → iOS build → Run workflow 手动运行。
+**游玩**
+- 游戏在 App 内运行，可以退出后重新启动或切换到另一个游戏，无需重启 Mikage。
+- 游戏内菜单（悬浮按钮或三指轻点）提供截图、性能信息、“标为已通关”和退出。退出会走游戏自己的退出确认，按游戏原本的方式存档。
+- 切到后台时游戏完全暂停，回来后从原处继续。
+- 默认使用原生 Metal 渲染，包括 Emote 动画、D3D 图层和内置转场效果。设置 › 高级中可以改用“软件合成 · Metal”作为备选。
+- 存档保存在游戏自己的 `savedata/` 文件夹中。
+- 可设置画面两侧的填充（游戏封面或黑色）、是否遵循静音模式，以及跳过汉化组片头视频。
 
-1. macOS 26 runner 运行 VNCore 扫描、路径隔离、导入与持久化测试。
-2. 初始化固定的 KRKRSDL3 fork 递归子模块，并准备 vcpkg 依赖。
-3. 构建 device 与 Apple Silicon simulator 两个 KRKRRuntime framework，并合成 XCFramework。
-4. XcodeGen 生成 Mikage 工程，Xcode 26 编译未签名 arm64 App 并打包 `Mikage-unsigned.ipa`。
-5. 上传 IPA 和完整构建日志。
+**Bangumi 与 VNDB**
+- 把游戏匹配到 Bangumi 条目和/或 VNDB 条目，即可获取封面、简介、标签、开发商、发售日期和截图。这些都不需要登录。
+- 登录 Bangumi（或粘贴 Access Token）并添加 VNDB Token 后，可以同步游玩状态、评分和短评。游玩结束后 Mikage 可以把游戏标为“在玩”，并在 VNDB 上记录开始和通关日期。Token 保存在设备钥匙串中。
+- 标题显示可选 Bangumi 中文名、原名、罗马字或文件夹名。
 
-未签名 IPA 不能直接安装，需要使用自己的工具和证书签名。CI 不需要 Apple 密码或证书。
+**存储空间**
+- 设置 › 存储空间显示 Mikage 占用的空间：游戏文件、存档、封面缓存和诊断日志，游戏按大小从大到小排列。
+- 单个游戏可以在“文件”中显示、导出存档、删除游戏但保留存档（重新导入后存档自动恢复），或全部删除。
+- 可以清除日志，也可以一键删除已通关的游戏并保留其存档来释放空间。
 
-## Mac 开发
+**界面语言：** English、简体中文、日本語。
 
-需要完整 Xcode 26、CMake、Git 与 vcpkg。首次构建会编译 FFmpeg、SDL3 和其他依赖。
+## 进度
+
+| 引擎 | 识别 | 运行 |
+| --- | --- | --- |
+| KiriKiri（KRKRSDL3） | 支持 | 支持 |
+| ONScripter | 支持 | 尚未支持 |
+| Ren’Py | 支持 | 尚未支持 |
+| Artemis | 支持 | 尚未支持 |
+
+ZIP 导入和 Wi-Fi 上传暂未实现。后续引擎的接入计划见 [docs/PHASE-2-MULTI-ENGINE-PLAN.md](docs/PHASE-2-MULTI-ENGINE-PLAN.md)。
+
+## 编译
+
+需要 macOS 和 Xcode 26、CMake、XcodeGen、Git。vcpkg 会由运行时构建脚本自动准备。首次构建需要编译 FFmpeg、SDL3 等依赖，耗时较长。
 
 ```sh
+git clone --recursive https://github.com/itsCheney/Mikage-Next.git
+cd Mikage-Next
 brew install cmake xcodegen
-bash scripts/build-krkr-ios.sh
+bash scripts/build-krkr-ios.sh   # 生成 build/KRKRRuntime.xcframework
 xcodegen generate
 open Mikage.xcodeproj
 ```
 
-选择 Mikage scheme，设置自己的 Team 后运行。Bundle Identifier 为 `moe.cheney233.mikage`。
+选择 Mikage scheme，设置你自己的签名 Team 后运行。最低部署版本为 iOS 16。
 
-首次启动会在 App 的 Documents 根目录创建四个引擎目录：
+如需通过 Bangumi 网页登录（而不是粘贴 Token），请在 [bgm.tv/dev/app](https://bgm.tv/dev/app) 注册应用，并通过构建设置传入 `BANGUMI_APP_ID` 和 `BANGUMI_APP_SECRET`（见 `project.yml`）。留空时 Bangumi 使用 Access Token 登录。
 
-- `krkr/<游戏文件夹>/`
-- `ons/<游戏文件夹>/`
-- `renpy/<游戏文件夹>/`
-- `artemis/<游戏文件夹>/`
+每次推送到 `main`、`beta` 或 `metal_dev` 时，GitHub Actions 会运行 [iOS 构建流程](.github/workflows/ios.yml)：运行测试、构建运行时和 App，并上传未签名的 `Mikage-unsigned-<编号>.ipa`。安装前需要自行签名。
 
-可以通过右上角加号导入，也可以直接使用“文件”App 放置游戏文件夹；Mikage 在启动、回到前台和下拉刷新时扫描各引擎目录的直属子目录。可见文件夹保持原名，UUID、游玩历史和手动封面只存于 Application Support。旧的 `Documents/Mikage/Games/<UUID>` 不会自动迁移或删除。
+## 分支
 
-KRKR 优先使用根目录 `startup.tjs`，否则按 `启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、`data.xp3` 选择通过签名验证的 XP3。默认存档仍位于游戏目录的 `savedata/`。
+- `main`：稳定版。
+- `beta`：先于 `main` 的测试版。
+- `metal_dev`：日常开发。
 
-## 结构
+## 目录结构
 
-- `App/`：SwiftUI 游戏库、设置、PlayerView 和 KRKR session。
-- `Engine/KRKRRuntime/`：固定的 KRKRSDL3 fork 子模块、许可证和集成说明。
-- `Sources/VNCore/`：游戏扫描、路径安全、导入与索引。
-- `Tests/VNCoreTests/`：核心单元测试。
-- `scripts/build-krkr-ios.sh`：可复现的 device/simulator XCFramework 构建。
-- `.github/workflows/ios.yml`：完整 engine + App 云端构建。
-- docs/PHASE-2-MULTI-ENGINE-PLAN.md：KRKR 真机验收通过后的 ONScripter、Ren’Py、Artemis 多引擎计划。
+| 路径 | 内容 |
+| --- | --- |
+| `App/` | SwiftUI App：游戏库、游戏详情、播放器、设置、存储空间、Bangumi/VNDB 关联、字符串目录 |
+| `App/Engine/` | 在 App 内承载 KiriKiri 运行时的桥接层 |
+| `Sources/VNCore/` | Swift 包：游戏库扫描与导入、路径安全、Bangumi 和 VNDB 客户端、条目匹配 |
+| `Engine/KRKRRuntime/` | 以子模块固定版本的 KRKRSDL3 运行时（[krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)） |
+| `Tests/` | Swift 单元测试和原生运行时测试 |
+| `scripts/` | 构建脚本和诊断分析工具 |
+| `docs/` | 设计笔记、问题排查记录和性能基线 |
 
-KRKRSDL3 的修改通过仓库固定的 fork 递归子模块提供。分发修改后的 runtime 或商业游戏移植版前，请阅读 `Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt` 的再分发与源码公开条件。
+## 许可证
 
-`metal_dev` 的候选动画接入和额外许可声明见
-[Emote 首轮实现记录](docs/EMOTE-AETHER-INTEGRATION-STATUS.md)。默认仍使用 legacy 动画，
-节点曲线语义与 iPhone 验收完成后再切换默认实现。
+Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
+
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。分发构建产物前请先阅读。
+
+KiriKiri、ONScripter、Ren’Py、Artemis、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。

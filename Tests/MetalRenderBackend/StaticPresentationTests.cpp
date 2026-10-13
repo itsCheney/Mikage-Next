@@ -41,7 +41,10 @@ void StaticPresentationTests() {
     require(!skip(a,true)); // A fresh alpha frame always needs an actual present.
     Signature b=a; ++b.windows[0].mutation;
     auto second=policy.Track(b); require(!skip(a)); // confirmed A, pending B, new A
-    second->displayed=true; require(!skip(b));
+    // The newest pending present is what reaches the screen. Display proof
+    // usually lags past the next tick, so waiting for it would never skip.
+    require(skip(b));
+    second->displayed=true; require(skip(b));
     second->commandSucceeded=true; require(skip(b) && !skip(a));
     Signature changed=b; changed.windows[0].resource=NextResourceID(); require(!skip(changed));
     changed=b; changed.windows[0].x=1; require(!skip(changed));

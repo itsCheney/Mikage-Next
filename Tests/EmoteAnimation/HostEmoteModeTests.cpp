@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdio>
+#include <SDL3/SDL.h>
 #include "emoteperformance.h"
 
 enum SDL_HintPriority { SDL_HINT_DEFAULT, SDL_HINT_NORMAL, SDL_HINT_OVERRIDE };
@@ -60,29 +61,8 @@ int main() {
         require(second.integratedAnimation(), "prior player is unaffected by later launch");
         hint.clear();
         require(applyEmoteAnimationModeForStart() && hint == "legacy", "SDL reset is followed by explicit reapplication");
-        const char* options[] = {"MIKAGE_EMOTE_NODE_CACHE", "MIKAGE_EMOTE_CAPTURE_CACHE",
-            "MIKAGE_EMOTE_LOCAL_UPDATE", "MIKAGE_EMOTE_REGION_COPY", "MIKAGE_EMOTE_ASYNC_ALPHA",
-            "MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS", "MIKAGE_EMOTE_LOCAL_POSE_CACHE"};
-        for (auto* option : options)
-            require(std::strcmp(SDL_GetHint(option), "0") == 0, "performance options default off");
-        for (unsigned bit = 0; bit < 7; ++bit) {
-            MikageKRKRSetEmotePerformanceOptions(1u << bit);
-            require(applyEmoteAnimationModeForStart(), "performance flag applies at next launch");
-            for (unsigned index = 0; index < 7; ++index) {
-                bool enabled = index == bit;
-#if TARGET_OS_SIMULATOR
-                if (index == 4) enabled = false;
-#endif
-                require(emoteplayer::performanceEnabled(options[index]) == enabled, "performance bits respect platform capabilities");
-            }
-        }
-        MikageKRKRSetEmotePerformanceOptions(0xffffffffu);
-        require(applyEmoteAnimationModeForStart() && emotePerformanceOptions.load() == 127u, "unsupported performance bits are masked");
-        emoteplayer::performanceCounters().nodeCacheHits.store(99);
-        MikageKRKRSetEmotePerformanceOptions(0);
-        require(applyEmoteAnimationModeForStart() && emoteplayer::performanceStats().nodeCacheHits == 0, "per-session performance counters reset");
-        for (auto* option : options)
-            require(!emoteplayer::performanceEnabled(option), "new session clears stale experimental flags");
+        emoteplayer::performanceCounters().captureRequests.store(99);
+        require(applyEmoteAnimationModeForStart() && emoteplayer::performanceStats().captureRequests == 0, "per-session performance counters reset");
         hintFails = true;
         require(!applyEmoteAnimationModeForStart(), "hint failure is reported rather than silently selecting wrong mode");
         std::cout << "Passed " << checks << " production host-mode checks.\n";

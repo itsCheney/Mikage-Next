@@ -1,14 +1,13 @@
 import SwiftUI
+import VNCore
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var info: String?
     @State private var showInfo = false
     @AppStorage(AppDiagnostics.preferenceKey) private var diagnosticLogging = false
-    @State private var exportingLogs = false
-    @State private var logExport: URL?
-    @State private var showLogExport = false
-    @State private var confirmClearLogs = false
+    /// Owned here rather than by the Advanced page so a logging failure is
+    /// caught while that page is closed.
     @State private var diagnosticError: String?
     /// Mirrors `settings.idleOpacity` while dragging; committed on release.
     @State private var idleOpacity: Double = 0
@@ -16,92 +15,56 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("外观") {
-                    Picker("外观", selection: $model.settings.appearance) {
+                Section("Appearance") {
+                    Picker("Appearance", selection: $model.settings.appearance) {
                         ForEach(Appearance.allCases, id: \.self) {
                             Text($0.displayName).tag($0)
                         }
                     }
                     .pickerStyle(.segmented)
-
-                    Button {
-                        explain("当前提供默认应用图标，替换图标资源将在后续版本加入。")
-                    } label: {
-                        Label("App 图标", systemImage: "app.badge")
-                    }
                 }
 
                 Section {
-                    Picker(selection: $model.settings.renderer) {
-                        ForEach(RendererPreference.allCases, id: \.self) {
-                            Text($0.displayName).tag($0)
+                    NavigationLink {
+                        AccountsSettingsView()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Accounts & Sync")
+                                Text(accountsSummary)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .foregroundStyle(.tint)
                         }
-                    } label: {
-                        Label("渲染方式", systemImage: "cpu")
                     }
-                    .pickerStyle(.menu)
-                } header: {
-                    Text("图形")
-                } footer: {
-                    Text("游戏显示异常时可尝试切换。Metal 加速离屏绘制、Emote 和 D3DLayer，普通 KRKR 图层仍由 CPU 合成。可切换为软件合成 · Metal。")
+                    .accessibilityIdentifier("accounts-settings-link")
                 }
 
-                Section {
-                    Toggle(isOn: $model.settings.experimentalEmote) {
-                        Label("Emote 候选动画模式", systemImage: "sparkles")
-                    }
-                    .accessibilityIdentifier("experimental-emote-toggle")
-                } header: {
-                    Text("动画")
-                } footer: {
-                    Text("启用新的 Emote 动画播放方式，用于对比动作流畅度。默认关闭；修改在下次启动游戏时生效。若动作或表情异常，可关闭后重新进入游戏。")
-                }
-
-                Section {
-                    Toggle(isOn: $model.settings.respectSilentMode) {
-                        Label("遵循 iOS 静音模式规则", systemImage: "speaker.slash.fill")
-                    }
-                    .accessibilityIdentifier("respect-ios-silent-mode-toggle")
-                } header: {
-                    Text("声音")
-                } footer: {
-                    Text("开启后，iPhone 处于静音模式时游戏音频会静音；关闭后将忽略静音模式继续播放。修改将在下次启动游戏时生效。")
-                }
-
-                Section {
-                    Toggle("复用未变化的动画节点", isOn: $model.settings.emoteNodeCache)
-                    Toggle("跳过重复画布更新", isOn: $model.settings.emoteCaptureCache)
-                    Toggle("局部图层更新", isOn: $model.settings.emoteLocalUpdate)
-                    Toggle("局部画布复制", isOn: $model.settings.emoteRegionCopy)
-                    Toggle("异步点击检测", isOn: $model.settings.emoteAsyncAlpha)
-#if targetEnvironment(simulator)
-                        .disabled(true)
-#endif
-                    Toggle("变形范围实验", isOn: $model.settings.emoteExperimentalBounds)
-                    Toggle("局部求值实验", isOn: $model.settings.emoteLocalPoseCache)
-                        .disabled(!model.settings.emoteNodeCache)
-                } header: {
-                    Text("Emote 性能实验")
-                } footer: {
-                    Text("各项可独立开启对比，默认关闭，下次启动游戏时生效。异步点击保持透明区域判定，通常延迟约一帧；画面未就绪时会继续等待。")
-                }
-
-                Section("游戏内") {
+                Section("In Game") {
                     Picker(selection: $model.settings.background) {
                         ForEach(PlayerBackground.allCases, id: \.self) {
                             Text($0.displayName).tag($0)
                         }
                     } label: {
-                        Label("背景填充", systemImage: "photo.fill")
+                        SettingLabel("Background Fill", systemImage: "photo")
                     }
                     .pickerStyle(.menu)
 
                     Toggle(isOn: $model.settings.floatingButton) {
-                        Label("悬浮球", systemImage: "pawprint.fill")
+                        SettingLabel("Floating Button", systemImage: "moon.stars.fill")
                     }
 
-                    HStack {
-                        Label("闲置透明度", systemImage: "circle.lefthalf.filled")
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            SettingLabel("Idle Opacity", systemImage: "circle.lefthalf.filled")
+                            Spacer()
+                            Text(verbatim: "\(Int(idleOpacity * 100))%")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
                         // Bound to local state: committing every intermediate
                         // value would re-encode and write the whole preference
                         // file on each drag callback.
@@ -112,88 +75,78 @@ struct SettingsView: View {
                                 if !editing { model.settings.idleOpacity = idleOpacity }
                             }
                         )
-                        .accessibilityLabel("闲置透明度")
-                        Text("\(Int(idleOpacity * 100))%")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .frame(width: 38, alignment: .trailing)
+                        .accessibilityLabel("Idle Opacity")
                     }
+                    .padding(.vertical, 4)
 
                     Toggle(isOn: $model.settings.threeFingerMenu) {
-                        Label("三指轻点唤出菜单", systemImage: "hand.tap")
-                    }
-
-                    Toggle(isOn: $model.settings.performance) {
-                        Label("性能分析", systemImage: "gauge.with.dots.needle.33percent")
+                        SettingLabel("Three-Finger Tap for Menu", systemImage: "hand.tap")
                     }
 
                     Toggle(isOn: $model.settings.skipPatchVideos) {
-                        Label("跳过汉化组署名视频", systemImage: "forward.end.fill")
+                        SettingLabel("Skip Translation Group Credit Videos", systemImage: "forward.end.fill")
                     }
                     .accessibilityIdentifier("skip-patch-videos-toggle")
                 }
 
-                Section("文件与传输") {
-                    Button {
-                        explain("局域网上传模块尚未连接。请通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents/krkr、ons、renpy、artemis。")
-                    } label: {
-                        HStack {
-                            Label("局域网上传", systemImage: "wifi")
-                            Spacer()
-                            Text("待接入").foregroundStyle(.secondary)
-                        }
+                Section {
+                    Toggle(isOn: $model.settings.respectSilentMode) {
+                        SettingLabel("Respect Silent Mode", systemImage: "speaker.slash")
                     }
-
-                    Button {
-                        explain("当前 \(model.games.count) 部作品，另有 \(model.missingGames.count) 条缺失记录。\n游戏文件：\(AppModel.size(model.games.reduce(0) { $0 + $1.byteCount }))\n\n文件保存在“文件 → 我的 iPhone → Mikage Next”下的 krkr、ons、renpy、artemis 目录中。KiriKiri 存档仍位于各游戏的 savedata 目录。")
-                    } label: {
-                        Label("存储信息", systemImage: "internaldrive.fill")
-                    }
+                    .accessibilityIdentifier("respect-ios-silent-mode-toggle")
+                } header: {
+                    Text("Sound")
+                } footer: {
+                    Text("When on, games stay silent while the device is in Silent Mode; when off, they play anyway. Takes effect the next time a game launches.")
                 }
 
                 Section {
-                    Toggle("完整诊断日志", isOn: $diagnosticLogging)
-                        .accessibilityIdentifier("diagnostic-logging-toggle")
-                    if let diagnosticError {
-                        Text("日志记录已停止：\(diagnosticError)")
-                            .foregroundStyle(.red)
-                    }
-                    Button {
-                        exportingLogs = true
-                        Task {
-                            do {
-                                logExport = try await Task.detached(priority: .utility) {
-                                    try AppDiagnostics.shared.export()
-                                }.value
-                                showLogExport = true
-                            } catch { explain(error.localizedDescription) }
-                            exportingLogs = false
-                        }
+                    NavigationLink {
+                        StorageView()
                     } label: {
-                        Label(exportingLogs ? "正在导出…" : "导出诊断日志", systemImage: "square.and.arrow.up")
+                        HStack {
+                            SettingLabel("Storage", systemImage: "internaldrive")
+                            Spacer()
+                            Text(storageTotal)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .disabled(exportingLogs)
-                    .accessibilityIdentifier("export-diagnostic-logs")
-                    Button("清除诊断日志", role: .destructive) { confirmClearLogs = true }
-                        .disabled(exportingLogs)
-                        .accessibilityIdentifier("clear-diagnostic-logs")
+                    .accessibilityIdentifier("storage-settings-link")
                 } header: {
-                    Text("诊断与日志")
+                    Text("General")
                 } footer: {
-                    Text("默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件，用于定位黑屏。日志最多约 16 MB，自动轮转；关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，并过滤 VM 反汇编和寄存器转储；无法代替系统崩溃报告。")
+                    Text("Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly into the engine folders under Documents.")
                 }
 
-                Section("更多") {
-                    ShareLink(item: "Mikage 0.1\n设备：\(UIDevice.current.model)\n系统：\(UIDevice.current.systemVersion)\n渲染偏好：\(model.settings.renderer.displayName)\n完整诊断日志：设置 → 诊断与日志 → 开启记录，复现问题后导出\n问题描述：\n复现步骤：") {
-                        Label("问题反馈", systemImage: "envelope.fill")
+                Section {
+                    NavigationLink {
+                        AdvancedSettingsView(diagnosticError: $diagnosticError)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Advanced")
+                                Text("Rendering, Emote animation, diagnostic logs")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "slider.horizontal.3")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    .accessibilityIdentifier("advanced-settings-link")
+                }
+
+                Section("More") {
+                    ShareLink(item: String(localized: "Mikage 0.1\nDevice: \(UIDevice.current.model)\nSystem: \(UIDevice.current.systemVersion)\nRenderer: \(model.settings.renderer.displayName)\nFull diagnostic log: Settings → Advanced → turn on Full Diagnostic Log, reproduce the issue, then export\nDescription:\nSteps to reproduce:")) {
+                        SettingLabel("Send Feedback", systemImage: "envelope")
                     }
 
                     Button {
-                        explain("Mikage 0.1 · 多引擎视觉小说播放器\n\n当前内置 KRKRSDL3 runtime，支持自动扫描并启动 KiriKiri 游戏。ONScripter、Ren’Py 与 Artemis 目录已接入游戏库，运行时将在后续阶段适配。\n\n应用不附带游戏内容。")
+                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime, which scans for and launches KiriKiri games automatically. ONScripter, Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content."))
                     } label: {
-                        Label("关于", systemImage: "info.circle.fill")
+                        SettingLabel("About Mikage", systemImage: "info.circle")
                     }
-
                 }
 
                 Section {
@@ -213,11 +166,11 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(AppBackground())
-            .navigationTitle("设置")
+            .navigationTitle("Settings")
             .onAppear { idleOpacity = model.settings.idleOpacity }
         }
         .alert("Mikage", isPresented: $showInfo) {
-            Button("好", role: .cancel) { }
+            Button("OK", role: .cancel) { }
         } message: {
             Text(info ?? "")
         }
@@ -226,11 +179,8 @@ struct SettingsView: View {
             do { try AppDiagnostics.shared.configure(enabled: enabled) }
             catch {
                 diagnosticLogging = false
-                explain("无法启动日志记录：\(error.localizedDescription)")
+                explain(String(localized: "Couldn’t start logging: \(error.localizedDescription)"))
             }
-        }
-        .sheet(isPresented: $showLogExport) {
-            if let logExport { ActivitySheet(items: [logExport]) }
         }
         .task(id: diagnosticLogging) {
             while diagnosticLogging && !Task.isCancelled {
@@ -242,10 +192,112 @@ struct SettingsView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
-        .confirmationDialog("清除已记录的诊断日志？", isPresented: $confirmClearLogs, titleVisibility: .visible) {
-            Button("清除日志", role: .destructive) {
+    }
+
+    /// "Bangumi, VNDB" for connected services, or a prompt when none is.
+    private var accountsSummary: String {
+        let connected = MetadataService.allCases.filter { model.accounts[$0] != nil }
+        return connected.isEmpty
+            ? String(localized: "Bangumi and VNDB")
+            : connected.map(\.displayName).joined(separator: ", ")
+    }
+
+    private var storageTotal: String {
+        AppModel.size(model.games.reduce(0) { $0 + $1.byteCount })
+    }
+
+    private func explain(_ text: String) {
+        info = text
+        showInfo = true
+    }
+}
+
+/// Rendering, Emote and diagnostics options most players never need.
+struct AdvancedSettingsView: View {
+    @EnvironmentObject private var model: AppModel
+    @Binding var diagnosticError: String?
+    @AppStorage(AppDiagnostics.preferenceKey) private var diagnosticLogging = false
+    @State private var exportingLogs = false
+    @State private var logExport: URL?
+    @State private var showLogExport = false
+    @State private var confirmClearLogs = false
+    @State private var info: String?
+    @State private var showInfo = false
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Renderer", selection: $model.settings.renderer) {
+                    ForEach(RendererPreference.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Toggle("Show Performance Stats on Launch", isOn: $model.settings.performance)
+            } header: {
+                Text("Graphics")
+            } footer: {
+                Text("If the picture looks wrong, switch to Software Compositing · Metal. Metal accelerates offscreen drawing, Emote and D3DLayer; regular KRKR layers are still composited on the CPU. Performance stats can also be toggled any time from the in-game menu.")
+            }
+
+            Section {
+                Toggle("Emote Candidate Animation", isOn: $model.settings.experimentalEmote)
+                    .accessibilityIdentifier("experimental-emote-toggle")
+            } header: {
+                Text("Animation")
+            } footer: {
+                Text("A new Emote playback method for comparing motion smoothness. Off by default. Takes effect the next time a game launches; if motions or expressions look wrong, turn it off and reopen the game.")
+            }
+
+            Section {
+                Toggle("Full Diagnostic Log", isOn: $diagnosticLogging)
+                    .accessibilityIdentifier("diagnostic-logging-toggle")
+                if let diagnosticError {
+                    Text("Logging stopped: \(diagnosticError)")
+                        .foregroundStyle(.red)
+                }
+                Button {
+                    exportingLogs = true
+                    Task {
+                        do {
+                            logExport = try await Task.detached(priority: .utility) {
+                                try AppDiagnostics.shared.export()
+                            }.value
+                            showLogExport = true
+                        } catch { explain(error.localizedDescription) }
+                        exportingLogs = false
+                    }
+                } label: {
+                    exportingLogs ? Text("Exporting…") : Text("Export Diagnostic Log")
+                }
+                .disabled(exportingLogs)
+                .accessibilityIdentifier("export-diagnostic-logs")
+                Button("Clear Diagnostic Log", role: .destructive) { confirmClearLogs = true }
+                    .disabled(exportingLogs)
+                    .accessibilityIdentifier("clear-diagnostic-logs")
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                Text("Helps track down problems such as black screens. Off by default. Records app, window orientation, foreground and background, audio route, KRKR and SDL events; up to about 16 MB with automatic rotation, and existing records are kept after turning it off. May include game names, resource names and error text, so check before sharing. Doesn’t read game files or saves, and can’t replace system crash reports.")
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(AppBackground())
+        .navigationTitle("Advanced")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Mikage", isPresented: $showInfo) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(info ?? "")
+        }
+        .sheet(isPresented: $showLogExport) {
+            if let logExport { ActivitySheet(items: [logExport]) }
+        }
+        .confirmationDialog("Clear recorded diagnostic logs?", isPresented: $confirmClearLogs, titleVisibility: .visible) {
+            Button("Clear Logs", role: .destructive) {
                 do { try AppDiagnostics.shared.clear() }
-                catch { explain("清除日志失败：\(error.localizedDescription)") }
+                catch { explain(String(localized: "Couldn’t clear logs: \(error.localizedDescription)")) }
             }
         }
     }

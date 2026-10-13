@@ -32,12 +32,14 @@ private final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
+    @Published var performanceVisible: Bool
 
     let gameTitle: String
-    let performanceVisible: Bool
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
+    var onMarkFinished: (() -> Void)?
     var onScreenshot: (() -> UIImage?)?
+    var onTogglePerformance: (() -> Void)?
 
     init(gameTitle: String, performanceVisible: Bool, renderer: String) {
         self.gameTitle = gameTitle
@@ -66,7 +68,9 @@ final class KRKROverlayCoordinator: NSObject {
         floatingButtonEnabled: Bool,
         floatingButtonOpacity: Double,
         onExit: @escaping () -> Void,
-        onScreenshot: @escaping () -> UIImage?
+        onMarkFinished: @escaping () -> Void,
+        onScreenshot: @escaping () -> UIImage?,
+        onTogglePerformance: @escaping () -> Void
     ) {
         guard let rootController = window.rootViewController else { return }
         AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSCoder.string(for: window.bounds), "root": String(describing: type(of: rootController))])
@@ -90,7 +94,9 @@ final class KRKROverlayCoordinator: NSObject {
 
         model.onCloseMenu = { [weak self] in self?.hideMenu() }
         model.onExit = onExit
+        model.onMarkFinished = onMarkFinished
         model.onScreenshot = onScreenshot
+        model.onTogglePerformance = onTogglePerformance
 
         if floatingButtonEnabled {
             installFloatingButton(
@@ -115,6 +121,10 @@ final class KRKROverlayCoordinator: NSObject {
         if let floatingButton {
             containerView?.bringSubviewToFront(floatingButton)
         }
+    }
+
+    func setPerformanceVisible(_ visible: Bool) {
+        model.performanceVisible = visible
     }
 
     func update(_ performance: KRKRPerformanceSnapshot) {
@@ -145,15 +155,21 @@ final class KRKROverlayCoordinator: NSObject {
     }
 
     private func installFloatingButton(in view: UIView, opacity: Double) {
-        let configuration: UIButton.Configuration
+        // Tinted glass in the app accent; the menu opens from it.
+        var configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
-            configuration = .glass()
+            configuration = .prominentGlass()
         } else {
             configuration = .filled()
         }
+        configuration.cornerStyle = .capsule
+        configuration.baseBackgroundColor = .systemIndigo
+        configuration.baseForegroundColor = .white
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         let button = UIButton(configuration: configuration)
-        button.setImage(UIImage(systemName: "pawprint.fill"), for: .normal)
-        button.accessibilityLabel = "唤出游戏菜单"
+        button.tintColor = .systemIndigo
+        button.setImage(UIImage(systemName: "moon.stars.fill"), for: .normal)
+        button.accessibilityLabel = String(localized: "Open Game Menu")
         button.alpha = max(0.1, min(opacity, 1))
         button.frame = CGRect(
             x: max(view.bounds.width - 72, 12),
@@ -207,7 +223,7 @@ private struct KRKROverlayView: View {
                 Color.black.opacity(0.36)
                     .ignoresSafeArea()
                 menuPanel
-                    .frame(maxWidth: 640)
+                    .frame(maxWidth: 440)
                     .padding(40)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -228,29 +244,29 @@ private struct KRKROverlayView: View {
     private var performanceHUD: some View {
         let stats = model.performance
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · 间隔 \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
-            Text("主线程 \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · 峰值 \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · interval \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
+            Text("Main thread \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · peak \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
             if stats.gpuSubmissionTimeMilliseconds >= 0 {
-                Text("GPU 提交 \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
+                Text("GPU submit \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
             }
             if stats.presentationWaitTimeMilliseconds >= 0 {
-                Text("呈现等待 \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
+                Text("Present wait \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
             }
-            Text("\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
-            Text("图层合成 · \(stats.gpuLayerComposition ? "GPU Metal" : "软件")")
+            Text(verbatim: "\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
+            stats.gpuLayerComposition ? Text("Layer compositing · GPU Metal") : Text("Layer compositing · Software")
             if stats.gpuLayerComposition {
-                Text("算子 \(stats.gpuLayerOperations) · CPU 回退 \(stats.layerCPUFallbacks)")
-                Text("上传 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · 回读 \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
+                Text("Ops \(stats.gpuLayerOperations) · CPU fallbacks \(stats.layerCPUFallbacks)")
+                Text("Upload \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · readback \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
             }
-            Text("内存 \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            Text("Memory \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
             if stats.processCPUPercent >= 0 {
-                Text("全部线程 CPU \(stats.processCPUPercent, specifier: "%.0f")%")
+                Text("All threads CPU \(stats.processCPUPercent, specifier: "%.0f%%")")
                 if !stats.busiestThreads.isEmpty {
                     Text(stats.busiestThreads)
                         .lineLimit(1)
                 }
             }
-            Text("本次游玩 \(duration(stats.elapsedSeconds))")
+            Text("Session \(duration(stats.elapsedSeconds))")
         }
         .font(.system(size: 12, design: .monospaced))
         .foregroundStyle(.white)
@@ -260,56 +276,101 @@ private struct KRKROverlayView: View {
     }
 
     private var menuPanel: some View {
-        VStack(spacing: 20) {
-            HStack(spacing: 10) {
+        VStack(spacing: 18) {
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.gameTitle)
                         .font(.headline)
                         .lineLimit(1)
-                    Text("本次已游玩 \(duration(model.performance.elapsedSeconds))")
+                    Text("Played \(duration(model.performance.elapsedSeconds)) this session")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
                 Spacer(minLength: 0)
-                RoundButton(symbol: "xmark", label: "关闭菜单") {
+                RoundButton(symbol: "xmark", label: "Close Menu") {
                     model.onCloseMenu?()
                 }
             }
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2),
-                spacing: 12
-            ) {
-                action("截图", "camera") {
-                    model.sharedImage = model.onScreenshot?()
-                }
-                action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
-                    model.onExit?()
-                }
-            }
+            actions
         }
-        .padding(22)
-        .nativeGlassPanel(30)
+        .padding(20)
+        .nativeGlassPanel(32)
         .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
+        .tint(.indigo)
         .accessibilityIdentifier("krkr-game-menu")
     }
 
+    /// Tiles sit close together so on iOS 26 their glass blends as one group.
+    @ViewBuilder
+    private var actions: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) { actionGrid }
+        } else {
+            actionGrid
+        }
+    }
+
+    private var actionGrid: some View {
+        HStack(spacing: 8) {
+            action("Screenshot", "camera") {
+                model.sharedImage = model.onScreenshot?()
+            }
+            action(
+                "Performance",
+                "gauge.with.dots.needle.33percent",
+                highlighted: model.performanceVisible
+            ) {
+                model.onTogglePerformance?()
+            }
+            .accessibilityValue(model.performanceVisible ? Text("On") : Text("Off"))
+            .accessibilityIdentifier("krkr-performance-toggle")
+            // Quits like the tile beside it, then asks for a rating in the
+            // library: reaching the ending is when players want to record it.
+            action("Mark Finished", "checkmark.seal", tint: .green) {
+                model.onMarkFinished?()
+            }
+            .accessibilityIdentifier("krkr-mark-finished")
+            action("Quit", "rectangle.portrait.and.arrow.right", destructive: true) {
+                model.onExit?()
+            }
+        }
+    }
+
+    @ViewBuilder
     private func action(
-        _ title: String,
+        _ title: LocalizedStringKey,
         _ icon: String,
         destructive: Bool = false,
+        highlighted: Bool = false,
+        tint: Color? = nil,
         perform: @escaping () -> Void
     ) -> some View {
-        Button(role: destructive ? .destructive : nil, action: perform) {
-            VStack(spacing: 8) {
+        let button = Button(role: destructive ? .destructive : nil, action: perform) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.title2.weight(.medium))
-                    .symbolRenderingMode(.hierarchical)
-                Text(title).font(.body.weight(.medium))
+                Text(title)
+                    .font(.subheadline.weight(destructive ? .semibold : .medium))
             }
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 72)
         }
-        .nativeGlassButtonStyle()
+        if destructive {
+            button
+                .nativeGlassButtonStyle(prominent: true)
+                .tint(.red)
+        } else if let tint {
+            button
+                .nativeGlassButtonStyle(prominent: true)
+                .tint(tint)
+        } else if highlighted {
+            button.nativeGlassButtonStyle(prominent: true)
+        } else {
+            button.nativeGlassButtonStyle()
+        }
     }
 
     private func duration(_ seconds: Int) -> String {

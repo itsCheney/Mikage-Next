@@ -10,6 +10,8 @@ protocol KRKRSession: AnyObject {
     var onFinished: ((Result<Void, Error>) -> Void)? { get set }
     var onWarning: ((Error) -> Void)? { get set }
     var onReturningToLibrary: (() -> Void)? { get set }
+    /// The player chose Finished in the in-game menu; the session then quits.
+    var onMarkFinished: (() -> Void)? { get set }
     func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) async throws
     func requestStop()
     func setForeground(_ foreground: Bool)
@@ -28,7 +30,6 @@ struct KRKRLaunchConfiguration {
     let threeFingerMenu: Bool
     let respectSilentMode: Bool
     let experimentalEmote: Bool
-    var emotePerformanceOptions: UInt32 = 0
     let performance: Bool
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
@@ -50,17 +51,17 @@ enum KRKRSessionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .alreadyRunning:
-            return "已有 KRKR 游戏正在运行。"
+            return String(localized: "A KRKR game is already running.")
         case .missingHostWindow:
-            return "无法取得当前 iOS 窗口，KRKR 未启动。"
+            return String(localized: "Couldn’t get the current iOS window, so KRKR wasn’t started.")
         case .invalidGameDirectory:
-            return "游戏目录或启动入口已经不存在。"
+            return String(localized: "The game folder or its launch entry no longer exists.")
         case .orientationUnavailable:
-            return "无法切换到横屏。请确认方向锁定允许横屏，然后旋转设备后重试。"
+            return String(localized: "Couldn’t switch to landscape. Make sure Orientation Lock allows landscape, rotate the device, then try again.")
         case .audioSession(let message):
-            return "音频会话切换失败，游戏将保持静音：\(message)"
+            return String(localized: "Couldn’t switch the audio session, so the game will stay muted: \(message)")
         case .runtime(let message):
-            return message.isEmpty ? "KRKR 启动失败。" : "KRKR 启动失败：\(message)"
+            return message.isEmpty ? String(localized: "KRKR failed to start.") : String(localized: "KRKR failed to start: \(message)")
         }
     }
 }
@@ -82,6 +83,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     var onFinished: ((Result<Void, Error>) -> Void)?
     var onWarning: ((Error) -> Void)?
     var onReturningToLibrary: (() -> Void)?
+    var onMarkFinished: (() -> Void)?
 
     private weak var hostWindow: UIWindow?
     private weak var engineWindow: UIWindow?
@@ -167,7 +169,6 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "targetKind": String(describing: configuration.targetKind),
                                          "requestedRenderer": configuration.renderer.rawValue,
                                          "emoteAnimationMode": configuration.experimentalEmote ? "integrated" : "legacy",
-                                         "emotePerformanceOptions": String(configuration.emotePerformanceOptions),
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -207,7 +208,6 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
                     MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
-                    MikageKRKRSetEmotePerformanceOptions(configuration.emotePerformanceOptions)
                     return MikageKRKRStart(
                         gamePath,
                         renderer,
@@ -240,9 +240,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         guard let engineWindow else {
             AppDiagnostics.shared.event("UIKit", "SDL.window.missing")
             MikageKRKRRequestStop()
-            state = .failed("KRKR 没有创建可用的 SDL window。")
+            state = .failed(String(localized: "KRKR didn’t create a usable SDL window."))
             await restorePreviousOrientation()
-            throw KRKRSessionError.runtime("KRKR 没有创建可用的 SDL window。")
+            throw KRKRSessionError.runtime(String(localized: "KRKR didn’t create a usable SDL window."))
         }
 
         rendererLabel = configuration.renderer.displayName
@@ -261,7 +261,14 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
             },
-            onScreenshot: { [weak self] in self?.snapshot() }
+            onMarkFinished: { [weak self] in
+                AppDiagnostics.shared.event("session", "markFinished.requested")
+                self?.onMarkFinished?()
+                self?.overlayCoordinator?.hideMenu()
+                self?.requestNativeExit()
+            },
+            onScreenshot: { [weak self] in self?.snapshot() },
+            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
         )
         overlayCoordinator = overlay
         AppDiagnostics.shared.windows("overlay.installed")
@@ -288,6 +295,15 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         engineWindow.makeKeyAndVisible()
         hostWindow?.isHidden = true
         AppDiagnostics.shared.windows("launch.windowsSwitched")
+    }
+
+    /// Shows or hides the performance HUD for this session only; the launch
+    /// default stays in Settings › Advanced.
+    private func togglePerformanceHUD() {
+        performanceEnabled.toggle()
+        AppDiagnostics.shared.event("session", "performanceHUD.toggled", ["enabled": String(performanceEnabled)])
+        // The next metrics tick, within a second, fills in the numbers.
+        overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 
     private func requestNativeExit() {
@@ -403,11 +419,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         onFinished = nil
         onWarning = nil
         onReturningToLibrary = nil
+        onMarkFinished = nil
         if success {
             state = .idle
             completion?(.success(()))
         } else {
-            let detail = message ?? "KRKR runtime 已停止。"
+            let detail = message ?? String(localized: "KRKR runtime stopped.")
             state = .failed(detail)
             completion?(.failure(KRKRSessionError.runtime(detail)))
         }
@@ -675,6 +692,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     ("surfaceUploadBytes", diagnosticStats.metalSurfaceUploadBytes),
                     ("ringBytes", diagnosticStats.metalRingBytes),
                     ("commandBuffers", diagnosticStats.metalSubmits),
+                    ("emoteLayerDirectDraws", diagnosticStats.emoteLayerDirectDraws),
                     ("emoteLayerGPUCopies", diagnosticStats.emoteLayerGPUCopies),
                     ("emoteLayerGPUCopyBytes", diagnosticStats.emoteLayerGPUCopyBytes),
                     ("emoteCaptureGPUCopies", diagnosticStats.emoteCaptureGPUCopies),
@@ -750,37 +768,15 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 ].joined(separator: ",")
 
                 let emotePerformanceProfile = [
-                    "nodeHits:\(diagnosticStats.emoteNodeCacheHits)",
-                    "nodeMisses:\(diagnosticStats.emoteNodeCacheMisses)",
-                    "shapeHits:\(diagnosticStats.emoteShapeCacheHits)",
-                    "meshHits:\(diagnosticStats.emoteMeshCacheHits)",
-                    "drawListRebuilds:\(diagnosticStats.emoteDrawListRebuilds)",
                     "captureSkipped:\(diagnosticStats.emoteCaptureSkipped)",
                     "regionPixels:\(diagnosticStats.emoteCaptureRegionPixels)",
                     "fullPixels:\(diagnosticStats.emoteCaptureFullPixels)",
-                    "knownBounds:\(diagnosticStats.emoteCaptureKnownBounds)",
-                    "unknownBounds:\(diagnosticStats.emoteCaptureUnknownBounds)",
-                    "cowFallbacks:\(diagnosticStats.emoteCaptureCOWFallbacks)",
-                    "alphaRequests:\(diagnosticStats.emoteAlphaRequests)",
-                    "alphaHits:\(diagnosticStats.emoteAlphaCacheHits)",
-                    "pendingEvents:\(diagnosticStats.emoteAlphaPendingEvents)",
-                    "alphaBytes:\(diagnosticStats.emoteAlphaReadBytes)",
-                    "alphaFailures:\(diagnosticStats.emoteAlphaFailures)",
                     "uiSyncReads:\(diagnosticStats.emoteUISyncReads)",
                     "uiSyncWaitNS:\(diagnosticStats.emoteUISyncWaitNS)",
-                    "experimentalBoundsKnown:\(diagnosticStats.emoteCaptureExperimentalBoundsKnown)",
-                    "experimentalBoundsUnknown:\(diagnosticStats.emoteCaptureExperimentalBoundsUnknown)",
-                    "experimentalBoundsPixels:\(diagnosticStats.emoteCaptureExperimentalBoundsPixels)",
-                    "experimentalBoundsNS:\(diagnosticStats.emoteCaptureExperimentalBoundsNS)",
                     "updatePixels:\(diagnosticStats.emoteCaptureUpdatePixels)",
                     "updateFullPixels:\(diagnosticStats.emoteCaptureUpdateFullPixels)",
-                    "localPoseHits:\(diagnosticStats.emoteLocalPoseCacheHits)",
-                    "localPoseMisses:\(diagnosticStats.emoteLocalPoseCacheMisses)",
                     "captureRequests:\(diagnosticStats.emoteCaptureRequests)",
-                    "fullCopies:\(diagnosticStats.emoteCaptureFullCopies)",
-                    "regionCopies:\(diagnosticStats.emoteCaptureRegionCopies)",
-                    "regionFallbacks:\(diagnosticStats.emoteCaptureRegionFallbacks)",
-                    "boundsNS:\(diagnosticStats.emoteCaptureBoundsNS)"
+                    "fullCopies:\(diagnosticStats.emoteCaptureFullCopies)"
                 ].joined(separator: ",")
 
                 var workProfile = MikageKRKRLayerWorkProfile()
@@ -958,7 +954,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         case "opengl":
             return "OpenGL ES"
         case "software/opengles2":
-            return "软件合成 · OpenGL ES"
+            return String(localized: "Software Compositing · OpenGL ES")
         case "vulkan":
             return "Vulkan"
         case "":
