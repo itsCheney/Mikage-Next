@@ -293,4 +293,19 @@ public enum BangumiWeb {
         }
         return nil
     }
+
+    /// The formhash of the OAuth approval form, as czy0729/Bangumi reads
+    /// it. Nil for a signed-out page, whose sign-in form (posting to
+    /// /FollowTheRabbit) has a formhash of its own.
+    public static func authorizeFormhash(in html: String) -> String? {
+        guard !html.contains("FollowTheRabbit"),
+              let input = html.range(of: #"<input\b[^>]*\bname\s*=\s*["']?formhash\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]) else {
+            return nil
+        }
+        let tag = String(html[input])
+        guard let expression = try? NSRegularExpression(pattern: #"\bvalue\s*=\s*["']?([A-Za-z0-9]+)"#, options: .caseInsensitive),
+              let match = expression.firstMatch(in: tag, range: NSRange(tag.startIndex..., in: tag)),
+              let range = Range(match.range(at: 1), in: tag) else { return nil }
+        return String(tag[range])
+    }
 }

@@ -250,4 +250,13 @@ final class MetadataTests: XCTestCase {
         XCTAssertNil(BangumiToken(stored: "plainPersonalToken"))
         XCTAssertThrowsError(try BangumiOAuth.token(from: Data(#"{"error":"invalid_grant"}"#.utf8)))
     }
+
+    func testBangumiAuthorizeFormhashComesFromTheApprovalForm() {
+        let approval = #"<form method="post" action="/oauth/authorize?client_id=bgm1"><input type="hidden" name="formhash" value="9f8e7d" /><input type="submit" name="submit" value="授权" /></form>"#
+        XCTAssertEqual(BangumiWeb.authorizeFormhash(in: approval), "9f8e7d")
+        let reversed = #"<input value='abc1' type='hidden' name='formhash'>"#
+        XCTAssertEqual(BangumiWeb.authorizeFormhash(in: reversed), "abc1")
+        let signIn = #"<form action="/FollowTheRabbit" method="post"><input type="hidden" name="formhash" value="f00"></form>"#
+        XCTAssertNil(BangumiWeb.authorizeFormhash(in: signIn))
+    }
 }

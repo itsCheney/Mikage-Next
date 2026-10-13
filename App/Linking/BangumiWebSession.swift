@@ -29,7 +29,9 @@ enum BangumiWebError: LocalizedError, Equatable {
 final class BangumiWebSession {
     static let shared = BangumiWebSession()
 
-    /// Bangumi's pages answer a browser; a bare client may be refused.
+    /// Bangumi ties a session to the browser that signed in, so the sign-in
+    /// page and every later request send this same user agent, as the
+    /// community clients keep theirs.
     static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
     private var cookieStore: WKHTTPCookieStore {
@@ -78,7 +80,14 @@ final class BangumiWebSession {
         var response = page
         // An app approved before may be sent straight back with a code.
         if page.value(forHTTPHeaderField: "Location").flatMap(BangumiOAuth.code(fromRedirect:)) == nil {
-            guard let formhash = BangumiWeb.formhash(in: html) else {
+            // The approval page carries the form's own formhash; the
+            // session's, from any signed-in page, works the same.
+            var formhash = BangumiWeb.authorizeFormhash(in: html)
+            if formhash == nil {
+                formhash = BangumiWeb.formhash(in: try await self.page(BangumiWeb.baseURL))
+            }
+            guard let formhash else {
+                AppDiagnostics.shared.event("accounts", "bangumi.authorize.signedOut")
                 throw BangumiWebError.signInRequired
             }
             response = try await send(url, method: "POST", form: BangumiOAuth.authorizeForm(formhash: formhash, app: app)).1
@@ -169,6 +178,7 @@ private struct BangumiWebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         let view = WKWebView(frame: .zero, configuration: configuration)
+        view.customUserAgent = BangumiWebSession.userAgent
         view.navigationDelegate = context.coordinator
         view.load(URLRequest(url: BangumiWeb.loginURL))
         return view
