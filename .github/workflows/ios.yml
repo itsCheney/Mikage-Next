@@ -308,6 +308,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
             2>&1 | tee build/app-tests.log
+      - name: Collect simulator crash reports
+        if: failure()
+        run: |
+          mkdir -p build
+          for report in "${HOME}"/Library/Logs/DiagnosticReports/Mikage*; do
+            [ -f "${report}" ] || continue
+            cp "${report}" "build/crash-$(basename "${report}").log"
+          done
       - name: Build unsigned iPhone app
         env:
           # Mikage's Bangumi app (bgm.tv/dev/app), from repository secrets.
