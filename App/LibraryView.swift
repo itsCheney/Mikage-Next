@@ -329,7 +329,7 @@ struct LibraryView: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 (Text("\(playable.count) games")
-                    + Text(verbatim: " · \(AppModel.size(playable.reduce(0) { $0 + $1.byteCount }))"))
+                    + Text(verbatim: " · \(AppModel.librarySize(playable.reduce(0) { $0 + $1.byteCount }))"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -519,7 +519,7 @@ struct GameCard: View {
     }
 
     private var meta: String {
-        var parts = [game.engine.displayName, AppModel.size(game.byteCount)]
+        var parts = [game.engine.displayName, AppModel.librarySize(game.byteCount)]
         if !comingSoon { parts.append(model.recency(game)) }
         return parts.joined(separator: " · ")
     }
@@ -731,7 +731,7 @@ struct GameDetailView: View {
                 LabeledContent("Engine", value: current.engine.displayName)
                 LabeledContent("Folder", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
                 LabeledContent("Status", value: model.availabilityText(current))
-                LabeledContent("File Size", value: AppModel.size(current.byteCount))
+                LabeledContent("File Size", value: AppModel.librarySize(current.byteCount))
                 LabeledContent("Last Played", value: model.recency(current))
                 LabeledContent("Total Play Time") {
                     VStack(alignment: .trailing, spacing: 2) {

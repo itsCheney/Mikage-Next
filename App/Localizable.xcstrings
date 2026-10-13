@@ -1189,6 +1189,23 @@
         }
       }
     },
+    "Just now" : {
+      "comment" : "Last-played time for a game quit less than a minute ago.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "たった今"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚"
+          }
+        }
+      }
+    },
     "KRKR didn’t create a usable SDL window." : {
       "localizations" : {
         "ja" : {

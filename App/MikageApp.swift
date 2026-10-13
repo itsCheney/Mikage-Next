@@ -180,8 +180,19 @@ final class AppModel: ObservableObject {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
+    /// Game sizes in the library are always in GB, so cards compare at a glance.
+    static func librarySize(_ count: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = .useGB
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: count)
+    }
+
     func recency(_ game: GameRecord) -> String {
         guard let date = game.lastPlayedAt else { return String(localized: "Not played yet") }
+        // Under a minute reads as "just now" rather than a count of seconds.
+        if Date().timeIntervalSince(date) < 60 { return String(localized: "Just now") }
         let formatter = RelativeDateTimeFormatter()
         // Match the language the UI resolved to, not the device region.
         formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
