@@ -84,12 +84,34 @@ struct LibraryView: View {
         model.sortedGames.filter { $0.availability == .unsupported }
     }
 
+    /// Bottom edge of the continue card in the scroll view's space, used to
+    /// tell when it has scrolled under or past the navigation bar.
+    @State private var heroBottom: CGFloat = .infinity
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
+                let barBottom = proxy.safeAreaInsets.top
+                let hasHero = model.latest != nil
+                // On iPhone the continue card runs up under the bar; on iPad it
+                // is an inset card below it.
+                let heroBehindBar = hasHero && !regular
+                let heroUnderBar = heroBehindBar && heroBottom > barBottom
+                let heroScrolledAway = hasHero && heroBottom <= (heroBehindBar ? barBottom : 0)
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        header(topInset: proxy.safeAreaInsets.top)
+                        if let latest = model.latest {
+                            continueCard(latest, topInset: heroBehindBar ? barBottom : 0)
+                                .background(
+                                    GeometryReader { card in
+                                        Color.clear.preference(
+                                            key: HeroBottomKey.self,
+                                            value: card.frame(in: .named(Self.scrollSpace)).maxY
+                                        )
+                                    }
+                                )
+                        }
 
                         VStack(alignment: .leading, spacing: 12) {
                             if model.importing || model.scanning {
@@ -111,14 +133,47 @@ struct LibraryView: View {
                         .padding(.bottom, 24)
                     }
                 }
+                .coordinateSpace(name: Self.scrollSpace)
+                .onPreferenceChange(HeroBottomKey.self) { heroBottom = $0 }
                 .refreshable {
                     await model.refreshLibrary()
                 }
-                // On iPhone the continue card runs up under the status bar.
-                .ignoresSafeArea(edges: regular ? [] : .top)
+                .ignoresSafeArea(edges: heroBehindBar ? .top : [])
+                // A real navigation bar, so the system blurs content that
+                // scrolls under it (the scroll edge effect on iOS 26).
+                .toolbar {
+                    if hasHero {
+                        ToolbarItem(placement: .principal) {
+                            Text("游戏库")
+                                .font(.headline)
+                                .opacity(heroScrolledAway ? 1 : 0)
+                                .animation(.easeOut(duration: 0.15), value: heroScrolledAway)
+                        }
+                    }
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        if !model.missingGames.isEmpty {
+                            Button {
+                                showMissingGames = true
+                            } label: {
+                                Label(
+                                    "缺失游戏 \(model.missingGames.count)",
+                                    systemImage: "exclamationmark.folder"
+                                )
+                            }
+                            .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
+                            .accessibilityIdentifier("missing-games-button")
+                        }
+                        viewMenu
+                        importMenu
+                    }
+                }
+                // Over the cover art the bar items read light-on-dark.
+                .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
+                .legacyBarBackgroundHidden(heroUnderBar)
             }
             .background(AppBackground())
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("游戏库")
+            .navigationBarTitleDisplayMode(model.latest == nil ? .large : .inline)
         }
         .fileImporter(isPresented: $importPicker, allowedContentTypes: [.folder]) { result in
             switch result {
@@ -157,29 +212,14 @@ struct LibraryView: View {
         }
     }
 
+    private static let scrollSpace = "library-scroll"
+
     // MARK: Header
 
-    @ViewBuilder
-    private func header(topInset: CGFloat) -> some View {
-        if let latest = model.latest {
-            continueCard(latest, topInset: topInset)
-        } else {
-            HStack {
-                Text("游戏库")
-                    .font(.largeTitle.bold())
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                headerButtons
-            }
-            .padding(.leading, 20)
-            .padding(.trailing, 16)
-            .padding(.top, regular ? 12 : topInset + 4)
-        }
-    }
-
-    /// The last played game fills the top of the library. The page title and
-    /// its buttons sit on the cover art in glass, and Resume is the one
-    /// prominent action.
+    /// The last played game fills the top of the library, with the page's
+    /// large title on the cover art and Resume as the one prominent action.
+    /// `topInset` is the navigation bar's bottom edge when the card runs under
+    /// the bar, otherwise zero.
     private func continueCard(_ game: GameRecord, topInset: CGFloat) -> some View {
         ZStack {
             GameCover(game: game)
@@ -196,14 +236,10 @@ struct LibraryView: View {
             )
             .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                HStack {
-                    Text("游戏库")
-                        .font(.largeTitle.bold())
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    headerButtons
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("游戏库")
+                    .font(.largeTitle.bold())
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 12)
                 HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -231,38 +267,16 @@ struct LibraryView: View {
                 }
             }
             .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, regular ? 28 : 20)
             .padding(.top, regular ? 26 : topInset + 4)
             .padding(.bottom, regular ? 26 : 22)
         }
-        .frame(height: regular ? 320 : 266 + topInset)
+        .frame(height: regular ? 320 : 220 + topInset)
         .clipShape(RoundedRectangle(cornerRadius: regular ? 28 : 0, style: .continuous))
         .padding(.horizontal, regular ? 12 : 0)
         .padding(.top, regular ? 12 : 0)
-        // Glass and menus over the art read as light-on-dark in either theme.
         .environment(\.colorScheme, .dark)
-    }
-
-    private var headerButtons: some View {
-        HStack(spacing: 0) {
-            if !model.missingGames.isEmpty {
-                Button {
-                    showMissingGames = true
-                } label: {
-                    Image(systemName: "exclamationmark.folder")
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
-                .accessibilityIdentifier("missing-games-button")
-            }
-            viewMenu
-            importMenu
-        }
-        .font(.title3.weight(.medium))
-        .tint(Color.primary)
-        .nativeGlassCapsule()
     }
 
     private var viewMenu: some View {
@@ -281,9 +295,8 @@ struct LibraryView: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            Label("显示与排序", systemImage: "ellipsis")
+                .labelStyle(.iconOnly)
         }
         .accessibilityLabel("显示与排序")
     }
@@ -299,9 +312,8 @@ struct LibraryView: View {
                 Label("ZIP 与 Wi-Fi 导入", systemImage: "wifi")
             }
         } label: {
-            Image(systemName: "plus")
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            Label("添加游戏", systemImage: "plus")
+                .labelStyle(.iconOnly)
         }
         .disabled(model.importing)
         .accessibilityLabel("添加游戏")
@@ -367,6 +379,27 @@ struct LibraryView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 60)
+        }
+    }
+}
+
+private struct HeroBottomKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = min(value, nextValue())
+    }
+}
+
+private extension View {
+    /// Before iOS 26 the bar draws its own material; hide it while the cover
+    /// art is under the bar. iOS 26 bars have no background and blur scrolled
+    /// content with the scroll edge effect on their own.
+    @ViewBuilder
+    func legacyBarBackgroundHidden(_ hidden: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+        } else {
+            toolbarBackground(hidden ? .hidden : .automatic, for: .navigationBar)
         }
     }
 }
