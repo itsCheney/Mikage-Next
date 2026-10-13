@@ -18,7 +18,8 @@ args = parser.parse_args()
 host = (args.core.parent / 'host/MikageKRKRRuntime.mm').read_text(encoding='utf-8')
 runner = (args.core / 'plugins/emoteplayer/emoterunner.cpp').read_text(encoding='utf-8')
 start = block(host, 'extern "C" bool MikageKRKRStart(')
-if start.index('applyEmoteAnimationModeForStart()') >= start.index('SDL_AppInit('):
+# The shared SDL host runs SDL_AppInit from MikageSDLHostStart.
+if start.index('applyEmoteAnimationModeForStart()') >= start.index('MikageSDLHostStart('):
     raise RuntimeError('Emote mode must be applied before startup executes game scripts')
 args.output.mkdir(parents=True, exist_ok=True)
 declaration = next(line for line in host.splitlines() if 'std::atomic<bool> experimentalEmote{' in line)

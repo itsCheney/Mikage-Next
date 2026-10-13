@@ -1,7 +1,7 @@
 import CoreFoundation
 import Foundation
 
-enum KRKRMainRunLoop {
+enum SDLHostMainRunLoop {
     @MainActor
     static func perform<T>(_ operation: @escaping () -> T) async -> T {
         // SDL message boxes synchronously run a nested UIKit run loop. Starting
