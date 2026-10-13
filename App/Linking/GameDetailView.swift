@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import ImageIO
 import VNCore
 
 /// A game's page: banner and cover, play, the player's status and rating,
@@ -18,6 +19,9 @@ struct GameDetailView: View {
     @State private var confirmUnlink = false
     @State private var refreshing = false
     @State private var choosingArt = false
+    /// Width over height of the cover on disk; VNDB has both portrait and
+    /// landscape package art.
+    @State private var posterAspect: CGFloat?
 
     private var current: GameRecord { model.record(game.id) ?? game }
     private var metadata: LinkedMetadata? { current.link?.metadata }
@@ -147,10 +151,35 @@ struct GameDetailView: View {
         .accessibilityLabel("More Actions")
     }
 
+    /// Portrait covers stand 100 points wide; landscape ones keep their
+    /// shape at a similar area, up to 190 points wide.
+    private var posterSize: CGSize {
+        guard let aspect = posterAspect, aspect > 1.05 else {
+            return CGSize(width: 100, height: 142)
+        }
+        let width = min(190, 118 * aspect.squareRoot())
+        return CGSize(width: width, height: (width / aspect).rounded())
+    }
+
+    /// Reads only the image header, not the pixels.
+    private static func aspectRatio(of url: URL?) -> CGFloat? {
+        guard let url, let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+              let height = properties[kCGImagePropertyPixelHeight] as? CGFloat, height > 0 else { return nil }
+        let orientation = properties[kCGImagePropertyOrientation] as? Int ?? 1
+        // Orientations 5 to 8 are rotated a quarter turn.
+        return orientation >= 5 ? height / width : width / height
+    }
+
     private var titles: some View {
         HStack(alignment: .top, spacing: 16) {
             ArtworkImage(url: model.posterURL(current))
-                .frame(width: 100, height: 142)
+                .frame(width: posterSize.width, height: posterSize.height)
+                .animation(.easeOut(duration: 0.2), value: posterSize)
+                .task(id: model.posterURL(current)?.path) {
+                    posterAspect = Self.aspectRatio(of: model.posterURL(current))
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
