@@ -6,6 +6,11 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VCPKG_BASELINE="8e8dfb4ba483886936ded5ca201b500b8d8b0096"
 SOURCE_DIR="${PROJECT_DIR}/Engine/KRKRRuntime/Source"
 OUTPUT="${PROJECT_DIR}/build/KRKRRuntime.xcframework"
+# Shared SDL3 built by scripts/build-sdl3-ios.sh. KRKRRuntime links it instead
+# of absorbing its own static SDL3 copy; the app embeds it once for all engines.
+SDL3_XCFRAMEWORK="${PROJECT_DIR}/build/SDL3.xcframework"
+SDL3_DEVICE_FRAMEWORK="${SDL3_XCFRAMEWORK}/ios-arm64/SDL3.framework"
+SDL3_SIMULATOR_FRAMEWORK="${SDL3_XCFRAMEWORK}/ios-arm64-simulator/SDL3.framework"
 VCPKG_INSTALLED_ROOT="${PROJECT_DIR}/build/krkr-vcpkg-installed"
 VCPKG_DEVICE_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/device"
 VCPKG_SIMULATOR_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/simulator"
@@ -17,6 +22,11 @@ fi
 
 if [[ ! -f "${SOURCE_DIR}/CMakeLists.txt" ]]; then
     echo "KRKR source submodule is missing. Run: git submodule update --init --recursive" >&2
+    exit 1
+fi
+
+if [[ ! -f "${SDL3_DEVICE_FRAMEWORK}/SDL3" || ! -f "${SDL3_SIMULATOR_FRAMEWORK}/SDL3" ]]; then
+    echo "Shared SDL3 is missing. Run: bash scripts/build-sdl3-ios.sh" >&2
     exit 1
 fi
 
@@ -68,6 +78,7 @@ cmake --preset "iOS Device Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
+    -DKRKR_SDL3_FRAMEWORK="${SDL3_DEVICE_FRAMEWORK}" \
     -DVCPKG_INSTALLED_DIR="${VCPKG_DEVICE_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
@@ -76,6 +87,7 @@ cmake --preset "iOS Simulator Config" \
     -S "${SOURCE_DIR}" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
+    -DKRKR_SDL3_FRAMEWORK="${SDL3_SIMULATOR_FRAMEWORK}" \
     -DVCPKG_INSTALLED_DIR="${VCPKG_SIMULATOR_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
@@ -86,6 +98,24 @@ if [[ ! -d "${DEVICE_FRAMEWORK}" || ! -d "${SIMULATOR_FRAMEWORK}" ]]; then
     echo "KRKRRuntime.framework was not produced for both device and simulator." >&2
     exit 1
 fi
+
+# The runtime must load SDL from the shared framework and carry no SDL code of
+# its own: a second copy would register duplicate SDL UIKit classes.
+for framework in "${DEVICE_FRAMEWORK}" "${SIMULATOR_FRAMEWORK}"; do
+    binary="${framework}/KRKRRuntime"
+    if ! otool -L "${binary}" | grep "@rpath/SDL3.framework/SDL3" >/dev/null; then
+        echo "${binary} does not link the shared SDL3.framework." >&2
+        exit 1
+    fi
+    if nm -gU "${binary}" | grep -E " _SDL_(Init|CreateWindow|PollEvent)$" >/dev/null; then
+        echo "${binary} still contains its own SDL3 implementation." >&2
+        exit 1
+    fi
+    if nm -U "${binary}" | grep "_OBJC_CLASS_\$_SDL_uikit" >/dev/null; then
+        echo "${binary} still defines SDL UIKit classes." >&2
+        exit 1
+    fi
+done
 
 xcodebuild -create-xcframework \
     -framework "${DEVICE_FRAMEWORK}" \

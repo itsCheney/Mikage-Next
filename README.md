@@ -54,6 +54,7 @@ ZIP 导入和 Wi-Fi 上传暂未实现。后续引擎的接入计划见 [docs/PH
 git clone --recursive https://github.com/itsCheney/Mikage-Next.git
 cd Mikage-Next
 brew install cmake xcodegen
+bash scripts/build-sdl3-ios.sh   # 生成各引擎共享的 build/SDL3.xcframework
 bash scripts/build-krkr-ios.sh   # 生成 build/KRKRRuntime.xcframework
 xcodegen generate
 open Mikage.xcodeproj

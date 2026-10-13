@@ -34,6 +34,9 @@ jobs:
           else
             echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=true" >> "$GITHUB_ENV"
           fi
+      - name: Record shared SDL3 revision
+        id: sdl3-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SDL3/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -213,12 +216,33 @@ jobs:
           key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
           restore-keys: |
             krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      # One SDL3.xcframework is embedded in the app and shared by every
+      # engine runtime. It only depends on the pinned SDL submodule, this
+      # script, and the toolchain.
+      - name: Restore shared SDL3 framework
+        id: cache-sdl3
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SDL3.xcframework
+          key: sdl3-framework-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Build shared SDL3 framework
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-sdl3-ios.sh 2>&1 | tee build/sdl3-build.log
+      - name: Save shared SDL3 framework
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SDL3.xcframework
+          key: ${{ steps.cache-sdl3.outputs.cache-primary-key }}
       - name: Restore KRKR runtime framework
         id: cache-krkr-runtime
         uses: actions/cache/restore@v4
         with:
           path: build/KRKRRuntime.xcframework
-          key: krkr-runtime-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build KRKR runtime framework
         if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
         run: |

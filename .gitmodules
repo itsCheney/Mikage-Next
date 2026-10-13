@@ -2,3 +2,7 @@
 	path = Engine/KRKRRuntime/Source
 	url = https://github.com/itsCheney/krkrsdl3_build.git
 	branch = mikage-beta
+[submodule "Engine/SDL3/Source"]
+	path = Engine/SDL3/Source
+	url = https://github.com/libsdl-org/SDL.git
+	shallow = true
