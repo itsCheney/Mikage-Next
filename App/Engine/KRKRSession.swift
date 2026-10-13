@@ -10,6 +10,8 @@ protocol KRKRSession: AnyObject {
     var onFinished: ((Result<Void, Error>) -> Void)? { get set }
     var onWarning: ((Error) -> Void)? { get set }
     var onReturningToLibrary: (() -> Void)? { get set }
+    /// The player chose Finished in the in-game menu; the session then quits.
+    var onMarkFinished: (() -> Void)? { get set }
     func start(configuration: KRKRLaunchConfiguration, in viewController: UIViewController) async throws
     func requestStop()
     func setForeground(_ foreground: Bool)
@@ -81,6 +83,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     var onFinished: ((Result<Void, Error>) -> Void)?
     var onWarning: ((Error) -> Void)?
     var onReturningToLibrary: (() -> Void)?
+    var onMarkFinished: (() -> Void)?
 
     private weak var hostWindow: UIWindow?
     private weak var engineWindow: UIWindow?
@@ -258,6 +261,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
             },
+            onMarkFinished: { [weak self] in
+                AppDiagnostics.shared.event("session", "markFinished.requested")
+                self?.onMarkFinished?()
+                self?.overlayCoordinator?.hideMenu()
+                self?.requestNativeExit()
+            },
             onScreenshot: { [weak self] in self?.snapshot() },
             onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
         )
@@ -410,6 +419,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         onFinished = nil
         onWarning = nil
         onReturningToLibrary = nil
+        onMarkFinished = nil
         if success {
             state = .idle
             completion?(.success(()))

@@ -12,6 +12,8 @@ struct PlayerView: View {
     @State private var engineStarting = false
     @State private var engineStopping = false
     @State private var backdrop: UIImage?
+    /// Set by the in-game Finished tile; the rating sheet follows the quit.
+    @State private var markFinished = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -93,8 +95,11 @@ struct PlayerView: View {
                         engineStopping = true
                     }
                 }
+                model.krkrSession.onMarkFinished = {
+                    markFinished = true
+                }
                 model.krkrSession.onFinished = { result in
-                    model.recordPlayback(of: game, duration: TimeInterval(elapsed))
+                    model.finishedPlaying(game, duration: TimeInterval(elapsed), markFinished: markFinished)
                     if case .failure(let error) = result {
                         model.alert = error.localizedDescription
                     }

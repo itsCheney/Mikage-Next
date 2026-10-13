@@ -31,6 +31,9 @@ final class AppModel: ObservableObject {
             if let data = Self.encoded(settings) {
                 defaults.set(data, forKey: Self.settingsKey)
             }
+            if oldValue.hideSensitiveImages != settings.hideSensitiveImages {
+                Task { await refreshAllArtwork() }
+            }
         }
     }
     @Published var tab = 0
@@ -45,10 +48,27 @@ final class AppModel: ObservableObject {
     @Published var player: GameRecord?
     @Published var pendingImport: PendingGameImport?
 
-    private var libraryReadable = true
+    // MARK: Bangumi and VNDB
+
+    /// Accounts whose tokens are in the Keychain, by service.
+    @Published var accounts: [MetadataService: ServiceAccount] = [:]
+    @Published var syncing = false
+    @Published var lastSyncedAt: Date?
+    @Published var lastSyncError: String?
+    /// The glass notice over the library after a status changed by itself.
+    @Published var toast: LibraryToast?
+    /// A just-imported game waiting for its Bangumi/VNDB match.
+    @Published var matchRequest: GameRecord?
+    /// A game marked finished from the in-game menu, waiting for its rating.
+    @Published var finishRequest: GameRecord?
+    /// Games with a sync request in flight, so two cannot overlap.
+    var syncingGames: Set<UUID> = []
+    let tokens: any ServiceTokenStore
+
+    private(set) var libraryReadable = true
     let repository: LibraryRepository
     let krkrSession: any KRKRSession
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
 
     private static let settingsKey = "settings.v1"
 
@@ -76,11 +96,13 @@ final class AppModel: ObservableObject {
         repository: LibraryRepository? = nil,
         session: (any KRKRSession)? = nil,
         defaults: UserDefaults = .standard,
+        tokens: (any ServiceTokenStore)? = nil,
         configureDiagnostics: Bool = true
     ) {
         self.defaults = defaults
         self.repository = repository ?? Self.appRepository()
         krkrSession = session ?? NativeKRKRSession()
+        self.tokens = tokens ?? KeychainTokenStore()
 
         let stored = defaults.data(forKey: Self.settingsKey)
         let loadedSettings = stored
@@ -94,6 +116,7 @@ final class AppModel: ObservableObject {
         }
 
         settings = loadedSettings
+        loadAccounts()
 
         if configureDiagnostics {
             do {
@@ -143,7 +166,11 @@ final class AppModel: ObservableObject {
 
     /// Games matching the search query, in the chosen sort order.
     var filteredGames: [GameRecord] {
-        sortedGames.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
+        sortedGames.filter { game in
+            query.isEmpty
+                || game.title.localizedCaseInsensitiveContains(query)
+                || searchableTitles(game).contains { $0.localizedCaseInsensitiveContains(query) }
+        }
     }
 
     /// Every game in the chosen sort order. The library tab shows these; the
@@ -153,7 +180,7 @@ final class AppModel: ObservableObject {
             .sorted {
                 switch settings.sort {
                 case .title:
-                    return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                    return displayTitle($0).localizedStandardCompare(displayTitle($1)) == .orderedAscending
                 case .size:
                     return $0.byteCount > $1.byteCount
                 case .dateAdded:
@@ -240,7 +267,7 @@ final class AppModel: ObservableObject {
             respectSilentMode: settings.respectSilentMode,
             experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,
-            gameTitle: game.title,
+            gameTitle: displayTitle(game),
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)
         )
     }
@@ -293,6 +320,7 @@ final class AppModel: ObservableObject {
                     try repository.importFolder(url, engine: engine)
                 }.value
                 await refreshLibrary()
+                requestMatch(forImported: url, engine: engine)
             } else {
                 AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
                 pendingImport = PendingGameImport(url: url, detectedEngines: detected)
@@ -319,6 +347,7 @@ final class AppModel: ObservableObject {
                 try repository.importFolder(url, engine: engine)
             }.value
             await refreshLibrary()
+            requestMatch(forImported: url, engine: engine)
         } catch {
             alert = error.localizedDescription
         }
@@ -391,8 +420,23 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Art for cards and the continue hero: a cover the player chose always
+    /// wins, then the linked banner or poster, then an image in the folder.
     func coverURL(_ game: GameRecord) -> URL? {
-        repository.coverURL(for: game)
+        if let custom = repository.customCoverURL(for: game) { return custom }
+        let linked = settings.bannerArt == .screenshot
+            ? repository.artworkURL(named: game.link?.bannerName)
+            : repository.artworkURL(named: game.link?.posterName)
+        return linked
+            ?? repository.detectedCoverURL(for: game)
+            ?? repository.artworkURL(named: game.link?.posterName)
+    }
+
+    /// Portrait package art for the details page.
+    func posterURL(_ game: GameRecord) -> URL? {
+        repository.artworkURL(named: game.link?.posterName)
+            ?? repository.customCoverURL(for: game)
+            ?? repository.detectedCoverURL(for: game)
     }
 
     /// Encodes and writes off the main thread: a picked photo can be several

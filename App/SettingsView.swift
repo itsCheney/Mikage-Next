@@ -1,4 +1,5 @@
 import SwiftUI
+import VNCore
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
@@ -21,6 +22,25 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section {
+                    NavigationLink {
+                        AccountsSettingsView()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Accounts & Sync")
+                                Text(accountsSummary)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    .accessibilityIdentifier("accounts-settings-link")
                 }
 
                 Section("In Game") {
@@ -171,6 +191,14 @@ struct SettingsView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
+    }
+
+    /// "Bangumi, VNDB" for connected services, or a prompt when none is.
+    private var accountsSummary: String {
+        let connected = MetadataService.allCases.filter { model.accounts[$0] != nil }
+        return connected.isEmpty
+            ? String(localized: "Bangumi and VNDB")
+            : connected.map(\.displayName).joined(separator: ", ")
     }
 
     private var storageTotal: String {

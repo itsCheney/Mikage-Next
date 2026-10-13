@@ -37,6 +37,7 @@ private final class KRKROverlayModel: ObservableObject {
     let gameTitle: String
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
+    var onMarkFinished: (() -> Void)?
     var onScreenshot: (() -> UIImage?)?
     var onTogglePerformance: (() -> Void)?
 
@@ -67,6 +68,7 @@ final class KRKROverlayCoordinator: NSObject {
         floatingButtonEnabled: Bool,
         floatingButtonOpacity: Double,
         onExit: @escaping () -> Void,
+        onMarkFinished: @escaping () -> Void,
         onScreenshot: @escaping () -> UIImage?,
         onTogglePerformance: @escaping () -> Void
     ) {
@@ -92,6 +94,7 @@ final class KRKROverlayCoordinator: NSObject {
 
         model.onCloseMenu = { [weak self] in self?.hideMenu() }
         model.onExit = onExit
+        model.onMarkFinished = onMarkFinished
         model.onScreenshot = onScreenshot
         model.onTogglePerformance = onTogglePerformance
 
@@ -323,6 +326,12 @@ private struct KRKROverlayView: View {
             }
             .accessibilityValue(model.performanceVisible ? Text("On") : Text("Off"))
             .accessibilityIdentifier("krkr-performance-toggle")
+            // Quits like the tile beside it, then asks for a rating in the
+            // library: reaching the ending is when players want to record it.
+            action("Mark Finished", "checkmark.seal", tint: .green) {
+                model.onMarkFinished?()
+            }
+            .accessibilityIdentifier("krkr-mark-finished")
             action("Quit", "rectangle.portrait.and.arrow.right", destructive: true) {
                 model.onExit?()
             }
@@ -335,6 +344,7 @@ private struct KRKROverlayView: View {
         _ icon: String,
         destructive: Bool = false,
         highlighted: Bool = false,
+        tint: Color? = nil,
         perform: @escaping () -> Void
     ) -> some View {
         let button = Button(role: destructive ? .destructive : nil, action: perform) {
@@ -352,6 +362,10 @@ private struct KRKROverlayView: View {
             button
                 .nativeGlassButtonStyle(prominent: true)
                 .tint(.red)
+        } else if let tint {
+            button
+                .nativeGlassButtonStyle(prominent: true)
+                .tint(tint)
         } else if highlighted {
             button.nativeGlassButtonStyle(prominent: true)
         } else {

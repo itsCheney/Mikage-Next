@@ -258,10 +258,39 @@ public struct LibraryRepository: Sendable {
         try mutate { records in
             records.removeAll { $0.id == record.id }
         }
-        if let name = record.customCoverName {
-            try? FileManager.default.removeItem(
-                at: try GameScanner.containedURL(name, in: coversURL)
-            )
+        for file in [record.customCoverName, record.link?.posterName, record.link?.bannerName] {
+            guard let name = file, let url = try? GameScanner.containedURL(name, in: coversURL) else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Downloaded Bangumi or VNDB artwork, if the file is still present.
+    public func artworkURL(named name: String?) -> URL? {
+        guard let name, let url = try? GameScanner.containedURL(name, in: coversURL),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    /// Stores downloaded artwork under `name` in the Covers folder.
+    public func writeArtwork(_ data: Data, named name: String) throws {
+        try ensureStructure()
+        try data.write(to: try GameScanner.containedURL(name, in: coversURL), options: .atomic)
+    }
+
+    public func removeArtwork(named name: String?) {
+        guard let name, let url = try? GameScanner.containedURL(name, in: coversURL) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Applies `transform` to one record and returns the result.
+    @discardableResult
+    public func update(_ id: UUID, _ transform: (inout GameRecord) throws -> Void) throws -> GameRecord {
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == id }) else {
+                throw LibraryError.recordNotFound
+            }
+            try transform(&records[index])
+            return records[index]
         }
     }
 
@@ -276,11 +305,16 @@ public struct LibraryRepository: Sendable {
     }
 
     public func coverURL(for game: GameRecord) -> URL? {
-        if let custom = game.customCoverName,
-           let customURL = try? GameScanner.containedURL(custom, in: coversURL),
-           FileManager.default.fileExists(atPath: customURL.path) {
-            return customURL
-        }
+        customCoverURL(for: game) ?? detectedCoverURL(for: game)
+    }
+
+    /// A cover the player picked, if its file is still present.
+    public func customCoverURL(for game: GameRecord) -> URL? {
+        artworkURL(named: game.customCoverName)
+    }
+
+    /// An image found in the game folder itself.
+    public func detectedCoverURL(for game: GameRecord) -> URL? {
         guard let detected = game.detectedCoverPath,
               let directory = try? directory(for: game),
               let detectedURL = try? GameScanner.containedURL(detected, in: directory),
@@ -357,7 +391,9 @@ public struct LibraryRepository: Sendable {
             sizeMeasuredAt: scanned.sizeMeasuredAt,
             detectedCoverPath: scanned.detectedCoverPath,
             customCoverName: metadata.customCoverName,
-            availability: scanned.availability
+            availability: scanned.availability,
+            link: metadata.link,
+            listEntry: metadata.listEntry
         )
     }
 }
@@ -383,6 +419,10 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
     public var detectedCoverPath: String?
     public var customCoverName: String?
     public var availability: GameAvailability
+    /// The Bangumi and VNDB entries this game is linked to, if any.
+    public var link: GameLink?
+    /// Status, rating and dates; kept with or without a link.
+    public var listEntry: ListEntry
 
     public init(
         id: UUID = UUID(),
@@ -399,7 +439,9 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         sizeMeasuredAt: Date? = nil,
         detectedCoverPath: String? = nil,
         customCoverName: String? = nil,
-        availability: GameAvailability = .unsupported
+        availability: GameAvailability = .unsupported,
+        link: GameLink? = nil,
+        listEntry: ListEntry = ListEntry()
     ) {
         self.id = id
         self.title = title
@@ -416,6 +458,8 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         self.detectedCoverPath = detectedCoverPath
         self.customCoverName = customCoverName
         self.availability = availability
+        self.link = link
+        self.listEntry = listEntry
     }
 
     /// Hand-written so that fields added after a library was written decode to
@@ -437,6 +481,10 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         detectedCoverPath = try container.decodeIfPresent(String.self, forKey: .detectedCoverPath)
         customCoverName = try container.decodeIfPresent(String.self, forKey: .customCoverName)
         availability = try container.decode(GameAvailability.self, forKey: .availability)
+        // A link that no longer decodes is dropped rather than failing the
+        // library; the game can simply be matched again.
+        link = try? container.decodeIfPresent(GameLink.self, forKey: .link)
+        listEntry = (try? container.decodeIfPresent(ListEntry.self, forKey: .listEntry)) ?? ListEntry()
     }
 }
 

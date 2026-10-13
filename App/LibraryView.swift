@@ -12,15 +12,33 @@ struct RootView: View {
             .fullScreenCover(item: $model.player) { game in
                 PlayerView(game: game).environmentObject(model)
             }
+            .sheet(item: $model.finishRequest) { game in
+                RatingSheet(game: game, mode: .finish).environmentObject(model)
+            }
             .task {
                 await model.refreshLibrary(showErrors: false)
             }
             .onChange(of: scenePhase) { phase in
                 AppDiagnostics.shared.event("app", "scenePhase.changed", ["phase": String(describing: phase)])
                 if phase == .active {
-                    Task { await model.refreshLibrary(showErrors: false) }
+                    Task {
+                        await model.refreshLibrary(showErrors: false)
+                        await model.syncPending()
+                    }
                 }
             }
+            .sheet(item: $model.matchRequest) { game in
+                MatchView(game: game).environmentObject(model)
+            }
+            .overlay(alignment: .bottom) {
+                if let toast = model.toast {
+                    LibraryToastView(toast: toast)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 72)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast)
             .alert("Notice", isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }
@@ -494,7 +512,7 @@ private struct ContinueBanner: View {
                     .font(.caption.weight(.semibold))
                     .tracking(2)
                     .opacity(0.9)
-                Text(game.title)
+                Text(model.displayTitle(game))
                     .font(regular ? .largeTitle.bold() : .title2.bold())
                     .lineLimit(2)
                 Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
@@ -511,7 +529,7 @@ private struct ContinueBanner: View {
             }
             .nativeGlassButtonStyle(prominent: true)
             .controlSize(.large)
-            .accessibilityLabel("Continue Playing: \(game.title)")
+            .accessibilityLabel("Continue Playing: \(model.displayTitle(game))")
         }
         .foregroundStyle(.white)
         .padding(.horizontal, regular ? 28 : 20)
@@ -622,12 +640,17 @@ struct LibrarySearchView: View {
     }
 }
 
-/// Game cards in the chosen layout. Tapping launches; long-press opens the
-/// game's details.
+/// Game cards in the chosen layout. Tapping launches; long-press shows a
+/// preview with the game's details, status and match actions.
 struct GameGrid: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selectedGame: GameRecord?
+    @State private var matchGame: GameRecord?
+    @State private var finishGame: GameRecord?
+    @State private var coverGame: GameRecord?
+    @State private var showCoverPicker = false
+    @State private var coverPhoto: PhotosPickerItem?
     let games: [GameRecord]
 
     private var columns: [GridItem] {
@@ -646,20 +669,121 @@ struct GameGrid: View {
                 .buttonStyle(.plain)
                 .disabled(!game.availability.canLaunch)
                 .contextMenu {
-                    Button { selectedGame = game } label: {
-                        Label("Game Details", systemImage: "info.circle")
-                    }
+                    menu(for: game)
+                } preview: {
+                    GamePreview(game: game).environmentObject(model)
                 }
                 .accessibilityLabel(
                     game.availability.canLaunch
-                        ? Text("Play \(game.title)")
-                        : Text("\(game.title), \(model.availabilityText(game))")
+                        ? Text("Play \(model.displayTitle(game))")
+                        : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
                 )
             }
         }
         .sheet(item: $selectedGame) {
             GameDetailView(game: $0).environmentObject(model)
         }
+        .sheet(item: $matchGame) {
+            MatchView(game: $0).environmentObject(model)
+        }
+        .sheet(item: $finishGame) {
+            RatingSheet(game: $0, mode: .finish).environmentObject(model)
+        }
+        .photosPicker(isPresented: $showCoverPicker, selection: $coverPhoto, matching: .images)
+        .onChange(of: coverPhoto) { item in
+            guard let item, let game = coverGame else { return }
+            coverPhoto = nil
+            Task {
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else { return }
+                    await model.updateCover(game, image: image)
+                } catch {
+                    model.alert = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menu(for game: GameRecord) -> some View {
+        Button { selectedGame = game } label: {
+            Label("Game Details", systemImage: "info.circle")
+        }
+        Menu {
+            StatusMenuItems(current: game.listEntry.status) { status in
+                if status == .finished {
+                    finishGame = game
+                } else {
+                    model.setStatus(status, for: game)
+                }
+            }
+        } label: {
+            if let status = game.listEntry.status {
+                Label {
+                    Text("Status")
+                    Text(status.displayName)
+                } icon: {
+                    Image(systemName: status.symbol)
+                }
+            } else {
+                Label("Status", systemImage: "circle.dashed")
+            }
+        }
+        if game.listEntry.status != .finished {
+            Button { finishGame = game } label: {
+                Label("Mark as Finished", systemImage: "checkmark.seal")
+            }
+        }
+        Divider()
+        Button {
+            coverGame = game
+            showCoverPicker = true
+        } label: {
+            Label("Change Cover", systemImage: "photo")
+        }
+        Button { matchGame = game } label: {
+            Label(
+                game.link == nil ? LocalizedStringKey("Find on Bangumi & VNDB") : LocalizedStringKey("Match Again"),
+                systemImage: "link"
+            )
+        }
+    }
+}
+
+/// The lifted card shown while a game is long-pressed.
+private struct GamePreview: View {
+    @EnvironmentObject private var model: AppModel
+    let game: GameRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GameCover(game: game)
+                .frame(width: 320, height: 180)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.displayTitle(game))
+                    .font(.headline)
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    if let status = game.listEntry.status {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.displayName)
+                    } else {
+                        Text(game.engine.displayName)
+                    }
+                    if game.playTime >= 60 {
+                        Text(verbatim: "·")
+                        Text("Played \(game.playTime.playTimeSummary)")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(width: 320, alignment: .leading)
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 }
 
@@ -696,6 +820,31 @@ struct GameCard: View {
             .opacity(comingSoon ? 0.55 : 1)
     }
 
+    /// The status leads the line when the player set one, as in the
+    /// redesign: "Finished · Sep 2". Otherwise engine, size and recency.
+    @ViewBuilder
+    private var metaLine: some View {
+        if let status = game.listEntry.status, !comingSoon {
+            HStack(spacing: 4) {
+                Image(systemName: status.symbol)
+                    .imageScale(.small)
+                    .foregroundStyle(status.color)
+                Text(status.displayName)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(status == .wish ? Color.secondary : status.color)
+                if status != .wish {
+                    Text(verbatim: "· \(model.recency(game))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
+        } else {
+            Text(meta)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
     private var tile: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear
@@ -703,14 +852,12 @@ struct GameCard: View {
                 .overlay { cover }
                 .clipped()
             VStack(alignment: .leading, spacing: 2) {
-                Text(game.title)
+                Text(model.displayTitle(game))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                Text(meta)
+                metaLine
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 if showsReason {
                     Text(model.availabilityText(game))
                         .font(.caption2)
@@ -734,14 +881,12 @@ struct GameCard: View {
                 .frame(width: 96, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(game.title)
+                Text(model.displayTitle(game))
                     .font(.headline)
                     .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                Text(meta)
+                metaLine
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 if showsReason {
                     Text(model.availabilityText(game))
                         .font(.caption)
@@ -792,7 +937,7 @@ struct MissingGamesView: View {
                                     .frame(width: 72, height: 52)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(game.title).font(.headline)
+                                    Text(model.displayTitle(game)).font(.headline)
                                     Text(verbatim: "Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -867,68 +1012,4 @@ struct MissingGamesView: View {
         }
     }
 
-}
-
-struct GameDetailView: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var photo: PhotosPickerItem?
-    let game: GameRecord
-
-    private var current: GameRecord {
-        model.games.first { $0.id == game.id } ?? game
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                GameCover(game: current)
-                    .frame(height: 170)
-                    .listRowInsets(EdgeInsets())
-                LabeledContent("Name", value: current.title)
-                LabeledContent("Engine", value: current.engine.displayName)
-                LabeledContent("Folder", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
-                LabeledContent("Status", value: model.availabilityText(current))
-                LabeledContent("File Size", value: AppModel.librarySize(current.byteCount))
-                LabeledContent("Last Played", value: model.recency(current))
-                LabeledContent("Total Play Time") {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(current.playTime.playTimeClock)
-                            .monospacedDigit()
-                        if current.playTime >= 60 {
-                            Text(current.playTime.playTimeSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .accessibilityLabel("Total play time: \(current.playTime.playTimeSummary)")
-                LabeledContent("Launches", value: String(localized: "\(current.launchCount) times"))
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Label("Change Cover", systemImage: "photo")
-                }
-                Text("Long-press a game card to open this page. Only the KiriKiri engine has a runtime so far; a recognized engine doesn’t mean compatibility has been verified.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .navigationTitle("Game Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onChange(of: photo) { item in
-                Task {
-                    do {
-                        guard let data = try await item?.loadTransferable(type: Data.self),
-                              let image = UIImage(data: data) else { return }
-                        await model.updateCover(game, image: image)
-                    } catch {
-                        model.alert = error.localizedDescription
-                    }
-                }
-            }
-        }
-    }
 }

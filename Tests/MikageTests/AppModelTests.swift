@@ -12,6 +12,7 @@ final class FakeKRKRSession: KRKRSession {
     var onFinished: ((Result<Void, Error>) -> Void)?
     var onWarning: ((Error) -> Void)?
     var onReturningToLibrary: (() -> Void)?
+    var onMarkFinished: (() -> Void)?
 
     private(set) var startedConfigurations: [KRKRLaunchConfiguration] = []
     private(set) var stopCount = 0
@@ -60,6 +61,7 @@ final class AppModelTests: XCTestCase {
             repository: repository,
             session: session,
             defaults: defaults,
+            tokens: MemoryTokenStore(),
             configureDiagnostics: false
         )
     }
@@ -332,6 +334,114 @@ final class AppModelTests: XCTestCase {
 
         model.query = "alp"
         XCTAssertEqual(model.filteredGames.map(\.title), ["Alpha"])
+    }
+
+    // MARK: Bangumi and VNDB
+
+    func testASessionMovesAGameWithoutStatusToPlayingAndOffersUndo() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.finishedPlaying(game, duration: 600, markFinished: false)
+
+        let playing = try XCTUnwrap(model.record(game.id))
+        XCTAssertEqual(playing.listEntry.status, .playing)
+        XCTAssertNotNil(playing.listEntry.startedAt)
+        XCTAssertEqual(playing.launchCount, 1)
+        // Not linked, so nothing waits to be sent.
+        XCTAssertEqual(playing.listEntry.pendingSync, [])
+        XCTAssertEqual(model.toast?.gameID, game.id)
+
+        model.undoToast()
+
+        XCTAssertNil(model.toast)
+        XCTAssertNil(model.record(game.id)?.listEntry.status)
+        XCTAssertNil(model.record(game.id)?.listEntry.startedAt)
+        XCTAssertNil(try repository.load().first?.listEntry.status)
+    }
+
+    func testShortSessionsAndFinishedGamesKeepTheirStatus() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.finishedPlaying(game, duration: 20, markFinished: false)
+        XCTAssertNil(model.record(game.id)?.listEntry.status)
+        XCTAssertNil(model.toast)
+
+        model.setStatus(.finished, for: game)
+        model.finishedPlaying(game, duration: 600, markFinished: false)
+        XCTAssertEqual(model.record(game.id)?.listEntry.status, .finished)
+        XCTAssertNil(model.toast)
+    }
+
+    func testAutomaticStatusCanBeTurnedOff() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.settings.autoStatus = false
+        model.finishedPlaying(game, duration: 600, markFinished: false)
+
+        XCTAssertNil(model.record(game.id)?.listEntry.status)
+    }
+
+    func testChangesToALinkedGameWaitForAConnectedAccount() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+        model.updateRecord(game.id) { $0.link = GameLink(vndbID: "v1") }
+
+        model.saveRating(8, comment: " ", finished: true, for: game)
+
+        let entry = try XCTUnwrap(model.record(game.id)?.listEntry)
+        XCTAssertEqual(entry.status, .finished)
+        XCTAssertEqual(entry.rating, 8)
+        XCTAssertNil(entry.comment)
+        XCTAssertNotNil(entry.finishedAt)
+        XCTAssertEqual(entry.pendingSync, [.vndb])
+        // No VNDB account yet, so it is not counted as waiting.
+        XCTAssertEqual(model.pendingSyncCount, 0)
+    }
+
+    func testLinkedGamesShowTheChosenTitleAndAreSearchableByIt() throws {
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+        model.updateRecord(game.id) {
+            $0.link = GameLink(metadata: LinkedMetadata(
+                originalTitle: "なつかげ回廊",
+                romanizedTitle: "Natsukage Kairou",
+                chineseTitle: "夏影回廊"
+            ))
+        }
+        let linked = try XCTUnwrap(model.record(game.id))
+
+        model.settings.titleDisplay = .romanized
+        XCTAssertEqual(model.displayTitle(linked), "Natsukage Kairou")
+        model.settings.titleDisplay = .chinese
+        XCTAssertEqual(model.displayTitle(linked), "夏影回廊")
+        model.settings.titleDisplay = .folder
+        XCTAssertEqual(model.displayTitle(linked), "Example")
+
+        model.query = "natsukage"
+        XCTAssertEqual(model.filteredGames.map(\.id), [game.id])
+    }
+
+    func testNewSettingsDefaultWhenAbsent() throws {
+        defaults.set(Data(#"{"renderer":"metal"}"#.utf8), forKey: "settings.v1")
+        let model = makeModel()
+
+        XCTAssertTrue(model.settings.autoStatus)
+        XCTAssertTrue(model.settings.hideSensitiveImages)
+        XCTAssertEqual(model.settings.titleDisplay, .automatic)
+        XCTAssertEqual(model.settings.bannerArt, .screenshot)
     }
 
     /// Runs a MainActor async call to completion from a synchronous test.

@@ -17,6 +17,123 @@
         }
       }
     },
+    "%@ didn’t accept the token. Check it in Settings › Accounts & Sync." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ がトークンを受け付けませんでした。「設定 › アカウントと同期」で確認してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 未接受此令牌，请在“设置 › 账号与同步”中检查。"
+          }
+        }
+      }
+    },
+    "%@ in total" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合計 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "累计 %@"
+          }
+        }
+      }
+    },
+    "%@ is busy. Try again in a minute." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ が混み合っています。少し待ってからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 正忙，请稍后再试。"
+          }
+        }
+      }
+    },
+    "%@ returned error %lld." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ がエラー %2$lld を返しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 返回了错误 %2$lld。"
+          }
+        }
+      }
+    },
+    "%@ returned error %lld: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ がエラー %2$lld を返しました：%3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 返回了错误 %2$lld：%3$@"
+          }
+        }
+      }
+    },
+    "%@ sent a response Mikage couldn’t read." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ から Mikage が読み取れない応答が返されました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 返回的内容 Mikage 无法读取。"
+          }
+        }
+      }
+    },
+    "%@ this session" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次 %@"
+          }
+        }
+      }
+    },
     "%@ · Played %@" : {
       "localizations" : {
         "ja" : {
@@ -29,6 +146,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · 已玩 %2$@"
+          }
+        }
+      }
+    },
+    "%@ · Synced" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 同期済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 已同步"
           }
         }
       }
@@ -79,6 +212,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 部作品"
+          }
+        }
+      }
+    },
+    "%lld games waiting to sync" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld game waiting to sync"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld games waiting to sync"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 作品が同期待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 部作品等待同步"
           }
         }
       }
@@ -149,6 +316,38 @@
         }
       }
     },
+    "@%@ · Connected" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@%@ · 接続済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@%@ · 已连接"
+          }
+        }
+      }
+    },
+    "A cover you set yourself is never replaced." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分で設定したカバーが上書きされることはありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动设置的封面永远不会被覆盖。"
+          }
+        }
+      }
+    },
     "A KRKR game is already running." : {
       "localizations" : {
         "ja" : {
@@ -161,6 +360,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已有 KRKR 游戏正在运行。"
+          }
+        }
+      }
+    },
+    "A line about it (optional)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感想をひとこと（任意）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写一句感想（可选）"
           }
         }
       }
@@ -197,6 +412,38 @@
         }
       }
     },
+    "Accounts" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウント"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账号"
+          }
+        }
+      }
+    },
+    "Accounts & Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントと同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账号与同步"
+          }
+        }
+      }
+    },
     "Add Game" : {
       "localizations" : {
         "ja" : {
@@ -213,6 +460,22 @@
         }
       }
     },
+    "Add Token" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加令牌"
+          }
+        }
+      }
+    },
     "Advanced" : {
       "localizations" : {
         "ja" : {
@@ -225,6 +488,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "高级"
+          }
+        }
+      }
+    },
+    "After a session, a game with no status, or one you want to play or put on hold, moves to Playing. Dates go to your VNDB list. Playtime on this device stays in Mikage." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ後、ステータスなし・気になる・保留の作品は「プレイ中」になります。日付は VNDB のリストに書き込みます。この端末のプレイ時間は Mikage にのみ保存されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "玩过一段时间后，没有状态、想玩或搁置的作品会变为“在玩”。日期写入 VNDB 列表；本机游玩时长只保存在 Mikage。"
           }
         }
       }
@@ -257,6 +536,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部线程 CPU %.0f%%"
+          }
+        }
+      }
+    },
+    "All-Time Favorite" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "殿堂入り"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超神作"
           }
         }
       }
@@ -309,6 +604,22 @@
         }
       }
     },
+    "Availability" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用性"
+          }
+        }
+      }
+    },
     "Background Fill" : {
       "localizations" : {
         "ja" : {
@@ -321,6 +632,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景填充"
+          }
+        }
+      }
+    },
+    "Bad" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "悪い"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "差"
+          }
+        }
+      }
+    },
+    "Bangumi and VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 和 VNDB"
+          }
+        }
+      }
+    },
+    "Bangumi Chinese" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi の中国語タイトル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi 中文名"
+          }
+        }
+      }
+    },
+    "Bangumi only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅 Bangumi"
+          }
+        }
+      }
+    },
+    "Banner Image" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バナー画像"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横幅图片"
+          }
+        }
+      }
+    },
+    "Best Match" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最も一致"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最佳匹配"
           }
         }
       }
@@ -353,6 +760,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "Candidates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候选作品"
           }
         }
       }
@@ -437,6 +860,22 @@
         }
       }
     },
+    "Close" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
     "Close Menu" : {
       "localizations" : {
         "ja" : {
@@ -465,6 +904,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "即将支持"
+          }
+        }
+      }
+    },
+    "Comment" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ひとこと"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "短评"
+          }
+        }
+      }
+    },
+    "Connect" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
           }
         }
       }
@@ -597,6 +1068,22 @@
         }
       }
     },
+    "Couldn’t save the token to the Keychain (error %lld)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンをキーチェーンに保存できませんでした（エラー %lld）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法将令牌保存到钥匙串（错误 %lld）。"
+          }
+        }
+      }
+    },
     "Couldn’t scan game folders: %@" : {
       "localizations" : {
         "ja" : {
@@ -657,6 +1144,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法切换到横屏。请确认方向锁定允许横屏，然后旋转设备后重试。"
+          }
+        }
+      }
+    },
+    "Cover" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カバー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封面"
+          }
+        }
+      }
+    },
+    "Covers and synopses load without an account. Connect to sync your status, ratings and comments to your lists." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログインしなくてもカバーとあらすじは取得できます。接続すると、ステータス・評価・ひとことがリストに同期されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不登录也能获取封面和简介。连接账号后，游玩状态、评分和短评会同步到你的收藏。"
+          }
+        }
+      }
+    },
+    "Create a personal access token on Bangumi, then paste it here. Signing in also lets search find R18 titles." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi で個人用アクセストークンを作成して、ここに貼り付けてください。ログインすると R18 作品も検索できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Bangumi 创建个人访问令牌，然后粘贴到这里。登录后搜索也能找到 R18 作品。"
+          }
+        }
+      }
+    },
+    "Create a token on VNDB with permission to read and write your list, then paste it here." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VNDB でリストの読み書き権限を持つトークンを作成して、ここに貼り付けてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 VNDB 创建具有列表读写权限的令牌，然后粘贴到这里。"
           }
         }
       }
@@ -725,6 +1276,86 @@
         }
       }
     },
+    "Details" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品情報"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料"
+          }
+        }
+      }
+    },
+    "Details and screenshots from VNDB." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品情報とスクリーンショットは VNDB から取得。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料与截图来自 VNDB。"
+          }
+        }
+      }
+    },
+    "Details from Bangumi and VNDB. Screenshots from VNDB." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品情報は Bangumi と VNDB、スクリーンショットは VNDB から取得。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料来自 Bangumi 和 VNDB，截图来自 VNDB。"
+          }
+        }
+      }
+    },
+    "Details from Bangumi." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品情報は Bangumi から取得。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料来自 Bangumi。"
+          }
+        }
+      }
+    },
+    "Developer" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブランド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发"
+          }
+        }
+      }
+    },
     "Diagnostics" : {
       "localizations" : {
         "ja" : {
@@ -741,6 +1372,38 @@
         }
       }
     },
+    "Disconnect" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続を解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开连接"
+          }
+        }
+      }
+    },
+    "Disconnect this account?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントの接続を解除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开此账号？"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "ja" : {
@@ -753,6 +1416,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成"
+          }
+        }
+      }
+    },
+    "Dropped" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "抛弃"
           }
         }
       }
@@ -821,6 +1500,22 @@
         }
       }
     },
+    "Everything Synced" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて同期済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部已同步"
+          }
+        }
+      }
+    },
     "Export Diagnostic Log" : {
       "localizations" : {
         "ja" : {
@@ -853,18 +1548,82 @@
         }
       }
     },
-    "File Size" : {
+    "Find on Bangumi & VNDB" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファイルサイズ"
+            "value" : "Bangumi と VNDB で探す"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文件大小"
+            "value" : "在 Bangumi 和 VNDB 查找"
+          }
+        }
+      }
+    },
+    "Fine" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まあまあ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还行"
+          }
+        }
+      }
+    },
+    "Finished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已通关"
+          }
+        }
+      }
+    },
+    "Finished On" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通关于"
+          }
+        }
+      }
+    },
+    "Finished!" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア！"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通关啦"
           }
         }
       }
@@ -897,6 +1656,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目录"
+          }
+        }
+      }
+    },
+    "Folder Name" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件夹名"
           }
         }
       }
@@ -1013,6 +1788,38 @@
         }
       }
     },
+    "Get a Token" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンを取得"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取令牌"
+          }
+        }
+      }
+    },
+    "Good" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良い"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐"
+          }
+        }
+      }
+    },
     "GPU submit %.1f ms" : {
       "localizations" : {
         "ja" : {
@@ -1041,6 +1848,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图形"
+          }
+        }
+      }
+    },
+    "Great" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "おすすめ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "力荐"
           }
         }
       }
@@ -1089,6 +1912,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用于定位黑屏等问题，默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件；最多约 16 MB，自动轮转，关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，无法代替系统崩溃报告。"
+          }
+        }
+      }
+    },
+    "Hide Sensitive Images" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "センシティブな画像を隠す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏敏感图片"
           }
         }
       }
@@ -1189,6 +2028,22 @@
         }
       }
     },
+    "Information" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情報"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信息"
+          }
+        }
+      }
+    },
     "Just now" : {
       "comment" : "Last-played time for a game quit less than a minute ago.",
       "localizations" : {
@@ -1266,22 +2121,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KRKR runtime 已停止。"
-          }
-        }
-      }
-    },
-    "Last Played" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最終プレイ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近游玩"
           }
         }
       }
@@ -1448,6 +2287,54 @@
         }
       }
     },
+    "Link" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "関連付ける"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关联"
+          }
+        }
+      }
+    },
+    "Link this game to Bangumi or VNDB to show its cover, synopsis and tags, and to sync your status and rating to your lists." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi または VNDB に関連付けると、カバー・あらすじ・タグが表示され、ステータスと評価がリストに同期されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将作品关联到 Bangumi 或 VNDB，即可显示封面、简介和标签，并把状态和评分同步到你的收藏。"
+          }
+        }
+      }
+    },
+    "Linking fetches the cover, synopsis and tags. Game files are never changed, and you can change the link later in the game’s details." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "関連付けるとカバー、あらすじ、タグを取得します。ゲームファイルは変更されず、作品の詳細からいつでも変更できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关联后会获取封面、简介和标签，不会修改游戏文件。随时可以在作品详情里更改。"
+          }
+        }
+      }
+    },
     "List" : {
       "localizations" : {
         "ja" : {
@@ -1480,22 +2367,6 @@
         }
       }
     },
-    "Long-press a game card to open this page. Only the KiriKiri engine has a runtime so far; a recognized engine doesn’t mean compatibility has been verified." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲームカードを長押しするとこのページを開けます。現在ランタイムがあるのは KiriKiri エンジンのみです。エンジンを認識しても、互換性が確認されたわけではありません。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "长按游戏卡片可打开此页面。只有 KiriKiri 引擎已接入运行时；引擎识别不代表已经验证兼容性。"
-          }
-        }
-      }
-    },
     "Main thread %.1f ms · peak %.1f ms" : {
       "localizations" : {
         "ja" : {
@@ -1508,6 +2379,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主线程 %1$.1f ms · 峰值 %2$.1f ms"
+          }
+        }
+      }
+    },
+    "Mark as Finished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア済みにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标记为已通关"
+          }
+        }
+      }
+    },
+    "Mark Finished" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标记通关"
+          }
+        }
+      }
+    },
+    "Mark Finished Without Rating" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価せずにクリアだけ記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只标记通关，不评分"
+          }
+        }
+      }
+    },
+    "Marked as Playing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ中にしました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已标记为在玩"
+          }
+        }
+      }
+    },
+    "Masterpiece" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傑作"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "神作"
+          }
+        }
+      }
+    },
+    "Match Again" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品を照合し直す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新匹配作品"
           }
         }
       }
@@ -1608,6 +2575,38 @@
         }
       }
     },
+    "More Actions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他の操作"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多操作"
+          }
+        }
+      }
+    },
+    "My Rating" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的评分"
+          }
+        }
+      }
+    },
     "Name" : {
       "localizations" : {
         "ja" : {
@@ -1620,6 +2619,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名称"
+          }
+        }
+      }
+    },
+    "No account connected" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウント未接続"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未连接账号"
           }
         }
       }
@@ -1654,6 +2669,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有找到游戏"
+          }
+        }
+      }
+    },
+    "No matches. Try another title below." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見つかりませんでした。下で別のタイトルを検索してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到匹配的作品，试试在下方按其他名称搜索。"
           }
         }
       }
@@ -1710,6 +2741,38 @@
         }
       }
     },
+    "None of these? Search by title" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どれでもない？タイトルで検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "都不是？按名称搜索"
+          }
+        }
+      }
+    },
+    "Not Connected" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未接続"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未连接"
+          }
+        }
+      }
+    },
     "Not played yet" : {
       "localizations" : {
         "ja" : {
@@ -1722,6 +2785,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未游玩"
+          }
+        }
+      }
+    },
+    "Not Rated" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未评分"
+          }
+        }
+      }
+    },
+    "Not Set" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
           }
         }
       }
@@ -1790,6 +2885,22 @@
         }
       }
     },
+    "On Hold" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搁置"
+          }
+        }
+      }
+    },
     "Open Game Menu" : {
       "localizations" : {
         "ja" : {
@@ -1806,6 +2917,38 @@
         }
       }
     },
+    "Open in Bangumi" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi で開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Bangumi 打开"
+          }
+        }
+      }
+    },
+    "Open in VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VNDB で開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 VNDB 打开"
+          }
+        }
+      }
+    },
     "Ops %llu · CPU fallbacks %llu" : {
       "localizations" : {
         "ja" : {
@@ -1818,6 +2961,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "算子 %1$llu · CPU 回退 %2$llu"
+          }
+        }
+      }
+    },
+    "Original Title" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原名"
           }
         }
       }
@@ -1854,6 +3013,22 @@
         }
       }
     },
+    "Play" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始游戏"
+          }
+        }
+      }
+    },
     "Play %@" : {
       "localizations" : {
         "ja" : {
@@ -1886,6 +3061,22 @@
         }
       }
     },
+    "Played %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ時間 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已玩 %@"
+          }
+        }
+      }
+    },
     "Played %@ this session" : {
       "localizations" : {
         "ja" : {
@@ -1898,6 +3089,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本次已游玩 %@"
+          }
+        }
+      }
+    },
+    "Played on This Device" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この端末でのプレイ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本机游玩"
+          }
+        }
+      }
+    },
+    "Playing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在玩"
           }
         }
       }
@@ -1934,6 +3157,22 @@
         }
       }
     },
+    "Progress" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進捗"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度"
+          }
+        }
+      }
+    },
     "Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app." : {
       "localizations" : {
         "ja" : {
@@ -1962,6 +3201,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出"
+          }
+        }
+      }
+    },
+    "Rate This Game" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品を評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为作品评分"
+          }
+        }
+      }
+    },
+    "Rating" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "评分"
           }
         }
       }
@@ -1998,6 +3269,70 @@
         }
       }
     },
+    "Recognized from the folder name" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ名から推定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据文件夹名识别"
+          }
+        }
+      }
+    },
+    "Record Start and Finish Dates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始日とクリア日を記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录开始和通关日期"
+          }
+        }
+      }
+    },
+    "Refresh Details" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品情報を更新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新资料"
+          }
+        }
+      }
+    },
+    "Released" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "発売日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发售"
+          }
+        }
+      }
+    },
     "Relink" : {
       "localizations" : {
         "ja" : {
@@ -2010,6 +3345,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新关联"
+          }
+        }
+      }
+    },
+    "Remove Rating" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価を外す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除评分"
+          }
+        }
+      }
+    },
+    "Remove Status" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ステータスを外す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除状态"
           }
         }
       }
@@ -2078,6 +3445,54 @@
         }
       }
     },
+    "Romanized" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローマ字表記"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "罗马音"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        }
+      }
+    },
+    "Saved. Will sync when possible" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存しました。あとで同期します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存，稍后同步"
+          }
+        }
+      }
+    },
     "Scanning game folders…" : {
       "localizations" : {
         "ja" : {
@@ -2138,6 +3553,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索游戏"
+          }
+        }
+      }
+    },
+    "Searching Bangumi and VNDB…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB を検索中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在搜索 Bangumi 和 VNDB…"
           }
         }
       }
@@ -2206,6 +3637,38 @@
         }
       }
     },
+    "Show Less" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起"
+          }
+        }
+      }
+    },
+    "Show More" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "続きを読む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开"
+          }
+        }
+      }
+    },
     "Show Performance Stats on Launch" : {
       "localizations" : {
         "ja" : {
@@ -2238,6 +3701,22 @@
         }
       }
     },
+    "Skip for Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あとで"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先跳过"
+          }
+        }
+      }
+    },
     "Skip Translation Group Credit Videos" : {
       "localizations" : {
         "ja" : {
@@ -2250,6 +3729,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳过汉化组署名视频"
+          }
+        }
+      }
+    },
+    "So-so" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普通"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不过不失"
           }
         }
       }
@@ -2318,6 +3813,22 @@
         }
       }
     },
+    "Started" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始于"
+          }
+        }
+      }
+    },
     "Status" : {
       "localizations" : {
         "ja" : {
@@ -2350,6 +3861,166 @@
         }
       }
     },
+    "Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步"
+          }
+        }
+      }
+    },
+    "Sync Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐ同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即同步"
+          }
+        }
+      }
+    },
+    "Sync Ratings and Comments" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価とひとことを同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步评分与短评"
+          }
+        }
+      }
+    },
+    "Synced" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已同步"
+          }
+        }
+      }
+    },
+    "Synced to %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に同期しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已同步到 %@"
+          }
+        }
+      }
+    },
+    "Synced to Bangumi and VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB に同期しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已同步到 Bangumi 和 VNDB"
+          }
+        }
+      }
+    },
+    "Syncing…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在同步…"
+          }
+        }
+      }
+    },
+    "Syncs to %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に同期されます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将同步到 %@"
+          }
+        }
+      }
+    },
+    "Syncs to Bangumi and VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB に同期されます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将同步到 Bangumi 和 VNDB"
+          }
+        }
+      }
+    },
+    "Synopsis and tags from Bangumi. Developer details and screenshots from VNDB." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あらすじとタグは Bangumi、開発情報とスクリーンショットは VNDB から取得。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简介与标签来自 Bangumi，开发信息与截图来自 VNDB。"
+          }
+        }
+      }
+    },
     "The %@ engine isn’t supported yet" : {
       "localizations" : {
         "ja" : {
@@ -2362,6 +4033,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 引擎尚未接入"
+          }
+        }
+      }
+    },
+    "The fetched cover and details are removed. Your status and rating stay on this device and in your lists." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得したカバーと作品情報を削除します。ステータスと評価はこの端末とリストに残ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "获取的封面和资料会被移除。你的状态和评分仍保留在本机和你的收藏中。"
           }
         }
       }
@@ -2488,6 +4175,22 @@
         }
       }
     },
+    "The token is removed from this device. Your lists and the games linked here stay as they are." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンはこの端末から削除されます。リストと関連付け済みの作品はそのまま残ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌会从本机移除。你的收藏和已关联的作品保持不变。"
+          }
+        }
+      }
+    },
     "This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover." : {
       "localizations" : {
         "ja" : {
@@ -2520,18 +4223,50 @@
         }
       }
     },
-    "Total Play Time" : {
+    "Titles" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合計プレイ時間"
+            "value" : "タイトル表示"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "累计游玩"
+            "value" : "标题显示"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌"
+          }
+        }
+      }
+    },
+    "Tokens are stored in this device’s Keychain and only used to read and update your lists." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンはこの端末のキーチェーンに保存され、リストの読み書きにのみ使われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌保存在本机钥匙串中，只用于读写你的收藏。"
           }
         }
       }
@@ -2568,6 +4303,86 @@
         }
       }
     },
+    "Unbearable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最悪"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不忍直视"
+          }
+        }
+      }
+    },
+    "Undo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り消す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销"
+          }
+        }
+      }
+    },
+    "Unlink" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "関連付けを解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消关联"
+          }
+        }
+      }
+    },
+    "Unlink from Bangumi and VNDB?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB との関連付けを解除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消与 Bangumi 和 VNDB 的关联？"
+          }
+        }
+      }
+    },
+    "Update Status While Playing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ時にステータスを自動更新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游玩时自动更新状态"
+          }
+        }
+      }
+    },
     "Upload %@ · readback %@" : {
       "localizations" : {
         "ja" : {
@@ -2580,6 +4395,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上传 %1$@ · 回读 %2$@"
+          }
+        }
+      }
+    },
+    "Very Bad" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "とても悪い"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很差"
           }
         }
       }
@@ -2600,6 +4431,86 @@
         }
       }
     },
+    "VNDB only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VNDB のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅 VNDB"
+          }
+        }
+      }
+    },
+    "VNDB Screenshot" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VNDB スクリーンショット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VNDB 截图"
+          }
+        }
+      }
+    },
+    "Waiting to Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待同步"
+          }
+        }
+      }
+    },
+    "Want to Play" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "気になる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想玩"
+          }
+        }
+      }
+    },
+    "Weak" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いまいち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "较差"
+          }
+        }
+      }
+    },
     "When on, games stay silent while the device is in Silent Mode; when off, they play anyway. Takes effect the next time a game launches." : {
       "localizations" : {
         "ja" : {
@@ -2612,6 +4523,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启后，设备处于静音模式时游戏不发声；关闭后忽略静音模式继续播放。下次启动游戏时生效。"
+          }
+        }
+      }
+    },
+    "Which Game Is This?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの作品ですか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是哪部作品？"
           }
         }
       }
