@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreImage
 import PhotosUI
 import UniformTypeIdentifiers
 import VNCore
@@ -96,7 +95,12 @@ struct LibraryView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if let latest = model.latest {
-                            ContinueBanner(game: latest, topPadding: headerHeight, regular: regular)
+                            ContinueBanner(
+                                game: latest,
+                                topInset: topInset,
+                                headerHeight: headerHeight,
+                                regular: regular
+                            )
                         } else {
                             Color.clear.frame(height: headerHeight)
                         }
@@ -337,155 +341,200 @@ struct LibraryView: View {
     }
 }
 
-/// The last played game under the pinned header. The whole cover is shown
-/// as a card, so none of it is cropped by the status bar or the header, over
-/// a backdrop built from the cover itself: its average color, then a heavily
-/// blurred copy, which also gives the header blur something to work with.
+/// The last played game under the pinned header, as one composition built
+/// from its cover:
+/// - the top band (about the status bar plus 70 pt) is the color of the
+///   cover's top edge, fading into
+/// - a full-bleed, pre-blurred copy of the cover behind everything;
+/// - the cover itself, sharp and fitted rather than cropped, starts below
+///   the header text, and its edges are masked into the blur;
+/// - the bottom darkens behind the title, play history and Resume.
 private struct ContinueBanner: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.displayScale) private var displayScale
     let game: GameRecord
-    /// Height of the pinned header the banner starts under.
-    let topPadding: CGFloat
+    /// Safe-area top (status bar) the banner extends behind.
+    let topInset: CGFloat
+    /// Bottom edge of the pinned header, including its fade.
+    let headerHeight: CGFloat
     let regular: Bool
-    @State private var image: UIImage?
-    @State private var tint: Color?
+    @State private var artwork: HeroArtwork?
+
+    /// Same total height as before the redesign: about 313 pt on an iPhone 13
+    /// Pro (266 + its 47 pt status bar).
+    private var heroHeight: CGFloat { (regular ? 380 : 266) + topInset }
+
+    /// Decode size for the cover; also the cache key, so it stays fixed.
+    private static let decodeSize = CGSize(width: 600, height: 600)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            artwork
-                .frame(maxWidth: .infinity, maxHeight: regular ? 320 : 220)
-
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Continue Playing")
-                        .font(.caption.weight(.semibold))
-                        .tracking(2)
-                        .opacity(0.9)
-                    Text(game.title)
-                        .font(regular ? .largeTitle.bold() : .title2.bold())
-                        .lineLimit(2)
-                    Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
-                        .font(regular ? .subheadline : .footnote)
-                        .opacity(0.88)
-                        .lineLimit(1)
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack(alignment: .topLeading) {
+                backdrop(size: size)
+                if let artwork {
+                    foreground(artwork, in: size)
                 }
-                Spacer(minLength: 0)
-                Button { model.launch(game) } label: {
-                    Label("Resume", systemImage: "play.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 4)
-                }
-                .nativeGlassButtonStyle(prominent: true)
-                .controlSize(.large)
-                .accessibilityLabel("Continue Playing: \(game.title)")
+                // Contrast for the text and Resume at the bottom.
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.5),
+                        .init(color: .black.opacity(0.65), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+                info
+                    .frame(width: size.width, height: size.height, alignment: .bottomLeading)
             }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, regular ? 28 : 20)
-        .padding(.top, topPadding + 8)
-        .padding(.bottom, regular ? 26 : 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { backdrop }
+        .frame(height: heroHeight)
+        .clipped()
         .environment(\.colorScheme, .dark)
         .task(id: model.coverURL(game)?.path ?? game.id.uuidString) {
             await load()
         }
     }
 
-    /// The cover at its own aspect ratio, never cropped.
-    @ViewBuilder
-    private var artwork: some View {
-        Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Color.white.opacity(0.08)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .overlay(
-                        Image(systemName: "book.closed.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(.secondary)
-                    )
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-        .accessibilityHidden(true)
-    }
+    // MARK: Layers
 
-    private var backdrop: some View {
-        ZStack {
-            (tint ?? Color(white: 0.22))
-            if let image {
-                // Laid out as an overlay on a flexible view so the oversized
-                // fill image cannot grow the backdrop past the banner.
-                Color.clear
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .blur(radius: 60, opaque: true)
-                            .opacity(0.8)
-                    }
+    private func backdrop(size: CGSize) -> some View {
+        let top = Color(uiColor: artwork?.topColor ?? UIColor(white: 0.22, alpha: 1))
+        // The color band covers the status bar and about 70 pt more.
+        let band = min(1, (topInset + 70) / max(size.height, 1))
+        return ZStack {
+            top
+            if let artwork {
+                Image(uiImage: artwork.blurred)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
                     .clipped()
+                    .opacity(0.9)
             }
-            // Keeps white text readable on light covers.
             LinearGradient(
-                colors: [.black.opacity(0.15), .black.opacity(0.45)],
+                stops: [
+                    .init(color: top, location: 0),
+                    .init(color: top.opacity(0.6), location: band * 0.6),
+                    .init(color: top.opacity(0), location: band)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
+        .frame(width: size.width, height: size.height)
         .accessibilityHidden(true)
+    }
+
+    private func foreground(_ artwork: HeroArtwork, in size: CGSize) -> some View {
+        let frame = Self.foregroundFrame(
+            aspect: artwork.aspectRatio,
+            in: size,
+            preferredTop: max(topInset + 50, headerHeight - 22),
+            minimumTop: topInset + 40
+        )
+        // Portrait covers are narrower than the hero: fade their sides too.
+        let sideStops: [Gradient.Stop] = frame.width >= size.width - 0.5
+            ? [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+            : [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.12),
+                .init(color: .black, location: 0.88),
+                .init(color: .clear, location: 1)
+            ]
+        return Image(uiImage: artwork.cover)
+            .resizable()
+            .scaledToFit()
+            .frame(width: frame.width, height: frame.height)
+            // Fade the top into the color band and the bottom into the
+            // darkened info area, so no edge of the cover shows.
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.14),
+                        .init(color: .black, location: 0.62),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .mask(LinearGradient(stops: sideStops, startPoint: .leading, endPoint: .trailing))
+            .offset(x: frame.minX, y: frame.minY)
+            .accessibilityHidden(true)
+    }
+
+    /// Fits the cover in the hero below `preferredTop`. A cover too tall to
+    /// fit there moves up, but never above `minimumTop`, before it is scaled
+    /// down to the remaining height; wide covers span the full width.
+    static func foregroundFrame(
+        aspect: CGFloat,
+        in size: CGSize,
+        preferredTop: CGFloat,
+        minimumTop: CGFloat
+    ) -> CGRect {
+        guard aspect > 0, size.width > 0, size.height > 0 else { return .zero }
+        let fullWidthHeight = size.width / aspect
+        // Room below the header that keeps the whole cover inside the hero.
+        let top = min(preferredTop, max(minimumTop, size.height - fullWidthHeight))
+        let available = size.height - top
+        if fullWidthHeight <= available {
+            return CGRect(x: 0, y: top, width: size.width, height: fullWidthHeight)
+        }
+        let width = available * aspect
+        return CGRect(x: (size.width - width) / 2, y: top, width: width, height: available)
+    }
+
+    private var info: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Continue Playing")
+                    .font(.caption.weight(.semibold))
+                    .tracking(2)
+                    .opacity(0.9)
+                Text(game.title)
+                    .font(regular ? .largeTitle.bold() : .title2.bold())
+                    .lineLimit(2)
+                Text("\(model.recency(game)) · Played \(game.playTime.playTimeSummary)")
+                    .font(regular ? .subheadline : .footnote)
+                    .opacity(0.88)
+                    .lineLimit(1)
+            }
+            .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
+            Spacer(minLength: 0)
+            Button { model.launch(game) } label: {
+                Label("Resume", systemImage: "play.fill")
+                    .font(.headline)
+                    .padding(.horizontal, 4)
+            }
+            .nativeGlassButtonStyle(prominent: true)
+            .controlSize(.large)
+            .accessibilityLabel("Continue Playing: \(game.title)")
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, regular ? 28 : 20)
+        .padding(.bottom, regular ? 26 : 22)
     }
 
     private func load() async {
         guard let url = model.coverURL(game) else {
-            image = nil
-            tint = nil
+            artwork = nil
             return
         }
-        let decoded = await CoverCache.shared.image(
+        // A cache hit appears without a fade so returning to the tab is calm.
+        if let hit = CoverCache.shared.cachedHeroArtwork(url, size: Self.decodeSize, scale: displayScale) {
+            artwork = hit
+            return
+        }
+        let processed = await CoverCache.shared.heroArtwork(
             for: url,
-            size: CGSize(width: 600, height: 600),
+            size: Self.decodeSize,
             scale: displayScale
         )
         guard !Task.isCancelled else { return }
-        let color = await Task.detached(priority: .utility) {
-            decoded.flatMap(ContinueBanner.averageColor(of:))
-        }.value
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.2)) {
-            image = decoded
-            tint = color
-        }
-    }
-
-    /// The cover's mean color, from Core Image's area-average filter.
-    private static func averageColor(of image: UIImage) -> Color? {
-        guard let cgImage = image.cgImage else { return nil }
-        let input = CIImage(cgImage: cgImage)
-        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
-            kCIInputImageKey: input,
-            kCIInputExtentKey: CIVector(cgRect: input.extent)
-        ]), let output = filter.outputImage else { return nil }
-        var pixel = [UInt8](repeating: 0, count: 4)
-        CIContext(options: [.workingColorSpace: NSNull()]).render(
-            output,
-            toBitmap: &pixel,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: nil
-        )
-        return Color(
-            red: Double(pixel[0]) / 255,
-            green: Double(pixel[1]) / 255,
-            blue: Double(pixel[2]) / 255
-        )
+        withAnimation(.easeOut(duration: 0.25)) { artwork = processed }
     }
 }
 
