@@ -17,6 +17,22 @@
         }
       }
     },
+    "%@ and %lld more · Keep the saves, free %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ほか %2$lld 本 · セーブは残して %3$@ 解放"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 等 %2$lld 部 · 保留存档，释放 %3$@"
+          }
+        }
+      }
+    },
     "%@ didn’t accept the token. Check it in Settings › Accounts & Sync." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -67,6 +83,22 @@
         }
       }
     },
+    "%@ left of %@ on this %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この %3$@ は %2$@ 中 %1$@ の空き"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%3$@ 共 %2$@，还剩 %1$@"
+          }
+        }
+      }
+    },
     "%@ returned error %lld." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -101,6 +133,22 @@
         }
       }
     },
+    "%@ Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ セーブデータ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 存档"
+          }
+        }
+      }
+    },
     "%@ sent a response Mikage couldn’t read." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -130,6 +178,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本次 %@"
+          }
+        }
+      }
+    },
+    "%@ · Keep the saves, free %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · セーブは残して %2$@ 解放"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 保留存档，释放 %2$@"
           }
         }
       }
@@ -178,6 +242,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@，%2$@"
+          }
+        }
+      }
+    },
+    "%lld game folders in Documents" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld game folder in Documents"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld game folders in Documents"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documents 内の %lld 個のゲームフォルダ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documents 中的 %lld 个游戏文件夹"
           }
         }
       }
@@ -278,6 +376,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 分"
+          }
+        }
+      }
+    },
+    "%lld missing game records" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld missing game record"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld missing game records"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見つからないゲームの記録 %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条缺失游戏记录"
           }
         }
       }
@@ -876,6 +1008,22 @@
         }
       }
     },
+    "Can Free" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解放可能"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可释放"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "ja" : {
@@ -984,6 +1132,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择游戏引擎"
+          }
+        }
+      }
+    },
+    "Clear" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "消去"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除"
           }
         }
       }
@@ -1196,6 +1360,38 @@
         }
       }
     },
+    "Couldn’t delete the game: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームを削除できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法删除游戏：%@"
+          }
+        }
+      }
+    },
+    "Couldn’t export saves: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを書き出せませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导出存档：%@"
+          }
+        }
+      }
+    },
     "Couldn’t get the current iOS window, so KRKR wasn’t started." : {
       "localizations" : {
         "ja" : {
@@ -1240,6 +1436,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未能自动识别“%@”，请选择它所属的引擎。"
+          }
+        }
+      }
+    },
+    "Couldn’t remove the game: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームを取り除けませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法移除游戏：%@"
           }
         }
       }
@@ -1356,6 +1568,22 @@
         }
       }
     },
+    "Covers & Details" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カバーと作品情報"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封面与资料"
+          }
+        }
+      }
+    },
     "Covers and synopses load without an account. Connect to sync your status, ratings and comments to your lists." : {
       "localizations" : {
         "ja" : {
@@ -1420,6 +1648,22 @@
         }
       }
     },
+    "Custom covers, Bangumi and VNDB artwork" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動カバー、Bangumi と VNDB の画像"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动封面、Bangumi 与 VNDB 图片"
+          }
+        }
+      }
+    },
     "Dark" : {
       "localizations" : {
         "ja" : {
@@ -1452,6 +1696,22 @@
         }
       }
     },
+    "Delete Game and Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームとセーブを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除游戏和存档"
+          }
+        }
+      }
+    },
     "Delete Record" : {
       "localizations" : {
         "ja" : {
@@ -1480,6 +1740,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除记录与历史"
+          }
+        }
+      }
+    },
+    "Delete “%@” and its saves?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」とそのセーブを削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除“%@”及其存档？"
+          }
+        }
+      }
+    },
+    "Deletes the game files but keeps saves, play history and the cover. Import the game again later and your saves come back automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイルを削除し、セーブ・プレイ記録・カバーは残します。あとで同じゲームを読み込み直すと、セーブが自動で戻ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除游戏文件，存档、游玩记录和封面会保留。之后重新导入这款游戏，存档会自动恢复。"
+          }
+        }
+      }
+    },
+    "Deletes their game files but keeps saves, play history and covers. Import a game again later and its saves come back automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイルを削除し、セーブ・プレイ記録・カバーは残します。あとでゲームを読み込み直すと、セーブが自動で戻ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除这些游戏的文件，存档、游玩记录和封面会保留。之后重新导入游戏，存档会自动恢复。"
           }
         }
       }
@@ -1564,6 +1872,22 @@
         }
       }
     },
+    "Diagnostic Logs" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "診断ログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "诊断日志"
+          }
+        }
+      }
+    },
     "Diagnostics" : {
       "localizations" : {
         "ja" : {
@@ -1640,6 +1964,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "抛弃"
+          }
+        }
+      }
+    },
+    "Each game’s savedata" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各ゲームの savedata"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各游戏的 savedata"
+          }
+        }
+      }
+    },
+    "Each game’s savedata, and saves kept for %lld removed games" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Each game’s savedata, and saves kept for %lld removed game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Each game’s savedata, and saves kept for %lld removed games"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各ゲームの savedata と、取り除いた %lld 本のゲームのセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各游戏的 savedata，以及 %lld 部已移除游戏保留的存档"
           }
         }
       }
@@ -1724,6 +2098,22 @@
         }
       }
     },
+    "Everything Else" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他内容"
+          }
+        }
+      }
+    },
     "Everything Synced" : {
       "localizations" : {
         "ja" : {
@@ -1752,6 +2142,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出诊断日志"
+          }
+        }
+      }
+    },
+    "Export Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出存档"
           }
         }
       }
@@ -1916,6 +2322,22 @@
         }
       }
     },
+    "Frees %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 解放"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "释放 %@"
+          }
+        }
+      }
+    },
     "Full Diagnostic Log" : {
       "localizations" : {
         "ja" : {
@@ -1964,6 +2386,54 @@
         }
       }
     },
+    "Game Files" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏文件"
+          }
+        }
+      }
+    },
+    "Game files %@, saves %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイル %1$@、セーブデータ %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏文件 %1$@，存档 %2$@"
+          }
+        }
+      }
+    },
+    "Game files and saves are deleted permanently. Your history on Bangumi and VNDB is kept." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイルとセーブは完全に削除されます。Bangumi と VNDB の記録は残ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏文件和存档都会被永久删除，游玩记录仍会保留在 Bangumi 和 VNDB。"
+          }
+        }
+      }
+    },
     "Game folders that were moved away appear here." : {
       "localizations" : {
         "ja" : {
@@ -1980,6 +2450,22 @@
         }
       }
     },
+    "Games" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲーム"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏"
+          }
+        }
+      }
+    },
     "Games you clear the status of will stay in your Bangumi collection until you sign in again." : {
       "localizations" : {
         "ja" : {
@@ -1992,22 +2478,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在重新登录前，你清除状态的游戏会保留在 Bangumi 收藏中。"
-          }
-        }
-      }
-    },
-    "Games: %lld\nMissing records: %lld\nGame files: %@\n\nFiles are stored in the krkr, ons, renpy and artemis folders under “Files → On My iPhone → Mikage Next”. KiriKiri saves stay in each game’s savedata folder." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲーム：%1$lld 本\n見つからない記録：%2$lld 件\nゲームファイル：%3$@\n\nファイルは「ファイル → このiPhone内 → Mikage Next」の krkr、ons、renpy、artemis フォルダに保存されます。KiriKiri のセーブデータは各ゲームの savedata フォルダにあります。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "作品：%1$lld 部\n缺失记录：%2$lld 条\n游戏文件：%3$@\n\n文件保存在“文件 → 我的 iPhone → Mikage Next”下的 krkr、ons、renpy、artemis 目录中。KiriKiri 存档仍位于各游戏的 savedata 目录。"
           }
         }
       }
@@ -2268,6 +2738,22 @@
         }
       }
     },
+    "Import the same folder again to play; your saves come back automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じフォルダを読み込み直せば再びプレイでき、セーブも自動で戻ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新导入同一个文件夹即可继续游玩，存档会自动恢复。"
+          }
+        }
+      }
+    },
     "In Game" : {
       "localizations" : {
         "ja" : {
@@ -2377,6 +2863,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KRKR runtime 已停止。"
+          }
+        }
+      }
+    },
+    "Largest First" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイズ順"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按大小排列"
           }
         }
       }
@@ -2555,6 +3057,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关联"
+          }
+        }
+      }
+    },
+    "Link the folder again or delete the record" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを再リンクするか、記録を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新关联文件夹，或删除记录"
           }
         }
       }
@@ -3717,6 +4235,86 @@
         }
       }
     },
+    "Remove %lld Games" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 本のゲームを取り除く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 %lld 部游戏"
+          }
+        }
+      }
+    },
+    "Remove Finished Games" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア済みのゲームを取り除く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除已通关的游戏"
+          }
+        }
+      }
+    },
+    "Remove finished games?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア済みのゲームを取り除きますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除已通关的游戏？"
+          }
+        }
+      }
+    },
+    "Remove Game" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームを取り除く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除游戏"
+          }
+        }
+      }
+    },
+    "Remove Game, Keep Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームを取り除く（セーブは残す）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除游戏，保留存档"
+          }
+        }
+      }
+    },
     "Remove Rating" : {
       "localizations" : {
         "ja" : {
@@ -3745,6 +4343,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除状态"
+          }
+        }
+      }
+    },
+    "Remove “%@” and keep its saves?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」を取り除き、セーブは残しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除“%@”并保留存档？"
+          }
+        }
+      }
+    },
+    "Removed with saves kept. Import the folder again to restore them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを残して取り除きました。フォルダを読み込み直すと復元されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移除，存档已保留。重新导入文件夹即可恢复。"
           }
         }
       }
@@ -3829,6 +4459,22 @@
         }
       }
     },
+    "Runtime not available yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ランタイム未対応"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行时尚未接入"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "ja" : {
@@ -3857,6 +4503,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已保存，稍后同步"
+          }
+        }
+      }
+    },
+    "Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブデータ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存档"
           }
         }
       }
@@ -4001,6 +4663,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "检测到多个可能的引擎，请确认“%@”的类型。"
+          }
+        }
+      }
+    },
+    "Show in Files" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「ファイル」で表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“文件”中显示"
           }
         }
       }
@@ -4687,6 +5365,22 @@
         }
       }
     },
+    "This can’t be undone." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この操作は取り消せません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此操作无法撤销。"
+          }
+        }
+      }
+    },
     "This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover." : {
       "localizations" : {
         "ja" : {
@@ -4699,6 +5393,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这不会删除你另外存放的游戏文件夹，但会移除游玩历史和手动封面。"
+          }
+        }
+      }
+    },
+    "This removes its play history, custom cover and the saves kept when the game was removed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイ記録、カスタムカバー、取り除いたときに残したセーブが削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会删除它的游玩记录、自定义封面，以及移除游戏时保留的存档。"
           }
         }
       }
@@ -4763,6 +5473,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "令牌保存在本机钥匙串中，只用于读写你的收藏。"
+          }
+        }
+      }
+    },
+    "Total" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合計"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共占用"
           }
         }
       }
@@ -4879,6 +5605,22 @@
         }
       }
     },
+    "Up to about 16 MB, rotated automatically" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大約 16 MB、自動でローテーション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多约 16 MB，自动轮转"
+          }
+        }
+      }
+    },
     "Update Status While Playing" : {
       "localizations" : {
         "ja" : {
@@ -4923,6 +5665,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改用 Bangumi 访问令牌"
+          }
+        }
+      }
+    },
+    "USED BY MIKAGE" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIKAGE の使用量"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIKAGE 已使用"
           }
         }
       }
@@ -5115,6 +5873,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "宽幅"
+          }
+        }
+      }
+    },
+    "You can also manage game files and saves directly in the Files app under Mikage Next." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームファイルとセーブは「ファイル」App の Mikage Next からも直接管理できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏文件和存档也可以在“文件”App 的 Mikage Next 中直接管理。"
           }
         }
       }

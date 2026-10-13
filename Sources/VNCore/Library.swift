@@ -66,6 +66,25 @@ public struct LibraryRepository: Sendable {
     public var libraryURL: URL { metadataRoot.appendingPathComponent("library-v2.json") }
     public var coversURL: URL { metadataRoot.appendingPathComponent("Covers", isDirectory: true) }
 
+    /// Saves of games removed with "keep saves", one folder per record id.
+    public var keptSavesRoot: URL { metadataRoot.appendingPathComponent("KeptSaves", isDirectory: true) }
+
+    /// The folder KiriKiri games write their saves to, inside the game folder.
+    public static let savesFolderName = "savedata"
+
+    public func keptSavesURL(for id: UUID) -> URL {
+        keptSavesRoot.appendingPathComponent(id.uuidString, isDirectory: true)
+    }
+
+    /// Whether this game's folder was removed with its saves kept for later.
+    public func hasKeptSaves(_ game: GameRecord) -> Bool {
+        FileManager.default.fileExists(atPath: keptSavesURL(for: game.id).path)
+    }
+
+    public func savesURL(for game: GameRecord) throws -> URL {
+        try directory(for: game).appendingPathComponent(Self.savesFolderName, isDirectory: true)
+    }
+
     public func engineRoot(for engine: EngineID) -> URL {
         documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
     }
@@ -150,14 +169,18 @@ public struct LibraryRepository: Sendable {
                 $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
             }
 
-            for child in children {
-                let values = try child.resourceValues(forKeys: [
-                    .isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey
-                ])
+            for var child in children {
+                let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
                 guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
                 let recordKey = key(engine: engine, folderName: child.lastPathComponent)
                 let old = existingByKey.removeValue(forKey: recordKey)
-                let modifiedAt = values.contentModificationDate
+                // A game removed with its saves kept is back: return the saves
+                // before measuring, so the size includes them.
+                if let old, restoreKeptSaves(for: old.id, into: child) {
+                    child.removeAllCachedResourceValues()
+                }
+                let modifiedAt = try child.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate
 
                 // Adding, removing or replacing a file updates its parent's
                 // modification date, so an unchanged date means this folder's
@@ -262,6 +285,58 @@ public struct LibraryRepository: Sendable {
             guard let name = file, let url = try? GameScanner.containedURL(name, in: coversURL) else { continue }
             try? FileManager.default.removeItem(at: url)
         }
+        try? FileManager.default.removeItem(at: keptSavesURL(for: record.id))
+    }
+
+    /// Deletes the game folder but keeps its saves and its record.
+    ///
+    /// The saves move to `keptSavesRoot` and the next scan lists the record
+    /// as missing. When a folder with the same name is imported or relinked,
+    /// the scan matches it to this record and moves the saves back.
+    public func offload(_ game: GameRecord) throws {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
+        let fm = FileManager.default
+        let directory = try directory(for: game)
+        guard fm.fileExists(atPath: directory.path) else { throw LibraryError.noGame }
+        try fm.createDirectory(at: keptSavesRoot, withIntermediateDirectories: true)
+        let kept = keptSavesURL(for: game.id)
+        let saves = directory.appendingPathComponent(Self.savesFolderName, isDirectory: true)
+        if fm.fileExists(atPath: saves.path) {
+            // Saves kept from an earlier removal were not restored because
+            // the game made new ones; the newer saves win.
+            if fm.fileExists(atPath: kept.path) { try fm.removeItem(at: kept) }
+            try fm.moveItem(at: saves, to: kept)
+        } else if !fm.fileExists(atPath: kept.path) {
+            // An empty folder still marks the record as removed on purpose.
+            try fm.createDirectory(at: kept, withIntermediateDirectories: true)
+        }
+        try fm.removeItem(at: directory)
+    }
+
+    /// Deletes the game folder, its saves and its record.
+    public func delete(_ game: GameRecord) throws {
+        let directory = try directory(for: game)
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+        try forget(game)
+    }
+
+    /// Moves saves kept by `offload` back into the game folder, unless the
+    /// folder already has saves of its own. Returns whether anything moved.
+    @discardableResult
+    func restoreKeptSaves(for id: UUID, into directory: URL) -> Bool {
+        let fm = FileManager.default
+        let kept = keptSavesURL(for: id)
+        guard fm.fileExists(atPath: kept.path) else { return false }
+        let saves = directory.appendingPathComponent(Self.savesFolderName, isDirectory: true)
+        if fm.fileExists(atPath: saves.path) {
+            let contents = (try? fm.contentsOfDirectory(atPath: saves.path)) ?? []
+            guard contents.isEmpty, (try? fm.removeItem(at: saves)) != nil else { return false }
+        }
+        return (try? fm.moveItem(at: kept, to: saves)) != nil
     }
 
     /// Downloaded Bangumi or VNDB artwork, if the file is still present.
@@ -696,6 +771,13 @@ public enum GameScanner {
             let values = try? $0.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             return values?.isRegularFile == true && values?.isSymbolicLink != true
         }
+    }
+
+    /// Total size of the regular files under `directory`; zero when it
+    /// does not exist.
+    public static func directorySize(_ directory: URL) -> Int64 {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return 0 }
+        return (try? byteCount(in: directory)) ?? 0
     }
 
     private static func byteCount(in directory: URL) throws -> Int64 {

@@ -959,6 +959,11 @@ struct MissingGamesView: View {
                                     Text("Last played: \(model.recency(game))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if model.repository.hasKeptSaves(game) {
+                                        Label("Removed with saves kept. Import the folder again to restore them.", systemImage: "externaldrive.badge.checkmark")
+                                            .font(.caption)
+                                            .foregroundStyle(.tint)
+                                    }
                                 }
                             }
                             HStack {
@@ -1018,8 +1023,12 @@ struct MissingGamesView: View {
                 Task { await model.forget(game) }
             }
             Button("Cancel", role: .cancel) { deleteGame = nil }
-        } message: { _ in
-            Text("This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover.")
+        } message: { game in
+            if model.repository.hasKeptSaves(game) {
+                Text("This removes its play history, custom cover and the saves kept when the game was removed.")
+            } else {
+                Text("This doesn’t delete the game folder you keep elsewhere, but removes its play history and custom cover.")
+            }
         }
     }
 

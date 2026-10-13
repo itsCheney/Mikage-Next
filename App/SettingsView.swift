@@ -101,8 +101,8 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Button {
-                        explain(String(localized: "Games: \(model.games.count)\nMissing records: \(model.missingGames.count)\nGame files: \(storageTotal)\n\nFiles are stored in the krkr, ons, renpy and artemis folders under “Files → On My iPhone → Mikage Next”. KiriKiri saves stay in each game’s savedata folder."))
+                    NavigationLink {
+                        StorageView()
                     } label: {
                         HStack {
                             SettingLabel("Storage", systemImage: "internaldrive")
@@ -111,6 +111,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .accessibilityIdentifier("storage-settings-link")
                 } header: {
                     Text("General")
                 } footer: {
