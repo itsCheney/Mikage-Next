@@ -167,9 +167,9 @@ struct LibraryView: View {
                         importMenu
                     }
                 }
-                // Over the cover art the bar items read light-on-dark.
-                .toolbarColorScheme(heroUnderBar ? .dark : nil, for: .navigationBar)
-                .legacyBarBackgroundHidden(heroUnderBar)
+                // While the cover art is under the bar it stays clear; the
+                // blur returns once the art has scrolled away.
+                .barOverCoverArt(heroUnderBar)
             }
             .background(AppBackground())
             .navigationTitle("游戏库")
@@ -391,15 +391,18 @@ private struct HeroBottomKey: PreferenceKey {
 }
 
 private extension View {
-    /// Before iOS 26 the bar draws its own material; hide it while the cover
-    /// art is under the bar. iOS 26 bars have no background and blur scrolled
-    /// content with the scroll edge effect on their own.
+    /// Keeps the navigation bar clear over the continue card's art. iOS 26
+    /// otherwise lays its scroll edge effect over the art as a frosted band;
+    /// earlier systems draw their bar material there. Before iOS 26 the bar
+    /// items are also forced light, since that bar does not adapt to the art.
     @ViewBuilder
-    func legacyBarBackgroundHidden(_ hidden: Bool) -> some View {
+    func barOverCoverArt(_ overArt: Bool) -> some View {
         if #available(iOS 26.0, *) {
-            self
+            scrollEdgeEffectHidden(overArt, for: .top)
+                .toolbarBackgroundVisibility(overArt ? .hidden : .automatic, for: .navigationBar)
         } else {
-            toolbarBackground(hidden ? .hidden : .automatic, for: .navigationBar)
+            toolbarBackground(overArt ? .hidden : .automatic, for: .navigationBar)
+                .toolbarColorScheme(overArt ? .dark : nil, for: .navigationBar)
         }
     }
 }
