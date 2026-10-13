@@ -21,6 +21,8 @@ struct StorageView: View {
                 )
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+            } header: {
+                Color.clear.frame(height: 0)
             }
 
             if let first = offloadCandidates.first {
@@ -87,6 +89,8 @@ struct StorageView: View {
                 Text("You can also manage game files and saves directly in the Files app under Mikage Next.")
             }
         }
+        // Lifts the summary card toward the navigation bar.
+        .environment(\.defaultMinListHeaderHeight, 0)
         .scrollContentBackground(.hidden)
         .background(AppBackground())
         .navigationTitle("Storage")
@@ -261,10 +265,10 @@ private struct StorageSummaryCard: View {
                     let parts = StorageFormat.parts(used)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(verbatim: parts.number)
-                            .font(.system(size: 44, weight: .bold))
+                            .font(.system(size: 58, weight: .bold))
                             .monospacedDigit()
                         Text(verbatim: parts.unit)
-                            .font(.title2.weight(.semibold))
+                            .font(.title.weight(.semibold))
                     }
                 } else {
                     ProgressView()
@@ -287,18 +291,18 @@ private struct StorageSummaryCard: View {
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 18)
-        .padding(.top, 22)
+        .padding(.top, 26)
         .padding(.bottom, 18)
-        .frame(maxWidth: .infinity, minHeight: 250, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 330, alignment: .bottomLeading)
         .background {
             ZStack {
                 Color(red: 20 / 255, green: 20 / 255, blue: 42 / 255)
                 CoverWall(games: model.games)
                 LinearGradient(
                     stops: [
-                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.62), location: 0),
-                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.40), location: 0.46),
-                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.72), location: 1)
+                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.12), location: 0),
+                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.42), location: 0.45),
+                        .init(color: Color(red: 14 / 255, green: 14 / 255, blue: 36 / 255).opacity(0.84), location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -335,52 +339,93 @@ private struct StorageSummaryCard: View {
 }
 
 /// Lanes of covers tilted behind the summary, sliding in alternate
-/// directions. Still when Reduce Motion is on.
+/// directions. Each cover keeps its own shape, portrait or landscape.
+/// Still when Reduce Motion is on.
 private struct CoverWall: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     let games: [GameRecord]
+    @State private var covers: [WallCover] = []
     @State private var moving = false
 
-    private static let tile = CGSize(width: 92, height: 52)
-    private static let spacing: CGFloat = 8
-    private static let perLane = 6
-    private static let lanes = 7
+    private struct WallCover {
+        let image: UIImage
+        let dim: Bool
 
-    var body: some View {
-        let order = games.filter { model.coverURL($0) != nil }
-        if !order.isEmpty {
-            VStack(spacing: Self.spacing) {
-                ForEach(0..<Self.lanes, id: \.self) { lane in
-                    laneView(lane, order: order)
-                }
-            }
-            .frame(width: 560, alignment: .leading)
-            .rotationEffect(.degrees(-14))
-            .offset(x: -40, y: -20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
-            .onAppear { moving = !reduceMotion }
-            .onChange(of: reduceMotion) { moving = !$0 }
+        /// Very tall or wide art is cropped toward the middle.
+        func width(at height: CGFloat) -> CGFloat {
+            let size = image.size
+            guard size.height > 0 else { return height * 16 / 9 }
+            return height * min(2, max(0.6, size.width / size.height))
         }
     }
 
-    private func laneView(_ lane: Int, order: [GameRecord]) -> some View {
-        let picks = (0..<Self.perLane).map { order[(lane * 3 + $0 * 5) % order.count] }
-        let width = CGFloat(Self.perLane) * (Self.tile.width + Self.spacing)
+    private static let height: CGFloat = 78
+    private static let spacing: CGFloat = 8
+    private static let perLane = 6
+    private static let lanes = 6
+
+    var body: some View {
+        ZStack {
+            if !covers.isEmpty {
+                VStack(spacing: Self.spacing) {
+                    ForEach(0..<Self.lanes, id: \.self) { lane in
+                        laneView(lane)
+                    }
+                }
+                .frame(width: 640, alignment: .leading)
+                .rotationEffect(.degrees(-12))
+                .offset(x: -30)
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .task(id: coverKey) { await load() }
+        .onAppear { moving = !reduceMotion }
+        .onChange(of: reduceMotion) { moving = !$0 }
+    }
+
+    private var coverKey: String {
+        games.map { model.coverURL($0)?.path ?? "" }.joined(separator: "|")
+    }
+
+    /// Decodes each cover once, at a size that keeps its proportions, rather
+    /// than once per tile.
+    private func load() async {
+        var loaded: [WallCover] = []
+        for game in games {
+            guard let url = model.coverURL(game),
+                  let image = await CoverCache.shared.image(
+                      for: url, size: CGSize(width: 200, height: 200), scale: displayScale
+                  ) else { continue }
+            loaded.append(WallCover(image: image, dim: game.availability == .unsupported))
+        }
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.3)) { covers = loaded }
+    }
+
+    private func laneView(_ lane: Int) -> some View {
+        let picks = (0..<Self.perLane).map { covers[(lane * 3 + $0 * 5) % covers.count] }
+        let width = picks.reduce(0) { $0 + $1.width(at: Self.height) + Self.spacing }
         let leftward = lane % 2 == 0
         let duration = Double(48 + (lane * 7) % 20)
         return HStack(spacing: Self.spacing) {
             // Doubled so the loop has no seam.
-            ForEach(Array((picks + picks).enumerated()), id: \.offset) { _, game in
-                ArtworkImage(url: model.coverURL(game))
-                    .frame(width: Self.tile.width, height: Self.tile.height)
-                    .grayscale(game.availability == .unsupported ? 0.85 : 0)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            ForEach(Array((picks + picks).enumerated()), id: \.offset) { _, cover in
+                Image(uiImage: cover.image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: cover.width(at: Self.height), height: Self.height)
+                    .clipped()
+                    .grayscale(cover.dim ? 0.85 : 0)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .shadow(color: .black.opacity(0.25), radius: 5, y: 4)
             }
         }
-        .offset(x: (lane % 2 == 1 ? -50 : 0) + (leftward == moving ? -width : 0))
+        .fixedSize()
+        .offset(x: (lane % 2 == 1 ? -Self.height : 0) + (leftward == moving ? -width : 0))
         .animation(
             moving ? .linear(duration: duration).repeatForever(autoreverses: false) : .default,
             value: moving
