@@ -4,17 +4,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_testing()
 get_filename_component(EMOTE_CORE "${CMAKE_CURRENT_LIST_DIR}/../../Engine/KRKRRuntime/Source/cpp" REALPATH)
-foreach(suite Capture Bounds)
-    string(TOLOWER "${suite}" suite_lower)
-    add_executable(emote-${suite_lower}-tests "${suite}Tests.cpp")
-    target_include_directories(emote-${suite_lower}-tests PRIVATE "${EMOTE_CORE}/plugins/emoteplayer")
-    if(MSVC)
-        target_compile_options(emote-${suite_lower}-tests PRIVATE /W4)
-    else()
-        target_compile_options(emote-${suite_lower}-tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-    add_test(NAME emote-${suite_lower}-tests COMMAND emote-${suite_lower}-tests)
-endforeach()
 include(NodeCMake.cmake)
-include(InputCMake.cmake)
-include(HostInputCMake.cmake)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(CAPTURE_EXCHANGE "${CMAKE_CURRENT_BINARY_DIR}/ProductionCaptureExchange.inc")
+add_custom_command(OUTPUT "${CAPTURE_EXCHANGE}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-capture-exchange.py"
+            --core "${EMOTE_CORE}" --output "${CAPTURE_EXCHANGE}"
+    DEPENDS "${EMOTE_CORE}/plugins/emoteplayer/emoteplayerclass.h"
+            "${EMOTE_CORE}/plugins/emoteplayer/emoteplayerclass.cpp"
+            "${CMAKE_CURRENT_LIST_DIR}/extract-capture-exchange.py"
+    VERBATIM)
+add_executable(emote-capture-exchange-tests CaptureExchangeTests.cpp "${CAPTURE_EXCHANGE}")
+target_include_directories(emote-capture-exchange-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+add_test(NAME emote-capture-exchange-tests COMMAND emote-capture-exchange-tests)

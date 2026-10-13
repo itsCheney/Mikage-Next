@@ -180,7 +180,7 @@ public final class DiagnosticLog: @unchecked Sendable {
             }
             guard !files.isEmpty else {
                 throw NSError(domain: "MikageDiagnostics", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "暂无诊断日志，请开启记录并复现问题。"])
+                              userInfo: [NSLocalizedDescriptionKey: String(localized: "No diagnostic logs yet. Turn on logging and reproduce the issue.")])
             }
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
             let output = destination.appendingPathComponent("Mikage-diagnostics-\(UUID().uuidString).jsonl")

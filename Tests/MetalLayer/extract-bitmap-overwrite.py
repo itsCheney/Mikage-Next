@@ -28,6 +28,7 @@ signatures = [
     "tTVPNativeBaseBitmap::tTVPNativeBaseBitmap(const tTVPNativeBaseBitmap&",
     "bool tTVPNativeBaseBitmap::AssignTexture(",
     "bool tTVPNativeBaseBitmap::CopyFromGPUTarget(",
+    "bool tTVPNativeBaseBitmap::OverwriteOnGPU(",
     "bool tTVPNativeBaseBitmap::CopyFromGPUTargetRegion(",
     "tjs_uint tTVPNativeBaseBitmap::GetWidth() const",
     "tjs_uint tTVPNativeBaseBitmap::GetHeight() const",
@@ -56,6 +57,7 @@ layer_signatures = [
     "iTVPTexture2D* tTJSNI_BaseLayer::GetMainImageTextureForSpanComposite(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTarget(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromGPUTargetRegion(",
+    "bool tTJSNI_BaseLayer::RenderMainImageOnGPU(",
     "bool tTJSNI_BaseLayer::CopyMainImageFromCPU(",
 ]
 trans_source=args.trans_source.read_text(encoding="utf-8")

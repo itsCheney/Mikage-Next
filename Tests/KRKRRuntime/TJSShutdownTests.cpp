@@ -176,6 +176,40 @@ void OverlappingEngines(bool deleteGameFirst)
     }
 }
 }
+// In the iOS host, System.exit (TVPTerminateSync) unwinds with eTJSSilent
+// instead of calling exit(). That only returns to the library if no script
+// try/catch can swallow it, at any nesting depth.
+class SilentExitProbe : public tTJSDispatch
+{
+public:
+    tjs_error FuncCall(tjs_uint32, const tjs_char* member, tjs_uint32*, tTJSVariant*,
+                      tjs_int, tTJSVariant**, iTJSDispatch2*) override
+    {
+        if (member) return TJS_E_MEMBERNOTFOUND;
+        throw eTJSSilent();
+    }
+};
+void SilentExitPassesScriptCatch()
+{
+    tTJS engine;
+    {
+        auto* probe=new SilentExitProbe();
+        tTJSVariant value(probe,nullptr); probe->Release();
+        engine.GetGlobalNoAddRef()->PropSet(TJS_MEMBERENSURE,TJS_N("exitProbe"),nullptr,&value,
+                                            engine.GetGlobalNoAddRef());
+    }
+    engine.ExecScript(TJS_N("var caught=0, after=0;"
+        "function inner() { try { exitProbe(); after++; } catch(e) { caught++; } after++; }"
+        "function outer() { try { inner(); after++; } catch(e) { caught++; } }"));
+    bool escaped=false;
+    try { engine.ExecScript(TJS_N("try { outer(); after++; } catch(e) { caught++; } after++;")); }
+    catch(const eTJSSilent&) { escaped=true; }
+    tTJSVariant caught,after;
+    engine.EvalExpression(TJS_N("caught"),&caught);
+    engine.EvalExpression(TJS_N("after"),&after);
+    if(!escaped || caught.AsInteger()!=0 || after.AsInteger()!=0)
+        throw std::runtime_error("script try/catch intercepted the System.exit unwind");
+}
 void RunByteCodeCompatibilityTests();
 int RunByteCodeCompatibilityStaticTest(const char* path);
 int main(int argc,char** argv)
@@ -186,6 +220,7 @@ int main(int argc,char** argv)
         RunByteCodeCompatibilityTests();
         delete new tTJS(); // No script/register allocation: null pool free is safe.
         XP3SessionLifetime();
+        SilentExitPassesScriptCatch();
         for (int i = 0; i < 25; ++i) {
             OverlappingEngines(false);
             OverlappingEngines(true);
@@ -194,7 +229,8 @@ int main(int argc,char** argv)
         }
         std::cout << "PASS: 50 XP3 cache/closure reset sessions, 50 TJS shutdown/GC sessions, "
                      "50 overlapping game/decoder lifetimes in both exit orders, "
-                     "empty VM and reentrant global-access finalizers\n";
+                     "empty VM and reentrant global-access finalizers, "
+                     "System.exit unwind past script try/catch\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

@@ -60,7 +60,7 @@ final class LibraryTests: XCTestCase {
 
         let snapshot = try repository.scan()
         XCTAssertEqual(snapshot.active.map(\.folderName), ["Wrapper"])
-        XCTAssertEqual(snapshot.active.first?.availability, .invalid("未找到有效的 startup.tjs 或 XP3"))
+        XCTAssertEqual(snapshot.active.first?.availability, .invalid(String(localized: "No valid startup.tjs or XP3 found")))
     }
 
     func testStartupScriptWinsAndXP3UsesFixedPriority() throws {
@@ -204,6 +204,13 @@ final class LibraryTests: XCTestCase {
         XCTAssertThrowsError(try GameScanner.containedURL("link/file", in: root))
     }
 
+    func testNewArtworkFileCanBeWritten() throws {
+        let data = Data([0xFF, 0xD8, 0xFF])
+        try repository.writeArtwork(data, named: "new-banner.jpg")
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(repository.artworkURL(named: "new-banner.jpg"))), data)
+        XCTAssertEqual(try GameScanner.containedURL("./a.jpg", in: repository.coversURL).lastPathComponent, "a.jpg")
+    }
+
     func testCorruptV2LibraryIsNotTreatedAsEmpty() throws {
         try repository.ensureStructure()
         try Data("broken".utf8).write(to: repository.libraryURL)
@@ -323,5 +330,58 @@ final class LibraryTests: XCTestCase {
         try JSONSerialization.data(withJSONObject: document).write(to: repository.libraryURL)
         XCTAssertEqual(try repository.load().first?.launchCount, 0)
         XCTAssertEqual(try repository.load().first?.playTime, 90)
+    }
+
+    func testOffloadKeepsSavesAndReimportRestoresThem() throws {
+        let source = try directory("Upload/Example")
+        try script(in: source)
+        try repository.importFolder(source, engine: .kirikiri)
+        let game = try repository.scan().active[0]
+        let saves = try repository.savesURL(for: game)
+        try FileManager.default.createDirectory(at: saves, withIntermediateDirectories: true)
+        try write([1, 2, 3], named: "data0.bmp", in: saves)
+
+        try repository.offload(game)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try repository.directory(for: game).path))
+        XCTAssertTrue(repository.hasKeptSaves(game))
+        let removed = try repository.scan()
+        XCTAssertTrue(removed.active.isEmpty)
+        XCTAssertEqual(removed.missing.first?.id, game.id)
+
+        try repository.importFolder(source, engine: .kirikiri)
+        let restored = try repository.scan().active[0]
+        XCTAssertEqual(restored.id, game.id)
+        XCTAssertFalse(repository.hasKeptSaves(game))
+        let data = try Data(contentsOf: saves.appendingPathComponent("data0.bmp"))
+        XCTAssertEqual([UInt8](data), [1, 2, 3])
+    }
+
+    func testRestoreLeavesSavesTheGameAlreadyHas() throws {
+        try repository.ensureStructure()
+        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try script(in: folder)
+        let game = try repository.scan().active[0]
+        try repository.offload(game)
+        _ = try repository.scan()
+
+        let saves = folder.appendingPathComponent("savedata")
+        try FileManager.default.createDirectory(at: saves, withIntermediateDirectories: true)
+        try script(in: folder)
+        try write([9], named: "new.bmp", in: saves)
+        _ = try repository.scan()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saves.appendingPathComponent("new.bmp").path))
+        XCTAssertTrue(repository.hasKeptSaves(game))
+    }
+
+    func testDeleteRemovesFolderSavesAndRecord() throws {
+        try repository.ensureStructure()
+        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("savedata"), withIntermediateDirectories: true)
+        try script(in: folder)
+        let game = try repository.scan().active[0]
+        try repository.delete(game)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(try repository.load().isEmpty)
     }
 }

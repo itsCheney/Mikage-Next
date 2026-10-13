@@ -1,5 +1,34 @@
 # Emote performance implementation and validation
 
+> **Removed on 2026-10-12.** All seven opt-in options described below (bits
+> 0–6: node cache, capture cache, local update, region copy, async pointer
+> alpha, experimental bounds, local pose cache) were removed from the runtime,
+> host and App, together with their Settings toggles and log fields. A review
+> found that each cost more than it saved on Metal:
+>
+> - Bits 0/1 compared and copied each node's full inherited chain every frame;
+>   any animated ancestor (breathing, sway, fades) invalidated every descendant,
+>   and a hit on Metal saved about what the check cost.
+> - The capture cache only skipped fully static characters; continuous
+>   breathing changed the pose revision every frame.
+> - Bits 2/3 needed bounds that are unknown for GPU-deformed meshes, i.e. for
+>   every device draw in the log below.
+> - Bit 4 called a full-layer `Update()` per hover event and kept demanded
+>   tiles re-reading every frame while dragging.
+> - Bits 5/6 lost in every measured scene.
+>
+> The default path (all options off) is unchanged: Emote players redraw the full
+> frame each frame and pointer hit tests read alpha synchronously.
+>
+> Since the removal, a clearing player on an ordinary Layer renders straight into
+> the Layer's own texture instead of into its canvas, so the full-frame
+> canvas-to-Layer copy measured below (~670 MB/s) is gone; see
+> `emoteLayerDirectDraws` in DIAGNOSTICS.md. D3D adaptors exchange textures with
+> the layer at `captureCanvas` once the script has cleared the canvas after a
+> few captures. Non-clearing (group-start) players, scripts that draw on a
+> captured canvas, and Layers that are locked or sized differently still copy.
+> The rest of this document is the historical record of the experiment.
+
 Implementation branch: `codex/emote-perf` in the app, runtime build and cpp core.
 Base commits: app `24c0d57`, build `a7d7867`, core `386526b`.
 Local verification recorded on 2026-10-04.
@@ -59,8 +88,14 @@ The runtime's next-launch options mask has the following bit order:
 | 2 | `MIKAGE_EMOTE_LOCAL_UPDATE` | Smaller proven Layer damage notification |
 | 3 | `MIKAGE_EMOTE_REGION_COPY` | Smaller GPU transfer when destination is independent |
 | 4 | `MIKAGE_EMOTE_ASYNC_ALPHA` | Deferred built-in UI alpha hit testing |
-| 5 | `MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS` | Candidate GPU bounds area/time diagnostics only |
-| 6 | `MIKAGE_EMOTE_LOCAL_POSE_CACHE` | Experimental local evaluation reuse; requires bit 0 |
+| 5 | — | Removed (was `MIKAGE_EMOTE_EXPERIMENTAL_BOUNDS`); reserved and masked off |
+| 6 | — | Removed (was `MIKAGE_EMOTE_LOCAL_POSE_CACHE`); reserved and masked off |
+
+Bits 5 and 6 were removed on 2026-10-12. The local pose cache lost in every
+benchmark scene below and missed for any node between keyframes; the bounds
+diagnostic cost about 318 ms per session and returned unknown for every device
+draw. Saved settings with those toggles still decode; the keys are ignored.
+(Bits 0–4 followed the same day; see the note at the top.)
 
 The App explicitly overrides stale environment/SDL values per launch. With all
 options off, expensive exact geometry/submotion/draw-order signatures are not
@@ -107,7 +142,7 @@ parent checkout. It excludes game scripts, icon fill, Metal, power and thermals.
 
 Geometry caching is useful when sufficient geometry stays unchanged. Full
 activity can regress; local-pose comparison is not worthwhile in this fixture
-and stays separately disabled. These percentages are not device heat savings.
+(that column is historical; bit 6 has since been removed). These percentages are not device heat savings.
 Most Metal Emote icons use GPU deformation, so production ROI may remain full
 in those scenes; candidate mathematical bounds do not establish a safe Metal
 floating-point raster bound and are never used for production cropping.

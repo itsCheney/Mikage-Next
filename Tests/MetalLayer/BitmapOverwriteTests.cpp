@@ -53,6 +53,7 @@ public:
     iTVPTexture2D* GetMainImageTextureForSpanComposite();
     bool CopyMainImageFromGPUTarget(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int);
     bool CopyMainImageFromGPUTargetRegion(krkrsdl3::iTVPRenderBackend*,void*,tjs_int,tjs_int,const tTVPRect&);
+    bool RenderMainImageOnGPU(krkrsdl3::iTVPRenderBackend*,tjs_int,tjs_int,const std::function<bool(void*)>&);
     bool CopyMainImageFromCPU(const void*,tjs_int,tjs_int,tjs_int);
 };
 
@@ -386,6 +387,70 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
         Require(layer.ImageModified,"successful GPU overwrite did not mark image modified");
         Equal(bitmap.GetTexture(),newPixels);
     }
+    // Rendering in place (Emote frames): an exclusive image hands its own
+    // texture to the writer, which must replace every pixel; the stale CPU
+    // cache is dropped without preservation work.
+    {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        TestLayerCopy layer{&bitmap};
+        auto* original=bitmap.GetTexture();
+        Equal(original,oldPixels);
+        void* ownHandle=original->GetTextureHandle();
+        int calls=0;
+        auto render=[&](void* target) {
+            ++calls;
+            Require(target==ownHandle,"exclusive in-place render received another texture");
+            return backend->CopyTargetToLayerTexture(sourceHandle,target);
+        };
+        Require(!layer.RenderMainImageOnGPU(backend,width+1,height,render) && !calls && !layer.ImageModified,
+                "in-place render accepted dimensions other than the image's");
+        const auto before=TVPGetMetalLayerRenderStats();
+        Require(layer.RenderMainImageOnGPU(backend,width,height,render) && calls==1,"exclusive in-place render rejected");
+        Require(layer.ImageModified && bitmap.GetTexture()==original,"in-place render replaced texture or missed modified flag");
+        NoPreservationWork(before);
+        Equal(original,newPixels);
+    }
+    // A writer that declines leaves image, snapshot, CPU cache and GPU memory
+    // exactly as they were, including a replacement allocated for a shared image.
+    for(bool shared : {false,true}) {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        TestLayerCopy layer{&bitmap};
+        auto* original=bitmap.GetTexture();
+        TextureRef snapshot;
+        if(shared) { original->AddRef(); snapshot.reset(original); }
+        Equal(original,oldPixels);
+        iTVPTexture2D::RecycleProcess();
+        const auto before=TVPGetMetalLayerRenderStats();
+        Require(!layer.RenderMainImageOnGPU(backend,width,height,[](void*) { return false; }),
+                "declined in-place render reported success");
+        Require(!layer.ImageModified && bitmap.GetTexture()==original,"declined in-place render changed Layer state");
+        iTVPTexture2D::RecycleProcess();
+        const auto after=TVPGetMetalLayerRenderStats();
+        NoPreservationWork(before);
+        Require(after.gpuResidentBytes==before.gpuResidentBytes,"declined in-place render leaked GPU texture");
+        Require(after.cpuCacheBytes==before.cpuCacheBytes,"declined in-place render discarded CPU cache");
+        Equal(original,oldPixels);
+    }
+    // A writer that throws after encoding: a shared image keeps its old
+    // texture, while an exclusive one must not serve its stale CPU cache.
+    for(bool shared : {false,true}) {
+        TestBitmap bitmap(Create(oldPixels,width,height));
+        TestLayerCopy layer{&bitmap};
+        auto* original=bitmap.GetTexture();
+        TextureRef snapshot;
+        if(shared) { original->AddRef(); snapshot.reset(original); }
+        Equal(original,oldPixels);
+        bool threw=false;
+        try {
+            layer.RenderMainImageOnGPU(backend,width,height,[&](void* target) -> bool {
+                Require(backend->CopyTargetToLayerTexture(sourceHandle,target),"in-place render copy failed");
+                throw std::logic_error("encoding failed");
+            });
+        } catch(const std::logic_error&) { threw=true; }
+        Require(threw,"in-place render swallowed writer exception");
+        Require(bitmap.GetTexture()==original,"failed in-place render adopted a texture");
+        Equal(original,shared ? oldPixels : newPixels);
+    }
     // Validate a failed readback before acquiring a CPU overwrite lease: null
     // pixels, bad pitch and empty dimensions must not alter ownership or pixels.
     {
@@ -418,6 +483,7 @@ void BitmapOverwriteTests(krkrsdl3::iTVPRenderBackend* backend) {
         Require(layer.CopyMainImageFromCPU(input.data(),sourcePitchPixels*4,sourceWidth,sourceHeight),
                 "valid strided CPU copy rejected");
         Require(layer.ImageModified,"CPU copy did not mark image modified");
+        Require(!bitmap.GetTexture()->IsCPUResident(),"completed CPU copy pinned the layer to CPU composition");
         if(sizeDelta>=0)
             Require(TVPGetMetalLayerRenderStats().readbackBytes==before.readbackBytes,
                     "complete CPU overwrite unnecessarily fetched destination");

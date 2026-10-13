@@ -26,13 +26,13 @@ final class AppBuildInfoTests: XCTestCase {
         for value in ["", "unknown", "HEAD", "$(MIKAGE_SOURCE_REVISION)", "abcdef", "abcdef012345-dirty",
                       "abcdef01234g", "000000000000", String(repeating: "0", count: 40), "abcdef0123456"] {
             let info = AppBuildInfo(infoDictionary: ["MikageSourceRevision": value])
-            XCTAssertEqual(info.headLine, "HEAD 未知", value)
+            XCTAssertEqual(info.headLine, String(localized: "HEAD unknown"), value)
             XCTAssertEqual(info.sourceRevision, "unknown", value)
         }
         let missing = AppBuildInfo(infoDictionary: nil)
         XCTAssertEqual(missing.version, "unknown")
         XCTAssertEqual(missing.build, "unknown")
-        XCTAssertEqual(missing.headLine, "HEAD 未知")
+        XCTAssertEqual(missing.headLine, String(localized: "HEAD unknown"))
         XCTAssertEqual(AppBuildInfo(infoDictionary: ["CFBundleShortVersionString": "  "]).version, "unknown")
     }
 

@@ -36,6 +36,23 @@ blend conventions. Ordinary Emote-to-Layer full overwrites use a GPU copy when
 the Layer renderer exposes an unpinned GPU target; incompatible or CPU-backed
 Layers retain the readback path. Image and video decoding are unchanged.
 
+Script raw pixel pointers (`Layer.mainImageBuffer[ForWrite]`,
+`Bitmap.buffer[ForWrite]`) move a Layer texture to CPU composition. TJS
+cannot dereference them and native code uses scoped locks, so the pointer's
+effect is bounded per frame: an open write lease uploads the whole surface at
+most once per frame and closes at the frame boundary (`TVPEndMetalLayerFrame`,
+after script work in `SDL_AppIterate`), and the texture returns to GPU
+composition after 60 frames without a raw-pointer request. The Emote CPU copy
+and `BitmapLayerTreeOwner` use scoped locks and never pin. `layerPinnedCPUTextures`
+counts textures currently pinned.
+
+Presentation is skipped when a frame's window textures, versions and geometry
+match the newest submitted present. Display confirmation usually arrives a
+frame or more after the next tick, so the policy compares with the newest
+pending present rather than waiting for its confirmation; a failed present
+forces a fresh one. `metal.staticPresentation` reports `skipped` and the
+denial counts.
+
 Ordinary KRKR Layer methods also reuse the canonical software method objects
 through the Metal Layer manager. The current registry has 70 names, including
 70 names with GPU descriptors; those descriptors still have explicit input,
