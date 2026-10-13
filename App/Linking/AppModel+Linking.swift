@@ -372,12 +372,32 @@ extension AppModel {
     /// The same for one game, when its details page opens.
     func refreshLinked(_ id: UUID) async {
         guard let game = record(id), let link = game.link else { return }
-        if link.metadata.isStale {
+        if link.vndbID == nil, link.bangumiID != nil, await findVNDBCounterpart(id) {
+            // Fresh details from both services, artwork included.
+        } else if link.metadata.isStale {
             await refreshMetadata(game, showErrors: false)
         } else if needsArtwork(link) {
             await refreshArtwork(for: id)
         }
         await pullListEntry(id)
+    }
+
+    /// A game linked on Bangumi alone gets its VNDB entry when one is
+    /// found, once per launch. Returns whether the link gained one.
+    private func findVNDBCounterpart(_ id: UUID) async -> Bool {
+        guard !vndbLookups.contains(id), let link = record(id)?.link, link.vndbID == nil,
+              let bangumiID = link.bangumiID else { return false }
+        vndbLookups.insert(id)
+        guard let subject = try? await bangumiClient().subject(id: bangumiID),
+              let novel = await counterpart(ofBangumi: subject) else { return false }
+        AppDiagnostics.shared.event("linking", "counterpart.added", ["vndb": novel.id])
+        updateRecord(id) { record in
+            guard record.link?.bangumiID == bangumiID, record.link?.vndbID == nil else { return }
+            record.link?.vndbID = novel.id
+            record.link?.metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject)
+        }
+        await refreshArtwork(for: id)
+        return true
     }
 
     /// True when the art the settings call for is not on disk, such as
@@ -422,10 +442,27 @@ extension AppModel {
     }
 
     /// The same work on VNDB, found by the subject's titles.
+    /// The VNDB link on the subject's Bangumi page wins; otherwise each of
+    /// its titles is searched in turn.
     private func counterpart(ofBangumi subject: BangumiSubject) async -> VNDBVisualNovel? {
-        guard let results = try? await vndbClient().search(subject.name, limit: 5) else { return nil }
-        return MatchFinder.candidates(query: subject.name, vndb: results, bangumi: [subject])
-            .first { $0.bangumi != nil }?.vndb
+        var subject = subject
+        // Search results can omit the infobox, which holds links and aliases.
+        if subject.infobox.isEmpty, let full = try? await bangumiClient().subject(id: subject.id) {
+            subject = full
+        }
+        let vndb = vndbClient()
+        if let id = subject.vndbID, let novel = try? await vndb.visualNovel(id: id) {
+            AppDiagnostics.shared.event("linking", "counterpart.vndbLink", ["vndb": id])
+            return novel
+        }
+        for title in subject.searchTitles.prefix(4) {
+            guard let results = try? await vndb.search(title, limit: 5), !results.isEmpty else { continue }
+            if let novel = MatchFinder.candidates(query: title, vndb: results, bangumi: [subject])
+                .first(where: { $0.bangumi != nil })?.vndb {
+                return novel
+            }
+        }
+        return nil
     }
 
     /// What the player's own lists already hold for the work, Bangumi first.

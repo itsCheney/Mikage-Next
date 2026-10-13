@@ -74,6 +74,8 @@ final class AppModel: ObservableObject {
     var reportedRemovalFailures: Set<UUID> = []
     /// When linked games were last brought up to date.
     var lastLinkedRefresh: Date?
+    /// Bangumi-only games already searched on VNDB this launch.
+    var vndbLookups: Set<UUID> = []
     let tokens: any ServiceTokenStore
 
     private(set) var libraryReadable = true

@@ -288,4 +288,18 @@ final class MetadataTests: XCTestCase {
         let old = try JSONDecoder().decode(LinkedMetadata.self, from: Data(#"{"tags":[],"posters":[],"screenshots":[]}"#.utf8))
         XCTAssertTrue(old.isStale)
     }
+
+    func testBangumiSubjectFindsItsVNDBEntry() throws {
+        let json = #"""
+        {"id":5,"name":"天使☆騒々 RE-BOOT!","name_cn":"天使☆骚骚","nsfw":true,
+         "infobox":[{"key":"别名","value":[{"v":"Tenshi Souzou RE-BOOT!"}]},
+                    {"key":"链接","value":[{"k":"官网","v":"https://yuzu-soft.com"},{"k":"VNDB","v":"https://vndb.org/v21852"}]}]}
+        """#
+        let subject = try JSONDecoder().decode(BangumiSubject.self, from: Data(json.utf8))
+        XCTAssertEqual(subject.vndbID, "v21852")
+        XCTAssertEqual(subject.searchTitles, ["天使☆騒々 RE-BOOT!", "天使☆骚骚", "Tenshi Souzou RE-BOOT!"])
+        let bare = BangumiSubject(id: 6, name: "X", infobox: [.init(key: "VNDB", values: ["12"])])
+        XCTAssertEqual(bare.vndbID, "v12")
+        XCTAssertNil(BangumiSubject(id: 7, name: "Y").vndbID)
+    }
 }

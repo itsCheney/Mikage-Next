@@ -20,13 +20,17 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
     public struct InfoboxItem: Decodable, Equatable, Sendable {
         public var key: String
         public var values: [String]
+        /// Each value's own label in a list entry, such as "VNDB" under
+        /// "链接"; empty when the entry has none.
+        public var labels: [String]
 
         private enum CodingKeys: String, CodingKey { case key, value }
-        private struct Entry: Decodable { var v: String? }
+        private struct Entry: Decodable { var k: String?; var v: String? }
 
-        public init(key: String, values: [String]) {
+        public init(key: String, values: [String], labels: [String] = []) {
             self.key = key
             self.values = values
+            self.labels = labels
         }
 
         public init(from decoder: Decoder) throws {
@@ -34,10 +38,14 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
             key = try container.decode(String.self, forKey: .key)
             if let text = try? container.decode(String.self, forKey: .value) {
                 values = [text]
+                labels = [""]
             } else if let entries = try? container.decode([Entry].self, forKey: .value) {
-                values = entries.compactMap(\.v)
+                let kept = entries.filter { $0.v != nil }
+                values = kept.compactMap(\.v)
+                labels = kept.map { $0.k ?? "" }
             } else {
                 values = []
+                labels = []
             }
         }
     }
@@ -126,6 +134,40 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
             }
         }
         return nil
+    }
+
+    /// The VNDB entry the subject's wiki points to: a vndb.org link
+    /// anywhere in the infobox or summary, or a bare ID under a VNDB label.
+    public var vndbID: String? {
+        func firstMatch(_ pattern: String, in text: String) -> String? {
+            guard let expression = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+                  let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text) else { return nil }
+            return String(text[range])
+        }
+        let link = #"vndb\.org/v(\d+)"#
+        for item in infobox {
+            for (index, value) in item.values.enumerated() {
+                if let number = firstMatch(link, in: value) { return "v\(number)" }
+                let label = item.key + " " + (index < item.labels.count ? item.labels[index] : "")
+                if label.localizedCaseInsensitiveContains("vndb"),
+                   let number = firstMatch(#"^\s*v?(\d+)\s*$"#, in: value) {
+                    return "v\(number)"
+                }
+            }
+        }
+        return summary.flatMap { firstMatch(link, in: $0) }.map { "v\($0)" }
+    }
+
+    /// Every title the subject goes by: its name, Chinese name and the
+    /// aliases in its infobox.
+    public var searchTitles: [String] {
+        var titles = [name, nameCN].compactMap { $0?.nonEmpty }
+        for item in infobox where ["别名", "中文名", "日文名", "英文名", "罗马字"].contains(item.key) {
+            titles += item.values.compactMap { $0.nonEmpty }
+        }
+        var seen = Set<String>()
+        return titles.filter { seen.insert($0).inserted }
     }
 
     /// Older records still hand out plain-HTTP image URLs.
