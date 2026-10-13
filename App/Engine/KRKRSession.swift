@@ -258,7 +258,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
             },
-            onScreenshot: { [weak self] in self?.snapshot() }
+            onScreenshot: { [weak self] in self?.snapshot() },
+            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
         )
         overlayCoordinator = overlay
         AppDiagnostics.shared.windows("overlay.installed")
@@ -285,6 +286,15 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         engineWindow.makeKeyAndVisible()
         hostWindow?.isHidden = true
         AppDiagnostics.shared.windows("launch.windowsSwitched")
+    }
+
+    /// Shows or hides the performance HUD for this session only; the launch
+    /// default stays in Settings › Advanced.
+    private func togglePerformanceHUD() {
+        performanceEnabled.toggle()
+        AppDiagnostics.shared.event("session", "performanceHUD.toggled", ["enabled": String(performanceEnabled)])
+        // The next metrics tick, within a second, fills in the numbers.
+        overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 
     private func requestNativeExit() {

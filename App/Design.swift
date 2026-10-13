@@ -52,6 +52,38 @@ extension View {
             background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
         }
     }
+
+    /// Interactive glass capsule for a toolbar-like group of icon buttons
+    /// drawn inside content, such as the library header over cover art.
+    @ViewBuilder
+    func nativeGlassCapsule() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+}
+
+/// Settings row label whose icon takes the app accent, as in the redesign.
+struct SettingLabel: View {
+    let title: String
+    let symbol: String
+
+    init(_ title: String, systemImage symbol: String) {
+        self.title = title
+        self.symbol = symbol
+    }
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(.tint)
+        }
+    }
 }
 
 struct RoundButton: View {

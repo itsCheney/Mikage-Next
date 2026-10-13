@@ -32,12 +32,13 @@ private final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
+    @Published var performanceVisible: Bool
 
     let gameTitle: String
-    let performanceVisible: Bool
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
     var onScreenshot: (() -> UIImage?)?
+    var onTogglePerformance: (() -> Void)?
 
     init(gameTitle: String, performanceVisible: Bool, renderer: String) {
         self.gameTitle = gameTitle
@@ -66,7 +67,8 @@ final class KRKROverlayCoordinator: NSObject {
         floatingButtonEnabled: Bool,
         floatingButtonOpacity: Double,
         onExit: @escaping () -> Void,
-        onScreenshot: @escaping () -> UIImage?
+        onScreenshot: @escaping () -> UIImage?,
+        onTogglePerformance: @escaping () -> Void
     ) {
         guard let rootController = window.rootViewController else { return }
         AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSCoder.string(for: window.bounds), "root": String(describing: type(of: rootController))])
@@ -91,6 +93,7 @@ final class KRKROverlayCoordinator: NSObject {
         model.onCloseMenu = { [weak self] in self?.hideMenu() }
         model.onExit = onExit
         model.onScreenshot = onScreenshot
+        model.onTogglePerformance = onTogglePerformance
 
         if floatingButtonEnabled {
             installFloatingButton(
@@ -115,6 +118,10 @@ final class KRKROverlayCoordinator: NSObject {
         if let floatingButton {
             containerView?.bringSubviewToFront(floatingButton)
         }
+    }
+
+    func setPerformanceVisible(_ visible: Bool) {
+        model.performanceVisible = visible
     }
 
     func update(_ performance: KRKRPerformanceSnapshot) {
@@ -145,14 +152,20 @@ final class KRKROverlayCoordinator: NSObject {
     }
 
     private func installFloatingButton(in view: UIView, opacity: Double) {
-        let configuration: UIButton.Configuration
+        // Tinted glass in the app accent; the menu opens from it.
+        var configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
-            configuration = .glass()
+            configuration = .prominentGlass()
         } else {
             configuration = .filled()
         }
+        configuration.cornerStyle = .capsule
+        configuration.baseBackgroundColor = .systemIndigo
+        configuration.baseForegroundColor = .white
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         let button = UIButton(configuration: configuration)
-        button.setImage(UIImage(systemName: "pawprint.fill"), for: .normal)
+        button.tintColor = .systemIndigo
+        button.setImage(UIImage(systemName: "moon.stars.fill"), for: .normal)
         button.accessibilityLabel = "唤出游戏菜单"
         button.alpha = max(0.1, min(opacity, 1))
         button.frame = CGRect(
@@ -207,7 +220,7 @@ private struct KRKROverlayView: View {
                 Color.black.opacity(0.36)
                     .ignoresSafeArea()
                 menuPanel
-                    .frame(maxWidth: 640)
+                    .frame(maxWidth: 440)
                     .padding(40)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -260,8 +273,8 @@ private struct KRKROverlayView: View {
     }
 
     private var menuPanel: some View {
-        VStack(spacing: 20) {
-            HStack(spacing: 10) {
+        VStack(spacing: 18) {
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.gameTitle)
                         .font(.headline)
@@ -269,47 +282,81 @@ private struct KRKROverlayView: View {
                     Text("本次已游玩 \(duration(model.performance.elapsedSeconds))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
                 Spacer(minLength: 0)
                 RoundButton(symbol: "xmark", label: "关闭菜单") {
                     model.onCloseMenu?()
                 }
             }
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2),
-                spacing: 12
-            ) {
-                action("截图", "camera") {
-                    model.sharedImage = model.onScreenshot?()
-                }
-                action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
-                    model.onExit?()
-                }
-            }
+            actions
         }
-        .padding(22)
-        .nativeGlassPanel(30)
+        .padding(20)
+        .nativeGlassPanel(32)
         .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
+        .tint(.indigo)
         .accessibilityIdentifier("krkr-game-menu")
     }
 
+    /// Tiles sit close together so on iOS 26 their glass blends as one group.
+    @ViewBuilder
+    private var actions: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) { actionGrid }
+        } else {
+            actionGrid
+        }
+    }
+
+    private var actionGrid: some View {
+        HStack(spacing: 8) {
+            action("截图", "camera") {
+                model.sharedImage = model.onScreenshot?()
+            }
+            action(
+                "性能",
+                "gauge.with.dots.needle.33percent",
+                highlighted: model.performanceVisible
+            ) {
+                model.onTogglePerformance?()
+            }
+            .accessibilityValue(model.performanceVisible ? "已开启" : "已关闭")
+            .accessibilityIdentifier("krkr-performance-toggle")
+            action("退出", "rectangle.portrait.and.arrow.right", destructive: true) {
+                model.onExit?()
+            }
+        }
+    }
+
+    @ViewBuilder
     private func action(
         _ title: String,
         _ icon: String,
         destructive: Bool = false,
+        highlighted: Bool = false,
         perform: @escaping () -> Void
     ) -> some View {
-        Button(role: destructive ? .destructive : nil, action: perform) {
-            VStack(spacing: 8) {
+        let button = Button(role: destructive ? .destructive : nil, action: perform) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.title2.weight(.medium))
-                    .symbolRenderingMode(.hierarchical)
-                Text(title).font(.body.weight(.medium))
+                Text(title)
+                    .font(.subheadline.weight(destructive ? .semibold : .medium))
             }
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 72)
         }
-        .nativeGlassButtonStyle()
+        if destructive {
+            button
+                .nativeGlassButtonStyle(prominent: true)
+                .tint(.red)
+        } else if highlighted {
+            button.nativeGlassButtonStyle(prominent: true)
+        } else {
+            button.nativeGlassButtonStyle()
+        }
     }
 
     private func duration(_ seconds: Int) -> String {

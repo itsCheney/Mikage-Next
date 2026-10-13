@@ -8,144 +8,117 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TabView(selection: $model.tab) {
-            LibraryView()
-                .tabItem {
-                    Label("游戏库", systemImage: "books.vertical.fill")
-                }
-                .tag(0)
-
-            SettingsView()
-                .tabItem {
-                    Label("设置", systemImage: "gearshape.fill")
-                }
-                .tag(1)
-        }
-        .fullScreenCover(item: $model.player) { game in
-            PlayerView(game: game).environmentObject(model)
-        }
-        .task {
-            await model.refreshLibrary(showErrors: false)
-        }
-        .onChange(of: scenePhase) { phase in
-            AppDiagnostics.shared.event("app", "scenePhase.changed", ["phase": String(describing: phase)])
-            if phase == .active {
-                Task { await model.refreshLibrary(showErrors: false) }
+        tabs
+            .fullScreenCover(item: $model.player) { game in
+                PlayerView(game: game).environmentObject(model)
             }
-        }
-        .alert("提示", isPresented: Binding(
-            get: { model.alert != nil },
-            set: { if !$0 { model.alert = nil } }
-        )) {
-            Button("好", role: .cancel) { model.alert = nil }
-        } message: {
-            Text(model.alert ?? "")
+            .task {
+                await model.refreshLibrary(showErrors: false)
+            }
+            .onChange(of: scenePhase) { phase in
+                AppDiagnostics.shared.event("app", "scenePhase.changed", ["phase": String(describing: phase)])
+                if phase == .active {
+                    Task { await model.refreshLibrary(showErrors: false) }
+                }
+            }
+            .alert("提示", isPresented: Binding(
+                get: { model.alert != nil },
+                set: { if !$0 { model.alert = nil } }
+            )) {
+                Button("好", role: .cancel) { model.alert = nil }
+            } message: {
+                Text(model.alert ?? "")
+            }
+    }
+
+    /// iOS 18 and later get the floating tab bar with a separate search tab,
+    /// which becomes a sidebar on iPad. Earlier systems keep a classic tab bar
+    /// with the same three destinations.
+    @ViewBuilder
+    private var tabs: some View {
+        if #available(iOS 18.0, *) {
+            TabView(selection: $model.tab) {
+                Tab("游戏库", systemImage: "books.vertical", value: 0) {
+                    LibraryView()
+                }
+                Tab("设置", systemImage: "gearshape", value: 1) {
+                    SettingsView()
+                }
+                Tab(value: 2, role: .search) {
+                    LibrarySearchView()
+                }
+            }
+            .tabViewStyle(.sidebarAdaptable)
+        } else {
+            TabView(selection: $model.tab) {
+                LibraryView()
+                    .tabItem { Label("游戏库", systemImage: "books.vertical.fill") }
+                    .tag(0)
+                SettingsView()
+                    .tabItem { Label("设置", systemImage: "gearshape.fill") }
+                    .tag(1)
+                LibrarySearchView()
+                    .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                    .tag(2)
+            }
         }
     }
 }
 
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var importPicker = false
-    @State private var selectedGame: GameRecord?
     @State private var showMissingGames = false
+
+    private var regular: Bool { sizeClass == .regular }
+
+    /// Everything that is not waiting on an engine runtime. Games with a broken
+    /// launch target stay here, disabled, with the reason under the title.
+    private var playableGames: [GameRecord] {
+        model.sortedGames.filter { $0.availability != .unsupported }
+    }
+
+    /// Recognised engines whose runtime has not landed yet.
+    private var comingSoonGames: [GameRecord] {
+        model.sortedGames.filter { $0.availability == .unsupported }
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("\(model.displayedGames.count)部作品 · 共\(model.totalSize)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        header(topInset: proxy.safeAreaInsets.top)
 
-                    if model.importing || model.scanning {
-                        HStack {
-                            ProgressView()
-                            Text(model.importing ? "正在复制游戏文件…" : "正在扫描游戏目录…")
-                        }
-                        .font(.subheadline)
-                    }
-
-                    if model.query.isEmpty, let latest = model.latest {
-                        continueCard(latest)
-                    }
-
-                    if model.displayedGames.isEmpty {
-                        emptyLibrary
-                    } else if model.filteredGames.isEmpty {
-                        if #available(iOS 17.0, *) {
-                            ContentUnavailableView(
-                                "没有找到游戏",
-                                systemImage: "magnifyingglass",
-                                description: Text("试试其他名称")
-                            )
-                            .padding(.top, 50)
-                        } else {
-                            emptySearchResults
-                        }
-                    } else {
-                        LazyVGrid(
-                            columns: model.settings.listLayout
-                                ? [GridItem(.flexible())]
-                                : [GridItem(.adaptive(minimum: 150), spacing: 14)],
-                            spacing: 14
-                        ) {
-                            ForEach(model.filteredGames) { game in
-                                Button { model.launch(game) } label: {
-                                    gameCard(game)
+                        VStack(alignment: .leading, spacing: 12) {
+                            if model.importing || model.scanning {
+                                HStack {
+                                    ProgressView()
+                                    Text(model.importing ? "正在复制游戏文件…" : "正在扫描游戏目录…")
                                 }
-                                .buttonStyle(.borderless)
-                                .disabled(!game.availability.canLaunch)
-                                .contextMenu {
-                                    Button { selectedGame = game } label: {
-                                        Label("作品详情", systemImage: "info.circle")
-                                    }
-                                }
-                                .accessibilityLabel(
-                                    game.availability.canLaunch
-                                        ? "运行 \(game.title)"
-                                        : "\(game.title)，\(model.availabilityText(game))"
-                                )
+                                .font(.subheadline)
+                            }
+
+                            if model.displayedGames.isEmpty {
+                                emptyLibrary
+                            } else {
+                                sections
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 18)
+                        .padding(.bottom, 24)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
-                .frame(maxWidth: 850)
-                .frame(maxWidth: .infinity)
+                .refreshable {
+                    await model.refreshLibrary()
+                }
+                // On iPhone the continue card runs up under the status bar.
+                .ignoresSafeArea(edges: regular ? [] : .top)
             }
             .background(AppBackground())
-            .refreshable {
-                await model.refreshLibrary()
-            }
-            .navigationTitle("游戏库")
-            .searchable(
-                text: $model.query,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "搜索游戏"
-            )
-            .autocorrectionDisabled()
-            .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if !model.missingGames.isEmpty {
-                        Button {
-                            showMissingGames = true
-                        } label: {
-                            Label(
-                                "缺失游戏 \(model.missingGames.count)",
-                                systemImage: "exclamationmark.folder"
-                            )
-                        }
-                        .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
-                        .accessibilityIdentifier("missing-games-button")
-                    }
-                    displayMenu
-                    sortMenu
-                    importMenu
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .fileImporter(isPresented: $importPicker, allowedContentTypes: [.folder]) { result in
             switch result {
@@ -154,9 +127,6 @@ struct LibraryView: View {
             case .failure(let error):
                 model.alert = error.localizedDescription
             }
-        }
-        .sheet(item: $selectedGame) {
-            GameDetailView(game: $0).environmentObject(model)
         }
         .sheet(isPresented: $showMissingGames) {
             MissingGamesView().environmentObject(model)
@@ -187,41 +157,135 @@ struct LibraryView: View {
         }
     }
 
-    private var displayMenu: some View {
-        Menu {
-            Button {
-                model.settings.listLayout = false
-            } label: {
-                Label("网格视图", systemImage: "square.grid.2x2")
-            }
+    // MARK: Header
 
-            Button {
-                model.settings.listLayout = true
-            } label: {
-                Label("列表视图", systemImage: "list.bullet")
+    @ViewBuilder
+    private func header(topInset: CGFloat) -> some View {
+        if let latest = model.latest {
+            continueCard(latest, topInset: topInset)
+        } else {
+            HStack {
+                Text("游戏库")
+                    .font(.largeTitle.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                headerButtons
             }
-        } label: {
-            Label(
-                "显示方式",
-                systemImage: model.settings.listLayout ? "list.bullet" : "square.grid.2x2"
-            )
-            .labelStyle(.iconOnly)
+            .padding(.leading, 20)
+            .padding(.trailing, 16)
+            .padding(.top, regular ? 12 : topInset + 4)
         }
-        .accessibilityLabel("显示方式")
     }
 
-    private var sortMenu: some View {
+    /// The last played game fills the top of the library. The page title and
+    /// its buttons sit on the cover art in glass, and Resume is the one
+    /// prominent action.
+    private func continueCard(_ game: GameRecord, topInset: CGFloat) -> some View {
+        ZStack {
+            GameCover(game: game)
+                .accessibilityHidden(true)
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.28), location: 0),
+                    .init(color: .clear, location: 0.3),
+                    .init(color: .clear, location: 0.5),
+                    .init(color: .black.opacity(0.72), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text("游戏库")
+                        .font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    headerButtons
+                }
+                Spacer(minLength: 12)
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("继续上次")
+                            .font(.caption.weight(.semibold))
+                            .tracking(2)
+                            .opacity(0.9)
+                        Text(game.title)
+                            .font(regular ? .largeTitle.bold() : .title2.bold())
+                            .lineLimit(2)
+                        Text("\(model.recency(game)) · 已玩 \(game.playTime.playTimeSummary)")
+                            .font(regular ? .subheadline : .footnote)
+                            .opacity(0.88)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Button { model.launch(game) } label: {
+                        Label("继续", systemImage: "play.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 4)
+                    }
+                    .nativeGlassButtonStyle(prominent: true)
+                    .controlSize(.large)
+                    .accessibilityLabel("继续上次：\(game.title)")
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, regular ? 28 : 20)
+            .padding(.top, regular ? 26 : topInset + 4)
+            .padding(.bottom, regular ? 26 : 22)
+        }
+        .frame(height: regular ? 320 : 266 + topInset)
+        .clipShape(RoundedRectangle(cornerRadius: regular ? 28 : 0, style: .continuous))
+        .padding(.horizontal, regular ? 12 : 0)
+        .padding(.top, regular ? 12 : 0)
+        // Glass and menus over the art read as light-on-dark in either theme.
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var headerButtons: some View {
+        HStack(spacing: 0) {
+            if !model.missingGames.isEmpty {
+                Button {
+                    showMissingGames = true
+                } label: {
+                    Image(systemName: "exclamationmark.folder")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("缺失游戏 \(model.missingGames.count)")
+                .accessibilityIdentifier("missing-games-button")
+            }
+            viewMenu
+            importMenu
+        }
+        .font(.title3.weight(.medium))
+        .tint(Color.primary)
+        .nativeGlassCapsule()
+    }
+
+    private var viewMenu: some View {
         Menu {
-            Picker("排序方式", selection: $model.settings.sort) {
-                ForEach(LibrarySort.allCases, id: \.self) {
-                    Text($0.displayName).tag($0)
+            Section("显示方式") {
+                Picker("显示方式", selection: $model.settings.listLayout) {
+                    Label("网格", systemImage: "square.grid.2x2").tag(false)
+                    Label("列表", systemImage: "list.bullet").tag(true)
+                }
+            }
+            Section("排序方式") {
+                Picker("排序方式", selection: $model.settings.sort) {
+                    ForEach(LibrarySort.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
                 }
             }
         } label: {
-            Label("排序", systemImage: "arrow.up.arrow.down")
-                .labelStyle(.iconOnly)
+            Image(systemName: "ellipsis")
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
-        .accessibilityLabel("排序")
+        .accessibilityLabel("显示与排序")
     }
 
     private var importMenu: some View {
@@ -235,107 +299,45 @@ struct LibraryView: View {
                 Label("ZIP 与 Wi-Fi 导入", systemImage: "wifi")
             }
         } label: {
-            Label("添加游戏", systemImage: "plus")
-                .labelStyle(.iconOnly)
+            Image(systemName: "plus")
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .disabled(model.importing)
         .accessibilityLabel("添加游戏")
     }
 
-    private func continueCard(_ game: GameRecord) -> some View {
-        Button { model.launch(game) } label: {
-            ZStack(alignment: .bottomLeading) {
-                GameCover(game: game)
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.75)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                VStack(alignment: .leading) {
-                    Text("继续上次")
-                        .font(.caption.weight(.semibold))
-                        .tracking(2)
-                    Spacer()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(game.title).font(.headline).lineLimit(1)
-                            Text(model.recency(game)).font(.subheadline).opacity(0.8)
-                        }
-                        Spacer()
-                        Image(systemName: "play.circle.fill")
-                            .font(.largeTitle)
-                            .symbolRenderingMode(.hierarchical)
-                    }
-                }
-                .padding(15)
-                .foregroundStyle(.white)
-            }
-            .frame(height: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("继续上次：\(game.title)")
-    }
+    // MARK: Sections
 
     @ViewBuilder
-    private func gameCard(_ game: GameRecord) -> some View {
-        if model.settings.listLayout {
-            HStack(spacing: 14) {
-                GameCover(game: game)
-                    .frame(width: 90, height: 66)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(game.title).font(.headline)
-                    Text("\(game.engine.displayName) · \(AppModel.size(game.byteCount))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if !game.availability.canLaunch {
-                        Text(model.availabilityText(game))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
+    private var sections: some View {
+        let playable = playableGames
+        let comingSoon = comingSoonGames
+
+        if !playable.isEmpty {
+            HStack(alignment: .firstTextBaseline) {
+                Text("全部作品")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Image(systemName: game.availability.canLaunch ? "play.circle.fill" : "lock.circle")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
+                Text("\(playable.count) 部 · \(AppModel.size(playable.reduce(0) { $0 + $1.byteCount }))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(10)
-            .background(
-                Color(uiColor: .secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                GameCover(game: game)
-                    .frame(height: 62)
-                    .overlay(alignment: .topLeading) {
-                        Text(model.recency(game))
-                            .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(.black.opacity(0.45), in: Capsule())
-                            .foregroundStyle(.white)
-                            .padding(7)
-                    }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(game.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                    Text("\(game.engine.displayName) · \(AppModel.size(game.byteCount))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if !game.availability.canLaunch {
-                        Text(model.availabilityText(game))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            GameGrid(games: playable)
+        }
+
+        if !comingSoon.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("即将支持")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Text("已识别引擎，运行时接入后即可游玩")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(.top, playable.isEmpty ? 0 : 12)
+            GameGrid(games: comingSoon)
         }
     }
 
@@ -367,15 +369,197 @@ struct LibraryView: View {
             .padding(.top, 60)
         }
     }
+}
 
-    private var emptySearchResults: some View {
-        VStack(spacing: 12) {
-            Label("没有找到游戏", systemImage: "magnifyingglass")
-                .font(.title3.weight(.semibold))
-            Text("试试其他名称").foregroundStyle(.secondary)
+/// The search tab: every game, narrowed by the query typed in the tab bar.
+struct LibrarySearchView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if model.filteredGames.isEmpty {
+                        emptyResults
+                    } else {
+                        GameGrid(games: model.filteredGames)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+            }
+            .background(AppBackground())
+            .navigationTitle("搜索")
+            .searchable(text: $model.query, prompt: "搜索游戏")
+            .autocorrectionDisabled()
+            .scrollDismissesKeyboard(.interactively)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 70)
+    }
+
+    @ViewBuilder
+    private var emptyResults: some View {
+        let title = model.displayedGames.isEmpty ? "游戏库还是空的" : "没有找到游戏"
+        let detail = model.displayedGames.isEmpty ? "先在游戏库中导入游戏" : "试试其他名称"
+        if #available(iOS 17.0, *) {
+            ContentUnavailableView(
+                title,
+                systemImage: "magnifyingglass",
+                description: Text(detail)
+            )
+            .padding(.top, 50)
+        } else {
+            VStack(spacing: 12) {
+                Label(title, systemImage: "magnifyingglass")
+                    .font(.title3.weight(.semibold))
+                Text(detail).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 70)
+        }
+    }
+}
+
+/// Game cards in the chosen layout. Tapping launches; long-press opens the
+/// game's details.
+struct GameGrid: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var selectedGame: GameRecord?
+    let games: [GameRecord]
+
+    private var columns: [GridItem] {
+        if model.settings.listLayout {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: sizeClass == .regular ? 180 : 150), spacing: 12)]
+    }
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(games) { game in
+                Button { model.launch(game) } label: {
+                    GameCard(game: game, list: model.settings.listLayout)
+                }
+                .buttonStyle(.plain)
+                .disabled(!game.availability.canLaunch)
+                .contextMenu {
+                    Button { selectedGame = game } label: {
+                        Label("作品详情", systemImage: "info.circle")
+                    }
+                }
+                .accessibilityLabel(
+                    game.availability.canLaunch
+                        ? "运行 \(game.title)"
+                        : "\(game.title)，\(model.availabilityText(game))"
+                )
+            }
+        }
+        .sheet(item: $selectedGame) {
+            GameDetailView(game: $0).environmentObject(model)
+        }
+    }
+}
+
+struct GameCard: View {
+    @EnvironmentObject private var model: AppModel
+    let game: GameRecord
+    let list: Bool
+
+    private var comingSoon: Bool { game.availability == .unsupported }
+
+    /// A KiriKiri game whose launch target could not be found.
+    private var showsReason: Bool {
+        if case .invalid = game.availability { return true }
+        return false
+    }
+
+    private var meta: String {
+        var parts = [game.engine.displayName, AppModel.size(game.byteCount)]
+        if !comingSoon { parts.append(model.recency(game)) }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        if list {
+            row
+        } else {
+            tile
+        }
+    }
+
+    private var cover: some View {
+        GameCover(game: game)
+            .grayscale(comingSoon ? 0.9 : 0)
+            .opacity(comingSoon ? 0.55 : 1)
+    }
+
+    private var tile: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay { cover }
+                .clipped()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(game.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                Text(meta)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if showsReason {
+                    Text(model.availabilityText(game))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var row: some View {
+        HStack(spacing: 14) {
+            cover
+                .frame(width: 96, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(game.title)
+                    .font(.headline)
+                    .foregroundStyle(comingSoon ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                Text(meta)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if showsReason {
+                    Text(model.availabilityText(game))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            if game.availability.canLaunch {
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
+            }
+        }
+        .padding(10)
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
