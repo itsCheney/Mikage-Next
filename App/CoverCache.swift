@@ -9,8 +9,13 @@ import CoreImage
 /// full-size `UIImage` is enough to get the app jettisoned. `ImageIO` produces a
 /// thumbnail at the requested pixel size without ever materializing the full
 /// bitmap, and `NSCache` evicts under memory pressure on its own.
-final class CoverCache {
+final class CoverCache: ObservableObject {
     static let shared = CoverCache()
+
+    /// Bumped whenever covers are dropped. A replaced custom cover keeps its
+    /// file name, so views key their loads on this as well as the path, or
+    /// they would keep showing the image they already decoded.
+    @Published private(set) var generation = 0
 
     private let cache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
@@ -78,6 +83,11 @@ final class CoverCache {
     func invalidateAll() {
         cache.removeAllObjects()
         heroCache.removeAllObjects()
+        if Thread.isMainThread {
+            generation += 1
+        } else {
+            DispatchQueue.main.async { self.generation += 1 }
+        }
     }
 
     /// The continue card's cover with its derived backdrop: a small,

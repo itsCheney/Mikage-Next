@@ -82,6 +82,7 @@ struct StatusMenuItems: View {
 struct ArtworkImage: View {
     @Environment(\.displayScale) private var displayScale
     let url: URL?
+    @ObservedObject private var covers = CoverCache.shared
     @State private var image: UIImage?
 
     var body: some View {
@@ -103,7 +104,7 @@ struct ArtworkImage: View {
                 }
             }
             // Re-runs when the file or the laid-out size changes.
-            .task(id: "\(url?.path ?? "none")|\(Int(proxy.size.width))x\(Int(proxy.size.height))") {
+            .task(id: "\(url?.path ?? "none")|\(covers.generation)|\(Int(proxy.size.width))x\(Int(proxy.size.height))") {
                 await load(size: proxy.size)
             }
         }

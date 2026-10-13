@@ -779,7 +779,11 @@ extension AppModel {
             record.customCoverName = nil
         }
         repository.removeArtwork(named: custom)
+        CoverCache.shared.invalidateAll()
         await refreshArtwork(for: game.id)
+        if record(game.id)?.link?.bannerSource != candidate.url {
+            alert = String(localized: "Mikage couldn’t download that image. Check your connection and try again.")
+        }
     }
 
     private func updateToast(for id: UUID, synced: [MetadataService], failed: Bool) {

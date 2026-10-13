@@ -2783,6 +2783,22 @@
         }
       }
     },
+    "Mikage couldn’t download that image. Check your connection and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その画像をダウンロードできませんでした。接続を確認してもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikage 无法下载该图片，请检查网络后重试。"
+          }
+        }
+      }
+    },
     "Missing Games" : {
       "localizations" : {
         "ja" : {

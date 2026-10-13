@@ -377,6 +377,7 @@ private struct ContinueBanner: View {
     /// Bottom edge of the pinned header, including its fade.
     let headerHeight: CGFloat
     let regular: Bool
+    @ObservedObject private var covers = CoverCache.shared
     @State private var artwork: HeroArtwork?
 
     /// Same total height as before the redesign: about 313 pt on an iPhone 13
@@ -411,7 +412,7 @@ private struct ContinueBanner: View {
         .frame(height: heroHeight)
         .clipped()
         .environment(\.colorScheme, .dark)
-        .task(id: model.coverURL(game)?.path ?? game.id.uuidString) {
+        .task(id: "\(model.coverURL(game)?.path ?? game.id.uuidString)|\(covers.generation)") {
             await load()
         }
     }
