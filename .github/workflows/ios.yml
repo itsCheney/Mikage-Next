@@ -78,13 +78,20 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
+      # Nearly all of this step was three serial runs of an unoptimized
+      # metal-layer-tests binary under the Metal validation layer (about
+      # 283 s + 165 s + 154 s), dominated by the tvpgl software reference and
+      # the per-pixel comparisons. Build those with -O2 but without NDEBUG so
+      # assertions stay on, and run the three variants side by side.
       - name: Compare Metal Layer with software RenderManager
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/MetalLayer -B build/metal-layer-tests \
-            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)" \
+            -DCMAKE_C_FLAGS=-O2 -DCMAKE_CXX_FLAGS=-O2 -DCMAKE_OBJCXX_FLAGS=-O2
           cmake --build build/metal-layer-tests --parallel
-          ctest --test-dir build/metal-layer-tests --output-on-failure --verbose
+          ctest --test-dir build/metal-layer-tests --output-on-failure --verbose \
+            --parallel "$(sysctl -n hw.ncpu)"
       - name: Measure release Layer composition without validation
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
@@ -270,12 +277,14 @@ jobs:
           mkdir -p build/package/Payload
           ditto build/DerivedData/Build/Products/Release-iphoneos/Mikage.app build/package/Payload/Mikage.app
           cd build/package
-          ditto -c -k --keepParent Payload ../Mikage-unsigned.ipa
+          ditto -c -k --keepParent Payload "../Mikage-unsigned-${GITHUB_RUN_NUMBER}.ipa"
+      # Upload the IPA as-is so the download is the .ipa itself rather than
+      # a zip around it. Unarchived artifacts take their name from the file.
       - name: Upload device build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: Mikage-unsigned-${{ github.run_number }}
-          path: build/Mikage-unsigned.ipa
+          path: build/Mikage-unsigned-${{ github.run_number }}.ipa
+          archive: false
           if-no-files-found: error
       - name: Upload build logs
         if: always()
