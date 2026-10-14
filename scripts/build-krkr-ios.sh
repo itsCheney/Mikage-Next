@@ -70,7 +70,10 @@ if command -v ccache >/dev/null 2>&1; then
     export CCACHE_BASEDIR="${PROJECT_DIR}"
     # Xcode's per-target header maps arrive as -ivfsoverlay files and its
     # module flags as -fmodules; both are safe to hash by their inputs.
+    # ccache only accepts -fmodules in depend mode, which reads the -MMD
+    # dependency file Xcode already asks clang for.
     export CCACHE_SLOPPINESS="clang_index_store,ivfsoverlay,modules,include_file_ctime,include_file_mtime,pch_defines,time_macros,system_headers"
+    export CCACHE_DEPEND=true
     export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-2G}"
     # The iOS presets use the Xcode generator, which ignores
     # CMAKE_<LANG>_COMPILER_LAUNCHER. Xcode instead runs the CC build
@@ -84,7 +87,7 @@ if command -v ccache >/dev/null 2>&1; then
         cat > "${ccache_bin}/${tool}" <<EOF
 #!/bin/sh
 export CCACHE_DIR='${CCACHE_DIR}' CCACHE_BASEDIR='${CCACHE_BASEDIR}'
-export CCACHE_SLOPPINESS='${CCACHE_SLOPPINESS}' CCACHE_MAXSIZE='${CCACHE_MAXSIZE}'
+export CCACHE_SLOPPINESS='${CCACHE_SLOPPINESS}' CCACHE_MAXSIZE='${CCACHE_MAXSIZE}' CCACHE_DEPEND=true
 export CCACHE_LOGFILE='${PROJECT_DIR}/build/krkr-ccache.log'
 exec '$(command -v ccache)' '$(xcrun -f "${tool}")' "\$@"
 EOF
