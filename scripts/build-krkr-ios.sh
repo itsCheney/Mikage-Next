@@ -11,6 +11,9 @@ OUTPUT="${PROJECT_DIR}/build/KRKRRuntime.xcframework"
 SDL3_XCFRAMEWORK="${PROJECT_DIR}/build/SDL3.xcframework"
 SDL3_DEVICE_FRAMEWORK="${SDL3_XCFRAMEWORK}/ios-arm64/SDL3.framework"
 SDL3_SIMULATOR_FRAMEWORK="${SDL3_XCFRAMEWORK}/ios-arm64-simulator/SDL3.framework"
+# Engine-neutral SDL lifecycle (main-callback stepping, audio session, reset
+# between games) that every SDL engine runtime compiles in.
+SDL_HOST_DIR="${PROJECT_DIR}/Engine/MikageSDLHost"
 VCPKG_INSTALLED_ROOT="${PROJECT_DIR}/build/krkr-vcpkg-installed"
 VCPKG_DEVICE_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/device"
 VCPKG_SIMULATOR_INSTALLED_DIR="${VCPKG_INSTALLED_ROOT}/simulator"
@@ -79,6 +82,7 @@ cmake --preset "iOS Device Config" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
     -DKRKR_SDL3_FRAMEWORK="${SDL3_DEVICE_FRAMEWORK}" \
+    -DMIKAGE_SDL_HOST_DIR="${SDL_HOST_DIR}" \
     -DVCPKG_INSTALLED_DIR="${VCPKG_DEVICE_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-device" --config Release --parallel
@@ -88,6 +92,7 @@ cmake --preset "iOS Simulator Config" \
     -DKRKR_HOST_LIBRARY=ON \
     -DUSE_RENDER_METAL=ON \
     -DKRKR_SDL3_FRAMEWORK="${SDL3_SIMULATOR_FRAMEWORK}" \
+    -DMIKAGE_SDL_HOST_DIR="${SDL_HOST_DIR}" \
     -DVCPKG_INSTALLED_DIR="${VCPKG_SIMULATOR_INSTALLED_DIR}" \
     "${cmake_launcher_args[@]}"
 cmake --build "${SOURCE_DIR}/out/ios-simulator" --config Release --parallel
@@ -113,6 +118,12 @@ for framework in "${DEVICE_FRAMEWORK}" "${SIMULATOR_FRAMEWORK}"; do
     fi
     if nm -U "${binary}" | grep "_OBJC_CLASS_\$_SDL_uikit" >/dev/null; then
         echo "${binary} still defines SDL UIKit classes." >&2
+        exit 1
+    fi
+    # Each SDL engine runtime carries its own copy of the shared host, so the
+    # copies must stay private to their framework.
+    if nm -gU "${binary}" | grep "_MikageSDLHost" >/dev/null; then
+        echo "${binary} exports MikageSDLHost symbols." >&2
         exit 1
     fi
 done

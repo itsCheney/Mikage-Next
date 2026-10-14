@@ -21,13 +21,6 @@ enum ONSSessionError: LocalizedError {
 /// same overlay, lifecycle and orientation handling as KiriKiri.
 @MainActor
 final class NativeONSSession: NSObject, KRKRSession {
-    @MainActor
-    private final class DisplayLinkTarget: NSObject {
-        weak var owner: NativeONSSession?
-        init(owner: NativeONSSession) { self.owner = owner }
-        @objc func tick() { owner?.step() }
-    }
-
     private static let rendererLabel = "ONScripter Yuri"
 
     private(set) var state: KRKRSessionState = .idle {
@@ -40,15 +33,12 @@ final class NativeONSSession: NSObject, KRKRSession {
     var onReturningToLibrary: (() -> Void)?
     var onMarkFinished: (() -> Void)?
 
-    private weak var hostWindow: UIWindow?
+    private let presentation = SDLHostPresentation()
+    private let frameDriver = SDLHostFrameDriver()
+    private var lifecycleObserver: SDLHostLifecycleObserver?
     private weak var engineWindow: UIWindow?
-    private weak var windowScene: UIWindowScene?
-    private var previousOrientation: UIInterfaceOrientation = .unknown
-    private var displayLink: CADisplayLink?
-    private var displayLinkTarget: DisplayLinkTarget?
     private var metricsTimer: Timer?
     private var overlayCoordinator: KRKROverlayCoordinator?
-    private var observers: [NSObjectProtocol] = []
     private var isForeground = true
     private var requestedForeground = true
     private var elapsedSeconds = 0
@@ -56,22 +46,8 @@ final class NativeONSSession: NSObject, KRKRSession {
 
     override init() {
         super.init()
-        let center = NotificationCenter.default
-        observers.append(
-            center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.setForeground(false) }
-            }
-        )
-        observers.append(
-            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.setForeground(true) }
-            }
-        )
-    }
-
-    deinit {
-        for observer in observers {
-            NotificationCenter.default.removeObserver(observer)
+        lifecycleObserver = SDLHostLifecycleObserver { [weak self] active in
+            self?.setForeground(active)
         }
     }
 
@@ -97,14 +73,12 @@ final class NativeONSSession: NSObject, KRKRSession {
                                          "respectSilentMode": String(configuration.respectSilentMode)])
         AppDiagnostics.shared.windows("launch.hostWindow")
         state = .preparingOrientation
-        hostWindow = window
-        windowScene = scene
-        previousOrientation = scene.interfaceOrientation
+        presentation.begin(hostWindow: window, scene: scene)
         do {
-            try await EngineOrientation.prepareLandscape(scene: scene, window: window, controller: viewController)
+            try await presentation.prepareLandscape(scene: scene, window: window, controller: viewController)
         } catch {
             state = .failed(error.localizedDescription)
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             throw error
         }
 
@@ -120,7 +94,7 @@ final class NativeONSSession: NSObject, KRKRSession {
         let respectSilentMode = configuration.respectSilentMode
         let menuGesture = configuration.threeFingerMenu
         AppDiagnostics.shared.event("bridge", "ons.start.scheduledOnRunLoop")
-        let started = await KRKRMainRunLoop.perform {
+        let started = await SDLHostMainRunLoop.perform {
             gamePath.withCString { game in
                 savePath.withCString { saves in
                     var options = MikageONSLaunchOptions(
@@ -141,7 +115,7 @@ final class NativeONSSession: NSObject, KRKRSession {
         guard started else {
             let message = String(cString: MikageONSLastError())
             state = .failed(message)
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             AppDiagnostics.shared.endGame()
             throw ONSSessionError.runtime(message)
         }
@@ -157,7 +131,7 @@ final class NativeONSSession: NSObject, KRKRSession {
             while MikageONSIsRunning() { MikageONSStep() }
             let message = String(localized: "ONScripter didn’t create a usable window.")
             state = .failed(message)
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             AppDiagnostics.shared.endGame()
             throw ONSSessionError.runtime(message)
         }
@@ -188,12 +162,7 @@ final class NativeONSSession: NSObject, KRKRSession {
         )
         overlayCoordinator = overlay
 
-        let target = DisplayLinkTarget(owner: self)
-        let link = CADisplayLink(target: target, selector: #selector(DisplayLinkTarget.tick))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
-        link.add(to: .main, forMode: .common)
-        displayLinkTarget = target
-        displayLink = link
+        frameDriver.start(preferredFramesPerSecond: 60) { [weak self] in self?.step() }
         startMetricsTimer()
         state = .running
         isForeground = true
@@ -202,8 +171,7 @@ final class NativeONSSession: NSObject, KRKRSession {
             isForeground = false
         }
 
-        engineWindow.makeKeyAndVisible()
-        hostWindow?.isHidden = true
+        presentation.showEngineWindow(engineWindow)
         AppDiagnostics.shared.windows("launch.windowsSwitched")
     }
 
@@ -291,9 +259,7 @@ final class NativeONSSession: NSObject, KRKRSession {
     fileprivate func runtimeFinished(success: Bool, message: String?) async {
         AppDiagnostics.shared.event("bridge", "ons.completion", ["success": String(success), "message": message ?? ""])
         guard state == .running || state == .stopping else { return }
-        displayLink?.invalidate()
-        displayLink = nil
-        displayLinkTarget = nil
+        frameDriver.stop()
         metricsTimer?.invalidate()
         metricsTimer = nil
         overlayCoordinator?.remove()
@@ -302,9 +268,8 @@ final class NativeONSSession: NSObject, KRKRSession {
 
         state = .restoringOrientation
         onReturningToLibrary?()
-        hostWindow?.isHidden = false
-        hostWindow?.makeKeyAndVisible()
-        await restorePreviousOrientation()
+        presentation.showHostWindow()
+        await presentation.restorePreviousOrientation()
         AppDiagnostics.shared.windows("return.windowsRestored")
         AppDiagnostics.shared.endGame()
 
@@ -326,13 +291,6 @@ final class NativeONSSession: NSObject, KRKRSession {
     private var isFailed: Bool {
         if case .failed = state { return true }
         return false
-    }
-
-    private func restorePreviousOrientation() async {
-        guard let scene = windowScene else { return }
-        await EngineOrientation.restore(scene: scene, to: previousOrientation, hostWindow: hostWindow)
-        windowScene = nil
-        previousOrientation = .unknown
     }
 
     private func step() {

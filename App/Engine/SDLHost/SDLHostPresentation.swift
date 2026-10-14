@@ -1,10 +1,33 @@
 import UIKit
 
-/// Turns the scene to landscape for a game and back afterwards. Shared by
-/// every engine session.
+enum SDLHostError: LocalizedError {
+    case orientationUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .orientationUnavailable:
+            return String(localized: "Couldn’t switch to landscape. Make sure Orientation Lock allows landscape, rotate the device, then try again.")
+        }
+    }
+}
+
+/// Moves the app between its own window and an SDL engine's window: turns the
+/// scene to landscape for the game, swaps the key window both ways, and puts
+/// the orientation the player had back afterwards. Shared by every SDL engine.
 @MainActor
-enum EngineOrientation {
-    static func prepareLandscape(
+final class SDLHostPresentation {
+    private weak var hostWindow: UIWindow?
+    private weak var windowScene: UIWindowScene?
+    private var previousOrientation: UIInterfaceOrientation = .unknown
+
+    /// Remembers the app's window and the orientation to come back to.
+    func begin(hostWindow window: UIWindow, scene: UIWindowScene) {
+        hostWindow = window
+        windowScene = scene
+        previousOrientation = scene.interfaceOrientation
+    }
+
+    func prepareLandscape(
         scene: UIWindowScene,
         window: UIWindow,
         controller: UIViewController
@@ -34,16 +57,24 @@ enum EngineOrientation {
             try await Task.sleep(nanoseconds: 50_000_000)
         }
         AppDiagnostics.shared.windows("geometry.landscape.timeout")
-        throw KRKRSessionError.orientationUnavailable
+        throw SDLHostError.orientationUnavailable
     }
 
-    /// Returns the scene to the orientation it had before the game, and waits
-    /// until the host window has laid out for it.
-    static func restore(
-        scene: UIWindowScene,
-        to targetOrientation: UIInterfaceOrientation,
-        hostWindow: UIWindow?
-    ) async {
+    /// Shows the engine's SDL window in place of the app's.
+    func showEngineWindow(_ engineWindow: UIWindow) {
+        engineWindow.makeKeyAndVisible()
+        hostWindow?.isHidden = true
+    }
+
+    /// Brings the app's window back once the engine's is gone.
+    func showHostWindow() {
+        hostWindow?.isHidden = false
+        hostWindow?.makeKeyAndVisible()
+    }
+
+    func restorePreviousOrientation() async {
+        guard let scene = windowScene else { return }
+        let targetOrientation = previousOrientation
         let mask: UIInterfaceOrientationMask
         switch targetOrientation {
         case .portrait:
@@ -96,5 +127,7 @@ enum EngineOrientation {
         hostWindow?.layoutIfNeeded()
         AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
         try? await Task.sleep(nanoseconds: 100_000_000)
+        windowScene = nil
+        previousOrientation = .unknown
     }
 }

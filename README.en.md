@@ -77,10 +77,11 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 | Path | Contents |
 | --- | --- |
 | `App/` | The SwiftUI app: library, game details, player, settings, storage, Bangumi/VNDB linking, string catalog |
-| `App/Engine/` | The bridges that host the KiriKiri and ONScripter runtimes inside the app |
+| `App/Engine/` | The bridges that host the KiriKiri and ONScripter runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
 | `Sources/VNCore/` | Swift package: library scanning and import, path safety, Bangumi and VNDB clients, matching |
 | `Engine/KRKRRuntime/` | The KRKRSDL3 runtime, pinned as a submodule ([krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)) |
 | `Engine/ONSRuntime/` | ONScripter Yuri, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/OnscripterYuri)), running on the shared SDL3 through sdl2-compat |
+| `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri today): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
 | `Tests/` | Swift unit tests and native runtime tests |
 | `scripts/` | Build scripts and diagnostic analysis tools |
 | `docs/` | Design notes, investigations and performance baselines |

@@ -10,7 +10,7 @@ Pinned inputs:
 
 ONScripter Yuri is an SDL2 program. It doesn't bring its own SDL: sdl2-compat is linked statically into `ONSRuntime.framework` and loads the app's shared `SDL3.framework`, so KiriKiri and ONScripter use one SDL. The sdl2-compat fork only adds an iOS loader path and allows the static build on iOS. `scripts/build-ons-ios.sh` builds the device and Apple Silicon simulator slices against `build/SDL3.xcframework`, checks that each exports the Mikage host API and no SDL code of its own, then creates `build/ONSRuntime.xcframework`. Build SDL3 first, then ONScripter.
 
-The engine runs on its own stack on the main thread and hands control back to the app after each frame, so the app keeps its run loop. `App/Engine/ONSSession.swift` drives it from a display link. The host API, the engine changes and the build are described in `Source/src/onsyuri_mikage/README.md`.
+The engine runs on its own stack on the main thread and hands control back to the app after each frame, so the app keeps its run loop. `App/Engine/ONSSession.swift` drives it with the shared Swift host in `App/Engine/SDLHost` (landscape, window switching, frame stepping, foreground changes). It doesn't compile in the native `Engine/MikageSDLHost`, which is built around SDL's main callbacks; ONScripter keeps its own loop and its own audio session and reset code in `MikageONSRuntime.mm`. The host API, the engine changes and the build are described in `Source/src/onsyuri_mikage/README.md`.
 
 Known limits: MIDI music and movies aren't played yet, and system fonts use the first face of their collection.
 

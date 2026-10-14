@@ -167,6 +167,13 @@ jobs:
           cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/layer-input-tests --parallel
           ctest --test-dir build/layer-input-tests --output-on-failure
+      - name: Test shared SDL host lifecycle
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/SDLHost -B build/sdl-host-tests -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/sdl-host-tests --parallel
+          ctest --test-dir build/sdl-host-tests --output-on-failure
       - name: Record native runtime test result
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
@@ -216,7 +223,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/krkr-ccache
-          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh') }}
           restore-keys: |
             krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
       # One SDL3.xcframework is embedded in the app and shared by every
@@ -245,7 +252,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/KRKRRuntime.xcframework
-          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
+          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build KRKR runtime framework
         if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
         run: |
