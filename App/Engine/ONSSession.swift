@@ -43,6 +43,7 @@ final class NativeONSSession: NSObject, KRKRSession {
     private var requestedForeground = true
     private var elapsedSeconds = 0
     private var performanceEnabled = false
+    private let threadCPU = ThreadCPUSampler()
 
     override init() {
         super.init()
@@ -324,8 +325,32 @@ final class NativeONSSession: NSObject, KRKRSession {
         if isForeground && state == .running {
             elapsedSeconds += 1
         }
+        var raw = MikageONSStats()
+        guard performanceEnabled, MikageONSGetStats(&raw) else {
+            overlayCoordinator?.update(
+                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+            )
+            return
+        }
+        let cpuSample = threadCPU.sample()
+        let backend = withUnsafePointer(to: &raw.renderer) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: 32) { String(cString: $0) }
+        }
         overlayCoordinator?.update(
-            KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+            KRKRPerformanceSnapshot(
+                framesPerSecond: raw.framesPerSecond,
+                frameTimeMilliseconds: raw.frameTimeMilliseconds,
+                cpuFrameTimeMilliseconds: raw.cpuFrameTimeMilliseconds,
+                maxCpuFrameTimeMilliseconds: raw.maxCpuFrameTimeMilliseconds,
+                drawableWidth: raw.drawableWidth,
+                drawableHeight: raw.drawableHeight,
+                renderer: backend.isEmpty ? Self.rendererLabel : "\(Self.rendererLabel) · \(backend)",
+                residentMemoryBytes: processResidentMemoryBytes(),
+                processCPUPercent: cpuSample?.processPercent ?? -1,
+                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
+                elapsedSeconds: elapsedSeconds,
+                showsLayerCompositing: false
+            )
         )
     }
 }

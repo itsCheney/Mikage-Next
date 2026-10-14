@@ -25,6 +25,8 @@ struct KRKRPerformanceSnapshot {
     var processCPUPercent = -1.0
     var busiestThreads = ""
     var elapsedSeconds = 0
+    /// KiriKiri's layer compositor reports its mode; other engines don't have one.
+    var showsLayerCompositing = true
 }
 
 @MainActor
@@ -259,8 +261,10 @@ private struct KRKROverlayView: View {
                 Text("Present wait \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
             }
             Text(verbatim: "\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
-            stats.gpuLayerComposition ? Text("Layer compositing · GPU Metal") : Text("Layer compositing · Software")
-            if stats.gpuLayerComposition {
+            if stats.showsLayerCompositing {
+                stats.gpuLayerComposition ? Text("Layer compositing · GPU Metal") : Text("Layer compositing · Software")
+            }
+            if stats.showsLayerCompositing && stats.gpuLayerComposition {
                 Text("Ops \(stats.gpuLayerOperations) · CPU fallbacks \(stats.layerCPUFallbacks)")
                 Text("Upload \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · readback \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
             }
