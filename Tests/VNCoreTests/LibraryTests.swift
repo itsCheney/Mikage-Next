@@ -162,6 +162,28 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try repository.entryPoint(for: game).standardizedFileURL, try repository.directory(for: game).standardizedFileURL)
     }
 
+    func testArtemisGameLaunchesFromItsFolder() throws {
+        try repository.ensureStructure()
+        let artemis = repository.engineRoot(for: .artemis).appendingPathComponent("Artemis Game")
+        try FileManager.default.createDirectory(at: artemis, withIntermediateDirectories: true)
+        try Data("pf8".utf8).write(to: artemis.appendingPathComponent("root.pfs"))
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .artemis)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(try GameScanner.detectEngines(in: artemis), [.artemis])
+    }
+
+    func testArtemisFolderWithoutDataIsInvalid() throws {
+        try repository.ensureStructure()
+        let artemis = repository.engineRoot(for: .artemis).appendingPathComponent("Empty")
+        try FileManager.default.createDirectory(at: artemis, withIntermediateDirectories: true)
+        try Data("readme".utf8).write(to: artemis.appendingPathComponent("readme.txt"))
+        let game = try repository.scan().active[0]
+        XCTAssertFalse(game.availability.canLaunch)
+        XCTAssertNotEqual(game.availability, .unsupported)
+    }
+
     func testOnscripterFolderWithoutScriptIsInvalid() throws {
         try repository.ensureStructure()
         let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("Archives Only")

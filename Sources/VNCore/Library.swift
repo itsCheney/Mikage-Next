@@ -29,7 +29,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var isLaunchSupported: Bool { self == .kirikiri || self == .onscripter }
+    public var isLaunchSupported: Bool { self == .kirikiri || self == .onscripter || self == .artemis }
 }
 
 public enum LaunchTargetKind: String, Codable, Sendable {
@@ -630,9 +630,14 @@ public enum GameScanner {
         if !engine.isLaunchSupported {
             availability = .unsupported
         } else if launch == nil {
-            availability = .invalid(engine == .onscripter
-                ? String(localized: "No ONScripter script found (0.txt, 00.txt or nscript.dat)")
-                : String(localized: "No valid startup.tjs or XP3 found"))
+            switch engine {
+            case .onscripter:
+                availability = .invalid(String(localized: "No ONScripter script found (0.txt, 00.txt or nscript.dat)"))
+            case .artemis:
+                availability = .invalid(String(localized: "No Artemis data found (root.pfs or system.ini)"))
+            default:
+                availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
+            }
         } else {
             availability = .ready
         }
@@ -654,6 +659,11 @@ public enum GameScanner {
             // ONScripter finds its script and archives in the game folder itself.
             let names = Set(try rootFiles(in: directory).map { normalized($0.lastPathComponent) })
             return names.isDisjoint(with: onscripterScriptNames) ? nil : (.directory, ".")
+        }
+        if engine == .artemis {
+            // openArtemis opens root.pfs (or the folder's first pack, or an
+            // extracted project with system.ini) from the game folder itself.
+            return isArtemisGame(try rootFiles(in: directory)) ? (.directory, ".") : nil
         }
         guard engine == .kirikiri else { return nil }
         let entries = try rootFiles(in: directory)
@@ -713,6 +723,9 @@ public enum GameScanner {
         if !names.isDisjoint(with: onscripterScriptNames.union(["arc.nsa"])) {
             matches.append(.onscripter)
         }
+        if entries.contains(where: { normalized($0.pathExtension) == "pfs" }) {
+            matches.append(.artemis)
+        }
 
         let gameDirectory = directory.appendingPathComponent("game", isDirectory: true)
         let gameScripts = (try? rootFiles(in: gameDirectory)) ?? []
@@ -725,6 +738,12 @@ public enum GameScanner {
         if hasRenPyScript || hasRenPyArchive { matches.append(.renpy) }
 
         return matches
+    }
+
+    private static func isArtemisGame(_ entries: [URL]) -> Bool {
+        entries.contains {
+            normalized($0.pathExtension) == "pfs" || normalized($0.lastPathComponent) == "system.ini"
+        }
     }
 
     public static func isXP3(_ url: URL) throws -> Bool {
