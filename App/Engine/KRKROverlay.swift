@@ -32,12 +32,23 @@ struct KRKRPerformanceSnapshot {
     var gpuMemoryBytes: UInt64 = 0
 }
 
+/// An engine's own tile in the game menu, such as ONScripter's backlog.
+struct GameMenuAction: Identifiable {
+    let id: String
+    let title: LocalizedStringKey
+    let symbol: String
+    let perform: () -> Void
+}
+
 @MainActor
 private final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
     @Published var performanceVisible: Bool
+    @Published var engineActions: [GameMenuAction] = []
+    /// Engine tiles work only at some points of the game.
+    @Published var engineActionsAvailable = true
 
     let gameTitle: String
     let performanceDetail: PerformanceDetail
@@ -62,6 +73,7 @@ final class KRKROverlayCoordinator: NSObject {
     private var hostingController: UIHostingController<KRKROverlayView>?
     private weak var containerView: UIView?
     private var floatingButton: UIButton?
+    private var engineActionsAvailable: (() -> Bool)?
 
     init(gameTitle: String, performanceVisible: Bool, performanceDetail: PerformanceDetail, renderer: String) {
         model = KRKROverlayModel(
@@ -80,7 +92,9 @@ final class KRKROverlayCoordinator: NSObject {
         onBack: @escaping () -> Void,
         onMarkFinished: @escaping () -> Void,
         onScreenshot: @escaping () -> UIImage?,
-        onTogglePerformance: @escaping () -> Void
+        onTogglePerformance: @escaping () -> Void,
+        engineActions: [GameMenuAction] = [],
+        engineActionsAvailable: (() -> Bool)? = nil
     ) {
         guard let rootController = window.rootViewController else { return }
         AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSCoder.string(for: window.bounds), "root": String(describing: type(of: rootController))])
@@ -111,6 +125,14 @@ final class KRKROverlayCoordinator: NSObject {
         model.onMarkFinished = onMarkFinished
         model.onScreenshot = onScreenshot
         model.onTogglePerformance = onTogglePerformance
+        // The menu closes first, so an engine screen can open in its place.
+        model.engineActions = engineActions.map { item in
+            GameMenuAction(id: item.id, title: item.title, symbol: item.symbol) { [weak self] in
+                self?.hideMenu()
+                item.perform()
+            }
+        }
+        self.engineActionsAvailable = engineActionsAvailable
 
         if floatingButtonEnabled {
             installFloatingButton(
@@ -125,6 +147,7 @@ final class KRKROverlayCoordinator: NSObject {
         guard let controller = hostingController else { return }
         controller.view.isUserInteractionEnabled = true
         containerView?.bringSubviewToFront(controller.view)
+        model.engineActionsAvailable = engineActionsAvailable?() ?? true
         model.menuVisible = true
     }
 
@@ -344,6 +367,12 @@ private struct KRKROverlayView: View {
                 }
             }
             actions
+            if !model.engineActions.isEmpty && !model.engineActionsAvailable {
+                Text("Backlog and saves open when the game is waiting on its text.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(20)
         .nativeGlassPanel(32)
@@ -364,6 +393,25 @@ private struct KRKROverlayView: View {
     }
 
     private var actionGrid: some View {
+        VStack(spacing: 8) {
+            if !model.engineActions.isEmpty {
+                engineActionRow
+            }
+            mainActionRow
+        }
+    }
+
+    private var engineActionRow: some View {
+        HStack(spacing: 8) {
+            ForEach(model.engineActions) { item in
+                action(item.title, item.symbol) { item.perform() }
+                    .disabled(!model.engineActionsAvailable)
+                    .accessibilityIdentifier("game-menu-\(item.id)")
+            }
+        }
+    }
+
+    private var mainActionRow: some View {
         HStack(spacing: 8) {
             // Presses Escape for games whose screens have no close button.
             action("Back", "arrow.uturn.backward") {

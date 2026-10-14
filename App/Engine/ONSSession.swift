@@ -39,6 +39,7 @@ final class NativeONSSession: NSObject, KRKRSession {
     private weak var engineWindow: UIWindow?
     private var metricsTimer: Timer?
     private var overlayCoordinator: KRKROverlayCoordinator?
+    private var panelCoordinator: ONSPanelCoordinator?
     private var isForeground = true
     private var requestedForeground = true
     private var elapsedSeconds = 0
@@ -95,7 +96,10 @@ final class NativeONSSession: NSObject, KRKRSession {
         let respectSilentMode = configuration.respectSilentMode
         let menuGesture = configuration.threeFingerMenu
         let stretchToScreen = configuration.stretchToScreen
-        AppDiagnostics.shared.event("bridge", "ons.start.scheduledOnRunLoop")
+        let loadSlot = Int32(clamping: configuration.loadSlot ?? 0)
+        // The game's backlog, save and load screens open as Mikage's panels.
+        MikageONSSetPanelCallback(mikageONSPanelCallback)
+        AppDiagnostics.shared.event("bridge", "ons.start.scheduledOnRunLoop", ["loadSlot": String(loadSlot)])
         let started = await SDLHostMainRunLoop.perform {
             gamePath.withCString { game in
                 savePath.withCString { saves in
@@ -106,7 +110,8 @@ final class NativeONSSession: NSObject, KRKRSession {
                         encoding: nil,
                         respectSilentMode: respectSilentMode,
                         menuGestureEnabled: menuGesture,
-                        stretchToScreen: stretchToScreen
+                        stretchToScreen: stretchToScreen,
+                        loadSlot: loadSlot
                     )
                     return MikageONSStart(&options, mikageONSMenuCallback, mikageONSCompletionCallback, context)
                 }
@@ -166,9 +171,49 @@ final class NativeONSSession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() },
+            engineActions: [
+                GameMenuAction(id: "backlog", title: "Backlog", symbol: "text.alignleft") {
+                    Self.openPanel(.backlog)
+                },
+                GameMenuAction(id: "save", title: "Save", symbol: "square.and.arrow.down") {
+                    Self.openPanel(.save)
+                },
+                GameMenuAction(id: "load", title: "Load", symbol: "square.and.arrow.up") {
+                    Self.openPanel(.load)
+                }
+            ],
+            engineActionsAvailable: { MikageONSCanOpenPanel() }
         )
         overlayCoordinator = overlay
+
+        let panels = ONSPanelCoordinator(gameTitle: configuration.gameTitle, savesDirectory: saveDirectory)
+        panels.install(
+            in: engineWindow,
+            onCancel: { [weak self] in
+                _ = MikageONSPanelCancel()
+                self?.panelCoordinator?.dismiss()
+            },
+            onSave: { [weak self] slot in
+                let saved = MikageONSPanelSave(Int32(slot))
+                AppDiagnostics.shared.event("onsPanel", "save", ["slot": String(slot), "accepted": String(saved)])
+                self?.panelCoordinator?.dismiss()
+            },
+            onLoad: { [weak self] slot in
+                let loaded = MikageONSPanelLoad(Int32(slot))
+                AppDiagnostics.shared.event("onsPanel", "load", ["slot": String(slot), "accepted": String(loaded)])
+                self?.panelCoordinator?.dismiss()
+            },
+            onJump: { [weak self] index in
+                let jumped = MikageONSPanelJump(Int32(index))
+                AppDiagnostics.shared.event("onsPanel", "jump", ["index": String(index), "accepted": String(jumped)])
+                self?.panelCoordinator?.dismiss()
+            },
+            onReplayVoice: { index in
+                _ = MikageONSBacklogReplayVoice(Int32(index))
+            }
+        )
+        panelCoordinator = panels
 
         frameDriver.start(preferredFramesPerSecond: 60) { [weak self] in self?.step() }
         startMetricsTimer()
@@ -260,8 +305,45 @@ final class NativeONSSession: NSObject, KRKRSession {
     }
 
     fileprivate func runtimeRequestedMenu() {
-        guard state == .running else { return }
+        guard state == .running, panelCoordinator?.isPresented != true else { return }
         showMenuOverlay()
+    }
+
+    private static func openPanel(_ panel: ONSPanel) {
+        let opened = MikageONSOpenPanel(panel.runtimeKind)
+        AppDiagnostics.shared.event("onsPanel", "open.requested", ["panel": String(describing: panel), "sent": String(opened)])
+    }
+
+    /// The engine opened a panel and waits for the player, or closed it
+    /// itself because the game is ending.
+    fileprivate func runtimeChangedPanel(_ kind: Int32) {
+        guard let panels = panelCoordinator else { return }
+        guard state == .running, kind != Int32(MikageONSPanelKindNone.rawValue),
+              MikageONSOpenPanelKind() == kind,
+              let panel = ONSPanel(runtimeKind: kind) else {
+            panels.dismiss()
+            return
+        }
+        overlayCoordinator?.hideMenu()
+        var lines: [ONSBacklogLine] = []
+        if panel == .backlog {
+            let count = MikageONSBacklogCount()
+            lines.reserveCapacity(Int(count))
+            for index in 0..<count {
+                var entry = MikageONSBacklogEntry()
+                guard MikageONSBacklogGetEntry(index, &entry) else { continue }
+                let line = ONSLine(
+                    name: entry.name.map { String(cString: $0) } ?? "",
+                    text: entry.text.map { String(cString: $0) } ?? ""
+                )
+                guard !line.text.isEmpty else { continue }
+                lines.append(ONSBacklogLine(
+                    id: Int(index), line: line,
+                    hasVoice: entry.hasVoice, canJump: entry.canJump, isCurrent: entry.isCurrent
+                ))
+            }
+        }
+        panels.present(panel, lines: lines, slotCount: Int(MikageONSSaveSlotCount()))
     }
 
     fileprivate func runtimeFinished(success: Bool, message: String?) async {
@@ -272,6 +354,8 @@ final class NativeONSSession: NSObject, KRKRSession {
         metricsTimer = nil
         overlayCoordinator?.remove()
         overlayCoordinator = nil
+        panelCoordinator?.remove()
+        panelCoordinator = nil
         engineWindow = nil
 
         state = .restoringOrientation
@@ -362,6 +446,31 @@ private func mikageONSMenuCallback(_ context: UnsafeMutableRawPointer?) {
     guard let context else { return }
     let session = Unmanaged<NativeONSSession>.fromOpaque(context).takeUnretainedValue()
     Task { @MainActor in session.runtimeRequestedMenu() }
+}
+
+private func mikageONSPanelCallback(_ kind: Int32, _ context: UnsafeMutableRawPointer?) {
+    guard let context else { return }
+    let session = Unmanaged<NativeONSSession>.fromOpaque(context).takeUnretainedValue()
+    Task { @MainActor in session.runtimeChangedPanel(kind) }
+}
+
+private extension ONSPanel {
+    init?(runtimeKind: Int32) {
+        guard let panel = [ONSPanel.backlog, .save, .load].first(where: { $0.runtimeKind == runtimeKind }) else {
+            return nil
+        }
+        self = panel
+    }
+
+    var runtimeKind: Int32 {
+        let kind: MikageONSPanelKind
+        switch self {
+        case .backlog: kind = MikageONSPanelKindBacklog
+        case .save: kind = MikageONSPanelKindSave
+        case .load: kind = MikageONSPanelKindLoad
+        }
+        return Int32(kind.rawValue)
+    }
 }
 
 private func mikageONSCompletionCallback(
