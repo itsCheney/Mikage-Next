@@ -93,6 +93,7 @@ final class NativeONSSession: NSObject, KRKRSession {
         let savePath = saveDirectory.path
         let respectSilentMode = configuration.respectSilentMode
         let menuGesture = configuration.threeFingerMenu
+        let stretchToScreen = configuration.stretchToScreen
         AppDiagnostics.shared.event("bridge", "ons.start.scheduledOnRunLoop")
         let started = await SDLHostMainRunLoop.perform {
             gamePath.withCString { game in
@@ -103,7 +104,8 @@ final class NativeONSSession: NSObject, KRKRSession {
                         fontPath: nil,
                         encoding: nil,
                         respectSilentMode: respectSilentMode,
-                        menuGestureEnabled: menuGesture
+                        menuGestureEnabled: menuGesture,
+                        stretchToScreen: stretchToScreen
                     )
                     return MikageONSStart(&options, mikageONSMenuCallback, mikageONSCompletionCallback, context)
                 }
@@ -150,6 +152,10 @@ final class NativeONSSession: NSObject, KRKRSession {
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
+            },
+            onBack: {
+                let sent = MikageONSSendBack()
+                AppDiagnostics.shared.event("session", "back.requested", ["sent": String(sent)])
             },
             onMarkFinished: { [weak self] in
                 AppDiagnostics.shared.event("session", "markFinished.requested")

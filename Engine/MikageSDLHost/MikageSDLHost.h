@@ -107,6 +107,10 @@ MIKAGE_SDL_HOST_API bool MikageSDLHostSetForeground(bool foreground);
 MIKAGE_SDL_HOST_API void MikageSDLHostSetForegroundState(bool foreground);
 MIKAGE_SDL_HOST_API void MikageSDLHostResetFrameStats(void);
 MIKAGE_SDL_HOST_API void MikageSDLHostNotifyMenu(void);
+// Queues an Escape key press and release for the engine's focused window,
+// for games that only offer a way back through the keyboard. False when no
+// session is running.
+MIKAGE_SDL_HOST_API bool MikageSDLHostSendBackKey(void);
 
 MIKAGE_SDL_HOST_API bool MikageSDLHostIsRunning(void);
 MIKAGE_SDL_HOST_API bool MikageSDLHostIsForeground(void);

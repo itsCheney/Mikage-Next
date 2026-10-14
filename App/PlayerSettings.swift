@@ -10,6 +10,9 @@ struct PlayerSettings: Codable {
     var floatingButton = true
     var idleOpacity = 0.38
     var threeFingerMenu = true
+    /// Fills the display instead of keeping the game's aspect ratio with
+    /// black bars. Off by default: a 4:3 game stays 4:3.
+    var stretchToScreen = false
     /// When enabled, game audio uses iOS ambient semantics and is silenced by
     /// the device Ring/Silent state. Enabled by default for native iOS behavior.
     var respectSilentMode = true
@@ -51,6 +54,7 @@ struct PlayerSettings: Codable {
         floatingButton = value(.floatingButton, fallback.floatingButton)
         idleOpacity = value(.idleOpacity, fallback.idleOpacity)
         threeFingerMenu = value(.threeFingerMenu, fallback.threeFingerMenu)
+        stretchToScreen = value(.stretchToScreen, fallback.stretchToScreen)
         respectSilentMode = value(.respectSilentMode, fallback.respectSilentMode)
         performance = value(.performance, fallback.performance)
         listLayout = value(.listLayout, fallback.listLayout)

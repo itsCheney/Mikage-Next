@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_hints.h>
+#include <SDL3/SDL_keyboard.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_properties.h>
@@ -279,6 +280,32 @@ extern "C" void MikageSDLHostNotifyMenu(void)
 {
     if (menuCallback)
         menuCallback(callbackContext);
+}
+
+extern "C" bool MikageSDLHostSendBackKey(void)
+{
+    if (!running)
+        return false;
+    SDL_Window *window = SDL_GetKeyboardFocus();
+    if (!window) {
+        int count = 0;
+        SDL_Window **windows = SDL_GetWindows(&count);
+        if (windows && count > 0)
+            window = windows[0];
+        SDL_free(windows);
+    }
+    SDL_Event event{};
+    event.key.timestamp = SDL_GetTicksNS();
+    event.key.windowID = window ? SDL_GetWindowID(window) : 0;
+    event.key.scancode = SDL_SCANCODE_ESCAPE;
+    event.key.key = SDLK_ESCAPE;
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.down = true;
+    if (!SDL_PushEvent(&event))
+        return false;
+    event.type = SDL_EVENT_KEY_UP;
+    event.key.down = false;
+    return SDL_PushEvent(&event);
 }
 
 extern "C" bool MikageSDLHostIsRunning(void)

@@ -41,7 +41,7 @@ Mikage ships no game content. You bring games you own.
 | Engine | Detected | Plays |
 | --- | --- | --- |
 | KiriKiri (KRKRSDL3) | Yes | Yes |
-| ONScripter (ONScripter Yuri) | Yes | Yes (no MIDI or movies yet) |
+| ONScripter (ONScripter Yuri) | Yes | Yes |
 | Ren’Py | Yes | Not yet |
 | Artemis | Yes | Not yet |
 
@@ -90,6 +90,6 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 
 Mikage Next is free software, released under the [GNU General Public License v3.0 or later](LICENSE).
 
-The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). Read them before distributing builds.
+The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). Read them before distributing builds.
 
 KiriKiri, ONScripter, Ren’Py, Artemis, Bangumi and VNDB are the work of their respective authors. Mikage is not affiliated with any of them.

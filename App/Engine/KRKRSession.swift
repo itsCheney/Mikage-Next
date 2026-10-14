@@ -28,6 +28,7 @@ struct KRKRLaunchConfiguration {
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
+    let stretchToScreen: Bool
     let respectSilentMode: Bool
     let experimentalEmote: Bool
     let performance: Bool
@@ -175,6 +176,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
                     MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
+                    MikageKRKRSetStretchToScreen(configuration.stretchToScreen)
                     return MikageKRKRStart(
                         gamePath,
                         renderer,
@@ -227,6 +229,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
+            },
+            onBack: {
+                let sent = MikageKRKRSendBack()
+                AppDiagnostics.shared.event("session", "back.requested", ["sent": String(sent)])
             },
             onMarkFinished: { [weak self] in
                 AppDiagnostics.shared.event("session", "markFinished.requested")

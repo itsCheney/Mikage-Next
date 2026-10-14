@@ -79,6 +79,10 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
+                    Toggle(isOn: $model.settings.stretchToScreen) {
+                        SettingLabel("Stretch to Fill Screen", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+
                     Toggle(isOn: $model.settings.threeFingerMenu) {
                         SettingLabel("Three-Finger Tap for Menu", systemImage: "hand.tap")
                     }

@@ -280,6 +280,7 @@ final class AppModel: ObservableObject {
             floatingButton: settings.floatingButton,
             idleOpacity: settings.idleOpacity,
             threeFingerMenu: settings.threeFingerMenu,
+            stretchToScreen: settings.stretchToScreen,
             respectSilentMode: settings.respectSilentMode,
             experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,

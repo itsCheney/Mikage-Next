@@ -267,13 +267,14 @@ jobs:
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
       # ONScripter runs on the shared SDL3 through sdl2-compat, which its
       # CMake build fetches at a pinned commit along with SDL2_image,
-      # SDL2_mixer, SDL2_ttf and Lua.
+      # SDL2_mixer, SDL2_ttf and Lua. It decodes movies with the FFmpeg the
+      # KRKR step installs, so the key follows KRKR's vcpkg inputs.
       - name: Restore ONScripter runtime framework
         id: cache-ons-runtime
         uses: actions/cache/restore@v4
         with:
           path: build/ONSRuntime.xcframework
-          key: ons-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ons-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.ons-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+          key: ons-runtime-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ons-ios.sh', 'scripts/build-sdl3-ios.sh', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.ons-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build ONScripter runtime framework
         if: steps.cache-ons-runtime.outputs.cache-hit != 'true'
         run: |

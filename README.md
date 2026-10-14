@@ -41,7 +41,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 | 引擎 | 识别 | 运行 |
 | --- | --- | --- |
 | KiriKiri（KRKRSDL3） | 支持 | 支持 |
-| ONScripter（ONScripter Yuri） | 支持 | 支持（暂不支持 MIDI 和视频） |
+| ONScripter（ONScripter Yuri） | 支持 | 支持 |
 | Ren’Py | 支持 | 尚未支持 |
 | Artemis | 支持 | 尚未支持 |
 
@@ -91,6 +91,6 @@ open Mikage.xcodeproj
 
 Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
 
-内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。分发构建产物前请先阅读。
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。分发构建产物前请先阅读。
 
 KiriKiri、ONScripter、Ren’Py、Artemis、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。

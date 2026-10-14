@@ -37,6 +37,7 @@ private final class KRKROverlayModel: ObservableObject {
     let gameTitle: String
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
+    var onBack: (() -> Void)?
     var onMarkFinished: (() -> Void)?
     var onScreenshot: (() -> UIImage?)?
     var onTogglePerformance: (() -> Void)?
@@ -68,6 +69,7 @@ final class KRKROverlayCoordinator: NSObject {
         floatingButtonEnabled: Bool,
         floatingButtonOpacity: Double,
         onExit: @escaping () -> Void,
+        onBack: @escaping () -> Void,
         onMarkFinished: @escaping () -> Void,
         onScreenshot: @escaping () -> UIImage?,
         onTogglePerformance: @escaping () -> Void
@@ -94,6 +96,10 @@ final class KRKROverlayCoordinator: NSObject {
 
         model.onCloseMenu = { [weak self] in self?.hideMenu() }
         model.onExit = onExit
+        model.onBack = { [weak self] in
+            self?.hideMenu()
+            onBack()
+        }
         model.onMarkFinished = onMarkFinished
         model.onScreenshot = onScreenshot
         model.onTogglePerformance = onTogglePerformance
@@ -314,6 +320,11 @@ private struct KRKROverlayView: View {
 
     private var actionGrid: some View {
         HStack(spacing: 8) {
+            // Presses Escape for games whose screens have no close button.
+            action("Back", "arrow.uturn.backward") {
+                model.onBack?()
+            }
+            .accessibilityIdentifier("game-menu-back")
             action("Screenshot", "camera") {
                 model.sharedImage = model.onScreenshot?()
             }

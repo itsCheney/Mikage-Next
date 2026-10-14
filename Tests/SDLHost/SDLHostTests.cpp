@@ -93,6 +93,11 @@ SDL_AppResult Init(void **appstate, int argc, char *argv[])
 SDL_AppResult Event(void *appstate, SDL_Event *event)
 {
     REQUIRE(appstate == &stateToken);
+    if ((event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) &&
+        event->key.key == SDLK_ESCAPE && event->key.scancode == SDL_SCANCODE_ESCAPE) {
+        calls.emplace_back(event->key.down ? "event.escape.down" : "event.escape.up");
+        return SDL_APP_CONTINUE;
+    }
     if (event->type == SDL_EVENT_USER) {
         ++script.events;
         calls.emplace_back("event.user");
@@ -402,6 +407,20 @@ void RefusedAudioSessionStillStarts()
     REQUIRE(MikageSDLHostStep() == MIKAGE_SDL_HOST_STEP_FINISHED);
 }
 
+void BackKeyReachesTheEngine()
+{
+    Reset();
+    REQUIRE(!MikageSDLHostSendBackKey());
+    REQUIRE(Start());
+    calls.clear();
+    REQUIRE(MikageSDLHostSendBackKey());
+    REQUIRE(MikageSDLHostStep() == MIKAGE_SDL_HOST_STEP_RUNNING);
+    REQUIRE(InOrder({"event.escape.down", "event.escape.up", "iterate"}));
+    MikageSDLHostRequestStop();
+    REQUIRE(MikageSDLHostStep() == MIKAGE_SDL_HOST_STEP_FINISHED);
+    REQUIRE(!MikageSDLHostSendBackKey());
+}
+
 void OneSessionAtATime()
 {
     Reset();
@@ -459,8 +478,9 @@ int main()
     QuitFailuresBecomeTheResult();
     AbortedStartResetsWithoutCompletion();
     RefusedAudioSessionStillStarts();
+    BackKeyReachesTheEngine();
     OneSessionAtATime();
     SecondSessionStartsClean();
-    std::printf("PASS: SDL host start, step, stop, foreground, failure, abort and reset\n");
+    std::printf("PASS: SDL host start, step, stop, foreground, back key, failure, abort and reset\n");
     return 0;
 }

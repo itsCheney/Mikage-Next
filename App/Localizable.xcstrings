@@ -768,6 +768,22 @@
         }
       }
     },
+    "Back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回"
+          }
+        }
+      }
+    },
     "Background Fill" : {
       "localizations" : {
         "ja" : {
@@ -5097,6 +5113,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存储空间"
+          }
+        }
+      }
+    },
+    "Stretch to Fill Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面いっぱいに引き伸ばす"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉伸填满屏幕"
           }
         }
       }
