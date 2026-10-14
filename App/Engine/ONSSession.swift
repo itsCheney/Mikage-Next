@@ -144,6 +144,7 @@ final class NativeONSSession: NSObject, KRKRSession {
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
             performanceVisible: configuration.performance,
+            performanceDetail: configuration.performanceDetail,
             renderer: Self.rendererLabel
         )
         overlay.install(

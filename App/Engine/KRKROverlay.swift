@@ -37,6 +37,7 @@ private final class KRKROverlayModel: ObservableObject {
     @Published var performanceVisible: Bool
 
     let gameTitle: String
+    let performanceDetail: PerformanceDetail
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
     var onBack: (() -> Void)?
@@ -44,9 +45,10 @@ private final class KRKROverlayModel: ObservableObject {
     var onScreenshot: (() -> UIImage?)?
     var onTogglePerformance: (() -> Void)?
 
-    init(gameTitle: String, performanceVisible: Bool, renderer: String) {
+    init(gameTitle: String, performanceVisible: Bool, performanceDetail: PerformanceDetail, renderer: String) {
         self.gameTitle = gameTitle
         self.performanceVisible = performanceVisible
+        self.performanceDetail = performanceDetail
         performance.renderer = renderer
     }
 }
@@ -58,10 +60,11 @@ final class KRKROverlayCoordinator: NSObject {
     private weak var containerView: UIView?
     private var floatingButton: UIButton?
 
-    init(gameTitle: String, performanceVisible: Bool, renderer: String) {
+    init(gameTitle: String, performanceVisible: Bool, performanceDetail: PerformanceDetail, renderer: String) {
         model = KRKROverlayModel(
             gameTitle: gameTitle,
             performanceVisible: performanceVisible,
+            performanceDetail: performanceDetail,
             renderer: renderer
         )
     }
@@ -249,7 +252,33 @@ private struct KRKROverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var performanceHUD: some View {
+        switch model.performanceDetail {
+        case .simple: simplePerformanceHUD
+        case .full: fullPerformanceHUD
+        }
+    }
+
+    /// Frame rate and time per frame, then CPU and memory.
+    private var simplePerformanceHUD: some View {
+        let stats = model.performance
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("\(stats.framesPerSecond, specifier: "%.0f") FPS · \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms")
+            if stats.processCPUPercent >= 0 {
+                Text("CPU \(stats.processCPUPercent, specifier: "%.0f%%") · \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            } else {
+                Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))
+            }
+        }
+        .font(.system(size: 12, design: .monospaced))
+        .foregroundStyle(.white)
+        .padding(7)
+        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("krkr-performance-hud")
+    }
+
+    private var fullPerformanceHUD: some View {
         let stats = model.performance
         return VStack(alignment: .leading, spacing: 2) {
             Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · interval \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")

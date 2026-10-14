@@ -284,6 +284,7 @@ final class AppModel: ObservableObject {
             respectSilentMode: settings.respectSilentMode,
             experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,
+            performanceDetail: settings.performanceDetail,
             gameTitle: displayTitle(game),
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos),
             engine: game.engine

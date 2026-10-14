@@ -239,6 +239,13 @@ struct AdvancedSettingsView: View {
                 .pickerStyle(.menu)
 
                 Toggle("Show Performance Stats on Launch", isOn: $model.settings.performance)
+
+                Picker("Performance Stats", selection: $model.settings.performanceDetail) {
+                    ForEach(PerformanceDetail.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
+                }
+                .pickerStyle(.menu)
             } header: {
                 Text("Graphics")
             } footer: {

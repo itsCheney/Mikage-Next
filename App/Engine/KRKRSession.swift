@@ -32,6 +32,7 @@ struct KRKRLaunchConfiguration {
     let respectSilentMode: Bool
     let experimentalEmote: Bool
     let performance: Bool
+    let performanceDetail: PerformanceDetail
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
     let skippedMovies: String?
@@ -220,6 +221,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
             performanceVisible: configuration.performance,
+            performanceDetail: configuration.performanceDetail,
             renderer: rendererLabel
         )
         overlay.install(

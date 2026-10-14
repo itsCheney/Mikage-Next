@@ -17,6 +17,7 @@ struct PlayerSettings: Codable {
     /// the device Ring/Silent state. Enabled by default for native iOS behavior.
     var respectSilentMode = true
     var performance = false
+    var performanceDetail = PerformanceDetail.storageDefault
     var listLayout = false
     var sort = LibrarySort.storageDefault
     /// Skips the built-in list of localization-patch videos. Off by default:
@@ -57,6 +58,7 @@ struct PlayerSettings: Codable {
         stretchToScreen = value(.stretchToScreen, fallback.stretchToScreen)
         respectSilentMode = value(.respectSilentMode, fallback.respectSilentMode)
         performance = value(.performance, fallback.performance)
+        performanceDetail = value(.performanceDetail, fallback.performanceDetail)
         listLayout = value(.listLayout, fallback.listLayout)
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
@@ -141,6 +143,26 @@ enum RendererPreference: String, StoredSetting {
         switch self {
         case .metal: return "Metal"
         case .softwareMetal: return String(localized: "Software Compositing · Metal")
+        }
+    }
+}
+
+/// How much the in-game performance overlay shows.
+enum PerformanceDetail: String, StoredSetting {
+    /// Frame rate, frame time, CPU and memory.
+    case simple
+    /// Everything the engine reports.
+    case full
+
+    static let legacyValues: [String: Self] = [:]
+    static let storageDefault: Self = .simple
+
+    init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
+
+    var displayName: String {
+        switch self {
+        case .simple: return String(localized: "Simple")
+        case .full: return String(localized: "Full")
         }
     }
 }

@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%.0f FPS · %.1f ms" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$.0f FPS · %2$.1f ms"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$.0f FPS · %2$.1f ms"
+          }
+        }
+      }
+    },
     "%.1f FPS · interval %.1f ms" : {
       "localizations" : {
         "ja" : {
@@ -1616,6 +1632,22 @@
         }
       }
     },
+    "CPU %.0f%% · %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU %1$.0f%% · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU %1$.0f%% · %2$@"
+          }
+        }
+      }
+    },
     "Create a Bangumi Account" : {
       "localizations" : {
         "ja" : {
@@ -2350,6 +2382,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "释放 %@"
+          }
+        }
+      }
+    },
+    "Full" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整"
           }
         }
       }
@@ -3981,6 +4029,22 @@
         }
       }
     },
+    "Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "性能统计"
+          }
+        }
+      }
+    },
     "Permanently delete this game record?" : {
       "localizations" : {
         "ja" : {
@@ -4937,6 +5001,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已登录"
+          }
+        }
+      }
+    },
+    "Simple" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンプル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简洁"
           }
         }
       }
