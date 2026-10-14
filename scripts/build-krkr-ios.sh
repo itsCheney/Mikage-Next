@@ -165,7 +165,8 @@ xcodebuild -create-xcframework \
 test -f "${OUTPUT}/Info.plist"
 if command -v ccache >/dev/null 2>&1; then
     ccache --show-stats --verbose
-    # Why any compile was not cached, most frequent first.
+    # What ccache did with each compile, and why any were not cached,
+    # most frequent first.
     if [[ -f "${PROJECT_DIR}/build/krkr-ccache.log" ]]; then
         grep -E "Result: |unsupported|Unsupported|Failed|Disabling" "${PROJECT_DIR}/build/krkr-ccache.log" \
             | sed -E 's/^\[[^]]*\] //' | sort | uniq -c | sort -rn | head -n 20 || true
