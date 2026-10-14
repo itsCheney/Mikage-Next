@@ -165,6 +165,7 @@ int main() {
 using Uint64 = std::uint64_t;
 Uint64 fakeNow = 1000000000ULL;
 Uint64 SDL_GetTicksNS() { return fakeNow; }
+namespace krkrsdl3 { std::uint64_t TVPGetDrawCallCount() { return 0; } }
 std::vector<std::string> logs;
 void MikageKRKRLogMessage(const char *, int, const char *message) { logs.emplace_back(message); }
 void TVPConsoleLog(const char *format, ...) {
