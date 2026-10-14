@@ -68,11 +68,36 @@ if command -v ccache >/dev/null 2>&1; then
     # retaining the compiler and SDK in ccache's normal cache key.
     export CCACHE_DIR="${CCACHE_DIR:-${PROJECT_DIR}/build/krkr-ccache}"
     export CCACHE_BASEDIR="${PROJECT_DIR}"
+    # Xcode's per-target header maps arrive as -ivfsoverlay files and its
+    # module flags as -fmodules; both are safe to hash by their inputs.
+    export CCACHE_SLOPPINESS="clang_index_store,ivfsoverlay,modules,include_file_ctime,include_file_mtime,pch_defines,time_macros,system_headers"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-2G}"
+    # The iOS presets use the Xcode generator, which ignores
+    # CMAKE_<LANG>_COMPILER_LAUNCHER. Xcode instead runs the CC build
+    # setting for every C, C++ and Objective-C file, so point it at
+    # wrappers that run the toolchain's clang through ccache. Xcode's build
+    # service does not pass this shell's environment to the compiler, so
+    # the wrappers carry the ccache settings themselves.
+    ccache_bin="${PROJECT_DIR}/build/krkr-ccache-bin"
+    mkdir -p "${ccache_bin}"
+    for tool in clang clang++; do
+        cat > "${ccache_bin}/${tool}" <<EOF
+#!/bin/sh
+export CCACHE_DIR='${CCACHE_DIR}' CCACHE_BASEDIR='${CCACHE_BASEDIR}'
+export CCACHE_SLOPPINESS='${CCACHE_SLOPPINESS}' CCACHE_MAXSIZE='${CCACHE_MAXSIZE}'
+exec '$(command -v ccache)' '$(xcrun -f "${tool}")' "\$@"
+EOF
+        chmod +x "${ccache_bin}/${tool}"
+    done
     cmake_launcher_args=(
-        -DCMAKE_C_COMPILER_LAUNCHER=ccache
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-        -DCMAKE_OBJC_COMPILER_LAUNCHER=ccache
-        -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
+        -DCMAKE_XCODE_ATTRIBUTE_CC="${ccache_bin}/clang"
+        -DCMAKE_XCODE_ATTRIBUTE_CXX="${ccache_bin}/clang++"
+        -DCMAKE_XCODE_ATTRIBUTE_LD="$(xcrun -f clang)"
+        -DCMAKE_XCODE_ATTRIBUTE_LDPLUSPLUS="$(xcrun -f clang++)"
+        # Xcode's explicitly built modules and the index store cannot be
+        # cached; implicit modules are covered by the modules sloppiness.
+        -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_EXPLICIT_MODULES=NO
+        -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO
     )
     ccache --zero-stats
 fi

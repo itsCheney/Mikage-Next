@@ -91,11 +91,12 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
-      # Nearly all of this step was three serial runs of an unoptimized
-      # metal-layer-tests binary under the Metal validation layer (about
-      # 283 s + 165 s + 154 s), dominated by the tvpgl software reference and
-      # the per-pixel comparisons. Build those with -O2 but without NDEBUG so
-      # assertions stay on, and run the three variants side by side.
+      # Nearly all of this step is metal-layer-tests under the Metal
+      # validation layer: about 78,000 GPU readbacks per Layer pass, each
+      # checked against the tvpgl software reference. Build with -O2 but
+      # without NDEBUG so assertions stay on, and run the three pipeline
+      # variants side by side. Only the default variant repeats the passes
+      # over three Layer sessions; each check prints a TIME line.
       - name: Compare Metal Layer with software RenderManager
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |

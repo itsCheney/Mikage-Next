@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cmath>
 #include "ProductionAffineMath.inc"
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -2592,19 +2593,26 @@ static int AuditCapabilities() {
     return 0;
 }
 
+// Native CI runs this under the Metal validation layer; report each check's
+// wall time so its log shows where the run spends it.
+#define TIMED(...) do { const auto timedStart=std::chrono::steady_clock::now(); __VA_ARGS__; \
+    std::cout<<"TIME "<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-timedStart).count()<<" ms "<<#__VA_ARGS__<<'\n'; } while(0)
+
 int main(int argc,char** argv) {
     try {
+        // Unbuffered, so CTest's streamed output lines up with each check.
+        std::cout<<std::unitbuf;
         TVPInitTVPGL(); TVPGetRenderManager(ttstr("software"));
         if(argc>1 && std::string(argv[1])=="--audit-capabilities") return AuditCapabilities();
         const bool sessionCachesOnly=argc>1 && std::string(argv[1])=="--session-caches";
         if(!sessionCachesOnly) {
-            CapabilityAuditTests(false); CompilationFailureTests(); OperationContractTests();
-            UnivTransShaderTests(); LayerBlendShaderTests(); P1AShaderTests(); P1BShaderTests(); TransitionContractTests(); ShrinkShaderContractTests();
-            RunC2ConsumerTraceTests();
-            RunC2SpanShaderTests();
-            Require(RunC2SpanBindingTests()==0,"C2B production span binding tests failed");
-            Require(RunC2LayerExBoundaryTests()==0,"C2A production LayerEx boundary tests failed");
-            Require(RunC2ImageBindingTests()==0,"C2 Image production binding tests failed");
+            TIMED(CapabilityAuditTests(false)); TIMED(CompilationFailureTests()); TIMED(OperationContractTests());
+            TIMED(UnivTransShaderTests()); TIMED(LayerBlendShaderTests()); TIMED(P1AShaderTests()); TIMED(P1BShaderTests()); TIMED(TransitionContractTests()); TIMED(ShrinkShaderContractTests());
+            TIMED(RunC2ConsumerTraceTests());
+            TIMED(RunC2SpanShaderTests());
+            TIMED(Require(RunC2SpanBindingTests()==0,"C2B production span binding tests failed"));
+            TIMED(Require(RunC2LayerExBoundaryTests()==0,"C2A production LayerEx boundary tests failed"));
+            TIMED(Require(RunC2ImageBindingTests()==0,"C2 Image production binding tests failed"));
         }
         std::unique_ptr<iTVPRenderBackend> backend;
 #ifdef TEST_NATIVE_METAL
@@ -2666,7 +2674,7 @@ int main(int argc,char** argv) {
         // Keep C4's necessary alpha-table supply in its own session, so the
         // existing cold-table rejection fixtures still exercise a cold session.
         Require(TVPBindMetalLayerRenderManager(backend.get()),"transition session init failed");
-        TransitionHandlerTests(backend.get()); C4ProfileTests(); C4BitmapResourceTests(backend.get());
+        TIMED(TransitionHandlerTests(backend.get())); TIMED(C4ProfileTests()); TIMED(C4BitmapResourceTests(backend.get()));
 #ifndef TEST_NATIVE_METAL
         auto& transitionDevice=*static_cast<DeviceDouble*>(backend.get());
         TransitionHandlerDispatchFailureTests([&](bool value){transitionDevice.throwAfterTransitionDispatch=value;});
@@ -2674,15 +2682,19 @@ int main(int argc,char** argv) {
 #endif
         TVPUnbindMetalLayerRenderManager();
         Require(TVPBindMetalLayerRenderManager(backend.get()),"shrink session init failed");
-        C2ProductionDiagnostics(backend.get());
-        ShrinkCopyTests(backend.get()); C1ProfileTests();
+        TIMED(C2ProductionDiagnostics(backend.get()));
+        TIMED(ShrinkCopyTests(backend.get())); TIMED(C1ProfileTests());
 #ifndef TEST_NATIVE_METAL
         auto& shrinkDevice=*static_cast<DeviceDouble*>(backend.get());
         ShrinkCopyFailureTests([&](int stage,bool wide){shrinkDevice.shrinkFailureStage=stage;shrinkDevice.shrinkWideAvailable=wide;});
 #endif
         TVPUnbindMetalLayerRenderManager();
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
-        for(int session=0;session<3;++session) {
+        // Three Layer sessions check bind/unbind lifetimes. The pipeline-variant
+        // CTest runs only change GPU pipeline choice, so they run one session.
+        const char* sessionsValue=std::getenv("MIKAGE_METAL_LAYER_TEST_SESSIONS");
+        const int sessions=sessionsValue ? std::max(1,std::atoi(sessionsValue)) : 3;
+        for(int session=0;session<sessions;++session) {
             TVPSetMetalLayerTriangleDiagnostics(true);
             Require(TVPBindMetalLayerRenderManager(backend.get()),"GPU Layer init failed");
             CapabilityAuditTests(true);
@@ -2700,7 +2712,17 @@ int main(int argc,char** argv) {
                 Require(backend->ReadLayerTextureRegion(texture->GetTextureHandle(),TVPLayerRect{2,3,5,5},region,pitch) && pitch==12 && region.size()==24,"local RGBA readback failed");
                 for(int y=0;y<2;++y) Require(!std::memcmp(region.data()+y*pitch,pixels.data()+((y+3)*9+2)*4,12),"local readback pixels differ");
             }
-            P2BResourceFailures(backend.get(),true); P2AAffineAlphaTableFallback(backend.get()); Equivalence(); DualSourceTransitions(); UnivTransTransitions(); UnivTransFallbacks(backend.get()); UnivTransClippedFallbacks(backend.get()); OffsetUpdates(); Synchronization(); ExactHitTestCache(); PointReadAttribution(); UIPointWaitCounters(); DirtyRegionUploads(); ScopedNativePixels(); RawPointerFrameLifetime(); AlphaConversionReference(); P1ARectangles(backend.get()); P1AGammaTests(backend.get()); P2BResourceFailures(backend.get(),false); P2AAffineTableFallbacks(backend.get()); P1BRectangles(backend.get()); ExtendedBlendGeometry(); MaskAndBlurOperations(); RectangleStretchModes(); WorkDiagnostics(); C0ProfileTests(); C0ProductionDiagnostics(backend.get()); OverwriteSkipsReadback(); BitmapOverwriteTests(backend.get()); PrimaryCompletionTests(); UpdateRegionCoalescingTests(true); TransitionOutputTests(); ReadbackAttribution(); Compatibility(); AffineCopyTriangles(); P2AAffineBlends(backend.get()); P2BSoftwareAndMath(); P2BPerspectives(backend.get()); P2BRejectsAndLifetimes(backend.get()); P2BQueuedBatches(); TriangleProfileTests(); CompositionWorkload(); GlyphWorkload();
+            TIMED(P2BResourceFailures(backend.get(),true)); TIMED(P2AAffineAlphaTableFallback(backend.get())); TIMED(Equivalence()); TIMED(DualSourceTransitions());
+            TIMED(UnivTransTransitions()); TIMED(UnivTransFallbacks(backend.get())); TIMED(UnivTransClippedFallbacks(backend.get())); TIMED(OffsetUpdates());
+            TIMED(Synchronization()); TIMED(ExactHitTestCache()); TIMED(PointReadAttribution()); TIMED(UIPointWaitCounters());
+            TIMED(DirtyRegionUploads()); TIMED(ScopedNativePixels()); TIMED(RawPointerFrameLifetime()); TIMED(AlphaConversionReference());
+            TIMED(P1ARectangles(backend.get())); TIMED(P1AGammaTests(backend.get())); TIMED(P2BResourceFailures(backend.get(),false)); TIMED(P2AAffineTableFallbacks(backend.get()));
+            TIMED(P1BRectangles(backend.get())); TIMED(ExtendedBlendGeometry()); TIMED(MaskAndBlurOperations()); TIMED(RectangleStretchModes());
+            TIMED(WorkDiagnostics()); TIMED(C0ProfileTests()); TIMED(C0ProductionDiagnostics(backend.get())); TIMED(OverwriteSkipsReadback());
+            TIMED(BitmapOverwriteTests(backend.get())); TIMED(PrimaryCompletionTests()); TIMED(UpdateRegionCoalescingTests(true)); TIMED(TransitionOutputTests());
+            TIMED(ReadbackAttribution()); TIMED(Compatibility()); TIMED(AffineCopyTriangles()); TIMED(P2AAffineBlends(backend.get()));
+            TIMED(P2BSoftwareAndMath()); TIMED(P2BPerspectives(backend.get())); TIMED(P2BRejectsAndLifetimes(backend.get())); TIMED(P2BQueuedBatches());
+            TIMED(TriangleProfileTests()); TIMED(CompositionWorkload()); TIMED(GlyphWorkload());
 #ifndef TEST_NATIVE_METAL
             auto& glyphDevice=*static_cast<DeviceDouble*>(backend.get());
             GlyphCallerTests(backend.get(),[&](int stage) {
@@ -2708,17 +2730,17 @@ int main(int argc,char** argv) {
                 glyphDevice.cycleDiagnosticsOnGlyph=stage==2;
             });
 #else
-            GlyphCallerTests(backend.get(),{});
+            TIMED(GlyphCallerTests(backend.get(),{}));
 #endif
 #ifdef TEST_NATIVE_METAL
-            Presentation(backend.get());
+            TIMED(Presentation(backend.get()));
 #endif
             iTVPTexture2D::RecycleProcess();
             Require(TVPGetMetalLayerRenderStats().gpuResidentBytes==0,"session GPU texture leak");
             TVPUnbindMetalLayerRenderManager(); Require(TVPIsSoftwareRenderManager(),"software manager not restored");
             Require(TVPTakeMetalLayerTriangleProfile().stats.calls==0,"triangle sampler retained an unbound Layer session");
         }
-        BitmapRenderSessionCacheTests(backend.get());
+        TIMED(BitmapRenderSessionCacheTests(backend.get()));
         // Deliberately retained texture is detached safely when its session ends.
         Require(TVPBindMetalLayerRenderManager(backend.get()),"rebind failed");
         auto survivor=Create(TVPGetRenderManager(),2,2,TVPTextureFormat::RGBA,Image(2,2,4,1));
@@ -2735,6 +2757,6 @@ int main(int argc,char** argv) {
 #else
         std::cout<<"PASS device-double synchronization/lifetime (native pixel checks run on macOS): ";
 #endif
-        std::cout<<comparisons<<" comparisons, 3 sessions\n"; return 0;
+        std::cout<<comparisons<<" comparisons, "<<sessions<<" sessions\n"; return 0;
     } catch(const std::exception& error) { std::cerr<<"FAIL: "<<error.what()<<'\n';return 1; }
 }
