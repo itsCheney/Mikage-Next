@@ -85,6 +85,7 @@ if command -v ccache >/dev/null 2>&1; then
 #!/bin/sh
 export CCACHE_DIR='${CCACHE_DIR}' CCACHE_BASEDIR='${CCACHE_BASEDIR}'
 export CCACHE_SLOPPINESS='${CCACHE_SLOPPINESS}' CCACHE_MAXSIZE='${CCACHE_MAXSIZE}'
+export CCACHE_LOGFILE='${PROJECT_DIR}/build/krkr-ccache.log'
 exec '$(command -v ccache)' '$(xcrun -f "${tool}")' "\$@"
 EOF
         chmod +x "${ccache_bin}/${tool}"
@@ -160,6 +161,11 @@ xcodebuild -create-xcframework \
 
 test -f "${OUTPUT}/Info.plist"
 if command -v ccache >/dev/null 2>&1; then
-    ccache --show-stats
+    ccache --show-stats --verbose
+    # Why any compile was not cached, most frequent first.
+    if [[ -f "${PROJECT_DIR}/build/krkr-ccache.log" ]]; then
+        grep -E "Result: |unsupported|Unsupported|Failed|Disabling" "${PROJECT_DIR}/build/krkr-ccache.log" \
+            | sed -E 's/^\[[^]]*\] //' | sort | uniq -c | sort -rn | head -n 20 || true
+    fi
 fi
 echo "Created ${OUTPUT}"

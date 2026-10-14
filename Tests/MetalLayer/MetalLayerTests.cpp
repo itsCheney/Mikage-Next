@@ -2692,6 +2692,8 @@ int main(int argc,char** argv) {
         auto* cached=TVPGetSoftwareRenderManager()->GetRenderMethod("AlphaBlend_d");
         // Three Layer sessions check bind/unbind lifetimes. The pipeline-variant
         // CTest runs only change GPU pipeline choice, so they run one session.
+        // The exhaustive P2A/P2B pixel sweeps (most of a session's time under
+        // the validation layer) run in the first session only.
         const char* sessionsValue=std::getenv("MIKAGE_METAL_LAYER_TEST_SESSIONS");
         const int sessions=sessionsValue ? std::max(1,std::atoi(sessionsValue)) : 3;
         for(int session=0;session<sessions;++session) {
@@ -2720,8 +2722,8 @@ int main(int argc,char** argv) {
             TIMED(P1BRectangles(backend.get())); TIMED(ExtendedBlendGeometry()); TIMED(MaskAndBlurOperations()); TIMED(RectangleStretchModes());
             TIMED(WorkDiagnostics()); TIMED(C0ProfileTests()); TIMED(C0ProductionDiagnostics(backend.get())); TIMED(OverwriteSkipsReadback());
             TIMED(BitmapOverwriteTests(backend.get())); TIMED(PrimaryCompletionTests()); TIMED(UpdateRegionCoalescingTests(true)); TIMED(TransitionOutputTests());
-            TIMED(ReadbackAttribution()); TIMED(Compatibility()); TIMED(AffineCopyTriangles()); TIMED(P2AAffineBlends(backend.get()));
-            TIMED(P2BSoftwareAndMath()); TIMED(P2BPerspectives(backend.get())); TIMED(P2BRejectsAndLifetimes(backend.get())); TIMED(P2BQueuedBatches());
+            TIMED(ReadbackAttribution()); TIMED(Compatibility()); TIMED(AffineCopyTriangles()); if(session==0) TIMED(P2AAffineBlends(backend.get()));
+            TIMED(P2BSoftwareAndMath()); if(session==0) TIMED(P2BPerspectives(backend.get())); TIMED(P2BRejectsAndLifetimes(backend.get())); TIMED(P2BQueuedBatches());
             TIMED(TriangleProfileTests()); TIMED(CompositionWorkload()); TIMED(GlyphWorkload());
 #ifndef TEST_NATIVE_METAL
             auto& glyphDevice=*static_cast<DeviceDouble*>(backend.get());
