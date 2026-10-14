@@ -19,6 +19,8 @@ struct GameDetailView: View {
     @State private var confirmUnlink = false
     @State private var refreshing = false
     @State private var choosingArt = false
+    @State private var showingSaves = false
+    @State private var saveCount: Int?
     /// Width over height of the cover on disk; VNDB has both portrait and
     /// landscape package art.
     @State private var posterAspect: CGFloat?
@@ -27,6 +29,20 @@ struct GameDetailView: View {
     private var metadata: LinkedMetadata? { current.link?.metadata }
 
     var body: some View {
+        // A stack only for the saves page; the game page draws its own header.
+        NavigationStack {
+            page
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: $showingSaves) {
+                    GameSavesView(gameID: current.id) { slot in
+                        play(fromSaveSlot: slot)
+                    }
+                    .environmentObject(model)
+                }
+        }
+    }
+
+    private var page: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 banner
@@ -217,14 +233,7 @@ struct GameDetailView: View {
         VStack(spacing: 10) {
             if current.availability.canLaunch {
                 Button {
-                    let game = current
-                    let model = self.model
-                    dismiss()
-                    // The player covers the whole app; present it once this
-                    // sheet is gone.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        model.launch(game)
-                    }
+                    play()
                 } label: {
                     Label(
                         current.lastPlayedAt == nil ? LocalizedStringKey("Play") : LocalizedStringKey("Resume"),
@@ -266,6 +275,17 @@ struct GameDetailView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 18)
+    }
+
+    private func play(fromSaveSlot slot: Int? = nil) {
+        let game = current
+        let model = self.model
+        dismiss()
+        // The player covers the whole app; present it once this sheet is
+        // gone.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            model.launch(game, fromSaveSlot: slot)
+        }
     }
 
     private var ratingText: String {
@@ -324,6 +344,36 @@ struct GameDetailView: View {
                     syncState(service)
                 }
             }
+            if current.engine == .onscripter && current.availability.canLaunch {
+                savesRow
+            }
+        }
+    }
+
+    /// ONScripter saves are the game's own files, listed on their own page.
+    private var savesRow: some View {
+        Button {
+            showingSaves = true
+        } label: {
+            DetailRow(label: "Saves") {
+                HStack(spacing: 6) {
+                    if let saveCount {
+                        Text("\(saveCount) saves")
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("game-detail-saves")
+        .task(id: showingSaves) {
+            guard !showingSaves, let directory = try? model.repository.savesURL(for: current) else { return }
+            saveCount = await Task.detached(priority: .utility) {
+                ONSSaveFiles.saves(in: directory).count
+            }.value
         }
     }
 

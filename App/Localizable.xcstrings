@@ -446,6 +446,38 @@
         }
       }
     },
+    "%lld saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブ %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个存档"
+          }
+        }
+      }
+    },
+    "%lld saves · %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブ %1$lld 件 · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 个存档 · %2$@"
+          }
+        }
+      }
+    },
     "%lld times" : {
       "localizations" : {
         "en" : {
@@ -816,6 +848,22 @@
         }
       }
     },
+    "Back to Game" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームに戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回游戏"
+          }
+        }
+      }
+    },
     "Background Fill" : {
       "localizations" : {
         "ja" : {
@@ -828,6 +876,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景填充"
+          }
+        }
+      }
+    },
+    "Backlog" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回看"
+          }
+        }
+      }
+    },
+    "Backlog and saves open when the game is waiting on its text." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームがテキストでクリック待ちのときに、バックログとセーブ・ロードを開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏停在对话等待点按时，才能打开回看和存读档。"
           }
         }
       }
@@ -1344,6 +1424,22 @@
         }
       }
     },
+    "Continue from Latest Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新のセーブから再開"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从最新存档继续"
+          }
+        }
+      }
+    },
     "Continue Playing" : {
       "localizations" : {
         "ja" : {
@@ -1420,6 +1516,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法删除游戏：%@"
+          }
+        }
+      }
+    },
+    "Couldn’t delete the save: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを削除できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法删除存档：%@"
           }
         }
       }
@@ -1776,6 +1888,22 @@
         }
       }
     },
+    "Delete No.%lld?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld を削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除 No.%lld？"
+          }
+        }
+      }
+    },
     "Delete Record" : {
       "localizations" : {
         "ja" : {
@@ -1804,6 +1932,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除记录与历史"
+          }
+        }
+      }
+    },
+    "Delete Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除存档"
           }
         }
       }
@@ -2098,6 +2242,22 @@
         }
       }
     },
+    "Each slot is the game’s own save file in savedata, so its original menu can still read them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各スロットは savedata 内のゲーム自身のセーブファイルなので、ゲーム本来のメニューからも読めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个存档位就是 savedata 里游戏自己的存档文件，游戏原本的菜单也能读取。"
+          }
+        }
+      }
+    },
     "Email" : {
       "localizations" : {
         "ja" : {
@@ -2126,6 +2286,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Emote 候选动画"
+          }
+        }
+      }
+    },
+    "Empty Slot" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空きスロット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空存档位"
+          }
+        }
+      }
+    },
+    "Empty slots aren’t shown. Deleted saves can’t be recovered." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空きスロットは表示されません。削除したセーブは元に戻せません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空存档位不显示。删除后无法恢复。"
           }
         }
       }
@@ -2206,6 +2398,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部已同步"
+          }
+        }
+      }
+    },
+    "Export" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出"
+          }
+        }
+      }
+    },
+    "Export All Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのセーブを書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出全部存档"
           }
         }
       }
@@ -2882,6 +3106,54 @@
         }
       }
     },
+    "Jump Back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回"
+          }
+        }
+      }
+    },
+    "Jump back to this line" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセリフに戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回到这一句"
+          }
+        }
+      }
+    },
+    "Jump back to this line?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセリフに戻りますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回到这一句？"
+          }
+        }
+      }
+    },
     "Just now" : {
       "comment" : "Last-played time for a game quit less than a minute ago.",
       "localizations" : {
@@ -2991,6 +3263,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近游玩 %@"
+          }
+        }
+      }
+    },
+    "Latest" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
           }
         }
       }
@@ -3233,6 +3521,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "列表"
+          }
+        }
+      }
+    },
+    "Load" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读档"
+          }
+        }
+      }
+    },
+    "Load No.%lld?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld をロードしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取 No.%lld？"
           }
         }
       }
@@ -3557,6 +3877,22 @@
         }
       }
     },
+    "Newest First" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい順"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新的在前"
+          }
+        }
+      }
+    },
     "No account connected" : {
       "localizations" : {
         "ja" : {
@@ -3653,6 +3989,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到 ONScripter 脚本（0.txt、00.txt 或 nscript.dat）"
+          }
+        }
+      }
+    },
+    "No saves yet. Saves made in the game appear here." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだセーブがありません。ゲーム内でセーブするとここに表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有存档。在游戏里存档后会显示在这里。"
           }
         }
       }
@@ -3801,6 +4153,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "提示"
+          }
+        }
+      }
+    },
+    "Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前"
           }
         }
       }
@@ -4029,6 +4397,38 @@
         }
       }
     },
+    "Overwrite" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上書き"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖"
+          }
+        }
+      }
+    },
+    "Overwrite No.%lld?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld に上書きしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖 No.%lld？"
+          }
+        }
+      }
+    },
     "Password" : {
       "localizations" : {
         "ja" : {
@@ -4249,6 +4649,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "进度"
+          }
+        }
+      }
+    },
+    "Progress after it is replaced, and anything unsaved is lost." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これ以降の進行は置き換わり、セーブしていない内容は失われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这之后的进度会被替换，未存档的内容将丢失。"
           }
         }
       }
@@ -4637,6 +5053,22 @@
         }
       }
     },
+    "Replay Voice" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ボイスを再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重播语音"
+          }
+        }
+      }
+    },
     "Respect Silent Mode" : {
       "localizations" : {
         "ja" : {
@@ -4717,6 +5149,38 @@
         }
       }
     },
+    "Save Slots" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブスロット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存档位"
+          }
+        }
+      }
+    },
+    "Save to No.%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld にセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存到 No.%lld"
+          }
+        }
+      }
+    },
     "Saved. Will sync when possible" : {
       "localizations" : {
         "ja" : {
@@ -4745,6 +5209,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存档"
+          }
+        }
+      }
+    },
+    "Saves live in the game folder’s savedata, the same files the in-game save and load menus use." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブはゲームフォルダの savedata にあり、ゲーム内のセーブ・ロードメニューと同じファイルです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存档保存在游戏文件夹的 savedata 中，游戏内的存档和读档菜单用的是同一份。"
+          }
+        }
+      }
+    },
+    "Saves your current progress and screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の進行と画面を保存します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存当前进度和画面。"
           }
         }
       }
@@ -5197,6 +5693,22 @@
         }
       }
     },
+    "Start from This Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセーブから始める"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这个存档开始"
+          }
+        }
+      }
+    },
     "Started" : {
       "localizations" : {
         "ja" : {
@@ -5421,6 +5933,38 @@
         }
       }
     },
+    "Tap a line to jump back to it" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セリフをタップしてそこへ戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按一句台词，跳回那里"
+          }
+        }
+      }
+    },
+    "Tap to save here" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップしてここにセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按以存到这里"
+          }
+        }
+      }
+    },
     "The %@ engine isn’t supported yet" : {
       "localizations" : {
         "ja" : {
@@ -5569,6 +6113,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游戏库文件仍无法读取。请检查 Application Support/Mikage/library-v2.json。"
+          }
+        }
+      }
+    },
+    "The old save is replaced with your current progress." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のセーブは現在の進行で置き換わります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原来的存档会被当前进度替换。"
           }
         }
       }
@@ -5863,6 +6423,22 @@
         }
       }
     },
+    "Unsaved progress will be lost." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブしていない進行は失われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前未存档的进度会丢失。"
+          }
+        }
+      }
+    },
     "Up to about 16 MB, rotated automatically" : {
       "localizations" : {
         "ja" : {
@@ -6147,6 +6723,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游戏文件和存档也可以在“文件”App 的 Mikage Next 中直接管理。"
+          }
+        }
+      }
+    },
+    "You can jump back to any of the last 200 lines this session. Earlier lines are read-only." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のプレイで直近 200 行まで戻れます。それより前は読むだけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以跳回本次游玩中最近的 200 句台词。更早的内容只能回看。"
           }
         }
       }

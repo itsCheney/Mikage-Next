@@ -9,4 +9,4 @@
 [submodule "Engine/ONSRuntime/Source"]
 	path = Engine/ONSRuntime/Source
 	url = https://github.com/itsCheney/OnscripterYuri.git
-	branch = shared-sdl3/ons
+	branch = shared-sdl3-ons-host

@@ -38,6 +38,8 @@ struct KRKRLaunchConfiguration {
     let skippedMovies: String?
     /// Which runtime plays the game. KiriKiri-only fields are ignored by others.
     var engine: EngineID = .kirikiri
+    /// ONScripter save slot to start from instead of the title.
+    var loadSlot: Int? = nil
 }
 
 enum KRKRSessionState: Equatable {

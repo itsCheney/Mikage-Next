@@ -46,6 +46,8 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var player: GameRecord?
+    /// The ONScripter save slot the next launch starts from, if any.
+    var pendingLoadSlot: Int?
     @Published var pendingImport: PendingGameImport?
 
     // MARK: Bangumi and VNDB
@@ -257,12 +259,15 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func launch(_ game: GameRecord) {
-        AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName])
+    /// Plays the game, from one of its saves when `slot` is given (only
+    /// ONScripter games start from a save).
+    func launch(_ game: GameRecord, fromSaveSlot slot: Int? = nil) {
+        AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName, "slot": slot.map(String.init) ?? ""])
         guard game.engine.isLaunchSupported, game.availability.canLaunch else {
             alert = availabilityText(game)
             return
         }
+        pendingLoadSlot = slot
         player = game
     }
 
@@ -287,8 +292,14 @@ final class AppModel: ObservableObject {
             performanceDetail: settings.performanceDetail,
             gameTitle: displayTitle(game),
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos),
-            engine: game.engine
+            engine: game.engine,
+            loadSlot: takePendingLoadSlot()
         )
+    }
+
+    private func takePendingLoadSlot() -> Int? {
+        defer { pendingLoadSlot = nil }
+        return pendingLoadSlot
     }
 
     func refreshLibrary(showErrors: Bool = true) async {
