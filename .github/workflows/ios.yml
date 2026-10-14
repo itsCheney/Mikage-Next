@@ -43,12 +43,15 @@ jobs:
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
-      # PSB...) only read the KRKR runtime, their C++ harnesses, the scripts
-      # they run, and the App/Engine bridge two wiring checks inspect. When
-      # none of those, nor the toolchain, changed since a run that passed
-      # them, skip them: a pass marker is cached under a fingerprint of
-      # exactly those inputs. Git tree hashes cover the runtime submodule's
-      # pinned commit. Dispatch with force_native_tests to run them anyway.
+      # PSB...) only read the KRKR runtime, the shared SDL host, their C++
+      # harnesses, the scripts they run, and the few App files two wiring
+      # checks inspect. When none of those, nor the toolchain, changed since
+      # a run that passed them, skip them: a pass marker is cached under a
+      # fingerprint of exactly those inputs. The ONScripter and SDL3 pins,
+      # the engine build scripts and the rest of App do not reach these
+      # tests, so they stay out. Git tree hashes cover the runtime
+      # submodule's pinned commit. Dispatch with force_native_tests to run
+      # them anyway.
       - name: Fingerprint native runtime tests
         id: native-fingerprint
         run: |
@@ -57,9 +60,13 @@ jobs:
             echo "sdl3=$(brew list --versions sdl3)"
             cmake --version | head -n 1
             python3 --version
-            for path in Engine scripts App/Engine .github/workflows/ios.yml; do
+            for path in Engine/KRKRRuntime Engine/MikageSDLHost \
+                App/AppBuildInfo.swift App/SettingsView.swift App/AppDiagnostics.swift App/Info.plist \
+                App/Engine/KRKRSession.swift App/Engine/KRKROverlay.swift App/Engine/KRKRLayerWorkSample.swift \
+                .github/workflows/ios.yml; do
               echo "${path}=$(git rev-parse "HEAD:${path}")"
             done
+            git ls-tree HEAD scripts/ | grep -Ev 'scripts/build-(krkr|ons|sdl3)-ios\.sh$'
             # Swift test targets run in their own steps below.
             git ls-tree HEAD Tests/ | grep -Ev 'Tests/(MikageTests|VNCoreTests)$'
           } | tee build-native-fingerprint.txt
@@ -252,7 +259,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/KRKRRuntime.xcframework
-          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
+          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build KRKR runtime framework
         if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
         run: |
