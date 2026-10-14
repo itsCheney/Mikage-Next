@@ -1,18 +1,34 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%.0f FPS · %.1f ms" : {
+    "%.0f FPS" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$.0f FPS · %2$.1f ms"
+            "value" : "%.0f FPS"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$.0f FPS · %2$.1f ms"
+            "value" : "%.0f FPS"
+          }
+        }
+      }
+    },
+    "%.0f FPS · DC %.0f" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$.0f FPS · DC %2$.0f"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$.0f FPS · DC %2$.0f"
           }
         }
       }
@@ -1632,18 +1648,18 @@
         }
       }
     },
-    "CPU %.0f%% · %@" : {
+    "CPU %.0f%% · RAM %@ · GPU %@" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "CPU %1$.0f%% · %2$@"
+            "value" : "CPU %1$.0f%% · RAM %2$@ · GPU %3$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "CPU %1$.0f%% · %2$@"
+            "value" : "CPU %1$.0f%% · 内存 %2$@ · GPU %3$@"
           }
         }
       }
@@ -1996,6 +2012,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成"
+          }
+        }
+      }
+    },
+    "Draw calls %.0f per frame" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描画コール %.0f / フレーム"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每帧绘制调用 %.0f 次"
           }
         }
       }
@@ -3333,18 +3365,18 @@
         }
       }
     },
-    "Memory %@" : {
+    "Memory %@ · GPU %@" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモリ %@"
+            "value" : "メモリ %1$@ · GPU %2$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内存 %@"
+            "value" : "内存 %1$@ · GPU %2$@"
           }
         }
       }
@@ -4249,6 +4281,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出"
+          }
+        }
+      }
+    },
+    "RAM %@ · GPU %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RAM %1$@ · GPU %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存 %1$@ · GPU %2$@"
           }
         }
       }

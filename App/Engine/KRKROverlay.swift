@@ -27,6 +27,9 @@ struct KRKRPerformanceSnapshot {
     var elapsedSeconds = 0
     /// KiriKiri's layer compositor reports its mode; other engines don't have one.
     var showsLayerCompositing = true
+    /// Negative when the engine doesn't report it.
+    var drawCallsPerFrame = -1.0
+    var gpuMemoryBytes: UInt64 = 0
 }
 
 @MainActor
@@ -260,15 +263,21 @@ private struct KRKROverlayView: View {
         }
     }
 
-    /// Frame rate and time per frame, then CPU and memory.
+    /// Frame rate and draw calls, then CPU, memory and GPU memory.
     private var simplePerformanceHUD: some View {
         let stats = model.performance
+        let memory = ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory)
+        let gpuMemory = ByteCountFormatter.string(fromByteCount: Int64(stats.gpuMemoryBytes), countStyle: .memory)
         return VStack(alignment: .leading, spacing: 2) {
-            Text("\(stats.framesPerSecond, specifier: "%.0f") FPS · \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms")
-            if stats.processCPUPercent >= 0 {
-                Text("CPU \(stats.processCPUPercent, specifier: "%.0f%%") · \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            if stats.drawCallsPerFrame >= 0 {
+                Text("\(stats.framesPerSecond, specifier: "%.0f") FPS · DC \(stats.drawCallsPerFrame, specifier: "%.0f")")
             } else {
-                Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))
+                Text("\(stats.framesPerSecond, specifier: "%.0f") FPS")
+            }
+            if stats.processCPUPercent >= 0 {
+                Text("CPU \(stats.processCPUPercent, specifier: "%.0f%%") · RAM \(memory) · GPU \(gpuMemory)")
+            } else {
+                Text("RAM \(memory) · GPU \(gpuMemory)")
             }
         }
         .font(.system(size: 12, design: .monospaced))
@@ -297,7 +306,10 @@ private struct KRKROverlayView: View {
                 Text("Ops \(stats.gpuLayerOperations) · CPU fallbacks \(stats.layerCPUFallbacks)")
                 Text("Upload \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · readback \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
             }
-            Text("Memory \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory))")
+            Text("Memory \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory)) · GPU \(ByteCountFormatter.string(fromByteCount: Int64(stats.gpuMemoryBytes), countStyle: .memory))")
+            if stats.drawCallsPerFrame >= 0 {
+                Text("Draw calls \(stats.drawCallsPerFrame, specifier: "%.0f") per frame")
+            }
             if stats.processCPUPercent >= 0 {
                 Text("All threads CPU \(stats.processCPUPercent, specifier: "%.0f%%")")
                 if !stats.busiestThreads.isEmpty {

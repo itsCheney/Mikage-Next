@@ -797,7 +797,9 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 residentMemoryBytes: residentMemoryBytes(),
                 processCPUPercent: cpuSample?.processPercent ?? -1,
                 busiestThreads: cpuSample?.summary(limit: 2) ?? "",
-                elapsedSeconds: elapsedSeconds
+                elapsedSeconds: elapsedSeconds,
+                drawCallsPerFrame: raw.drawCallsPerFrame,
+                gpuMemoryBytes: metalAllocatedBytes()
             )
         )
     }

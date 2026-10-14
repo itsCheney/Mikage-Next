@@ -350,7 +350,9 @@ final class NativeONSSession: NSObject, KRKRSession {
                 processCPUPercent: cpuSample?.processPercent ?? -1,
                 busiestThreads: cpuSample?.summary(limit: 2) ?? "",
                 elapsedSeconds: elapsedSeconds,
-                showsLayerCompositing: false
+                showsLayerCompositing: false,
+                drawCallsPerFrame: raw.drawCallsPerFrame,
+                gpuMemoryBytes: metalAllocatedBytes()
             )
         )
     }

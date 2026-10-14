@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Metal
 
 /// CPU used by every thread of the process since the previous sample.
 struct ThreadCPUSample {
@@ -128,4 +129,12 @@ func processResidentMemoryBytes() -> UInt64 {
         }
     }
     return result == KERN_SUCCESS ? UInt64(info.resident_size) : 0
+}
+
+private let metalDevice = MTLCreateSystemDefaultDevice()
+
+/// GPU memory the app's Metal resources hold, in bytes. Every engine and
+/// SDL render on the system default device, so this covers all of them.
+func metalAllocatedBytes() -> UInt64 {
+    UInt64(metalDevice?.currentAllocatedSize ?? 0)
 }
