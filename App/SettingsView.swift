@@ -80,7 +80,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
 
                     Toggle(isOn: $model.settings.stretchToScreen) {
-                        SettingLabel("Stretch to Fill Screen", systemImage: "arrow.up.left.and.arrow.down.right")
+                        SettingLabel("Stretch 4:3 Games to 16:9", systemImage: "arrow.left.and.right")
                     }
 
                     Toggle(isOn: $model.settings.threeFingerMenu) {

@@ -269,7 +269,9 @@ void BackgroundStopsIterating()
     calls.clear();
     REQUIRE(MikageSDLHostSetForeground(false));
     REQUIRE(!MikageSDLHostIsForeground());
-    REQUIRE(InOrder({"inactive", "engineAudio.suspend", "audioSession.deactivate"}));
+    REQUIRE(InOrder({"inactive", "engineAudio.suspend"}));
+    // Deactivating the session would stop SDL's audio queue for good.
+    REQUIRE(!Called("audioSession.deactivate"));
     REQUIRE(MikageSDLHostSetForeground(false));  // Already there: no second suspend.
     REQUIRE(Find("inactive", Find("inactive") + 1) == calls.size());
 

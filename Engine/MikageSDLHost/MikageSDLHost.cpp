@@ -242,11 +242,13 @@ extern "C" bool MikageSDLHostSetForeground(bool value)
         foreground = false;
         if (engine && engine->setActive)
             engine->setActive(false);
+        // The audio session stays active. Deactivating it stops SDL's
+        // running audio queue behind SDL's back, and SDL only restarts
+        // queues the system interrupted, so the game came back silent.
         setAudioSuspended(true);
-        const bool deactivated = MikageSDLHostPlatformSetAudioSessionActive(false, error);
-        lastError = deactivated ? std::string() : error;
-        log("audio", deactivated ? 3 : 5, deactivated ? "foreground.suspended" : lastError.c_str());
-        return deactivated;
+        lastError.clear();
+        log("audio", 3, "foreground.suspended");
+        return true;
     }
 
     if (!MikageSDLHostPlatformSetAudioSessionActive(true, error)) {

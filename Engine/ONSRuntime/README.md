@@ -4,7 +4,7 @@ Mikage Next runs ONScripter games with [ONScripter Yuri](https://github.com/Yuri
 
 Pinned inputs:
 
-- `Source/` submodule: `5c1858170d3bd21c51ddef8569aca093b8fbac64` (`itsCheney/OnscripterYuri`, branch `shared-sdl3/ons`, based on upstream `master`)
+- `Source/` submodule: `7fa337b4a04cc0c8f9e67397b7eedea3919a8ddd` (`itsCheney/OnscripterYuri`, branch `shared-sdl3/ons`, based on upstream `master`)
 - sdl2-compat: `d02db3d9f09ef18f0adb05981ebd1760b9454bf1` (`itsCheney/sdl2-compat`, branch `shared-sdl3/ons`, based on `release-2.32.74`)
 - FFmpeg 7.1.2 for movies: the static libraries `scripts/build-krkr-ios.sh` installs with vcpkg for KiriKiri (`build/krkr-vcpkg-installed`). `scripts/build-ons-ios.sh` installs the same vcpkg manifest itself when they are missing.
 - [GeneralUser GS](https://github.com/mrbumpy409/GeneralUser-GS) v2.0.3 SoundFont for MIDI music, downloaded at commit `684543d5e5efaef08d02be50dcda8d552478fa60` and checked by SHA-256
@@ -16,7 +16,7 @@ The engine runs on its own stack on the main thread and hands control back to th
 
 MIDI music plays through Apple's MIDI synthesizer with GeneralUser GS (about 31 MB), which the build copies into `ONSRuntime.framework` with its license. Movies are decoded with FFmpeg and drawn over the game; a tap skips them when the game allows it.
 
-The Settings switch "Stretch to Fill Screen" (off by default) stretches the game to the display; otherwise it keeps its aspect ratio with black bars. The game menu's Back tile presses Escape, which ONScripter treats as a right-click.
+Games keep their aspect ratio with black bars. The Settings switch "Stretch 4:3 Games to 16:9" (off by default) widens a game narrower than 16:9 to 16:9 first. The game menu's Back tile presses Escape, which ONScripter treats as a right-click.
 
 Known limits: system fonts use the first face of their collection.
 

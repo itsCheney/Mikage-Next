@@ -5117,18 +5117,18 @@
         }
       }
     },
-    "Stretch to Fill Screen" : {
+    "Stretch 4:3 Games to 16:9" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "画面いっぱいに引き伸ばす"
+            "value" : "4:3 のゲームを 16:9 に引き伸ばす"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拉伸填满屏幕"
+            "value" : "将 4:3 游戏拉伸为 16:9"
           }
         }
       }
