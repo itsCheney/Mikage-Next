@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, master, beta, metal_dev, codex/emote-perf]
+    branches: [main, master, beta, dev, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -40,6 +40,9 @@ jobs:
       - name: Record ONScripter runtime revision
         id: ons-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/ONSRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record openArtemis runtime revision
+        id: artemis-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/ArtemisRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -295,6 +298,27 @@ jobs:
         with:
           path: build/ONSRuntime.xcframework
           key: ${{ steps.cache-ons-runtime.outputs.cache-primary-key }}
+      # openArtemis links the shared SDL3 and the FFmpeg the KRKR step
+      # installs; its other dependencies come from its own vcpkg manifest,
+      # with triplets that match KRKR's so the binary cache is shared.
+      - name: Restore openArtemis runtime framework
+        id: cache-artemis-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/ArtemisRuntime.xcframework
+          key: artemis-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-artemis-ios.sh', 'scripts/build-sdl3-ios.sh', 'Engine/MikageSDLHost/**', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.artemis-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Build openArtemis runtime framework
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-artemis-ios.sh 2>&1 | tee build/artemis-runtime-build.log
+      - name: Save openArtemis runtime framework
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/ArtemisRuntime.xcframework
+          key: ${{ steps.cache-artemis-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

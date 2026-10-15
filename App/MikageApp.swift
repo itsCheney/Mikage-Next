@@ -118,7 +118,8 @@ final class AppModel: ObservableObject {
         self.repository = repository ?? Self.appRepository()
         krkrSession = session ?? EngineSessionRouter(sessions: [
             .kirikiri: NativeKRKRSession(),
-            .onscripter: NativeONSSession()
+            .onscripter: NativeONSSession(),
+            .artemis: NativeArtemisSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 

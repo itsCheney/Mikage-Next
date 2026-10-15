@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), and ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri). Ren’Py and Artemis are next: their games are already recognized and listed, but stay disabled until their runtimes land.
+Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri), and, experimentally, Artemis games through [openArtemis](https://github.com/itsCheney/openartemis). Ren’Py is next: its games are already recognized and listed, but stay disabled until its runtime lands.
 
 Mikage ships no game content. You bring games you own.
 
@@ -11,6 +11,7 @@ Mikage ships no game content. You bring games you own.
 **Library**
 - Every engine has its own folder in the app’s Documents: `krkr/`, `ons/`, `renpy/` and `artemis/`. Put a game folder in one of them with the Files app, or import a folder with the + button in the Library.
 - The library rescans on launch, when the app returns to the foreground, and on pull to refresh. Folders keep their original names; Mikage’s own records live in Application Support.
+- An Artemis game folder needs `root.pfs` (or another `.pfs` pack), or an extracted project with `system.ini`.
 - An ONScripter game folder needs a script such as `0.txt`, `00.txt` or `nscript.dat`. Mikage uses the folder's `default.ttf` when there is one, otherwise a system font (Hiragino Sans for Japanese games, PingFang for Chinese ones).
 - For KiriKiri, Mikage picks `startup.tjs` at the game root if there is one, otherwise the first XP3 among `启动游戏.xp3`, `startup.xp3`, `start.xp3`, `boot.xp3` and `data.xp3` that passes its signature check.
 - Covers come from an image in the game folder, a picture you choose, or artwork from Bangumi or VNDB. A cover you set yourself is never replaced.
@@ -43,7 +44,7 @@ Mikage ships no game content. You bring games you own.
 | KiriKiri (KRKRSDL3) | Yes | Yes |
 | ONScripter (ONScripter Yuri) | Yes | Yes |
 | Ren’Py | Yes | Not yet |
-| Artemis | Yes | Not yet |
+| Artemis (openArtemis) | Yes | Experimental |
 
 ZIP import and Wi-Fi upload aren’t available yet. The plan for the next engines is in [docs/PHASE-2-MULTI-ENGINE-PLAN.md](docs/PHASE-2-MULTI-ENGINE-PLAN.md).
 
@@ -57,6 +58,7 @@ cd Mikage-Next
 brew install cmake xcodegen
 bash scripts/build-krkr-ios.sh   # builds build/KRKRRuntime.xcframework
 bash scripts/build-ons-ios.sh    # builds build/ONSRuntime.xcframework
+bash scripts/build-artemis-ios.sh  # builds build/ArtemisRuntime.xcframework
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -77,11 +79,12 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 | Path | Contents |
 | --- | --- |
 | `App/` | The SwiftUI app: library, game details, player, settings, storage, Bangumi/VNDB linking, string catalog |
-| `App/Engine/` | The bridges that host the KiriKiri and ONScripter runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
+| `App/Engine/` | The bridges that host the KiriKiri, ONScripter and Artemis runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
 | `Sources/VNCore/` | Swift package: library scanning and import, path safety, Bangumi and VNDB clients, matching |
 | `Engine/KRKRRuntime/` | The KRKRSDL3 runtime, pinned as a submodule ([krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)) |
 | `Engine/ONSRuntime/` | ONScripter Yuri, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/OnscripterYuri)), running on the shared SDL3 through sdl2-compat |
-| `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri today): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
+| `Engine/ArtemisRuntime/` | openArtemis, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/openartemis)), running directly on the shared SDL3 |
+| `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri and Artemis): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
 | `Tests/` | Swift unit tests and native runtime tests |
 | `scripts/` | Build scripts and diagnostic analysis tools |
 | `docs/` | Design notes, investigations and performance baselines |
@@ -90,6 +93,6 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 
 Mikage Next is free software, released under the [GNU General Public License v3.0 or later](LICENSE).
 
-The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). Read them before distributing builds.
+The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). The bundled openArtemis is MIT OR GPL-3.0-or-later, used under GPL-3.0-or-later; see [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md). Read them before distributing builds.
 
 KiriKiri, ONScripter, Ren’Py, Artemis, Bangumi and VNDB are the work of their respective authors. Mikage is not affiliated with any of them.
