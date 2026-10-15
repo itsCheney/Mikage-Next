@@ -152,6 +152,40 @@ void Session(int marker, bool collectBeforeShutdown)
     if (calls != 1) throw std::runtime_error("finalizer must run exactly once during shutdown");
 }
 
+// Games often exit with unreachable object cycles (arrays, dictionaries,
+// method closures). The last engine's heap clear must free them through their
+// members without deleting anything twice, and drop what they referenced.
+void UnreachableCyclesAtExit()
+{
+    int live = 0;
+    auto* vm = new tTJS();
+    {
+        auto* held = new ClosureObserver(live);
+        tTJSVariant value(held, nullptr);
+        held->Release();
+        vm->GetGlobalNoAddRef()->PropSet(TJS_MEMBERENSURE, TJS_N("held"), nullptr, &value,
+                                         vm->GetGlobalNoAddRef());
+    }
+    vm->ExecScript(TJS_N(
+        "class Node {"
+        "  var peer, items, table, method, keep;"
+        "  function Node() { items = []; table = %[]; keep = held; }"
+        "  function touch() { return peer; }"
+        "}"
+        "function makeCycles() {"
+        "  for (var i = 0; i < 200; i++) {"
+        "    var a = new Node(), b = new Node();"
+        "    a.peer = b; b.peer = a;"
+        "    a.items.add(b); b.items.add(a); a.items.add([a, b, %[n:b]]);"
+        "    a.table.self = a; b.table.other = a.table; a.method = b.touch;"
+        "  }"
+        "}"
+        "makeCycles(); delete global.held;"));
+    if (live != 1) throw std::runtime_error("cycle fixture lost its native reference");
+    delete vm;
+    if (live != 0) throw std::runtime_error("exit heap clear kept references held by object cycles");
+}
+
 void OverlappingEngines(bool deleteGameFirst)
 {
     auto game=std::make_unique<tTJS>();
@@ -219,6 +253,7 @@ int main(int argc,char** argv)
             return RunByteCodeCompatibilityStaticTest(argv[2]);
         RunByteCodeCompatibilityTests();
         delete new tTJS(); // No script/register allocation: null pool free is safe.
+        for (int i = 0; i < 3; ++i) UnreachableCyclesAtExit();
         XP3SessionLifetime();
         SilentExitPassesScriptCatch();
         for (int i = 0; i < 25; ++i) {
@@ -229,7 +264,7 @@ int main(int argc,char** argv)
         }
         std::cout << "PASS: 50 XP3 cache/closure reset sessions, 50 TJS shutdown/GC sessions, "
                      "50 overlapping game/decoder lifetimes in both exit orders, "
-                     "empty VM and reentrant global-access finalizers, "
+                     "empty VM and reentrant global-access finalizers, unreachable cycles at exit, "
                      "System.exit unwind past script try/catch\n";
         return 0;
     } catch (const std::exception& error) {
