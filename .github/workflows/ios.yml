@@ -307,6 +307,25 @@ jobs:
         with:
           path: build/ArtemisRuntime.xcframework
           key: artemis-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-artemis-ios.sh', 'scripts/build-sdl3-ios.sh', 'Engine/MikageSDLHost/**', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.artemis-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      # openArtemis's own vcpkg packages are not in the KRKR archive cache
+      # (that key rarely misses, so it is seldom saved again); keep its
+      # installed trees on an exact key instead.
+      - name: Cache openArtemis installed dependencies
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/artemis-vcpkg-installed
+          key: artemis-vcpkg-installed-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/ArtemisRuntime/Source/vcpkg.json', 'Engine/ArtemisRuntime/Source/cmake/triplets/arm64-ios.cmake', 'Engine/ArtemisRuntime/Source/cmake/triplets/arm64-ios-simulator.cmake') }}
+      # Compiler results, so a small engine change recompiles only what it
+      # touches (same ccache setup as KRKR).
+      - name: Cache openArtemis compilation results
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/artemis-ccache
+          key: artemis-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ steps.artemis-revision.outputs.rev }}-${{ hashFiles('Engine/MikageSDLHost/**', 'scripts/build-artemis-ios.sh') }}
+          restore-keys: |
+            artemis-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
       - name: Build openArtemis runtime framework
         if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
         run: |

@@ -81,6 +81,39 @@ ensure_ffmpeg arm64-ios-simulator "${KRKR_INSTALLED_ROOT}/simulator"
 # KiriKiri.
 ARTEMIS_INSTALLED_ROOT="${PROJECT_DIR}/build/artemis-vcpkg-installed"
 
+# Compile through ccache, set up as in build-krkr-ios.sh: the Xcode generator
+# ignores CMAKE_<LANG>_COMPILER_LAUNCHER, so Xcode's CC/CXX settings point at
+# wrappers that carry the ccache settings themselves.
+cmake_launcher_args=()
+if command -v ccache >/dev/null 2>&1; then
+    export CCACHE_DIR="${CCACHE_DIR:-${PROJECT_DIR}/build/artemis-ccache}"
+    export CCACHE_BASEDIR="${PROJECT_DIR}"
+    export CCACHE_SLOPPINESS="clang_index_store,ivfsoverlay,modules,include_file_ctime,include_file_mtime,pch_defines,time_macros,system_headers"
+    export CCACHE_DEPEND=true
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-1G}"
+    ccache_bin="${PROJECT_DIR}/build/artemis-ccache-bin"
+    mkdir -p "${ccache_bin}"
+    for tool in clang clang++; do
+        cat > "${ccache_bin}/${tool}" <<EOF
+#!/bin/sh
+export CCACHE_DIR='${CCACHE_DIR}' CCACHE_BASEDIR='${CCACHE_BASEDIR}'
+export CCACHE_SLOPPINESS='${CCACHE_SLOPPINESS}' CCACHE_MAXSIZE='${CCACHE_MAXSIZE}' CCACHE_DEPEND=true
+export CCACHE_LOGFILE='${PROJECT_DIR}/build/artemis-ccache.log'
+exec '$(command -v ccache)' '$(xcrun -f "${tool}")' "\$@"
+EOF
+        chmod +x "${ccache_bin}/${tool}"
+    done
+    cmake_launcher_args=(
+        -DCMAKE_XCODE_ATTRIBUTE_CC="${ccache_bin}/clang"
+        -DCMAKE_XCODE_ATTRIBUTE_CXX="${ccache_bin}/clang++"
+        -DCMAKE_XCODE_ATTRIBUTE_LD="$(xcrun -f clang)"
+        -DCMAKE_XCODE_ATTRIBUTE_LDPLUSPLUS="$(xcrun -f clang++)"
+        -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_EXPLICIT_MODULES=NO
+        -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO
+    )
+    ccache --zero-stats
+fi
+
 build_slice() {
     local sdk="$1"
     local triplet="$2"
@@ -110,7 +143,8 @@ build_slice() {
         -DOA_ENABLE_TESTS=OFF \
         -DOA_SDL3_FRAMEWORK="${SDL3_XCFRAMEWORK}/${sdl3_slice}/SDL3.framework" \
         -DOA_FFMPEG_ROOT="${ffmpeg_root}" \
-        -DMIKAGE_SDL_HOST_DIR="${SDL_HOST_DIR}"
+        -DMIKAGE_SDL_HOST_DIR="${SDL_HOST_DIR}" \
+        ${cmake_launcher_args[@]+"${cmake_launcher_args[@]}"}
     cmake --build "${build_dir}" --config Release --target ArtemisRuntime --parallel
 }
 
@@ -158,4 +192,11 @@ xcodebuild -create-xcframework \
     -output "${OUTPUT}"
 
 test -f "${OUTPUT}/Info.plist"
+if command -v ccache >/dev/null 2>&1; then
+    ccache --show-stats --verbose
+    if [[ -f "${PROJECT_DIR}/build/artemis-ccache.log" ]]; then
+        grep -E "Result: |unsupported|Unsupported|Failed|Disabling" "${PROJECT_DIR}/build/artemis-ccache.log" \
+            | sed -E 's/^\[[^]]*\] //' | sort | uniq -c | sort -rn | head -n 20 || true
+    fi
+fi
 echo "Created ${OUTPUT}"
