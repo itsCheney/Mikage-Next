@@ -88,7 +88,7 @@ open Mikage.xcodeproj
 | `Engine/MikageSDLHost/` | 基于 SDL 主回调的引擎运行时编译进去的共享宿主层（KiriKiri 和 Artemis）：驱动 SDL 主回调、停止与前后台、音频会话、每局之间的复位 |
 | `Tests/` | Swift 单元测试和原生运行时测试 |
 | `scripts/` | 构建脚本和诊断分析工具 |
-| `docs/` | 设计笔记、问题排查记录和性能基线 |
+| `docs/` | 设计笔记和接入记录 |
 
 ## 许可证
 

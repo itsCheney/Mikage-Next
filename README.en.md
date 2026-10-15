@@ -87,7 +87,7 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 | `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri and Artemis): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
 | `Tests/` | Swift unit tests and native runtime tests |
 | `scripts/` | Build scripts and diagnostic analysis tools |
-| `docs/` | Design notes, investigations and performance baselines |
+| `docs/` | Design notes and integration records |
 
 ## License
 

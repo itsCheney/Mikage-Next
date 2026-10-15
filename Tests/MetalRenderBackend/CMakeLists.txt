@@ -39,12 +39,6 @@ if(APPLE)
 endif()
 enable_testing()
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(UPLOAD_REPORT "${CMAKE_CURRENT_BINARY_DIR}/ProductionUploadReport.inc")
-add_custom_command(OUTPUT "${UPLOAD_REPORT}"
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-upload-report.py"
-        --source "${CORE}/core/render/backend/MetalRenderBackend.mm" --output "${UPLOAD_REPORT}"
-    DEPENDS "${CORE}/core/render/backend/MetalRenderBackend.mm" "${CMAKE_CURRENT_LIST_DIR}/extract-upload-report.py"
-    VERBATIM)
 set(TRANSITION_CACHE "${CMAKE_CURRENT_BINARY_DIR}/ProductionTransitionCache.inc")
 add_custom_command(OUTPUT "${TRANSITION_CACHE}"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-transition-cache.py"
@@ -87,28 +81,7 @@ add_custom_command(OUTPUT "${STATIC_PRESENTATION_TEST}"
     DEPENDS "${CMAKE_CURRENT_LIST_DIR}/NativeStaticPresentationTests.inc" "${CMAKE_CURRENT_LIST_DIR}/extract-static-presentation-test.py"
     VERBATIM)
 target_sources(metal-render-tests PRIVATE "${STATIC_PRESENTATION_TEST}")
-
-
-
 target_include_directories(metal-render-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CORE}/core/media/image")
-add_executable(c3-upload-emitter LayerUploadEmitter.cpp "${UPLOAD_REPORT}")
-target_include_directories(c3-upload-emitter PRIVATE "${CORE}/core/render" "${CMAKE_CURRENT_BINARY_DIR}")
-add_test(NAME c3-upload-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-c3-uploads.py")
-set_tests_properties(c3-upload-parser PROPERTIES ENVIRONMENT "C3_UPLOAD_EMITTER=$<TARGET_FILE:c3-upload-emitter>")
-set(HOTSPOT_TRACE "${CMAKE_CURRENT_BINARY_DIR}/ProductionHotspotTrace.inc")
-add_custom_command(OUTPUT "${HOTSPOT_TRACE}"
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/extract-hotspot-trace.py"
-        --source "${CORE}/core/render/backend/MetalRenderBackend.mm" --output "${HOTSPOT_TRACE}"
-    DEPENDS "${CORE}/core/render/backend/MetalRenderBackend.mm" "${CMAKE_CURRENT_LIST_DIR}/extract-hotspot-trace.py"
-    VERBATIM)
-add_executable(p2d-hotspot-emitter LayerHotspotEmitter.cpp "${HOTSPOT_TRACE}")
-target_include_directories(p2d-hotspot-emitter PRIVATE "${CORE}/core/render" "${CMAKE_CURRENT_BINARY_DIR}")
-add_test(NAME p2d-hotspot-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-layer-hotspots.py")
-set_tests_properties(p2d-hotspot-parser PROPERTIES ENVIRONMENT "P2D_HOTSPOT_EMITTER=$<TARGET_FILE:p2d-hotspot-emitter>")
-add_executable(p2d-cpu-emitter CPUFrameEmitter.cpp)
-target_include_directories(p2d-cpu-emitter PRIVATE "${CORE}/core/render")
-add_test(NAME p2d-cpu-parser COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/test-cpu-calls.py")
-set_tests_properties(p2d-cpu-parser PROPERTIES ENVIRONMENT "P2D_CPU_EMITTER=$<TARGET_FILE:p2d-cpu-emitter>")
 add_test(NAME metal-render-tests COMMAND metal-render-tests)
 set_tests_properties(metal-render-tests PROPERTIES SKIP_RETURN_CODE 77)
 
