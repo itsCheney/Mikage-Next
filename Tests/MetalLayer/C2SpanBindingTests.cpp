@@ -129,7 +129,9 @@ struct RectF {tjs_real x=0,y=0,w=0,h=0;RectF()=default;RectF(tjs_real X,tjs_real
 struct PointF {};
 struct GdipMatrix {plutovg_matrix_t _core;GdipMatrix(){plutovg_matrix_init_identity(&_core);}
     explicit GdipMatrix(plutovg_matrix_t v):_core(v){} GdipMatrix* Clone() const {return new GdipMatrix(_core);}};
-struct FontInfo {plutovg_font_face_t* getFontFace() const {return nullptr;} float getEmSize() const {return 10;}};
+struct FontInfo {plutovg_font_face_t* getFontFace() const {return nullptr;} float getEmSize() const {return 10;}
+    float getAscent() const {return 8;} float getLineSpacing() const {return 12;}};
+static tTJSBinaryStream* TVPCreateBinaryStreamForWrite(const ttstr&,const ttstr&) {return nullptr;}
 NCB_TYPECONV_SRCMAP_SET(RectF,ncbNativeObjectBoxing::Boxing,true);
 int ImageLoads=0;
 plutovg_surface_t* ImageLoadSurface=nullptr;
@@ -615,10 +617,10 @@ int RunC2SpanBindingTests() {
                 "record transaction changed pixels or exception phase");
             Check(gpu.native->texture->counts->writes==(fault==1 || fault==4?1:0),"record transaction replayed CPU after GPU write");
             std::unique_ptr<GdipImage> expected(cpu.Draw()->getRecordImage()),actual(gpu.Draw()->getRecordImage());
-            Check(expected && actual && expected->vectorGraph.size()==2 && actual->vectorGraph.size()==2,
-                "record transaction duplicated or lost original per-paint entries");
+            Check(expected && actual && expected->vectorGraph.size()==1 && actual->vectorGraph.size()==1,
+                "record transaction duplicated or lost the per-call entry");
             Check(!std::memcmp(&expected->transMtx,&actual->transMtx,sizeof(actual->transMtx)),"record transform changed");
-            for(size_t i=0;i<2;++i) {
+            for(size_t i=0;i<1;++i) {
                 const plutovg_path_element_t *a=nullptr,*b=nullptr;
                 const auto na=plutovg_path_get_elements(expected->vectorGraph[i].path,&a);
                 const auto nb=plutovg_path_get_elements(actual->vectorGraph[i].path,&b);
@@ -630,6 +632,21 @@ int RunC2SpanBindingTests() {
             values[4]=BoxImage(actual.release());Support=true;call(replayGPU,"drawImageStretch",values);
             Check(replayCPU.native->texture->pixels==replayGPU.native->texture->pixels,
                 "record export/replay diverged from original CPU");
+        }
+        {
+            // A view transform change replays the record: what was drawn
+            // comes back, each entry under the transform it was drawn with.
+            LayerFixture target;Support=false;
+            call(target,"clear",{0});target.Draw()->setRecord(true);
+            call(target,"drawPath",operations[1].second);
+            target.Draw()->translateTransform(9,4);
+            call(target,"drawPath",operations[1].second);
+            const auto drawn=target.native->texture->pixels;
+            Check(std::count(drawn.begin(),drawn.end(),0u)>100 && std::count(drawn.begin(),drawn.end(),0u)<drawn.size()-100,
+                "record replay fixture did not draw on a cleared layer");
+            target.Draw()->translateViewTransform(0,0);
+            Check(target.native->texture->pixels==drawn,"record redraw lost or moved the recorded drawing");
+            Support=true;
         }
         {
             LayerFixture target;Support=true;const int attempts=Attempts;

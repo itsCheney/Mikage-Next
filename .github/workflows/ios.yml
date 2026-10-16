@@ -172,6 +172,13 @@ jobs:
           cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/psb-file-tests --parallel
           ctest --test-dir build/psb-file-tests --output-on-failure
+      - name: Test sound buffer pan through SDL's disk audio driver
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/AudioPan -B build/audio-pan-tests -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/audio-pan-tests --parallel
+          ctest --test-dir build/audio-pan-tests --output-on-failure
       - name: Test layer input and pointer presentation lifecycle
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
