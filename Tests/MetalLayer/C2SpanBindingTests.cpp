@@ -648,6 +648,16 @@ int RunC2SpanBindingTests() {
             Check(target.native->texture->pixels==drawn,"record redraw lost or moved the recorded drawing");
         }
         {
+            // A recorded clear() colour is the background a replay starts from.
+            LayerFixture target;Support=false;
+            target.Draw()->setRecord(true);call(target,"clear",{(tjs_int64)0xFF204060});
+            call(target,"drawPath",operations[1].second);
+            const auto drawn=target.native->texture->pixels;
+            Check(std::count(drawn.begin(),drawn.end(),drawn.front())>100,"record clear fixture lost its background");
+            target.Draw()->translateViewTransform(0,0);
+            Check(target.native->texture->pixels==drawn,"record redraw lost the recorded clear colour");
+        }
+        {
             // Transform calls append in degrees (GDI+ MatrixOrderAppend):
             // two translates equal their sum, and a full turn is no turn.
             auto render=[&](const std::function<void(LayerExDraw*)>& setup) {

@@ -1,5 +1,6 @@
 // Plays a stereo tone through the production SDL3 sound buffer into SDL's
-// disk audio driver and checks the left/right levels for each pan.
+// disk audio driver and checks the left/right levels for each pan, and that
+// the buffer reports itself finished afterwards.
 #include "tjsCommHead.h"
 #include "PlatformAudio.h"
 #include "PlatformMutex.h"
@@ -76,6 +77,14 @@ static Levels Render(const std::string& dir, float pan, float later)
     for (int i = 0; i < 400 && buffer->GetCurrentPlaySamples() + 64 < (tjs_uint)frames; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // The engine stops the sound once no buffer remains; the resampler's
+    // held-back tail must not keep the last one alive.
+    const int remain = buffer->GetRemainBuffers();
+    if (remain != 0)
+    {
+        std::printf("FAIL %d buffer(s) still remain after the tone played\n", remain);
+        failures++;
+    }
     buffer->Release();
     SDL_Quit();
 

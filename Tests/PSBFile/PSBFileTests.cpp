@@ -352,6 +352,27 @@ void mediaSharing() {
     }
     media->Release(); psbVar = nullptr;
 }
+
+// Motion PSBs repeat member names such as "pixel"; psb:// keeps serving the
+// first resource under a repeated name.
+void repeatedNames() {
+    setMode(false); Fixture fixture;
+    fixture.chunks = {Bytes{'a'}, Bytes{'b'}};
+    input = fixture.buildFullFile(Node::object({{"one", Node::object({{"pixel", Node::resource(0)}})},
+                                                {"two", Node::object({{"pixel", Node::resource(1)}})}}));
+    auto* media = new PSB::PSBMedia(); psbVar = media;
+    {
+        tTJS vm; install(vm);
+        vm.ExecScript("var p=new PSBFile('fixture.scn');");
+        std::unique_ptr<tTJSBinaryStream> stream(media->Open("fixture.scn/pixel", 0));
+        require(stream != nullptr && stream->GetSize() == 1, "psb:// did not open a repeated name");
+        char byte = 0; stream->ReadBuffer(&byte, 1);
+        require(byte == 'a', "psb:// served a later resource for a repeated name");
+        stream.reset();
+        vm.ExecScript("invalidate p; p=void;"); vm.DoGarbageCollection();
+    }
+    media->Release(); psbVar = nullptr;
+}
 }
 
 // The storage boundary is the sole IO double; production PSBFile and PSBMedia
@@ -376,8 +397,9 @@ int main() {
         numbersAndWideArrays();
         versionOne();
         mediaSharing();
+        repeatedNames();
         cpu::SetEnabled(false, 3, 1); cpu::clockNS = cpu::Clock; cpu::rawLine = nullptr; cpu::captureStack = nullptr;
-        std::cout << "PASS: production PSB plain/MDF semantics, number signs, wide arrays, v1 names, psb:// sharing, bounded stage metrics, native owner/tree destruction, external root lifetime, script finalizers and failures\n";
+        std::cout << "PASS: production PSB plain/MDF semantics, number signs, wide arrays, v1 names, psb:// sharing and repeated names, bounded stage metrics, native owner/tree destruction, external root lifetime, script finalizers and failures\n";
         return 0;
     } catch (const eTJSError& error) {
         std::cerr << "FAIL: " << error.GetMessage().AsStdString() << '\n';
