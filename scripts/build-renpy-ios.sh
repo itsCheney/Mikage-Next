@@ -146,8 +146,8 @@ ensure_ffmpeg arm64-ios "${KRKR_INSTALLED_ROOT}/device"
 ensure_ffmpeg arm64-ios-simulator "${KRKR_INSTALLED_ROOT}/simulator"
 
 # Ren'Py's own libraries (SDL3_image, FreeType, HarfBuzz, FriBidi, assimp,
-# libffi, ...) from mikage/vcpkg.json. Its triplets are KiriKiri's, so
-# packages both use come from the shared binary cache.
+# libffi, ...) from mikage/vcpkg.json. Its triplets are KiriKiri's plus a
+# cross-build host for libffi.
 RENPY_INSTALLED_ROOT="${PROJECT_DIR}/build/renpy-vcpkg-installed"
 install_deps() {
     local triplet="$1"
