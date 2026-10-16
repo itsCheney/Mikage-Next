@@ -82,6 +82,9 @@ final class AppModel: ObservableObject {
 
     private(set) var libraryReadable = true
     let repository: LibraryRepository
+    /// Games shipped in the app for testing engines, copied into the library
+    /// once. Nil for a repository a caller passed in, like tests do.
+    let builtInGamesRoot: URL?
     let krkrSession: any KRKRSession
     let defaults: UserDefaults
 
@@ -116,6 +119,9 @@ final class AppModel: ObservableObject {
     ) {
         self.defaults = defaults
         self.repository = repository ?? Self.appRepository()
+        builtInGamesRoot = repository == nil
+            ? Bundle.main.resourceURL?.appendingPathComponent("BuiltInGames", isDirectory: true)
+            : nil
         krkrSession = session ?? EngineSessionRouter(sessions: [
             .kirikiri: NativeKRKRSession(),
             .onscripter: NativeONSSession(),
@@ -317,8 +323,19 @@ final class AppModel: ObservableObject {
         defer { scanning = false }
         do {
             let repository = self.repository
+            let builtInGamesRoot = self.builtInGamesRoot
             let snapshot = try await Task.detached(priority: .userInitiated) {
-                try repository.scan()
+                if let builtInGamesRoot {
+                    do {
+                        let copied = try repository.installBuiltInGames(from: builtInGamesRoot)
+                        if !copied.isEmpty {
+                            AppDiagnostics.shared.event("library", "builtin.installed", ["games": copied.joined(separator: ",")])
+                        }
+                    } catch {
+                        AppDiagnostics.shared.event("library", "builtin.failed", ["error": error.localizedDescription])
+                    }
+                }
+                return try repository.scan()
             }.value
             apply(snapshot)
             AppDiagnostics.shared.event("library", "scan.end", ["active": String(snapshot.active.count), "missing": String(snapshot.missing.count)])

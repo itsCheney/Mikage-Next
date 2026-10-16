@@ -240,6 +240,57 @@ public struct LibraryRepository: Sendable {
         try FileManager.default.moveItem(at: staging, to: destination)
     }
 
+    /// Remembers which built-in games were copied in, so one the player
+    /// deletes is not copied back.
+    public var builtInGamesURL: URL { metadataRoot.appendingPathComponent("builtin-games.json") }
+
+    /// Copies the games shipped in the app (`<root>/<engine folder>/<game>`,
+    /// e.g. `renpy/The Question`) into the library, each one once.
+    ///
+    /// A folder already in the library with the same name is left alone and
+    /// counts as installed. Returns the games copied in this call.
+    @discardableResult
+    public func installBuiltInGames(from root: URL) throws -> [String] {
+        let lock = fileLock
+        lock.lock()
+        defer { lock.unlock() }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: root.path) else { return [] }
+        try ensureStructure()
+        var installed = Set<String>()
+        if fm.fileExists(atPath: builtInGamesURL.path) {
+            installed = Set(try JSONDecoder().decode([String].self, from: Data(contentsOf: builtInGamesURL)))
+        }
+
+        var copied: [String] = []
+        var recorded = installed
+        for engine in EngineID.allCases {
+            let engineSource = root.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
+            guard fm.fileExists(atPath: engineSource.path) else { continue }
+            let games = try fm.contentsOfDirectory(
+                at: engineSource,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ).sorted { $0.lastPathComponent < $1.lastPathComponent }
+            for game in games {
+                guard try game.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else { continue }
+                let name = "\(engine.documentsDirectoryName)/\(game.lastPathComponent)"
+                guard !installed.contains(name) else { continue }
+                recorded.insert(name)
+                if try containsFolder(named: game.lastPathComponent, in: engineRoot(for: engine)) { continue }
+                try importFolder(game, engine: engine)
+                copied.append(name)
+            }
+        }
+
+        if recorded != installed {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(recorded.sorted()).write(to: builtInGamesURL, options: .atomic)
+        }
+        return copied
+    }
+
     public func relink(_ record: GameRecord, to source: URL) throws {
         let lock = fileLock
         lock.lock()

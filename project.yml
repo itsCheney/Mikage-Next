@@ -52,6 +52,27 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        # The built-in games step reads the Ren'Py submodule.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postCompileScripts:
+      # Ren'Py's The Question (MIT, from the Ren'Py submodule) ships as a
+      # built-in test game; the app copies it into the library once.
+      - name: Copy built-in games
+        shell: /bin/bash
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          source="${SRCROOT}/Engine/RenPyRuntime/Source/the_question"
+          destination="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/BuiltInGames/renpy/The Question"
+          if [ ! -d "${source}/game" ]; then
+            echo "error: ${source}/game is missing; run git submodule update --init" >&2
+            exit 1
+          fi
+          rm -rf "${destination}"
+          mkdir -p "${destination}"
+          ditto "${source}/game" "${destination}/game"
+          find "${destination}/game" \( -name '*.rpyc' -o -name '*.rpymc' -o -name cache -o -name saves \) -prune -exec rm -rf {} +
+          cp "${source}/ios-icon.png" "${destination}/icon.png"
 
   MikageTests:
     type: bundle.unit-test

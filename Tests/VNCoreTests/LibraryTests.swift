@@ -151,6 +151,36 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(game.launchTarget, ".")
     }
 
+    func testBuiltInGamesInstallOnceAndStayDeleted() throws {
+        let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
+        try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
+        let root = sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true)
+
+        XCTAssertEqual(try repository.installBuiltInGames(from: root), ["renpy/The Question"])
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.title, "The Question")
+        XCTAssertEqual(game.engine, .renpy)
+        XCTAssertEqual(game.availability, .ready)
+
+        try repository.delete(game)
+        XCTAssertEqual(try repository.installBuiltInGames(from: root), [])
+        XCTAssertTrue(try repository.scan().active.isEmpty)
+    }
+
+    func testBuiltInGameKeepsAFolderAlreadyInTheLibrary() throws {
+        let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
+        try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
+        try repository.ensureStructure()
+        let existing = repository.engineRoot(for: .renpy).appendingPathComponent("The Question")
+        try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
+        try Data("mine".utf8).write(to: existing.appendingPathComponent("note.txt"))
+
+        let root = sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true)
+        XCTAssertEqual(try repository.installBuiltInGames(from: root), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: existing.appendingPathComponent("note.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: existing.appendingPathComponent("game").path))
+    }
+
     func testRenPyFolderWithoutAGameIsInvalid() throws {
         try repository.ensureStructure()
         let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("Empty")

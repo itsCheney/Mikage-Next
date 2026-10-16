@@ -15,6 +15,8 @@ Pinned inputs:
 
 Ren'Py keeps its own blocking main loop. The runtime runs it on a separate stack on the main thread and resumes it once per display refresh from `App/Engine/RenPySession.swift`; waiting for events, sleeping and presenting a frame hand control back to the app. A game folder is the one holding `game/` (with `.rpy`, `.rpyc` or `.rpa` files); the desktop build's `renpy/` and `lib/` folders are ignored. Saves go to the game folder's `savedata`. The menu's Back tile sends Escape (Ren'Py's game menu); leaving the game quits it without Ren'Py's confirmation.
 
+The app ships Ren'Py's sample game The Question (`Source/the_question`, MIT like Ren'Py) as a built-in test game. The Mikage target's "Copy built-in games" step puts it in the app's `BuiltInGames/renpy`, and the app copies it into `Documents/renpy/The Question` once; a player who deletes it doesn't get it back.
+
 Known limits: one Ren'Py game per app launch (Python can't restart inside a process; the app says so), no Live2D, no screenshots from the Mikage menu, and `renpy/common` is compiled when a game starts because the framework is read-only.
 
 Ren'Py is MIT licensed with some LGPL components, CPython is under the PSF License, pyobjus is MIT, and FFmpeg is built LGPL-2.1-or-later. The licenses are in the submodule and the downloaded sources.
