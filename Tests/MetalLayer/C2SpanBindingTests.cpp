@@ -669,7 +669,9 @@ int RunC2SpanBindingTests() {
             Check(ResultConstructors==before+1 && result.Type()==tvtObject && target.native->texture->counts->writes==0,
                 "accepted capture did not box result once after commit");
             auto* rect=ncbInstanceAdaptor<RectF>::GetNativeInstance(result.AsObjectNoAddRef());
-            Check(rect && rect->x==0 && rect->y==0 && rect->w==0 && rect->h==0,"typed result changed");
+            // Ellipse 11.9..48.5 x 7.3..27.5, grown by the 4.3 miter pen.
+            Check(rect && rect->x<=11.9-2.15 && rect->y<=7.3-2.15 && rect->x+rect->w>=48.5+2.15 &&
+                rect->y+rect->h>=27.5+2.15 && rect->w<80 && rect->h<70,"typed result lost the drawn bounds");
         }
         {
             LayerFixture target;Support=true;ThrowResultConstructor=true;bool threw=false;

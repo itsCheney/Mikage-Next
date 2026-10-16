@@ -80,7 +80,7 @@ if a.capture_output:
           "void LayerExDraw::deferCapturedUpdate(","bool LayerExDraw::spanCaptureStateSafe(",
           "void LayerExDraw::stageCapturedRecord(",
           "void LayerExDraw::stageCapturedClear(",
-          "bool LayerExDraw::spanCaptureTargetAliased(","RectF LayerExDraw::drawPath(",
+          "bool LayerExDraw::spanCaptureTargetAliased(","void LayerExDraw::unionBounds(","RectF LayerExDraw::drawPath(",
           "RectF LayerExDraw::getPathExtents(","void LayerExDraw::draw(","void LayerExDraw::fill(",
           "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(","RectF LayerExDraw::drawRectangle(",
           "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine("]
