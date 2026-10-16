@@ -35,6 +35,12 @@ targets:
         embed: true
       - framework: build/ArtemisRuntime.xcframework
         embed: true
+      - framework: build/RenPyRuntime.xcframework
+        embed: true
+      # OpenGL ES on Metal, which the shared SDL3 links for GL windows
+      # (Ren'Py) instead of Apple's deprecated OpenGLES.
+      - framework: build/MetalANGLE.xcframework
+        embed: true
       # One SDL3 shared by every engine runtime (scripts/build-sdl3-ios.sh).
       - framework: build/SDL3.xcframework
         embed: true

@@ -4,6 +4,7 @@ import AVFAudio
 import KRKRRuntime
 import ONSRuntime
 import ArtemisRuntime
+import RenPyRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -35,12 +36,14 @@ final class AppDiagnostics: @unchecked Sendable {
         MikageKRKRSetLogCallback(nil)
         MikageONSSetLogCallback(nil)
         MikageArtemisSetLogCallback(nil)
+        MikageRenPySetLogCallback(nil)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
             MikageKRKRSetLogCallback(mikageDiagnosticLogCallback)
             MikageONSSetLogCallback(mikageONSDiagnosticLogCallback)
             MikageArtemisSetLogCallback(mikageArtemisDiagnosticLogCallback)
+            MikageRenPySetLogCallback(mikageRenPyDiagnosticLogCallback)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -196,4 +199,11 @@ private func mikageArtemisDiagnosticLogCallback(
 ) {
     guard let source, let message else { return }
     AppDiagnostics.shared.runtime(source: "Artemis." + String(cString: source), level: level, message: String(cString: message))
+}
+
+private func mikageRenPyDiagnosticLogCallback(
+    _ source: UnsafePointer<CChar>?, _ level: Int32, _ message: UnsafePointer<CChar>?
+) {
+    guard let source, let message else { return }
+    AppDiagnostics.shared.runtime(source: "RenPy." + String(cString: source), level: level, message: String(cString: message))
 }

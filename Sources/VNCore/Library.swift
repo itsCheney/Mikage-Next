@@ -29,7 +29,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var isLaunchSupported: Bool { self == .kirikiri || self == .onscripter || self == .artemis }
+    public var isLaunchSupported: Bool { true }
 }
 
 public enum LaunchTargetKind: String, Codable, Sendable {
@@ -635,6 +635,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No ONScripter script found (0.txt, 00.txt or nscript.dat)"))
             case .artemis:
                 availability = .invalid(String(localized: "No Artemis data found (root.pfs or system.ini)"))
+            case .renpy:
+                availability = .invalid(String(localized: "No Ren’Py game found (a game folder with .rpy, .rpyc or .rpa files)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -664,6 +666,11 @@ public enum GameScanner {
             // openArtemis opens root.pfs (or the folder's first pack, or an
             // extracted project with system.ini) from the game folder itself.
             return isArtemisGame(try rootFiles(in: directory)) ? (.directory, ".") : nil
+        }
+        if engine == .renpy {
+            // Ren'Py runs the folder that holds game/ (or the .rpa archives
+            // themselves).
+            return try isRenPyGame(in: directory) ? (.directory, ".") : nil
         }
         guard engine == .kirikiri else { return nil }
         let entries = try rootFiles(in: directory)
@@ -727,6 +734,13 @@ public enum GameScanner {
             matches.append(.artemis)
         }
 
+        if try isRenPyGame(in: directory) { matches.append(.renpy) }
+
+        return matches
+    }
+
+    private static func isRenPyGame(in directory: URL) throws -> Bool {
+        let entries = try rootFiles(in: directory)
         let gameDirectory = directory.appendingPathComponent("game", isDirectory: true)
         let gameScripts = (try? rootFiles(in: gameDirectory)) ?? []
         let hasRenPyScript = gameScripts.contains {
@@ -735,9 +749,7 @@ public enum GameScanner {
         let hasRenPyArchive = (entries + gameScripts).contains {
             normalized($0.pathExtension) == "rpa"
         }
-        if hasRenPyScript || hasRenPyArchive { matches.append(.renpy) }
-
-        return matches
+        return hasRenPyScript || hasRenPyArchive
     }
 
     private static func isArtemisGame(_ entries: [URL]) -> Bool {

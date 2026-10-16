@@ -56,9 +56,12 @@ Requirements: macOS with Xcode 26, CMake, XcodeGen and Git. vcpkg is bootstrappe
 git clone --recursive https://github.com/itsCheney/Mikage-Next.git
 cd Mikage-Next
 brew install cmake xcodegen
+bash scripts/fetch-metalangle-ios.sh  # downloads build/MetalANGLE.xcframework (OpenGL ES on Metal)
+bash scripts/build-sdl3-ios.sh   # builds the shared build/SDL3.xcframework
 bash scripts/build-krkr-ios.sh   # builds build/KRKRRuntime.xcframework
 bash scripts/build-ons-ios.sh    # builds build/ONSRuntime.xcframework
 bash scripts/build-artemis-ios.sh  # builds build/ArtemisRuntime.xcframework
+bash scripts/build-renpy-ios.sh  # builds build/RenPyRuntime.xcframework (needs Python 3.12)
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -79,11 +82,13 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 | Path | Contents |
 | --- | --- |
 | `App/` | The SwiftUI app: library, game details, player, settings, storage, Bangumi/VNDB linking, string catalog |
-| `App/Engine/` | The bridges that host the KiriKiri, ONScripter and Artemis runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
+| `App/Engine/` | The bridges that host the KiriKiri, ONScripter, Artemis and Ren’Py runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
 | `Sources/VNCore/` | Swift package: library scanning and import, path safety, Bangumi and VNDB clients, matching |
 | `Engine/KRKRRuntime/` | The KRKRSDL3 runtime, pinned as a submodule ([krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)) |
 | `Engine/ONSRuntime/` | ONScripter Yuri, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/OnscripterYuri)), running on the shared SDL3 through sdl2-compat |
 | `Engine/ArtemisRuntime/` | openArtemis, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/openartemis)), running directly on the shared SDL3 |
+| `Engine/RenPyRuntime/` | Ren’Py 8, pinned as a submodule ([mikage branch](https://github.com/itsCheney/renpy)), running with CPython 3.12 on the shared SDL3, with OpenGL ES from MetalANGLE |
+| `Engine/SDL3/patches/`, `Engine/MetalANGLE/` | The patches that make the shared SDL3 run OpenGL ES windows on MetalANGLE instead of Apple's deprecated OpenGLES, and MetalANGLE's license |
 | `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri and Artemis): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
 | `Tests/` | Swift unit tests and native runtime tests |
 | `scripts/` | Build scripts and diagnostic analysis tools |
@@ -93,6 +98,6 @@ Every push to `main` or `beta` also runs the [iOS build workflow](.github/workfl
 
 Mikage Next is free software, released under the [GNU General Public License v3.0 or later](LICENSE).
 
-The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). The bundled openArtemis is MIT OR GPL-3.0-or-later, used under GPL-3.0-or-later; see [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md). Read them before distributing builds.
+The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). The bundled openArtemis is MIT OR GPL-3.0-or-later, used under GPL-3.0-or-later; see [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md). The bundled Ren’Py is mostly MIT (some parts LGPL), CPython is under the PSF license and MetalANGLE under BSD; see [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md). Read them before distributing builds.
 
 KiriKiri, ONScripter, Ren’Py, Artemis, Bangumi and VNDB are the work of their respective authors. Mikage is not affiliated with any of them.

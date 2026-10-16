@@ -139,15 +139,27 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try GameScanner.detectEngines(in: source), [.kirikiri, .onscripter])
     }
 
-    func testUnsupportedEngineIsVisibleButCannotLaunch() throws {
+    func testRenPyGameLaunchesFromItsFolder() throws {
         try repository.ensureStructure()
         let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("RenPy Game")
         try FileManager.default.createDirectory(at: renpy.appendingPathComponent("game"), withIntermediateDirectories: true)
         try Data("label start:".utf8).write(to: renpy.appendingPathComponent("game/script.rpy"))
         let game = try repository.scan().active[0]
         XCTAssertEqual(game.engine, .renpy)
-        XCTAssertEqual(game.availability, .unsupported)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(game.launchTarget, ".")
+    }
+
+    func testRenPyFolderWithoutAGameIsInvalid() throws {
+        try repository.ensureStructure()
+        let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("Empty")
+        try FileManager.default.createDirectory(at: renpy, withIntermediateDirectories: true)
+        try Data("readme".utf8).write(to: renpy.appendingPathComponent("README.txt"))
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .renpy)
         XCTAssertFalse(game.availability.canLaunch)
+        XCTAssertNotEqual(game.availability, .unsupported)
     }
 
     func testOnscripterGameLaunchesFromItsFolder() throws {

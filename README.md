@@ -56,10 +56,12 @@ ZIP 导入和 Wi-Fi 上传暂未实现。后续引擎的接入计划见 [docs/PH
 git clone --recursive https://github.com/itsCheney/Mikage-Next.git
 cd Mikage-Next
 brew install cmake xcodegen
+bash scripts/fetch-metalangle-ios.sh  # 下载 build/MetalANGLE.xcframework（基于 Metal 的 OpenGL ES）
 bash scripts/build-sdl3-ios.sh   # 生成各引擎共享的 build/SDL3.xcframework
 bash scripts/build-krkr-ios.sh   # 生成 build/KRKRRuntime.xcframework
 bash scripts/build-ons-ios.sh    # 生成 build/ONSRuntime.xcframework
 bash scripts/build-artemis-ios.sh  # 生成 build/ArtemisRuntime.xcframework
+bash scripts/build-renpy-ios.sh  # 生成 build/RenPyRuntime.xcframework（需要 Python 3.12）
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -80,11 +82,13 @@ open Mikage.xcodeproj
 | 路径 | 内容 |
 | --- | --- |
 | `App/` | SwiftUI App：游戏库、游戏详情、播放器、设置、存储空间、Bangumi/VNDB 关联、字符串目录 |
-| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter 和 Artemis 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
+| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter、Artemis 和 Ren’Py 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
 | `Sources/VNCore/` | Swift 包：游戏库扫描与导入、路径安全、Bangumi 和 VNDB 客户端、条目匹配 |
 | `Engine/KRKRRuntime/` | 以子模块固定版本的 KRKRSDL3 运行时（[krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)） |
 | `Engine/ONSRuntime/` | 以子模块固定版本的 ONScripter Yuri（[Mikage 分支](https://github.com/itsCheney/OnscripterYuri)），经 sdl2-compat 运行在共享的 SDL3 上 |
 | `Engine/ArtemisRuntime/` | 以子模块固定版本的 openArtemis（[Mikage 分支](https://github.com/itsCheney/openartemis)），直接运行在共享的 SDL3 上 |
+| `Engine/RenPyRuntime/` | 以子模块固定版本的 Ren’Py 8（[mikage 分支](https://github.com/itsCheney/renpy)），连同 CPython 3.12 运行在共享的 SDL3 上，OpenGL ES 由 MetalANGLE 提供 |
+| `Engine/SDL3/patches/`、`Engine/MetalANGLE/` | 让共享 SDL3 的 OpenGL ES 窗口使用 MetalANGLE 而非 Apple 已弃用的 OpenGLES 的补丁，以及 MetalANGLE 的许可证 |
 | `Engine/MikageSDLHost/` | 基于 SDL 主回调的引擎运行时编译进去的共享宿主层（KiriKiri 和 Artemis）：驱动 SDL 主回调、停止与前后台、音频会话、每局之间的复位 |
 | `Tests/` | Swift 单元测试和原生运行时测试 |
 | `scripts/` | 构建脚本和诊断分析工具 |
@@ -94,6 +98,6 @@ open Mikage.xcodeproj
 
 Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
 
-内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。分发构建产物前请先阅读。
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。内置的 Ren’Py 以 MIT 为主（部分组件为 LGPL），CPython 使用 PSF 许可证，MetalANGLE 使用 BSD 许可证，见 [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md)。分发构建产物前请先阅读。
 
 KiriKiri、ONScripter、Ren’Py、Artemis、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。

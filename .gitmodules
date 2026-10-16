@@ -14,3 +14,7 @@
 	path = Engine/ArtemisRuntime/Source
 	url = https://github.com/itsCheney/openartemis.git
 	branch = mikage
+[submodule "Engine/RenPyRuntime/Source"]
+	path = Engine/RenPyRuntime/Source
+	url = https://github.com/itsCheney/renpy.git
+	branch = mikage

@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, master, beta, dev, metal_dev, codex/emote-perf]
+    branches: [main, master, beta, dev, runtime-dev, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +43,9 @@ jobs:
       - name: Record openArtemis runtime revision
         id: artemis-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/ArtemisRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record Ren'Py runtime revision
+        id: renpy-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/RenPyRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -69,7 +72,7 @@ jobs:
                 .github/workflows/ios.yml; do
               echo "${path}=$(git rev-parse "HEAD:${path}")"
             done
-            git ls-tree HEAD scripts/ | grep -Ev 'scripts/build-(krkr|ons|sdl3)-ios\.sh$'
+            git ls-tree HEAD scripts/ | grep -Ev 'scripts/(build-(krkr|ons|sdl3|renpy)|fetch-metalangle)-ios\.sh$'
             # Swift test targets run in their own steps below.
             git ls-tree HEAD Tests/ | grep -Ev 'Tests/(MikageTests|VNCoreTests)$'
           } | tee build-native-fingerprint.txt
@@ -244,15 +247,19 @@ jobs:
           key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh') }}
           restore-keys: |
             krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      # MetalANGLE (OpenGL ES on Metal) is a pinned, checksummed download.
+      # The shared SDL3 links it for GL windows instead of Apple's OpenGLES.
+      - name: Fetch MetalANGLE
+        run: bash scripts/fetch-metalangle-ios.sh
       # One SDL3.xcframework is embedded in the app and shared by every
-      # engine runtime. It only depends on the pinned SDL submodule, this
-      # script, and the toolchain.
+      # engine runtime. It only depends on the pinned SDL submodule, its
+      # patches, this script, MetalANGLE and the toolchain.
       - name: Restore shared SDL3 framework
         id: cache-sdl3
         uses: actions/cache/restore@v4
         with:
           path: build/SDL3.xcframework
-          key: sdl3-framework-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
+          key: sdl3-framework-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-sdl3-ios.sh', 'scripts/fetch-metalangle-ios.sh', 'Engine/SDL3/patches/**') }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build shared SDL3 framework
         if: steps.cache-sdl3.outputs.cache-hit != 'true'
         run: |
@@ -345,6 +352,61 @@ jobs:
         with:
           path: build/ArtemisRuntime.xcframework
           key: ${{ steps.cache-artemis-runtime.outputs.cache-primary-key }}
+      # Ren'Py: CPython 3.12 cross-built for iOS, Ren'Py's Cython modules
+      # and pyobjus in one framework, on the shared SDL3 and MetalANGLE, with
+      # the FFmpeg the KRKR step installs. A host Python 3.12 generates the
+      # C and builds CPython; it stays off PATH for the other steps.
+      - name: Restore Ren'Py runtime framework
+        id: cache-renpy-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/RenPyRuntime.xcframework
+          key: renpy-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-renpy-ios.sh', 'scripts/build-sdl3-ios.sh', 'scripts/fetch-metalangle-ios.sh', 'Engine/SDL3/patches/**', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.renpy-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Set up host Python for Ren'Py
+        id: renpy-host-python
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          update-environment: false
+      - name: Cache Ren'Py installed dependencies
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/renpy-vcpkg-installed
+          key: renpy-vcpkg-installed-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/RenPyRuntime/Source/mikage/vcpkg.json', 'Engine/RenPyRuntime/Source/mikage/triplets/**') }}
+      # CPython only changes with its patches and libraries; bump the key
+      # when build_python in the script changes.
+      - name: Cache Ren'Py's CPython builds
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/renpy/python-install-iphoneos
+            build/renpy/python-install-iphonesimulator
+          key: renpy-cpython-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/RenPyRuntime/Source/mikage/python/**', 'Engine/RenPyRuntime/Source/mikage/vcpkg.json') }}
+      - name: Cache Ren'Py compilation results
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/renpy-ccache
+          key: renpy-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ steps.renpy-revision.outputs.rev }}-${{ hashFiles('scripts/build-renpy-ios.sh') }}
+          restore-keys: |
+            renpy-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build Ren'Py runtime framework
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        env:
+          RENPY_HOST_PYTHON: ${{ steps.renpy-host-python.outputs.python-path }}
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-renpy-ios.sh 2>&1 | tee build/renpy-runtime-build.log
+      - name: Save Ren'Py runtime framework
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/RenPyRuntime.xcframework
+          key: ${{ steps.cache-renpy-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

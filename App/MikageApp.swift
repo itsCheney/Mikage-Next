@@ -119,7 +119,8 @@ final class AppModel: ObservableObject {
         krkrSession = session ?? EngineSessionRouter(sessions: [
             .kirikiri: NativeKRKRSession(),
             .onscripter: NativeONSSession(),
-            .artemis: NativeArtemisSession()
+            .artemis: NativeArtemisSession(),
+            .renpy: NativeRenPySession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 
