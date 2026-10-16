@@ -125,11 +125,15 @@ enum SmoothingMode {SmoothingModeAntiAlias=4};
 enum TextRenderingHint {TextRenderingHintAntiAlias=4};
 enum Status {Ok,GenericError}; enum ImageType {ImageTypeBitmap,ImageTypeUnknown,ImageTypeMetafile};
 enum RotateFlipType {RotateNoneFlipNone};static constexpr int PixelFormat32bppARGB=0;
-struct RectF {tjs_real x=0,y=0,w=0,h=0;RectF()=default;RectF(tjs_real X,tjs_real Y,tjs_real W,tjs_real H):x(X),y(Y),w(W),h(H) {}};
-struct PointF {};
+struct RectF {tjs_real x=0,y=0,w=0,h=0;RectF()=default;RectF(tjs_real X,tjs_real Y,tjs_real W,tjs_real H):x(X),y(Y),w(W),h(H) {}
+    static void Union(RectF& out,const RectF& a,const RectF& b) {
+        const tjs_real l=std::min(a.x,b.x),t=std::min(a.y,b.y);
+        out=RectF(l,t,std::max(a.x+a.w,b.x+b.w)-l,std::max(a.y+a.h,b.y+b.h)-t);
+    }};
+struct PointF {tjs_real x=0,y=0;PointF()=default;PointF(tjs_real X,tjs_real Y):x(X),y(Y) {}};
 struct GdipMatrix {plutovg_matrix_t _core;GdipMatrix(){plutovg_matrix_init_identity(&_core);}
     explicit GdipMatrix(plutovg_matrix_t v):_core(v){} GdipMatrix* Clone() const {return new GdipMatrix(_core);}};
-struct FontInfo {plutovg_font_face_t* getFontFace() const {return nullptr;} float getEmSize() const {return 10;}
+struct FontInfo {plutovg_font_face_t* face=nullptr;plutovg_font_face_t* getFontFace() const {return face;} float getEmSize() const {return 10;}
     float getAscent() const {return 8;} float getLineSpacing() const {return 12;}};
 static tTJSBinaryStream* TVPCreateBinaryStreamForWrite(const ttstr&,const ttstr&) {return nullptr;}
 NCB_TYPECONV_SRCMAP_SET(RectF,ncbNativeObjectBoxing::Boxing,true);
@@ -144,6 +148,64 @@ static plutovg_surface_t* loadImage(const tjs_char*) {++ImageLoads;return ImageL
 #include "ProductionLayerExSpanBinding.inc"
 #undef plutovg_path_clone_checked
 #undef TVPTryMetalLayerSpanComposite
+struct C2BMemoryStream:tTJSBinaryStream {
+    std::vector<uint8_t> data;tjs_uint64 position=0;
+    explicit C2BMemoryStream(std::vector<uint8_t> value):data(std::move(value)) {}
+    tjs_uint64 Seek(tjs_int64 offset,tjs_int whence) override {
+        const tjs_int64 base=whence==TJS_BS_SEEK_CUR?tjs_int64(position):whence==TJS_BS_SEEK_END?tjs_int64(data.size()):0;
+        if(base+offset>=0 && base+offset<=tjs_int64(data.size())) position=tjs_uint64(base+offset);
+        return position;
+    }
+    tjs_uint Read(void* buffer,tjs_uint size) override {
+        const tjs_uint n=tjs_uint(std::min<tjs_uint64>(size,data.size()-position));
+        std::memcpy(buffer,data.data()+position,n);position+=n;return n;
+    }
+    tjs_uint Write(const void*,tjs_uint) override {return 0;}
+    bool Flush() override {return true;}
+    tjs_uint64 GetSize() override {return data.size();}
+};
+static void Put16(std::vector<uint8_t>& v,uint32_t x) {v.push_back(uint8_t(x>>8));v.push_back(uint8_t(x));}
+static void Put32(std::vector<uint8_t>& v,uint32_t x) {Put16(v,x>>16);Put16(v,x&0xffff);}
+// A TrueType face named family, 1000 units/em, whose only glyph 'A' is an
+// 800-unit square with a square hole (two contours) advancing advance units.
+// Table offsets start at base, for use inside a collection.
+static std::vector<uint8_t> TestFace(const char* family,uint16_t advance,uint32_t base) {
+    std::vector<std::pair<const char*,std::vector<uint8_t>>> tables;
+    std::vector<uint8_t> cmap;Put16(cmap,0);Put16(cmap,1);Put16(cmap,3);Put16(cmap,1);Put32(cmap,12);
+    Put16(cmap,6);Put16(cmap,12);Put16(cmap,0);Put16(cmap,'A');Put16(cmap,1);Put16(cmap,1);
+    std::vector<uint8_t> glyf;Put16(glyf,2);Put16(glyf,0);Put16(glyf,0);Put16(glyf,800);Put16(glyf,800);
+    Put16(glyf,3);Put16(glyf,7);Put16(glyf,0);for(int i=0;i<8;++i) glyf.push_back(1);
+    const int xs[8]={0,800,800,0,200,200,600,600},ys[8]={0,0,800,800,200,600,600,200};
+    for(int i=0,last=0;i<8;last=xs[i++]) Put16(glyf,uint16_t(xs[i]-last));
+    for(int i=0,last=0;i<8;last=ys[i++]) Put16(glyf,uint16_t(ys[i]-last));
+    std::vector<uint8_t> head(54,0);head[1]=1;head[12]=0x5f;head[13]=0x0f;head[14]=0x3c;head[15]=0xf5;
+    head[18]=1000>>8;head[19]=1000&0xff;head[40]=head[42]=800>>8;head[41]=head[43]=800&0xff;
+    std::vector<uint8_t> hhea;Put32(hhea,0x00010000);Put16(hhea,800);Put16(hhea,uint16_t(-200));Put16(hhea,0);Put16(hhea,advance);
+    while(hhea.size()<34) hhea.push_back(0);
+    Put16(hhea,2);
+    std::vector<uint8_t> hmtx;Put16(hmtx,500);Put16(hmtx,0);Put16(hmtx,advance);Put16(hmtx,0);
+    std::vector<uint8_t> loca;Put16(loca,0);Put16(loca,0);Put16(loca,uint32_t(glyf.size()/2));
+    std::vector<uint8_t> maxp;Put32(maxp,0x00005000);Put16(maxp,2);
+    std::vector<uint8_t> name;const size_t length=std::strlen(family)*2;
+    Put16(name,0);Put16(name,1);Put16(name,18);Put16(name,3);Put16(name,1);Put16(name,0x409);Put16(name,1);
+    Put16(name,uint32_t(length));Put16(name,0);for(const char* c=family;*c;++c) Put16(name,uint8_t(*c));
+    tables={{"cmap",cmap},{"glyf",glyf},{"head",head},{"hhea",hhea},{"hmtx",hmtx},{"loca",loca},{"maxp",maxp},{"name",name}};
+    std::vector<uint8_t> font;Put32(font,0x00010000);Put16(font,uint32_t(tables.size()));Put16(font,0);Put16(font,0);Put16(font,0);
+    uint32_t offset=uint32_t(12+16*tables.size());
+    for(const auto& table:tables) {
+        font.insert(font.end(),table.first,table.first+4);Put32(font,0);Put32(font,base+offset);
+        Put32(font,uint32_t(table.second.size()));offset+=uint32_t((table.second.size()+3)&~size_t(3));
+    }
+    for(const auto& table:tables) {font.insert(font.end(),table.second.begin(),table.second.end());while(font.size()%4) font.push_back(0);}
+    return font;
+}
+static std::vector<uint8_t> TestCollection(const char* first,const char* second) {
+    std::vector<uint8_t> ttc={'t','t','c','f'};Put32(ttc,0x00010000);Put32(ttc,2);
+    const uint32_t a=20,b=a+uint32_t(TestFace(first,1000,a).size());
+    Put32(ttc,a);Put32(ttc,b);
+    for(const auto& face:{TestFace(first,1000,a),TestFace(second,500,b)}) ttc.insert(ttc.end(),face.begin(),face.end());
+    return ttc;
+}
 #undef TVPCheckMetalLayerCPUOverwrite
 #undef TVPHasMetalLayerSpanCompositionSupport
 static_assert(std::is_same<ncbTypeConvertor::SelectConvertorType<tTJSVariant,const Appearance*>::Type,
@@ -800,6 +862,91 @@ int RunC2SpanBindingTests() {
             LayerFixture other;tTJSVariant objectResult=ConstructDirect<Path>();call(other,"clear",{0},&objectResult);
             Check(objectResult.Type()==tvtVoid && other.native->texture->counts->overwrites==0,
                 "clear object result changed legacy release/order");
+        }
+        {
+            // drawImageStretch of a record: the source rect (8,8,16,16) is
+            // stretched 2x onto (30,5), clipped to it, and that is the result.
+            Appearance brush;brush.drawInfos.emplace_back(0,0,new SoftBrush(0xff2040c0u),1);
+            auto* rect=plutovg_path_create();plutovg_path_add_rect(rect,10,10,20,20);
+            auto* record=new GdipImage(67,39);record->vectorGraph.push_back({brush.Clone(),rect});
+            auto recordArg=BoxImage(record);
+            LayerFixture target;Support=false;call(target,"clear",{0});
+            RectF box;
+            {LayerExDraw::InvocationPixels scope(*target.Draw());box=target.Draw()->drawImageStretch(30,5,32,32,record,8,8,16,16);}
+            const auto& px=target.native->texture->pixels;
+            Check(box.x==30 && box.y==5 && box.w==32 && box.h==32,"record stretch result is not the destination rect");
+            Check(px[size_t(19)*67+44]!=0 && px[size_t(30)*67+60]!=0,"stretched record content missing at its destination");
+            Check(px[size_t(7)*67+40]==0 && px[size_t(20)*67+64]==0 && px[size_t(39-1)*67+44]==0,
+                "record content drawn outside the stretched source rect");
+            // The point form names where the source rect's corners land.
+            LayerFixture points;call(points,"clear",{0});
+            {LayerExDraw::InvocationPixels scope(*points.Draw());
+                box=points.Draw()->drawImageAffine(record,8,8,16,16,false,30,5,62,5,30,37);}
+            Check(points.native->texture->pixels==px && box.x==30 && box.y==5 && box.w==32 && box.h==32,
+                "point-form drawImageAffine differs from the equivalent stretch");
+        }
+        {
+            // loadRecord's image belongs to the record: a view transform
+            // redraw keeps it under later drawing, and record copies keep it.
+            LayerFixture target;Support=false;call(target,"clear",{0});target.Draw()->setRecord(true);
+            auto* loaded=plutovg_surface_create(9,7);
+            std::fill_n(reinterpret_cast<uint32_t*>(plutovg_surface_get_data(loaded)),63,0xff00ff00u);
+            ImageLoadSurface=loaded; // loadRecord takes this reference
+            {LayerExDraw::InvocationPixels scope(*target.Draw());Check(target.Draw()->loadRecord(TJS_N("base.png")),"loadRecord failed");}
+            ImageLoadSurface=nullptr;
+            Check(target.native->texture->pixels[0]==0xff00ff00u && target.native->texture->pixels[size_t(30)*67+60]==0,
+                "loadRecord did not show its image");
+            call(target,"drawPath",operations[1].second);
+            const auto drawn=target.native->texture->pixels;
+            target.Draw()->translateViewTransform(0,0);
+            Check(target.native->texture->pixels==drawn,"record redraw lost the loaded image");
+            std::unique_ptr<GdipImage> copy(target.Draw()->getRecordImage());
+            const RectF bounds=copy->GetBounds();
+            Check(copy->_surface && copy->vectorGraph.size()==1 && bounds.x<=0 && bounds.y<=0 && bounds.w>=48 && bounds.h>=27,
+                "record copy lost the loaded image or its bounds");
+        }
+        {
+            // Text: drawString returns the transformed measureString box;
+            // glyph outlines close every contour; a TTC face is found by its
+            // own family and keeps its own metrics.
+            FontInfo font;font.face=loadFontFace(new C2BMemoryStream(TestFace("C2BSquare",1000,0)),TJS_N("C2BSquare"),false);
+            Check(font.face && findFontFace(TJS_N("c2bsquare"))==font.face,"test font did not load");
+            Appearance brush;brush.drawInfos.emplace_back(0,0,new SoftBrush(0xff102030u),1);
+            LayerFixture target;Support=false;target.Draw()->translateTransform(5,3);
+            RectF box,measured;
+            {
+                LayerExDraw::InvocationPixels scope(*target.Draw());
+                measured=target.Draw()->measureString(&font,TJS_N("AA"));
+                box=target.Draw()->drawString(&font,&brush,20,10,TJS_N("AA"));
+            }
+            Check(std::fabs(measured.w-(20+20/6.0))<1e-4 && measured.h==12,"measureString box changed");
+            Check(std::fabs(box.x-25)<1e-4 && std::fabs(box.y-13)<1e-4 && std::fabs(box.w-measured.w)<1e-4 &&
+                std::fabs(box.h-measured.h)<1e-4,"drawString did not return the transformed layout box");
+            auto* outline=plutovg_path_create();PointF offset(0,0);
+            struct Outline:LayerExDraw {using LayerExDraw::getTextOutline;};
+            (target.Draw()->*(&Outline::getTextOutline))(&font,offset,outline,TJS_N("AA"));
+            const plutovg_path_element_t* elements=nullptr;int moves=0,closes=0;
+            const int count=plutovg_path_get_elements(outline,&elements);
+            for(int i=0;i<count;i+=elements[i].header.length) {
+                if(elements[i].header.command==PLUTOVG_PATH_COMMAND_MOVE_TO) ++moves;
+                if(elements[i].header.command==PLUTOVG_PATH_COMMAND_CLOSE) ++closes;
+            }
+            plutovg_path_destroy(outline);
+            Check(moves==4 && closes==4,"glyph outline contours are not closed");
+            const auto ttc=TestCollection("C2BFirst","C2BSecond");
+            Check(fontFaceCount(ttc.data(),tjs_uint(ttc.size()))==2 &&
+                readFontFamilies(ttc.data(),tjs_uint(ttc.size()),1)==std::vector<std::string>{"c2bsecond"} &&
+                readFontFamilies(ttc.data(),tjs_uint(ttc.size()),0)==std::vector<std::string>{"c2bfirst"},"TTC faces misread");
+            const size_t faces=g_fontFaces.size();
+            auto* second=loadFontFace(new C2BMemoryStream(ttc),TJS_N("C2BSecond"),false);
+            auto* first=findFontFace(TJS_N("C2BFirst"));
+            plutovg_rect_t extents;
+            Check(g_fontFaces.size()==faces+2 && second && first && first!=second && findFontFace(TJS_N("C2BSecond"))==second &&
+                plutovg_font_face_text_extents(second,10,"A",1,PLUTOVG_TEXT_ENCODING_UTF8,&extents)==5 &&
+                plutovg_font_face_text_extents(first,10,"A",1,PLUTOVG_TEXT_ENCODING_UTF8,&extents)==10,
+                "TTC face not registered under its own family");
+            for(auto& entry:g_fontFaces) plutovg_font_face_destroy(entry.face);
+            g_fontFaces.clear();
         }
         std::cout<<"C2B real plutovg production binding transaction checks passed\n";Support=false;return 0;
     }catch(const std::exception& error){std::cerr<<"C2B binding: "<<error.what()<<'\n';return 1;}

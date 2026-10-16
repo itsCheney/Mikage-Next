@@ -353,6 +353,106 @@ void mediaSharing() {
     media->Release(); psbVar = nullptr;
 }
 
+Bytes streamBytes(tTJSBinaryStream* raw) {
+    std::unique_ptr<tTJSBinaryStream> stream(raw);
+    require(stream != nullptr, "psb:// did not open a resource");
+    Bytes bytes(stream->GetSize());
+    if (!bytes.empty()) stream->ReadBuffer(bytes.data(), bytes.size());
+    return bytes;
+}
+
+// A reload that fails must not leave psb:// serving the previous file.
+void failedReload() {
+    for (bool throwing : {false, true}) {
+        setMode(false); Fixture fixture;
+        fixture.chunks = {Bytes{'x', 'y'}};
+        input = fixture.buildFullFile(Node::object({{"a.txt", Node::resource(0)}}));
+        auto* media = new PSB::PSBMedia(); psbVar = media;
+        {
+            tTJS vm; install(vm);
+            vm.ExecScript("var p=new PSBFile('fixture.scn');");
+            require(media->CheckExistentStorage("fixture.scn/a.txt"), "loaded PSB not served");
+            const Bytes good = input;
+            if (throwing) failRead = true; else { input[4] = 4; input[5] = 0; }
+            bool thrown = false;
+            try { require(evaluate(vm, "return p.load('fixture.scn')?'ok':'failed';") == "failed",
+                          "corrupt reload succeeded"); }
+            catch (...) { thrown = true; }
+            require(thrown == throwing, "reload failure behavior changed");
+            require(!media->CheckExistentStorage("fixture.scn/a.txt"),
+                    "failed reload left the previous file registered");
+            require(media->Open("fixture.scn/a.txt", 0) == nullptr, "failed reload still serves the previous file");
+            // A later successful load registers again.
+            failRead = false; input = good;
+            require(evaluate(vm, "return p.load('fixture.scn')?'ok':'failed';") == "ok", "reload failed");
+            const unsigned before = opens;
+            require(streamBytes(media->Open("fixture.scn/a.txt", 0)) == Bytes({'x', 'y'}) && opens == before,
+                    "successful reload not served from the tree");
+            vm.ExecScript("invalidate p; p=void;"); vm.DoGarbageCollection();
+        }
+        media->Release(); psbVar = nullptr;
+    }
+}
+
+// Opening several resources of a released PSB reads and inflates it once.
+void releasedOpensReadOnce() {
+    setMode(false); Fixture fixture;
+    const Bytes image{'I', 'M', 'G', 1, 2, 3};
+    fixture.chunks = {Bytes{'x', 'y'}, image};
+    input = mdf(fixture.buildFullFile(Node::object({{"img.png", Node::resource(1)}, {"a.txt", Node::resource(0)}})));
+    auto* media = new PSB::PSBMedia(); psbVar = media;
+    {
+        tTJS vm; install(vm);
+        vm.ExecScript("var p=new PSBFile('fixture.scn'); invalidate p; p=void;"); vm.DoGarbageCollection();
+        require(opens == 1, "PSB load opened the file more than once");
+        require(streamBytes(media->Open("fixture.scn/img.png", 0)) == image, "released PSB resource wrong");
+        require(streamBytes(media->Open("fixture.scn/a.txt", 0)) == Bytes({'x', 'y'}), "released PSB chunk wrong");
+        require(streamBytes(media->Open("FIXTURE.SCN/img.png", 0)) == image, "released PSB reopen wrong");
+        require(opens == 2, "each open of a released PSB read the file again");
+    }
+    media->Release(); psbVar = nullptr;
+}
+
+// psb:// names a PSB no PSBFile loaded: existence is answered from its
+// resource list alone, without a PSBFile load or a TJS tree, and a failing
+// open answers false.
+void unregisteredExistence() {
+    setMode(true); Fixture fixture;
+    const Bytes image{'I', 'M', 'G'};
+    fixture.chunks = {image};
+    input = fixture.buildFullFile(Node::object({{"hash", Node::text("h")},
+        {"list", Node::list({Node::number(1)})}, {"img.png", Node::resource(0)}}));
+    auto* media = new PSB::PSBMedia(); psbVar = media;
+    require(media->CheckExistentStorage("fixture.scn/img.png"), "unregistered PSB resource not found");
+    require(!media->CheckExistentStorage("fixture.scn/none"), "unregistered PSB reported a missing resource");
+    require(!media->CheckExistentStorage("fixture.scn"), "domain without a resource reported");
+    require(opens == 1, "existence checks reread the PSB");
+    require(metric(cpu::Kind::PSBLoad).calls == 0 && metric(cpu::Kind::PSBMaterialize).calls == 0,
+            "existence check loaded a PSBFile");
+    require(streamBytes(media->Open("fixture.scn/img.png", 0)) == image && opens == 1,
+            "open after an existence check reread the PSB");
+    {
+        // A PSBFile loaded afterwards registers and serves from its tree.
+        tTJS vm; install(vm);
+        vm.ExecScript("var p=new PSBFile('fixture.scn');");
+        require(opens == 2 && metric(cpu::Kind::PSBLoad).calls == 1, "PSBFile load after probe changed");
+        require(streamBytes(media->Open("fixture.scn/img.png", 0)) == image && opens == 2,
+                "registered PSB not served from its tree");
+        vm.ExecScript("invalidate p; p=void;"); vm.DoGarbageCollection();
+    }
+    cpu::SetEnabled(false, 3, 1);
+    for (int mode = 0; mode < 3; ++mode) {
+        failOpen = mode == 0; nullOpen = mode == 1; failRead = mode == 2;
+        bool answer = true;
+        try { answer = media->CheckExistentStorage("other.scn/img.png"); }
+        catch (...) { require(false, "existence check let a stream failure escape"); }
+        require(!answer, "unreadable PSB reported a resource");
+        require(media->Open("other.scn/img.png", 0) == nullptr, "unreadable PSB opened");
+    }
+    failOpen = nullOpen = failRead = false;
+    media->Release(); psbVar = nullptr;
+}
+
 // Motion PSBs repeat member names such as "pixel"; psb:// keeps serving the
 // first resource under a repeated name.
 void repeatedNames() {
@@ -398,8 +498,11 @@ int main() {
         versionOne();
         mediaSharing();
         repeatedNames();
+        failedReload();
+        releasedOpensReadOnce();
+        unregisteredExistence();
         cpu::SetEnabled(false, 3, 1); cpu::clockNS = cpu::Clock; cpu::rawLine = nullptr; cpu::captureStack = nullptr;
-        std::cout << "PASS: production PSB plain/MDF semantics, number signs, wide arrays, v1 names, psb:// sharing and repeated names, bounded stage metrics, native owner/tree destruction, external root lifetime, script finalizers and failures\n";
+        std::cout << "PASS: production PSB plain/MDF semantics, number signs, wide arrays, v1 names, psb:// sharing, repeated names, failed reloads, read cache and unregistered probes, bounded stage metrics, native owner/tree destruction, external root lifetime, script finalizers and failures\n";
         return 0;
     } catch (const eTJSError& error) {
         std::cerr << "FAIL: " << error.GetMessage().AsStdString() << '\n';

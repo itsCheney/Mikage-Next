@@ -314,7 +314,7 @@ int RunC2LayerExBoundaryTests() {
             ncbInvocationPolicy<LayerExDraw>::Scope scope(TJS_N("measureString"),ncbInvocationKind::Method,fixture.object);
             // Advance 15 plus the 1/6 em GDI+ padding on each side; one line.
             const RectF box=draw->measureString(&font,TJS_N("abc"));
-            RequireDraw(std::fabs(box.w-(15+0.167*10*2))<1e-4 && box.h==12 && box.x==0 && box.y==0,"measurement result changed");
+            RequireDraw(std::fabs(box.w-(15+10/6.0*2))<1e-4 && box.h==12 && box.x==0 && box.y==0,"measurement result changed");
         }
         {
             ncbInvocationPolicy<LayerExDraw>::Scope scope(TJS_N("measureStringInternal"),ncbInvocationKind::Method,fixture.object);

@@ -173,6 +173,12 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/audio-pan-tests --parallel
           ctest --test-dir build/audio-pan-tests --output-on-failure
+      - name: Test layerExSave PNG encoding and cancel
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/LayerExSave -B build/layerexsave-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/layerexsave-tests --parallel
+          ctest --test-dir build/layerexsave-tests --output-on-failure
       - name: Test layer input and pointer presentation lifecycle
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
