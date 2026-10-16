@@ -31,7 +31,11 @@ engine_names = ['emoteengine::emoteengine()', 'void emoteengine::resetAnimationS
     'void emoteengine::startTimeline(', 'void emoteengine::stopTimeline(',
     'bool emoteengine::checkTimline(', 'void emoteengine::updateTimelineControl(',
     'void emoteengine::setVariable(', 'tjs_real emoteengine::getVariable(',
-    'void emoteengine::recordAnimationProgress(', 'void emoteengine::recordAnimationDraw(']
+    'void emoteengine::recordAnimationProgress(', 'void emoteengine::recordAnimationDraw(',
+    'void emoteengine::resetControls(', 'bool emoteengine::getControlVariable(',
+    'void emoteengine::updateIntegratedEyeControl(', 'void emoteengine::blendTimeline(',
+    'void emoteengine::updatePhysics(', 'bool emoteengine::controlsAnimating(',
+    'void emoteengine::skipControls(']
 player_names = ['void EmotePlayer::setVariable(', 'tjs_error EmotePlayer::cb_setVariable(',
     'tjs_real EmotePlayer::getVariable(', 'void EmotePlayer::progress(',
     'void EmotePlayer::playTimeline(', 'void EmotePlayer::stopTimeline(',
@@ -43,7 +47,12 @@ player_names = ['void EmotePlayer::setVariable(', 'tjs_error EmotePlayer::cb_set
     'void EmotePlayer::copyAnimationStateFrom(']
 args.output.mkdir(parents=True, exist_ok=True)
 (args.output / 'ProductionEngineDeclaration.inc').write_text(block(header, 'class emoteengine\n') + ';\n', encoding='utf-8')
-(args.output / 'ProductionIntegration.inc').write_text('\n\n'.join(block(runner, s) for s in engine_names)
+# Legacy control helpers (anonymous namespace) and the TJS control snapshot.
+helpers = block(runner, 'namespace\n{\nstd::string controlKey(')
+snapshot = block(player, 'namespace\n{\ntTJSVariant stateArray()') + '\n' + '\n'.join(block(player, s) for s in
+    ['tTJSVariant emoteengine::serializeControls()', 'void emoteengine::unserializeControls('])
+(args.output / 'ProductionIntegration.inc').write_text(helpers + '\n' + snapshot + '\n'
+    + '\n\n'.join(block(runner, s) for s in engine_names)
     + '\n' + block(runner, 'float emotemotionref::getTickByIdx(')
     + '\n' + block(file_source, 'bool emotefile::getTickByName(')
     + '\n' + '\n\n'.join(block(player, s) for s in player_names), encoding='utf-8')

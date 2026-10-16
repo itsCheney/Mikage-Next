@@ -34,6 +34,8 @@ emoteobject::emoteobject(emotefile* f, uint32_t) : type(0), _filePtr(f) {}
 emoteobject::~emoteobject() = default;
 emotemetadata::emotemetadata(emotefile* f, uint32_t) : _filePtr(f) {}
 emotemetadata::~emotemetadata() = default;
+bustControl::~bustControl() = default;
+uniControl::~uniControl() = default;
 emoteicon::emoteicon(emotefile* f, uint32_t) : _filePtr(f) {}
 emoteicon::~emoteicon() = default;
 void emoteicon::ensureLoad() {}

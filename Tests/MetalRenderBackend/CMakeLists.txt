@@ -19,7 +19,21 @@ add_executable(metal-render-tests
     TransitionCacheTests.cpp
     MetalRenderBackendTests.cpp
     "${CORE}/core/render/backend/SWRenderBackend.cpp")
-target_include_directories(metal-render-tests PRIVATE "${CORE}/core/render" "${CORE}/environ")
+# emotegeometry.h (the CPU reference for GPU mesh deformation) needs glm.
+find_path(METAL_TEST_GLM_INCLUDE_DIR glm/glm.hpp)
+if(NOT METAL_TEST_GLM_INCLUDE_DIR)
+    include(FetchContent)
+    FetchContent_Declare(metal_test_glm
+        URL https://codeload.github.com/g-truc/glm/tar.gz/refs/tags/1.0.1
+        URL_HASH SHA256=9f3174561fd26904b23f0db5e560971cbf9b3cbda0b280f04d5c379d03bf234c)
+    FetchContent_GetProperties(metal_test_glm)
+    if(NOT metal_test_glm_POPULATED)
+        FetchContent_Populate(metal_test_glm)
+    endif()
+    set(METAL_TEST_GLM_INCLUDE_DIR "${metal_test_glm_SOURCE_DIR}")
+endif()
+target_include_directories(metal-render-tests PRIVATE "${CORE}/core/render" "${CORE}/environ"
+    "${CORE}/plugins/emoteplayer" "${METAL_TEST_GLM_INCLUDE_DIR}")
 if(NOT APPLE)
     add_library(c3-native-test-syntax OBJECT NativeLayerUploadSyntax.cpp)
     target_include_directories(c3-native-test-syntax PRIVATE "${CORE}/core/render" "${CORE}/environ")

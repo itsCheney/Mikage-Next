@@ -5,6 +5,7 @@
 #include "tjsDictionary.h"
 #include "ncbind/ncbind.hpp"
 #include "emoteanimation.h"
+#include "emotephysics.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -36,8 +37,12 @@ void TVPExecuteExpression(const ttstr& expression, tTJSVariant* result) { vm->Ev
 tjs_uint64 TVPGetRoughTickCount() { return 0; }
 namespace krkrsdl3 { struct iTVPRenderBackend { void* CreateTarget(int,int) { return nullptr; } }; void TVPRecordEmoteProgress(Uint64) {} }
 
+namespace glm { inline double radians(double degrees) { return degrees * 3.14159265358979323846 / 180; } }
 namespace emoteplayer {
-struct emoteRender {}; struct emotelimit { double width = 100, height = 100, originX = 0, originY = 0; };
+bustControl::~bustControl() = default;
+uniControl::~uniControl() = default;
+struct emoteRender { int type = 0; float currCoordx = 0, currCoordy = 0, currAngle = 0, currZx = 1, currZy = 1; };
+struct emotelimit { double width = 100, height = 100, originX = 0, originY = 0; };
 class emoteengine;
 struct emotemotion;
 struct emotenoderef;
@@ -67,21 +72,34 @@ struct Metadata {
     std::vector<Selector*> _selectorControl;
     std::vector<std::string> _instantVariableList;
     std::vector<eyeControl*> _eyeControl;
+    std::vector<bustControl*> _bustControl;
+    std::vector<uniControl*> _hairControl, _partsControl;
+    double scale = 1;
 };
+using emotemetadata = Metadata;
 struct emotefile {
     Metadata* _metadata=nullptr; bool isMotion=false;
+    struct { double width = 100, height = 100; } _screenSize;
     std::map<std::string, emoteobject*> _objects;
     void setVariable(const std::string& label, double value) { _metadata->_varList[label] = value; }
     bool getTickByName(const std::string&,float&);
 };
 #include "ProductionEngineDeclaration.inc"
 emoteengine::~emoteengine() = default;
+// Physics sampling walks the node tree, which these fixtures do not build.
+void emoteengine::samplePhysics(float, const emoteRender&, emotelimit) {}
 class EmotePlayer {
 public:
     emoteengine emtEngine;
     bool _isStop=false, _playing=true, _allplaying=true, isMotion=false;
     int _pipoVal=0; double clockPassed=0, speedRatio=20;
     double currCoordx=0,currCoordy=0,currCoordz=0,currAngle=0,currZx=1,currZy=1;
+    EmoteTween coordX, coordY, rotation, scale{1, 1}, scaleY{1, 1};
+    EmoteTween forces[3][2];
+    void updateTransMat() {}
+    void set_bustScale(tjs_real value) { emtEngine.physics.bustScale = value; }
+    void set_hairScale(tjs_real value) { emtEngine.physics.hairScale = value; }
+    void set_partsScale(tjs_real value) { emtEngine.physics.partsScale = value; }
     emotelimit _limitArea;
     void AddRef() {} void Release() {}
     bool usesIntegratedAnimation() const { return emtEngine.integratedAnimation(); }
@@ -92,7 +110,7 @@ public:
     void playTimeline(tTJSString,tjs_int=0); void stopTimeline(tTJSString);
     bool getTimelinePlaying(tTJSString); bool getLoopTimeline(tTJSString);
     tjs_real getTimelineTotalFrameCount(tTJSString);
-    void setTimelineBlendRatio(tTJSString,tjs_real,tjs_real,tjs_real);
+    void setTimelineBlendRatio(tTJSString,tjs_real,tjs_real=0,tjs_real=0,bool=false);
     void fadeInTimeline(tTJSString,tjs_real,tjs_real); void fadeOutTimeline(tTJSString,tjs_real,tjs_real);
     tTJSVariant getPlayingTimelineInfoList();
     tTJSVariant serialize(); void unserialize(tTJSVariant);
@@ -105,6 +123,7 @@ public:
     tTJSVariant get_variableKeys() { return {}; }
 };
 #define setprop(dict, name) { tTJSVariant v(name); dict->PropSet(TJS_MEMBERENSURE,TJS_N(#name),nullptr,&v,dict); }
+#define getprop(dict, name) { tTJSVariant v; if(TJS_SUCCEEDED(dict->PropGet(0,TJS_N(#name),nullptr,&v,dict)) && v.Type()!=tvtVoid) name=v; }
 #define getprop_t(dict, name, cast) { tTJSVariant v; if(TJS_SUCCEEDED(dict->PropGet(0,TJS_N(#name),nullptr,&v,dict))) name=cast(v.AsReal()); }
 #include "ProductionIntegration.inc"
 }
@@ -223,8 +242,12 @@ int main() {
         cloned->progress(1); near(cloned->Impl->Player->getVariable(TJS_N("d3d")),3.6,"D3D clone advances same easing independently");
         near(b.player.getVariable(TJS_N("d3d")),2.5,"source does not advance with D3D clone");
         clone.Clear(); global->DeleteMember(0,TJS_N("d"),nullptr,global); d3dObject.Clear();
-        integrated=false; Fixture legacy; legacy.player.setVariable(TJS_N("x"),12,30,1);
-        near(legacy.metadata._varList.at(label("x")),12,"legacy mode retains immediate writes");
+        integrated=false; Fixture legacy; legacy.player.emtEngine.resetControls();
+        legacy.player.setVariable(TJS_N("x"),12);
+        near(legacy.player.getVariable(TJS_N("x")),12,"legacy mode applies immediate writes");
+        near(legacy.metadata._varList.at(label("x")),0,"legacy writes stay per player");
+        legacy.player.setVariable(TJS_N("x"),20,10,0); legacy.player.progress(5*legacy.player.speedRatio);
+        near(legacy.player.getVariable(TJS_N("x")),16,"legacy mode tweens timed writes");
         legacy.player.playTimeline(TJS_N("idle"),1); require(legacy.player.emtEngine.currTimeline.size()==1,"legacy path remains selectable");
         integrated=true;
         global->DeleteMember(0,TJS_N("p"),nullptr,global); object.Clear(); ncbAutoRegister::AllUnregist();
