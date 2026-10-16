@@ -646,6 +646,19 @@ int RunC2SpanBindingTests() {
                 "record replay fixture did not draw on a cleared layer");
             target.Draw()->translateViewTransform(0,0);
             Check(target.native->texture->pixels==drawn,"record redraw lost or moved the recorded drawing");
+        }
+        {
+            // Transform calls append in degrees (GDI+ MatrixOrderAppend):
+            // two translates equal their sum, and a full turn is no turn.
+            auto render=[&](const std::function<void(LayerExDraw*)>& setup) {
+                LayerFixture f;Support=false;call(f,"clear",{0});setup(f.Draw());
+                call(f,"drawPath",operations[1].second);Support=true;return f.native->texture->pixels;
+            };
+            const auto once=render([](LayerExDraw* d){d->translateTransform(6,2);});
+            Check(render([](LayerExDraw* d){d->translateTransform(4,1);d->translateTransform(2,1);})==once,
+                "translateTransform replaced instead of appending");
+            Check(render([](LayerExDraw* d){d->translateTransform(6,2);d->rotateTransform(180);d->rotateTransform(180);})==once,
+                "rotateTransform did not take degrees or did not append");
             Support=true;
         }
         {
