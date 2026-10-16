@@ -43,7 +43,9 @@ mkdir -p "${PATCHED_SOURCE}"
 git -C "${SOURCE_DIR}" archive HEAD | tar -x -C "${PATCHED_SOURCE}"
 for patch in "${PATCH_DIR}"/*.diff; do
     echo "Applying ${patch##*/}"
-    (cd "${PATCHED_SOURCE}" && git apply -p1 "${patch}")
+    # Not git apply: build/ is inside this repository, and git apply run there
+    # silently skips paths outside the current directory.
+    patch -p1 --forward --quiet -d "${PATCHED_SOURCE}" < "${patch}"
 done
 
 build_slice() {
@@ -64,7 +66,8 @@ build_slice() {
         -DSDL_TESTS=OFF \
         -DSDL_EXAMPLES=OFF \
         -DSDL_INSTALL=OFF \
-        -DSDL_MIKAGE_METALANGLE_DIR="${METALANGLE_XCFRAMEWORK}/${metalangle_slice}"
+        -DSDL_MIKAGE_METALANGLE_DIR="${METALANGLE_XCFRAMEWORK}/${metalangle_slice}" \
+        -DCMAKE_XCODE_ATTRIBUTE_CLANG_MODULES_AUTOLINK=NO
     cmake --build "${build_dir}" --config Release --target SDL3-shared --parallel
 }
 
