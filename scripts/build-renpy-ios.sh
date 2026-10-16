@@ -195,6 +195,9 @@ build_python() {
     patch -d "${src}" -p1 < "${MIKAGE_DIR}/python/ios-posixmodule.diff"
     cp "${MIKAGE_DIR}/python/_scproxy.c" "${src}/Modules/_scproxy.c"
     cp "${MIKAGE_DIR}/python/config.site" "${src}/config.site"
+    # configure renders Setup.stdlib from this template, so the Makefile it
+    # writes already builds exactly these modules in.
+    cp "${MIKAGE_DIR}/python/Setup.stdlib" "${src}/Modules/Setup.stdlib.in"
 
     local sysroot
     sysroot="$(xcrun --sdk "${sdk}" --show-sdk-path)"
@@ -222,7 +225,6 @@ build_python() {
             --enable-ipv6 \
             --with-build-python="${HOST_PYTHON}" \
             --with-ensurepip=no
-        cp "${MIKAGE_DIR}/python/Setup.stdlib" Modules/Setup.stdlib
         make -j "$(sysctl -n hw.ncpu)"
         make install
     )
