@@ -592,22 +592,6 @@
         }
       }
     },
-    "A new Emote playback method for comparing motion smoothness. Off by default. Takes effect the next time a game launches; if motions or expressions look wrong, turn it off and reopen the game." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "動きの滑らかさを比較するための新しい Emote 再生方式です。デフォルトはオフです。次回ゲームを起動したときに反映されます。動きや表情に異常がある場合は、オフにしてゲームを開き直してください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新的 Emote 播放方式，用于对比动作流畅度，默认关闭。下次启动游戏时生效；若动作或表情异常，可关闭后重新进入游戏。"
-          }
-        }
-      }
-    },
     "About Mikage" : {
       "localizations" : {
         "ja" : {
@@ -764,22 +748,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "超神作"
-          }
-        }
-      }
-    },
-    "Animation" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アニメーション"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "动画"
           }
         }
       }
@@ -2270,22 +2238,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邮箱"
-          }
-        }
-      }
-    },
-    "Emote Candidate Animation" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emote 候補アニメーション"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emote 候选动画"
           }
         }
       }

@@ -24,8 +24,6 @@ struct PlayerSettings: Codable {
     /// those credits are the patch authors' own work, so not showing them is
     /// the user's choice to make.
     var skipPatchVideos = false
-    /// Captured at game launch; existing Emote players keep their current mode.
-    var experimentalEmote = false
     /// Sets Playing after a session of a game that had no status or was
     /// on the wishlist or on hold.
     var autoStatus = true
@@ -62,7 +60,6 @@ struct PlayerSettings: Codable {
         listLayout = value(.listLayout, fallback.listLayout)
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
-        experimentalEmote = value(.experimentalEmote, fallback.experimentalEmote)
         autoStatus = value(.autoStatus, fallback.autoStatus)
         syncRatings = value(.syncRatings, fallback.syncRatings)
         syncDates = value(.syncDates, fallback.syncDates)

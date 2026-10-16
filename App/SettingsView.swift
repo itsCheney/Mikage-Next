@@ -252,14 +252,6 @@ struct AdvancedSettingsView: View {
                 Text("If the picture looks wrong, switch to Software Compositing · Metal. Metal accelerates offscreen drawing, Emote and D3DLayer; regular KRKR layers are still composited on the CPU. Performance stats can also be toggled any time from the in-game menu.")
             }
 
-            Section {
-                Toggle("Emote Candidate Animation", isOn: $model.settings.experimentalEmote)
-                    .accessibilityIdentifier("experimental-emote-toggle")
-            } header: {
-                Text("Animation")
-            } footer: {
-                Text("A new Emote playback method for comparing motion smoothness. Off by default. Takes effect the next time a game launches; if motions or expressions look wrong, turn it off and reopen the game.")
-            }
 
             Section {
                 Toggle("Full Diagnostic Log", isOn: $diagnosticLogging)

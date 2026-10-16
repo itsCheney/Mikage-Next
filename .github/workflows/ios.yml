@@ -142,12 +142,6 @@ jobs:
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-metadata-tests --parallel
           ctest --test-dir build/emote-metadata-tests --output-on-failure
-      - name: Test Emote animation integration
-        if: steps.native-tests.outputs.cache-hit != 'true'
-        run: |
-          cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/emote-animation-tests --parallel
-          ctest --test-dir build/emote-animation-tests --output-on-failure
       - name: Test Emote performance state and production node evaluation
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |

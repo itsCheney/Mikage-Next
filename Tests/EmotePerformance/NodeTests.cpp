@@ -198,36 +198,31 @@ void testParentAndSubmotion() {
     check(f.engine._mainMotionRef->_nodeIndex.size() == f.motion.nodeList.size(), "topology rebuild refreshes node index");
 }
 
-void testVariablesCloneAndRestore() {
-    Fixture f; f.engine.inheritAnimationMode(true); f.metadata._varList["pose"] = 0;
+void testVariablesAndIsolation() {
+    Fixture f; f.metadata._varList["pose"] = 0;
     emoteVar parameter; parameter.id = "pose"; parameter.division = 60;
     f.motion.parameter.push_back(&parameter);
     auto* shape = f.node("shape"); shape->isParameterize = true; shape->parameterIdx = 0; f.next(shape, 60, 40);
-    f.step(0); const auto old = f.ref(shape)->_shapeArea.vertices;
-    f.engine.setAnimationVariable("pose", 1, 30, 0); f.engine.advanceAnimation(250, 20); f.step(float(f.engine._animationClock));
-    check(near(float(f.engine._animationClock), 15) && f.engine.getVariable("pose") > 0, "variable transition and clock advance");
+    f.engine.resetControls(); f.step(0); const auto old = f.ref(shape)->_shapeArea.vertices;
+    auto advance = [&](emoteengine& engine, double tick) {
+        engine.controlTick = tick; engine.updateTimelineControl(tick, true); engine.updateEyeControl(tick, true);
+    };
+    f.engine.setVariable("pose", 1, 30, 0); advance(f.engine, 15); f.step(15);
+    check(near(float(f.engine.getVariable("pose")), 0.5f), "variable transition reaches half at half time");
     check(!near(old[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "variable changes prepared geometry");
-    emoteengine clone; clone._mainfile = &f.file; clone._mainmotion = &f.motion; clone.inheritAnimationMode(true); clone.copyAnimationStateFrom(f.engine);
-    clone.progress(float(clone._animationClock), f.root, f.limit);
-    check(clone._mainMotionRef.get() != f.engine._mainMotionRef.get(), "clone owns runtime nodes");
-    const auto cloned = clone._mainMotionRef->getNodeRef(shape)->_shapeArea.vertices;
-    check(near(cloned[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "clone pose matches source");
-    clone.setAnimationVariable("pose", 0, 0, 0); clone.progress(float(clone._animationClock), f.root, f.limit);
-    check(!near(clone._mainMotionRef->getNodeRef(shape)->_shapeArea.vertices[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "shared resource players stay isolated");
-    const auto saved = f.engine.serializeAnimationState(); const auto savedX = f.ref(shape)->_shapeArea.vertices[0].x;
-    f.engine.advanceAnimation(250, 20); f.step(float(f.engine._animationClock));
-    check(f.engine.restoreAnimationState(saved), "restore succeeds"); f.step(float(f.engine._animationClock));
-    check(near(savedX, f.ref(shape)->_shapeArea.vertices[0].x), "restored state invalidates and reconstructs pose");
-    check(!f.engine.restoreAnimationState("corrupt"), "invalid restore rejected");
+    emoteengine second; second._mainfile = &f.file; second._mainmotion = &f.motion; second.resetControls();
+    advance(second, 15); second.progress(15, f.root, f.limit);
+    check(second._mainMotionRef.get() != f.engine._mainMotionRef.get(), "players own runtime nodes");
+    check(near(second._mainMotionRef->getNodeRef(shape)->_shapeArea.vertices[0].x, old[0].x), "shared resource players stay isolated");
+    check(near(float(f.metadata._varList["pose"]), 0), "player writes leave shared metadata unchanged");
     eyeControl eye; eye.label = "pose"; eye.beginFrame = 0; eye.endFrame = 1;
     eye.blinkFrameCount = 4; eye.blinkIntervalMin = eye.blinkIntervalMax = 2;
     eye.uid = std::uniform_int_distribution<int32_t>(2, 2);
-    f.metadata._eyeControl.push_back(&eye); f.engine.resetAnimationState(); f.step(0);
-    f.engine.advanceAnimation(16.666666666666668, 20); f.step(float(f.engine._animationClock));
-    f.engine.advanceAnimation(50, 20); f.step(float(f.engine._animationClock));
-    check(f.engine._animationEyes.front().isBlinking, "automatic blink timer advances while stationary");
-    f.engine.advanceAnimation(16.666666666666668, 20); f.step(float(f.engine._animationClock));
-    check(f.engine.getVariable("pose") > 0, "automatic blink changes pose");
+    f.metadata._eyeControl.push_back(&eye); f.engine.resetControls();
+    advance(f.engine, 0); advance(f.engine, 3); advance(f.engine, 4);
+    check(f.engine.getVariable("pose") == 0, "blink does not change the base value");
+    float blinked = 0;
+    check(f.engine.getControlVariable("pose", blinked) && blinked > 0, "automatic blink changes pose");
 }
 
 void testSharedSentinelsAndLoop() {
@@ -378,7 +373,7 @@ void runBenchmarks() {
 }
 int main(int argc, char**) {
     try {
-        testStaticAndDependencies(); testParentAndSubmotion(); testVariablesCloneAndRestore();
+        testStaticAndDependencies(); testParentAndSubmotion(); testVariablesAndIsolation();
         testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
         if (argc > 1) runBenchmarks();
