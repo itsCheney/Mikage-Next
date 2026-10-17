@@ -72,6 +72,9 @@ targets:
           mkdir -p "${destination}"
           ditto "${source}/game" "${destination}/game"
           find "${destination}/game" \( -name '*.rpyc' -o -name '*.rpymc' -o -name cache -o -name saves \) -prune -exec rm -rf {} +
+          # A distributed build of The Question carries the SDK fonts its
+          # language buttons use (SourceHanSansLite, Vazirmatn; both OFL) in game/.
+          cp "${SRCROOT}/Engine/RenPyRuntime/Source/sdk-fonts/"*.ttf "${destination}/game/"
           cp "${source}/ios-icon.png" "${destination}/icon.png"
 
   MikageTests:
