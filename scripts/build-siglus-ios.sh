@@ -94,8 +94,18 @@ build_slice() {
         -I "$(dirname "${HEADER}")" -I "${ffmpeg_root}/include" \
         "${H264_DECODER}" -o "${decoder}"
 
+    # FFmpeg's VideoToolbox code calls __isPlatformVersionAtLeast, which is in
+    # clang's builtins; rustc's link line does not bring them in.
+    local builtins
+    builtins="$(xcrun --sdk "${sdk}" clang -target "${clang_target}" -print-libgcc-file-name)"
+    if [[ ! -f "${builtins}" ]]; then
+        echo "clang builtins not found: ${builtins}" >&2
+        exit 1
+    fi
+
     local link_args=()
-    for arg in "${decoder}" "${ffmpeg_root}/lib/libavcodec.a" "${ffmpeg_root}/lib/libavutil.a" \
+    for arg in "${decoder}" "${ffmpeg_root}/lib/libavcodec.a" "${ffmpeg_root}/lib/libswresample.a" \
+        "${ffmpeg_root}/lib/libavutil.a" "${builtins}" \
         -lz -lbz2 -liconv \
         -framework AudioToolbox -framework CoreFoundation -framework CoreMedia \
         -framework CoreVideo -framework VideoToolbox -framework Security; do
