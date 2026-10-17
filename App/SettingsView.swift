@@ -119,7 +119,7 @@ struct SettingsView: View {
                 } header: {
                     Text("General")
                 } footer: {
-                    Text("Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly into the engine folders under Documents.")
+                    Text("Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly in Documents.")
                 }
 
                 Section {

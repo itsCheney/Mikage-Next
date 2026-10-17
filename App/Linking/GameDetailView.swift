@@ -471,7 +471,7 @@ struct GameDetailView: View {
                 DetailRow("Released", value: released, divider: metadata?.developer != nil)
             }
             DetailRow("Engine", value: current.engine.displayName, divider: metadata?.developer != nil || metadata?.released != nil)
-            DetailRow("Folder", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
+            DetailRow("Folder", value: "Documents/\(current.folderName)")
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
             DetailRow("Launches", value: String(localized: "\(current.launchCount) times"))
             if !current.availability.canLaunch {

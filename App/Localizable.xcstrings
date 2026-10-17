@@ -4849,18 +4849,18 @@
         }
       }
     },
-    "Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app." : {
+    "Put game folders directly in Documents. They’re scanned automatically when you return to the app." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ゲームフォルダを Documents/krkr、ons、renpy、artemis のいずれかに入れてください。アプリに戻ると自動でスキャンされます。"
+            "value" : "ゲームフォルダを Documents に直接入れてください。アプリに戻ると自動でスキャンされます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。"
+            "value" : "把游戏文件夹直接放入 Documents，返回 App 后会自动扫描。"
           }
         }
       }
@@ -6955,18 +6955,18 @@
         }
       }
     },
-    "Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly into the engine folders under Documents." : {
+    "Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly in Documents." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wi-Fi アップロードと ZIP の読み込みにはまだ対応していません。ライブラリ右上のプラスボタンから読み込むか、Documents 内のエンジンフォルダにゲームフォルダを直接入れてください。"
+            "value" : "Wi-Fi アップロードと ZIP の読み込みにはまだ対応していません。ライブラリ右上のプラスボタンから読み込むか、ゲームフォルダを Documents に直接入れてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "局域网上传与 ZIP 导入尚未接入。可以通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents 下的引擎目录。"
+            "value" : "局域网上传与 ZIP 导入尚未接入。可以通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents。"
           }
         }
       }
@@ -7099,36 +7099,36 @@
         }
       }
     },
-    "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly into the krkr, ons, renpy or artemis folder under Documents." : {
+    "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly in Documents." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ZIP の展開と Wi-Fi アップロードにはまだ対応していません。ゲームフォルダを Documents 内の krkr、ons、renpy、artemis フォルダに直接入れることもできます。"
+            "value" : "ZIP の展開と Wi-Fi アップロードにはまだ対応していません。ゲームフォルダを Documents に直接入れることもできます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents 下的 krkr、ons、renpy 或 artemis 目录。"
+            "value" : "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents。"
           }
         }
       }
     },
-    "“%@” already exists in the target engine folder. Rename the folder first." : {
+    "“%@” already exists in Documents. Rename the folder first." : {
       "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
       "extractionState" : "manual",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%@」は読み込み先のエンジンフォルダにすでに存在します。先にフォルダ名を変更してください。"
+            "value" : "「%@」は Documents にすでに存在します。先にフォルダ名を変更してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@”已存在于目标引擎目录中，请先重命名文件夹。"
+            "value" : "“%@”已存在于 Documents 中，请先重命名文件夹。"
           }
         }
       }

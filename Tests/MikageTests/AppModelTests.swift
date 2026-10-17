@@ -68,7 +68,7 @@ final class AppModelTests: XCTestCase {
 
     private func addGame(named name: String, engine: EngineID = .kirikiri) throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: engine).appendingPathComponent(name)
+        let folder = repository.gamesRoot.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let script: String
         switch engine {

@@ -9,7 +9,7 @@ Mikage ships no game content. You bring games you own.
 ## What it does
 
 **Library**
-- Every engine has its own folder in the app’s Documents: `krkr/`, `ons/`, `renpy/`, `artemis/` and `siglus/`. Put a game folder in one of them with the Files app, or import a folder with the + button in the Library.
+- Put game folders straight into the app’s Documents with the Files app, or import a folder with the + button in the Library. Mikage detects each game’s engine from its files. While the library has no games of your own, Documents holds two tip files, `DROP_GAMES_HERE` and `把游戏放在这里`; they’re removed once a game is found. The per-engine folders of older versions (`krkr/`, `ons/`, `renpy/`, `artemis/`) are emptied into Documents and deleted the first time the updated app opens.
 - The library rescans on launch, when the app returns to the foreground, and on pull to refresh. Folders keep their original names; Mikage’s own records live in Application Support.
 - An Artemis game folder needs `root.pfs` (or another `.pfs` pack), or an extracted project with `system.ini`.
 - A SiglusEngine game folder needs `Scene.pck` or `Gameexe.dat`. On the first run siglus_rs works out the game's second-layer resource key and writes it to `key.toml` in the game folder.

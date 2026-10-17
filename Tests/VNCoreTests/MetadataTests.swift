@@ -158,7 +158,7 @@ final class MetadataTests: XCTestCase {
             metadataRoot: sandbox.appendingPathComponent("Support")
         )
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Game")
+        let folder = repository.gamesRoot.appendingPathComponent("Game")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data("// sample".utf8).write(to: folder.appendingPathComponent("startup.tjs"))
         let game = try XCTUnwrap(repository.scan().active.first)

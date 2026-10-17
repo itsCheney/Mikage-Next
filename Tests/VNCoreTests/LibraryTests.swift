@@ -42,26 +42,97 @@ final class LibraryTests: XCTestCase {
         try XCTUnwrap(Data(base64Encoded: encoded)).write(to: folder.appendingPathComponent(name))
     }
 
-    func testCreatesVisibleEngineDirectoriesAndHiddenMetadata() throws {
+    func testGamesLiveInDocumentsWithoutEngineFolders() throws {
         try repository.ensureStructure()
-        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("krkr").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("ons").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("renpy").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("artemis").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("siglus").path))
+        _ = try repository.scan()
+        for engine in EngineID.allCases {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: documents.appendingPathComponent(engine.documentsDirectoryName).path))
+        }
+        XCTAssertEqual(repository.gamesRoot.standardizedFileURL, documents.standardizedFileURL)
         XCTAssertTrue(repository.libraryURL.path.hasPrefix(metadata.path))
     }
 
-    func testScanUsesDirectChildrenOnlyAndKeepsInvalidKRKRVisible() throws {
+    func testScanUsesDirectChildrenOnlyAndSkipsUnrecognizedFolders() throws {
         try repository.ensureStructure()
-        let wrapper = repository.engineRoot(for: .kirikiri).appendingPathComponent("Wrapper")
+        let wrapper = repository.gamesRoot.appendingPathComponent("Wrapper")
         let nested = wrapper.appendingPathComponent("Nested/Game")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         try script(in: nested)
 
-        let snapshot = try repository.scan()
-        XCTAssertEqual(snapshot.active.map(\.folderName), ["Wrapper"])
-        XCTAssertEqual(snapshot.active.first?.availability, .invalid(String(localized: "No valid startup.tjs or XP3 found")))
+        XCTAssertTrue(try repository.scan().active.isEmpty)
+    }
+
+    func testKnownFolderKeepsItsEngineWhenNothingIsDetected() throws {
+        try repository.ensureStructure()
+        let folder = repository.gamesRoot.appendingPathComponent("Broken")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try repository.save([GameRecord(title: "Broken", engine: .kirikiri, folderName: "Broken", availability: .missing)])
+
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .kirikiri)
+        XCTAssertEqual(game.availability, .invalid(String(localized: "No valid startup.tjs or XP3 found")))
+    }
+
+    func testImportKeepsTheChosenEngine() throws {
+        let source = try directory("Upload/Unrecognized")
+        try Data("readme".utf8).write(to: source.appendingPathComponent("readme.txt"))
+        try repository.importFolder(source, engine: .artemis)
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .artemis)
+        XCTAssertEqual(game.folderName, "Unrecognized")
+    }
+
+    func testEngineFoldersMoveIntoDocumentsOnce() throws {
+        let fm = FileManager.default
+        let krkrGame = documents.appendingPathComponent("krkr/Example", isDirectory: true)
+        let onsGame = documents.appendingPathComponent("ons/Example", isDirectory: true)
+        try fm.createDirectory(at: krkrGame, withIntermediateDirectories: true)
+        try fm.createDirectory(at: onsGame, withIntermediateDirectories: true)
+        try script(in: krkrGame)
+        try Data("ons".utf8).write(to: onsGame.appendingPathComponent("0.txt"))
+        var krkrRecord = GameRecord(title: "Example", engine: .kirikiri, folderName: "Example", availability: .ready)
+        krkrRecord.playTime = 11
+        var onsRecord = GameRecord(title: "Example", engine: .onscripter, folderName: "Example", availability: .ready)
+        onsRecord.playTime = 22
+        try repository.save([krkrRecord, onsRecord])
+
+        let games = try repository.scan().active
+        XCTAssertFalse(fm.fileExists(atPath: documents.appendingPathComponent("krkr").path))
+        XCTAssertFalse(fm.fileExists(atPath: documents.appendingPathComponent("ons").path))
+        XCTAssertEqual(Set(games.map(\.folderName)), ["Example", "Example 2"])
+        let kirikiri = try XCTUnwrap(games.first { $0.engine == .kirikiri })
+        let onscripter = try XCTUnwrap(games.first { $0.engine == .onscripter })
+        XCTAssertEqual(kirikiri.id, krkrRecord.id)
+        XCTAssertEqual(kirikiri.playTime, 11)
+        XCTAssertEqual(onscripter.id, onsRecord.id)
+        XCTAssertEqual(onscripter.playTime, 22)
+        XCTAssertNotEqual(kirikiri.folderName, onscripter.folderName)
+
+        // Later, a game folder that happens to be called "krkr" stays put.
+        let later = documents.appendingPathComponent("krkr", isDirectory: true)
+        try fm.createDirectory(at: later, withIntermediateDirectories: true)
+        try script(in: later)
+        XCTAssertTrue(try repository.scan().active.contains { $0.folderName == "krkr" })
+    }
+
+    func testDropTipsStayUntilThePlayersOwnGameArrives() throws {
+        let fm = FileManager.default
+        let tips = LibraryRepository.dropTipNames.map { documents.appendingPathComponent($0) }
+        XCTAssertEqual(tips.count, 2)
+        _ = try repository.scan()
+        XCTAssertTrue(tips.allSatisfy { fm.fileExists(atPath: $0.path) })
+
+        let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
+        try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
+        try repository.installBuiltInGames(from: sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true))
+        XCTAssertEqual(try repository.scan().active.count, 1)
+        XCTAssertTrue(tips.allSatisfy { fm.fileExists(atPath: $0.path) })
+
+        let game = repository.gamesRoot.appendingPathComponent("Example")
+        try fm.createDirectory(at: game, withIntermediateDirectories: true)
+        try script(in: game)
+        XCTAssertEqual(try repository.scan().active.count, 2)
+        XCTAssertTrue(tips.allSatisfy { !fm.fileExists(atPath: $0.path) })
     }
 
     func testStartupScriptWinsAndXP3UsesFixedPriority() throws {
@@ -96,7 +167,7 @@ final class LibraryTests: XCTestCase {
 
     func testScanPreservesUUIDAndHistoryThenRestoresMissingGame() throws {
         try repository.ensureStructure()
-        let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let gameFolder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
         try script(in: gameFolder)
 
@@ -121,7 +192,7 @@ final class LibraryTests: XCTestCase {
         let source = try directory("Upload/Example")
         try script(in: source)
         try repository.importFolder(source, engine: .kirikiri)
-        let imported = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let imported = repository.gamesRoot.appendingPathComponent("Example")
         XCTAssertTrue(FileManager.default.fileExists(atPath: imported.appendingPathComponent("startup.tjs").path))
         XCTAssertThrowsError(try repository.importFolder(source, engine: .kirikiri)) {
             XCTAssertEqual($0 as? LibraryError, .duplicateName("Example"))
@@ -142,7 +213,7 @@ final class LibraryTests: XCTestCase {
 
     func testRenPyGameLaunchesFromItsFolder() throws {
         try repository.ensureStructure()
-        let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("RenPy Game")
+        let renpy = repository.gamesRoot.appendingPathComponent("RenPy Game")
         try FileManager.default.createDirectory(at: renpy.appendingPathComponent("game"), withIntermediateDirectories: true)
         try Data("label start:".utf8).write(to: renpy.appendingPathComponent("game/script.rpy"))
         let game = try repository.scan().active[0]
@@ -154,7 +225,7 @@ final class LibraryTests: XCTestCase {
 
     func testSiglusGameLaunchesFromItsFolder() throws {
         try repository.ensureStructure()
-        let siglus = repository.engineRoot(for: .siglus).appendingPathComponent("Siglus Game")
+        let siglus = repository.gamesRoot.appendingPathComponent("Siglus Game")
         try FileManager.default.createDirectory(at: siglus, withIntermediateDirectories: true)
         try Data("pck".utf8).write(to: siglus.appendingPathComponent("scene.pck"))
         XCTAssertEqual(try GameScanner.detectEngines(in: siglus), [.siglus])
@@ -186,7 +257,7 @@ final class LibraryTests: XCTestCase {
         let root = sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true)
         try repository.installBuiltInGames(from: root)
 
-        let installed = repository.engineRoot(for: .renpy).appendingPathComponent("The Question/game")
+        let installed = repository.gamesRoot.appendingPathComponent("The Question/game")
         try Data("changed by the game".utf8).write(to: installed.appendingPathComponent("script.rpy"))
         try Data("font".utf8).write(to: bundled.appendingPathComponent("SourceHanSansLite.ttf"))
 
@@ -199,7 +270,7 @@ final class LibraryTests: XCTestCase {
         let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
         try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
         try repository.ensureStructure()
-        let existing = repository.engineRoot(for: .renpy).appendingPathComponent("The Question")
+        let existing = repository.gamesRoot.appendingPathComponent("The Question")
         try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
         try Data("mine".utf8).write(to: existing.appendingPathComponent("note.txt"))
 
@@ -212,8 +283,9 @@ final class LibraryTests: XCTestCase {
 
     func testRenPyFolderWithoutAGameIsInvalid() throws {
         try repository.ensureStructure()
-        let renpy = repository.engineRoot(for: .renpy).appendingPathComponent("Empty")
+        let renpy = repository.gamesRoot.appendingPathComponent("Empty")
         try FileManager.default.createDirectory(at: renpy, withIntermediateDirectories: true)
+        try repository.save([GameRecord(title: "Empty", engine: .renpy, folderName: "Empty", availability: .missing)])
         try Data("readme".utf8).write(to: renpy.appendingPathComponent("README.txt"))
         let game = try repository.scan().active[0]
         XCTAssertEqual(game.engine, .renpy)
@@ -223,7 +295,7 @@ final class LibraryTests: XCTestCase {
 
     func testOnscripterGameLaunchesFromItsFolder() throws {
         try repository.ensureStructure()
-        let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("ONS Game")
+        let ons = repository.gamesRoot.appendingPathComponent("ONS Game")
         try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
         try Data("ons".utf8).write(to: ons.appendingPathComponent("nscript.dat"))
         let game = try repository.scan().active[0]
@@ -235,7 +307,7 @@ final class LibraryTests: XCTestCase {
 
     func testArtemisGameLaunchesFromItsFolder() throws {
         try repository.ensureStructure()
-        let artemis = repository.engineRoot(for: .artemis).appendingPathComponent("Artemis Game")
+        let artemis = repository.gamesRoot.appendingPathComponent("Artemis Game")
         try FileManager.default.createDirectory(at: artemis, withIntermediateDirectories: true)
         try Data("pf8".utf8).write(to: artemis.appendingPathComponent("root.pfs"))
         let game = try repository.scan().active[0]
@@ -247,8 +319,9 @@ final class LibraryTests: XCTestCase {
 
     func testArtemisFolderWithoutDataIsInvalid() throws {
         try repository.ensureStructure()
-        let artemis = repository.engineRoot(for: .artemis).appendingPathComponent("Empty")
+        let artemis = repository.gamesRoot.appendingPathComponent("Empty")
         try FileManager.default.createDirectory(at: artemis, withIntermediateDirectories: true)
+        try repository.save([GameRecord(title: "Empty", engine: .artemis, folderName: "Empty", availability: .missing)])
         try Data("readme".utf8).write(to: artemis.appendingPathComponent("readme.txt"))
         let game = try repository.scan().active[0]
         XCTAssertFalse(game.availability.canLaunch)
@@ -257,7 +330,7 @@ final class LibraryTests: XCTestCase {
 
     func testOnscripterFolderWithoutScriptIsInvalid() throws {
         try repository.ensureStructure()
-        let ons = repository.engineRoot(for: .onscripter).appendingPathComponent("Archives Only")
+        let ons = repository.gamesRoot.appendingPathComponent("Archives Only")
         try FileManager.default.createDirectory(at: ons, withIntermediateDirectories: true)
         try Data("nsa".utf8).write(to: ons.appendingPathComponent("arc.nsa"))
         let game = try repository.scan().active[0]
@@ -302,7 +375,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(linked.folderName, "Renamed Game")
         XCTAssertEqual(linked.playTime, 25)
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: repository.engineRoot(for: .kirikiri)
+            atPath: repository.gamesRoot
                 .appendingPathComponent("Renamed Game/startup.tjs").path
         ))
     }
@@ -334,7 +407,7 @@ final class LibraryTests: XCTestCase {
 
     func testScanReusesRecordedSizeUntilTheFolderChanges() throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let folder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try script(in: folder)
 
@@ -357,7 +430,7 @@ final class LibraryTests: XCTestCase {
 
     func testSetCustomCoverUpdatesOneRecordWithoutRescanning() throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let folder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try script(in: folder)
         let game = try repository.scan().active[0]
@@ -389,7 +462,7 @@ final class LibraryTests: XCTestCase {
 
     func testMutateRereadsSoConcurrentScanCannotLoseHistory() throws {
         try repository.ensureStructure()
-        let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let gameFolder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
         try script(in: gameFolder)
         let first = try repository.scan().active[0]
@@ -397,7 +470,7 @@ final class LibraryTests: XCTestCase {
         // A second game appears and is picked up by a scan that overlaps the
         // history write. Rebuilding from a stale snapshot would drop one of the
         // two changes; both must survive.
-        let second = repository.engineRoot(for: .kirikiri).appendingPathComponent("Later")
+        let second = repository.gamesRoot.appendingPathComponent("Later")
         try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
         try script(in: second)
 
@@ -423,7 +496,7 @@ final class LibraryTests: XCTestCase {
 
     func testHistoryFieldsSurviveRescanAndLegacyLibraryDecodes() throws {
         try repository.ensureStructure()
-        let gameFolder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let gameFolder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: gameFolder, withIntermediateDirectories: true)
         try script(in: gameFolder)
         var record = try repository.scan().active[0]
@@ -473,7 +546,7 @@ final class LibraryTests: XCTestCase {
 
     func testRestoreLeavesSavesTheGameAlreadyHas() throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let folder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try script(in: folder)
         let game = try repository.scan().active[0]
@@ -491,7 +564,7 @@ final class LibraryTests: XCTestCase {
 
     func testDeleteRemovesFolderSavesAndRecord() throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Example")
+        let folder = repository.gamesRoot.appendingPathComponent("Example")
         try FileManager.default.createDirectory(at: folder.appendingPathComponent("savedata"), withIntermediateDirectories: true)
         try script(in: folder)
         let game = try repository.scan().active[0]

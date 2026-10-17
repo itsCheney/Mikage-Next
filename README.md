@@ -9,7 +9,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 ## 功能
 
 **游戏库**
-- 每个引擎在 App 的“文稿”中有自己的文件夹：`krkr/`、`ons/`、`renpy/`、`artemis/` 和 `siglus/`。用“文件”App 把游戏文件夹放进去，或者在游戏库右上角点 + 导入文件夹。
+- 用“文件”App 把游戏文件夹直接放进 App 的“文稿”，或者在游戏库右上角点 + 导入文件夹。Mikage 会根据文件自动识别引擎。游戏库里还没有自己的游戏时，“文稿”里会有 `DROP_GAMES_HERE` 和 `把游戏放在这里` 两个提示文件，找到游戏后自动删除。旧版本按引擎分开的 `krkr/`、`ons/`、`renpy/`、`artemis/` 文件夹会在更新后首次打开时移到“文稿”并删除。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
 - SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。

@@ -88,16 +88,98 @@ public struct LibraryRepository: Sendable {
         try directory(for: game).appendingPathComponent(Self.savesFolderName, isDirectory: true)
     }
 
-    public func engineRoot(for engine: EngineID) -> URL {
-        documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
-    }
+    /// Game folders sit directly in Documents; each one's engine is
+    /// detected from its files.
+    public var gamesRoot: URL { documentsRoot }
+
+    /// Files in Documents that tell the player where games go, in English and
+    /// Chinese. They are there while the library has no games of the
+    /// player's own, and removed once it has.
+    public static let dropTipNames = ["DROP_GAMES_HERE", "把游戏放在这里"]
+    static let dropTipText = """
+    Put each game's folder here, directly in this folder, then return to Mikage.
+    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py or SiglusEngine) by itself.
+    This file goes away once a game is found.
+
+    把每个游戏的文件夹直接放在这里，然后回到 Mikage。
+    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py 或 SiglusEngine）。
+    找到游戏后，这个文件会自动删除。
+
+    """
+
+    /// Written once the engine folders of older versions (Documents/krkr,
+    /// ons, renpy, artemis) have been emptied into Documents.
+    var flatLayoutMarkerURL: URL { metadataRoot.appendingPathComponent("flat-documents-layout") }
 
     public func ensureStructure() throws {
         let fm = FileManager.default
         try fm.createDirectory(at: metadataRoot, withIntermediateDirectories: true)
         try fm.createDirectory(at: coversURL, withIntermediateDirectories: true)
+        try fm.createDirectory(at: gamesRoot, withIntermediateDirectories: true)
+    }
+
+    /// Moves every game out of the per-engine folders older versions used
+    /// into Documents itself, keeps the records pointing at them, and deletes
+    /// the engine folders. Runs once; a name already taken in Documents gets
+    /// a number appended.
+    func migrateEngineFoldersIfNeeded() throws {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: flatLayoutMarkerURL.path) else { return }
+        var records = try load()
+        var renamed = false
         for engine in EngineID.allCases {
-            try fm.createDirectory(at: engineRoot(for: engine), withIntermediateDirectories: true)
+            let folder = documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
+            var isDirectory = ObjCBool(false)
+            guard fm.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+            for child in try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: []) {
+                let name = child.lastPathComponent
+                // Interrupted imports and Finder metadata are not games.
+                if name.hasPrefix(".incoming-") || name == ".DS_Store" {
+                    try? fm.removeItem(at: child)
+                    continue
+                }
+                let target = uniqueName(for: name, in: gamesRoot)
+                try fm.moveItem(at: child, to: gamesRoot.appendingPathComponent(target))
+                guard target != name else { continue }
+                let oldKey = GameScanner.normalized(name)
+                for index in records.indices {
+                    guard records[index].engine == engine,
+                          GameScanner.normalized(records[index].folderName) == oldKey else { continue }
+                    records[index].folderName = target
+                    renamed = true
+                }
+            }
+            try fm.removeItem(at: folder)
+        }
+        if renamed { try save(records) }
+        try fm.createDirectory(at: metadataRoot, withIntermediateDirectories: true)
+        try Data().write(to: flatLayoutMarkerURL)
+    }
+
+    /// `name`, or `name 2`, `name 3`... when that is taken in `root`.
+    private func uniqueName(for name: String, in root: URL) -> String {
+        let taken = Set(((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).map(GameScanner.normalized))
+        guard taken.contains(GameScanner.normalized(name)) else { return name }
+        var number = 2
+        while taken.contains(GameScanner.normalized("\(name) \(number)")) { number += 1 }
+        return "\(name) \(number)"
+    }
+
+    /// Adds the drop tips while no game of the player's own is in the
+    /// library (built-in games don't count), and removes them once there is.
+    private func updateDropTips(active: [GameRecord]) {
+        let fm = FileManager.default
+        let hasOwnGame = active.contains { game in
+            guard let folder = try? self.directory(for: game) else { return true }
+            return !fm.fileExists(atPath: folder.appendingPathComponent(Self.builtInMarkerName).path)
+        }
+        for name in Self.dropTipNames {
+            let url = documentsRoot.appendingPathComponent(name)
+            if hasOwnGame {
+                try? fm.removeItem(at: url)
+            } else if !fm.fileExists(atPath: url.path) {
+                try? Data(Self.dropTipText.utf8).write(to: url)
+            }
         }
     }
 
@@ -155,27 +237,48 @@ public struct LibraryRepository: Sendable {
         lock.lock()
         defer { lock.unlock() }
         try ensureStructure()
+        try migrateEngineFoldersIfNeeded()
         let previous = try load()
         var existingByKey: [String: GameRecord] = [:]
+        // Older libraries kept a folder name once per engine folder; the
+        // extra records stay in the library as missing games.
+        var sameNameRecords: [GameRecord] = []
         for record in previous {
-            existingByKey[key(engine: record.engine, folderName: record.folderName)] = record
+            let recordKey = key(folderName: record.folderName)
+            if existingByKey[recordKey] == nil {
+                existingByKey[recordKey] = record
+            } else {
+                sameNameRecords.append(record)
+            }
         }
         var active: [GameRecord] = []
 
-        for engine in EngineID.allCases {
-            let root = engineRoot(for: engine)
-            let children = try FileManager.default.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-                options: [.skipsHiddenFiles]
-            ).sorted {
-                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-            }
+        let children = try FileManager.default.contentsOfDirectory(
+            at: gamesRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ).sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
 
+        do {
             for var child in children {
                 let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
                 guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
-                let recordKey = key(engine: engine, folderName: child.lastPathComponent)
+                let recordKey = key(folderName: child.lastPathComponent)
+                // A folder the library already knows keeps its engine (it may
+                // have been chosen by hand) unless its files now say another.
+                // An unknown folder is a game only if an engine recognizes it.
+                let detected = try GameScanner.detectEngines(in: child)
+                let known = existingByKey[recordKey]
+                let engine: EngineID
+                if let known, detected.isEmpty || detected.contains(known.engine) {
+                    engine = known.engine
+                } else if let first = detected.first {
+                    engine = first
+                } else {
+                    continue
+                }
                 let old = existingByKey.removeValue(forKey: recordKey)
                 // A game removed with its saves kept is back: return the saves
                 // before measuring, so the size includes them.
@@ -211,7 +314,7 @@ public struct LibraryRepository: Sendable {
             }
         }
 
-        let missing = existingByKey.values.map { record -> GameRecord in
+        let missing = (Array(existingByKey.values) + sameNameRecords).map { record -> GameRecord in
             var result = record
             result.availability = .missing
             return result
@@ -219,6 +322,7 @@ public struct LibraryRepository: Sendable {
             $0.title.localizedStandardCompare($1.title) == .orderedAscending
         }
         try save(active + missing)
+        updateDropTips(active: active)
         return LibrarySnapshot(active: active, missing: missing)
     }
 
@@ -231,7 +335,7 @@ public struct LibraryRepository: Sendable {
             throw LibraryError.invalidFolderName
         }
         try validateImportTree(source)
-        let root = engineRoot(for: engine)
+        let root = gamesRoot
         if try containsFolder(named: folderName, in: root) {
             throw LibraryError.duplicateName(folderName)
         }
@@ -241,6 +345,11 @@ public struct LibraryRepository: Sendable {
         defer { try? FileManager.default.removeItem(at: staging) }
         try FileManager.default.copyItem(at: source, to: staging)
         try FileManager.default.moveItem(at: staging, to: destination)
+        // The engine chosen at import, which the scan keeps for this folder.
+        try mutate { records in
+            guard !records.contains(where: { key(folderName: $0.folderName) == key(folderName: folderName) }) else { return }
+            records.append(GameRecord(title: folderName, engine: engine, folderName: folderName, availability: .missing))
+        }
     }
 
     /// Remembers which built-in games were copied in, so one the player
@@ -278,13 +387,13 @@ public struct LibraryRepository: Sendable {
             for game in games {
                 guard try game.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else { continue }
                 let name = "\(engine.documentsDirectoryName)/\(game.lastPathComponent)"
-                let destination = engineRoot(for: engine).appendingPathComponent(game.lastPathComponent, isDirectory: true)
+                let destination = gamesRoot.appendingPathComponent(game.lastPathComponent, isDirectory: true)
                 guard !installed.contains(name) else {
                     try addMissingFiles(from: game, to: destination)
                     continue
                 }
                 recorded.insert(name)
-                if try containsFolder(named: game.lastPathComponent, in: engineRoot(for: engine)) { continue }
+                if try containsFolder(named: game.lastPathComponent, in: gamesRoot) { continue }
                 try importFolder(game, engine: engine)
                 try Data().write(to: destination.appendingPathComponent(Self.builtInMarkerName))
                 copied.append(name)
@@ -346,7 +455,7 @@ public struct LibraryRepository: Sendable {
             throw LibraryError.engineMismatch(expected: record.engine, detected: detectedEngine)
         }
 
-        let root = engineRoot(for: record.engine).standardizedFileURL
+        let root = gamesRoot.standardizedFileURL
         let sourceURL = source.standardizedFileURL
         let destination: URL
         if sourceURL.deletingLastPathComponent() == root {
@@ -356,9 +465,12 @@ public struct LibraryRepository: Sendable {
             destination = root.appendingPathComponent(source.lastPathComponent, isDirectory: true)
         }
 
-        let targetKey = key(engine: record.engine, folderName: destination.lastPathComponent)
+        // importFolder may have added a record for the new folder; this one
+        // takes its place.
+        records = try load()
+        let targetKey = key(folderName: destination.lastPathComponent)
         records.removeAll {
-            $0.id != record.id && key(engine: $0.engine, folderName: $0.folderName) == targetKey
+            $0.id != record.id && key(folderName: $0.folderName) == targetKey
         }
         guard let index = records.firstIndex(where: { $0.id == record.id }) else {
             throw LibraryError.recordNotFound
@@ -462,7 +574,7 @@ public struct LibraryRepository: Sendable {
     }
 
     public func directory(for game: GameRecord) throws -> URL {
-        try GameScanner.containedURL(game.folderName, in: engineRoot(for: game.engine))
+        try GameScanner.containedURL(game.folderName, in: gamesRoot)
     }
 
     public func entryPoint(for game: GameRecord) throws -> URL {
@@ -537,8 +649,8 @@ public struct LibraryRepository: Sendable {
         }
     }
 
-    private func key(engine: EngineID, folderName: String) -> String {
-        "\(engine.rawValue):\(GameScanner.normalized(folderName))"
+    private func key(folderName: String) -> String {
+        GameScanner.normalized(folderName)
     }
 
     private func merging(scanned: GameRecord, metadata: GameRecord) -> GameRecord {
@@ -686,7 +798,7 @@ public enum LibraryError: LocalizedError, Equatable {
         case .unsupportedSchema(let version):
             return String(localized: "Library version \(version) isn’t supported. Please update the app.")
         case .duplicateName(let name):
-            return String(localized: "“\(name)” already exists in the target engine folder. Rename the folder first.")
+            return String(localized: "“\(name)” already exists in Documents. Rename the folder first.")
         case .invalidFolderName:
             return String(localized: "The game folder name is invalid.")
         case .engineMismatch(let expected, let detected):
