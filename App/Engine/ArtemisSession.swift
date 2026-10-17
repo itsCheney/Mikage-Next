@@ -326,8 +326,11 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         if isForeground && state == .running {
             elapsedSeconds += 1
         }
+        let diagnosticsEnabled = AppDiagnostics.shared.isEnabled
         var raw = MikageArtemisStats()
-        guard performanceEnabled, MikageArtemisGetStats(&raw) else {
+        // Reading the stats resets the engine's stage profile, so read them
+        // once per tick for both the HUD and the diagnostics log.
+        guard performanceEnabled || diagnosticsEnabled, MikageArtemisGetStats(&raw) else {
             overlayCoordinator?.update(
                 KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
             )
@@ -336,6 +339,39 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         let cpuSample = threadCPU.sample()
         let backend = withUnsafePointer(to: &raw.renderer) { pointer in
             pointer.withMemoryRebound(to: CChar.self, capacity: 32) { String(cString: $0) }
+        }
+        if diagnosticsEnabled {
+            let stageProfile = withUnsafePointer(to: &raw.stageProfile) { pointer in
+                pointer.withMemoryRebound(to: CChar.self, capacity: 640) { String(cString: $0) }
+            }
+            if let cpuSample {
+                AppDiagnostics.shared.event("session", "threadCPU", [
+                    "processCPUPercent": String(format: "%.1f", cpuSample.processPercent),
+                    "threadCount": String(cpuSample.threadCount),
+                    "threads": cpuSample.summary(limit: 16),
+                    "foreground": String(isForeground),
+                    "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue)
+                ])
+            }
+            AppDiagnostics.shared.event("session", "heartbeat", [
+                "foreground": String(isForeground),
+                "fps": String(raw.framesPerSecond),
+                "frameTimeMS": String(raw.frameTimeMilliseconds),
+                "cpuFrameTimeMS": String(raw.cpuFrameTimeMilliseconds),
+                "maxCpuFrameTimeMS": String(raw.maxCpuFrameTimeMilliseconds),
+                "drawable": "\(raw.drawableWidth)x\(raw.drawableHeight)",
+                "actualRenderer": backend,
+                "drawCallsPerFrame": String(raw.drawCallsPerFrame),
+                "stageProfile": stageProfile,
+                "residentBytes": String(processResidentMemoryBytes()),
+                "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue)
+            ])
+        }
+        guard performanceEnabled else {
+            overlayCoordinator?.update(
+                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+            )
+            return
         }
         overlayCoordinator?.update(
             KRKRPerformanceSnapshot(
