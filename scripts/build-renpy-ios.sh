@@ -264,15 +264,17 @@ with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED) as archive:
 EOF
 
     # Ren'Py: renpy.py, the renpy package (Python, common/ and the other
-    # files it reads), plus the bridge's session module and pyobjus.
+    # files it reads), plus the bridge's session module, pyobjus and the
+    # pure-Python packages Ren'Py imports (mikage/pylib).
     cp "${SOURCE_DIR}/renpy.py" "${MIKAGE_DIR}/mikage_session.py" "${base}/"
+    cp -R "${MIKAGE_DIR}/pylib/." "${base}/"
     "${VENV_PYTHON}" -c 'import shutil, sys
 shutil.copytree(sys.argv[1], sys.argv[2], ignore=shutil.ignore_patterns(
     "__pycache__", "*.pyc", "*.pyx", "*.pxd", "*.pxi", "*.pyi", "*.c", "*.h", "*.rpyc"))' \
         "${SOURCE_DIR}/renpy" "${base}/renpy"
     cp -R "${PYOBJUS_GEN}/python/pyobjus" "${base}/"
     "${VENV_PYTHON}" -m compileall -q -j 0 --invalidation-mode unchecked-hash \
-        "${base}/renpy" "${base}/pyobjus" "${base}/mikage_session.py"
+        "${base}/renpy" "${base}/pyobjus" "${base}/mikage_session.py" "${base}/six.py"
 }
 
 # --- RenPyRuntime.framework per SDK ------------------------------------------
@@ -378,6 +380,7 @@ for sdk in iphoneos iphonesimulator; do
     fi
     assemble_base "${BUILD_ROOT}/python-install-${sdk}" "${framework}/base"
     test -f "${framework}/base/renpy.py"
+    test -f "${framework}/base/six.py"
     test -f "${framework}/base/renpy/common/00start.rpy"
 done
 rm -f "${SOURCE_DIR}/renpy/vc_version.py"
