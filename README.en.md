@@ -14,7 +14,7 @@ Mikage ships no game content. You bring games you own.
 - An Artemis game folder needs `root.pfs` (or another `.pfs` pack), or an extracted project with `system.ini`.
 - A SiglusEngine game folder needs `Scene.pck` or `Gameexe.dat`. On the first run siglus_rs works out the game's second-layer resource key and writes it to `key.toml` in the game folder.
 - An ONScripter game folder needs a script such as `0.txt`, `00.txt` or `nscript.dat`. Mikage uses the folder's `default.ttf` when there is one, otherwise a system font (Hiragino Sans for Japanese games, PingFang for Chinese ones).
-- For KiriKiri, Mikage picks `startup.tjs` at the game root if there is one, otherwise the first XP3 among `启动游戏.xp3`, `startup.xp3`, `start.xp3`, `boot.xp3` and `data.xp3` that passes its signature check.
+- A KiriKiri game can start from `startup.tjs` at the game root, an XP3 that passes its signature check, or an `.exe` with an XP3 appended. Mikage prefers the one whose name is tagged with your language (`xxx_CHS.exe` or `启动游戏.xp3` for Chinese, `xxx_EN.exe` for English); otherwise it takes `startup.tjs`, `启动游戏.xp3`, `startup.xp3`, `start.xp3`, `boot.xp3`, an `.exe` with an XP3, then `data.xp3`. The game's page has a Startup file picker to fix one by hand.
 - Covers come from an image in the game folder, a picture you choose, or artwork from Bangumi or VNDB. A cover you set yourself is never replaced.
 - Sort by recently played, date added, name or size. Games whose folder disappeared are kept as “missing” so you can relink or remove them.
 

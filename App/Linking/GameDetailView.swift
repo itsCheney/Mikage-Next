@@ -24,6 +24,9 @@ struct GameDetailView: View {
     /// Width over height of the cover on disk; VNDB has both portrait and
     /// landscape package art.
     @State private var posterAspect: CGFloat?
+    /// The files this game can start from; the picker shows only when there
+    /// is more than one.
+    @State private var startupChoices: [StartupFile] = []
 
     private var current: GameRecord { model.record(game.id) ?? game }
     private var metadata: LinkedMetadata? { current.link?.metadata }
@@ -472,12 +475,52 @@ struct GameDetailView: View {
             }
             DetailRow("Engine", value: current.engine.displayName, divider: metadata?.developer != nil || metadata?.released != nil)
             DetailRow("Folder", value: "Documents/\(current.folderName)")
+            if startupChoices.count > 1 {
+                DetailRow(label: "Startup file") { startupMenu }
+            }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
             DetailRow("Launches", value: String(localized: "\(current.launchCount) times"))
             if !current.availability.canLaunch {
                 DetailRow("Availability", value: model.availabilityText(current))
             }
         }
+        .task(id: current.folderName) {
+            startupChoices = model.startupChoices(current)
+        }
+    }
+
+    /// Automatic follows the player's language (xxx_CHS.exe, 启动游戏.xp3 for
+    /// Chinese, xxx_EN.exe for English); any listed file can be fixed instead.
+    private var startupMenu: some View {
+        Menu {
+            Picker("Startup file", selection: Binding(
+                get: { current.chosenStartup ?? "" },
+                set: { model.chooseStartup($0.isEmpty ? nil : $0, for: current) }
+            )) {
+                Text("Automatic").tag("")
+                ForEach(startupChoices, id: \.relativePath) { file in
+                    Text(verbatim: Self.startupName(file.relativePath)).tag(file.relativePath)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if current.chosenStartup == nil {
+                    Text("Automatic (\(Self.startupName(current.launchTarget)))")
+                } else {
+                    Text(verbatim: Self.startupName(current.launchTarget))
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote)
+            }
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+    }
+
+    /// "." is the folder itself, which starts from its startup.tjs.
+    private static func startupName(_ relativePath: String?) -> String {
+        guard let relativePath, relativePath != "." else { return "startup.tjs" }
+        return relativePath
     }
 
     private var links: some View {

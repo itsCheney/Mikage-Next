@@ -493,6 +493,24 @@ final class AppModel: ObservableObject {
         return repository.customCoverURL(for: game) ?? repository.detectedCoverURL(for: game)
     }
 
+    /// The files a game can start from, for its page's startup picker.
+    func startupChoices(_ game: GameRecord) -> [StartupFile] {
+        (try? repository.startupCandidates(for: game)) ?? []
+    }
+
+    /// `path` nil goes back to picking the startup file automatically.
+    func chooseStartup(_ path: String?, for game: GameRecord) {
+        AppDiagnostics.shared.event("library", "startup.choose", ["folder": game.folderName, "file": path ?? "auto"])
+        do {
+            let updated = try repository.chooseStartup(path, for: game)
+            if let index = games.firstIndex(where: { $0.id == game.id }) {
+                games[index] = updated
+            }
+        } catch {
+            alert = String(localized: "Couldn’t change the startup file: \(error.localizedDescription)")
+        }
+    }
+
     /// Encodes and writes off the main thread: a picked photo can be several
     /// thousand pixels on a side, and JPEG encoding it on the MainActor freezes
     /// the library while the user waits.

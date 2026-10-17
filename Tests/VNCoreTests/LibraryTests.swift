@@ -37,6 +37,23 @@ final class LibraryTests: XCTestCase {
         try write([0x58, 0x50, 0x33, 0x0D, 0x0A, 0x20, 0x0A, 0x1A, 0x8B, 0x67, 0x01], named: name, in: folder)
     }
 
+    /// A minimal Windows executable: one PE section ending at 0x300, then
+    /// an XP3 archive when `appendingXP3` is set.
+    private func executable(named name: String, in folder: URL, appendingXP3: Bool = true) throws {
+        var bytes = [UInt8](repeating: 0, count: 0x300)
+        bytes[0] = 0x4D; bytes[1] = 0x5A
+        bytes[0x3C] = 0x40
+        bytes.replaceSubrange(0x40..<0x44, with: [0x50, 0x45, 0, 0])
+        bytes[0x40 + 6] = 1
+        // Section table right after the 20-byte COFF header (no optional header).
+        bytes[0x58 + 16] = 0x00; bytes[0x58 + 17] = 0x01
+        bytes[0x58 + 20] = 0x00; bytes[0x58 + 21] = 0x02
+        if appendingXP3 {
+            bytes += [0x58, 0x50, 0x33, 0x0D, 0x0A, 0x20, 0x0A, 0x1A, 0x8B, 0x67, 0x01]
+        }
+        try write(bytes, named: name, in: folder)
+    }
+
     private func png(named name: String, in folder: URL) throws {
         let encoded = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
         try XCTUnwrap(Data(base64Encoded: encoded)).write(to: folder.appendingPathComponent(name))
@@ -139,12 +156,66 @@ final class LibraryTests: XCTestCase {
         let folder = try directory("Game")
         try xp3(named: "data.xp3", in: folder)
         try xp3(named: "启动游戏.xp3", in: folder)
-        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri)?.relativePath, "启动游戏.xp3")
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["zh-Hans"])?.relativePath, "启动游戏.xp3")
+        // 启动游戏 is Chinese; other readers get the untagged archive.
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["en"])?.relativePath, "data.xp3")
 
         try script(in: folder)
-        let target = try GameScanner.launchTarget(in: folder, engine: .kirikiri)
+        let target = try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["zh-Hans"])
         XCTAssertEqual(target?.kind, .directory)
         XCTAssertEqual(target?.relativePath, ".")
+    }
+
+    func testStartupFollowsThePlayersLanguage() throws {
+        let folder = try directory("Game")
+        try xp3(named: "data.xp3", in: folder)
+        try executable(named: "Game_CHS.exe", in: folder)
+        try executable(named: "Game_EN.exe", in: folder)
+        try executable(named: "Game_CHT.exe", in: folder)
+        try executable(named: "Launcher.exe", in: folder, appendingXP3: false)
+
+        let candidates = try GameScanner.startupCandidates(in: folder, engine: .kirikiri).map(\.relativePath)
+        XCTAssertEqual(candidates, ["Game_CHS.exe", "Game_CHT.exe", "Game_EN.exe", "data.xp3"])
+        func pick(_ languages: [String]) throws -> String? {
+            try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: languages)?.relativePath
+        }
+        XCTAssertEqual(try pick(["zh-Hans-CN"]), "Game_CHS.exe")
+        XCTAssertEqual(try pick(["zh-Hant-TW"]), "Game_CHT.exe")
+        XCTAssertEqual(try pick(["zh-HK"]), "Game_CHT.exe")
+        XCTAssertEqual(try pick(["en-US"]), "Game_EN.exe")
+        XCTAssertEqual(try pick(["ja-JP"]), "data.xp3")
+        XCTAssertEqual(try pick(["fr-FR", "en-GB"]), "Game_EN.exe")
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["zh-Hans"])?.kind, .archive)
+
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("Game_CHT.exe"))
+        XCTAssertEqual(try pick(["zh-Hant"]), "Game_CHS.exe")
+    }
+
+    func testChosenStartupSurvivesScansUntilItsFileIsGone() throws {
+        try repository.ensureStructure()
+        let folder = repository.gamesRoot.appendingPathComponent("Example")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try xp3(named: "data.xp3", in: folder)
+        try xp3(named: "patch.xp3", in: folder)
+        let game = try XCTUnwrap(repository.scan().active.first)
+        XCTAssertEqual(game.launchTarget, "data.xp3")
+        XCTAssertEqual(try repository.startupCandidates(for: game).map(\.relativePath), ["data.xp3", "patch.xp3"])
+
+        let chosen = try repository.chooseStartup("patch.xp3", for: game)
+        XCTAssertEqual(chosen.chosenStartup, "patch.xp3")
+        XCTAssertEqual(chosen.launchTarget, "patch.xp3")
+        XCTAssertEqual(try repository.scan().active.first?.launchTarget, "patch.xp3")
+        XCTAssertThrowsError(try repository.chooseStartup("missing.xp3", for: game))
+
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("patch.xp3"))
+        let rescanned = try XCTUnwrap(repository.scan().active.first)
+        XCTAssertEqual(rescanned.launchTarget, "data.xp3")
+        XCTAssertNil(rescanned.chosenStartup)
+
+        try xp3(named: "patch.xp3", in: folder)
+        let automatic = try repository.chooseStartup(nil, for: rescanned)
+        XCTAssertNil(automatic.chosenStartup)
+        XCTAssertEqual(automatic.launchTarget, "data.xp3")
     }
 
     func testUnknownXP3FallsBackToNaturalOrderAndRejectsDisguisedArchive() throws {
