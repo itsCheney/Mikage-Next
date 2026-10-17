@@ -102,6 +102,20 @@ final class NativeSiglusSession: NSObject, KRKRSession {
             withIntermediateDirectories: true
         )
 
+        // A patched executable picked as the startup file (SiglusEngineCHS.exe
+        // and the like) loads renamed copies of Scene.pck and Gameexe.dat.
+        let names = configuration.targetKind == .archive
+            ? GameScanner.siglusResourceNames(of: configuration.entryPoint, in: gameDirectory)
+            : SiglusResourceNames()
+        AppDiagnostics.shared.event("bridge", "siglus.resources", ["scene": names.scene ?? "Scene.pck", "gameexe": names.gameexe ?? "Gameexe.dat"])
+        gameDirectory.path.withCString { root in
+            withOptionalCString(names.scene) { scene in
+                withOptionalCString(names.gameexe) { gameexe in
+                    siglus_mikage_set_resource_names(root, scene, gameexe)
+                }
+            }
+        }
+
         let controller = SiglusViewController()
         controller.loadViewIfNeeded()
         let engineWindow = UIWindow(windowScene: scene)
@@ -554,4 +568,9 @@ final class SiglusViewController: UIViewController {
         )
         siglus_mikage_secondary_click(handle, Double(game.x), Double(game.y))
     }
+}
+
+private func withOptionalCString<Result>(_ string: String?, _ body: (UnsafePointer<CChar>?) -> Result) -> Result {
+    guard let string else { return body(nil) }
+    return string.withCString { body($0) }
 }

@@ -194,6 +194,49 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try pick(["zh-Hant"]), "Game_CHS.exe")
     }
 
+    /// An executable whose strings name `files`, the way SiglusEngine stores
+    /// them (UTF-16).
+    private func siglusExecutable(named name: String, in folder: URL, naming files: [String]) throws {
+        var bytes: [UInt8] = [0x4D, 0x5A] + [UInt8](repeating: 0, count: 62)
+        for file in files {
+            bytes += Array("\\".utf16 + file.utf16).flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] } + [0, 0, 0x41, 0x42]
+        }
+        try write(bytes, named: name, in: folder)
+    }
+
+    func testPatchedSiglusExecutablesAreStartupFiles() throws {
+        let folder = try directory("Siglus")
+        for file in ["Scene.pck", "Gameexe.dat", "Scene.chs", "Gameexe.chs"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(file))
+        }
+        try siglusExecutable(named: "SiglusEngine.exe", in: folder, naming: ["Scene.pck", "Gameexe.dat", "Gameexe.ini"])
+        try siglusExecutable(named: "SiglusEngineCHS.exe", in: folder, naming: ["Scene.chs", "Gameexe.chs"])
+        // Names the folder doesn't have are not this executable's files.
+        try siglusExecutable(named: "Config.exe", in: folder, naming: ["Scene.cfg"])
+
+        XCTAssertEqual(
+            GameScanner.siglusResourceNames(of: folder.appendingPathComponent("SiglusEngineCHS.exe"), in: folder),
+            SiglusResourceNames(scene: "Scene.chs", gameexe: "Gameexe.chs")
+        )
+        XCTAssertEqual(GameScanner.siglusResourceNames(of: folder.appendingPathComponent("SiglusEngine.exe"), in: folder), SiglusResourceNames())
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath), [".", "SiglusEngineCHS.exe"])
+
+        func pick(_ languages: [String]) throws -> StartupFile? {
+            try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: languages)
+        }
+        XCTAssertEqual(try pick(["zh-Hans-CN"]), StartupFile(.archive, "SiglusEngineCHS.exe"))
+        XCTAssertEqual(try pick(["ja-JP"]), StartupFile(.directory, "."))
+    }
+
+    func testCapitalTagsRunIntoANameCount() {
+        XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngineCHS.exe"), [.simplifiedChinese])
+        XCTAssertEqual(StartupLanguage.tags(in: "GameEN.exe"), [.english])
+        XCTAssertEqual(StartupLanguage.tags(in: "CHTLauncher.exe"), [.traditionalChinese])
+        XCTAssertEqual(StartupLanguage.tags(in: "Golden.exe"), [])
+        XCTAssertEqual(StartupLanguage.tags(in: "ScEngine.exe"), [])
+        XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngine.exe"), [])
+    }
+
     func testChosenStartupSurvivesScansUntilItsFileIsGone() throws {
         try repository.ensureStructure()
         let folder = repository.gamesRoot.appendingPathComponent("Example")

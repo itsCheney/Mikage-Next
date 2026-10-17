@@ -499,15 +499,15 @@ struct GameDetailView: View {
             )) {
                 Text("Automatic").tag("")
                 ForEach(startupChoices, id: \.relativePath) { file in
-                    Text(verbatim: Self.startupName(file.relativePath)).tag(file.relativePath)
+                    Text(verbatim: startupName(file.relativePath)).tag(file.relativePath)
                 }
             }
         } label: {
             HStack(spacing: 4) {
                 if current.chosenStartup == nil {
-                    Text("Automatic (\(Self.startupName(current.launchTarget)))")
+                    Text("Automatic (\(startupName(current.launchTarget)))")
                 } else {
-                    Text(verbatim: Self.startupName(current.launchTarget))
+                    Text(verbatim: startupName(current.launchTarget))
                 }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.footnote)
@@ -517,9 +517,12 @@ struct GameDetailView: View {
         }
     }
 
-    /// "." is the folder itself, which starts from its startup.tjs.
-    private static func startupName(_ relativePath: String?) -> String {
-        guard let relativePath, relativePath != "." else { return "startup.tjs" }
+    /// "." is the folder itself: startup.tjs for KiriKiri, the original
+    /// files (Scene.pck and Gameexe.dat) for Siglus.
+    private func startupName(_ relativePath: String?) -> String {
+        guard let relativePath, relativePath != "." else {
+            return current.engine == .kirikiri ? "startup.tjs" : String(localized: "Original")
+        }
         return relativePath
     }
 

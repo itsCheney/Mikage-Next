@@ -52,6 +52,18 @@ public struct StartupFile: Equatable, Sendable {
     }
 }
 
+/// Replacements for Scene.pck and Gameexe.dat that a patched SiglusEngine
+/// executable loads (Scene.chs, Gameexe.chs...); nil keeps the original.
+public struct SiglusResourceNames: Equatable, Sendable {
+    public var scene: String?
+    public var gameexe: String?
+
+    public init(scene: String? = nil, gameexe: String? = nil) {
+        self.scene = scene
+        self.gameexe = gameexe
+    }
+}
+
 /// The languages a startup file's name can be tagged with.
 enum StartupLanguage: Equatable {
     case simplifiedChinese
@@ -89,12 +101,37 @@ enum StartupLanguage: Equatable {
     /// The languages a file name is tagged with: a whole word such as CHS or
     /// EN between separators (game_CHS.exe), or a phrase such as 简体中文.
     static func tags(in fileName: String) -> Set<StartupLanguage> {
-        let base = ((fileName as NSString).deletingPathExtension).lowercased()
-        let tokens = Set(base.split(whereSeparator: { !($0.isASCII && ($0.isLetter || $0.isNumber)) }).map(String.init))
+        let original = (fileName as NSString).deletingPathExtension
+        let base = original.lowercased()
+        let words = original.split(whereSeparator: { !($0.isASCII && ($0.isLetter || $0.isNumber)) })
+        var tokens = Set(words.map { $0.lowercased() })
+        // A capitalized tag run into the name, as in SiglusEngineCHS or
+        // GameEN, counts as a word too.
+        for word in words {
+            tokens.formUnion(uppercaseRuns(in: word).map { $0.lowercased() })
+        }
         var result = Set<StartupLanguage>()
         for (language, set) in words where !tokens.isDisjoint(with: set) { result.insert(language) }
         for (language, list) in phrases where list.contains(where: { base.contains($0) }) { result.insert(language) }
         return result
+    }
+
+    /// Runs of two or more capital letters that end the word or are followed
+    /// by a lowercase-led part: "CHS" in SiglusEngineCHS, "EN" in ENGame.
+    private static func uppercaseRuns(in word: Substring) -> [String] {
+        let characters = Array(word)
+        var runs: [String] = []
+        var index = 0
+        while index < characters.count {
+            guard characters[index].isUppercase else { index += 1; continue }
+            var end = index
+            while end < characters.count, characters[end].isUppercase { end += 1 }
+            // In "ENGame" the G starts the next word.
+            let runEnd = end < characters.count && characters[end].isLowercase ? end - 1 : end
+            if runEnd - index >= 2 { runs.append(String(characters[index..<runEnd])) }
+            index = end
+        }
+        return runs
     }
 }
 
@@ -988,7 +1025,14 @@ public enum GameScanner {
             return try isRenPyGame(in: directory) ? [StartupFile(.directory, ".")] : []
         case .siglus:
             // siglus_rs finds Scene.pck and Gameexe.dat in the game folder.
-            return try isSiglusGame(in: directory) ? [StartupFile(.directory, ".")] : []
+            // Patched executables of translated releases load renamed copies;
+            // each one present becomes a startup file of its own.
+            guard try isSiglusGame(in: directory) else { return [] }
+            let executables = try rootFiles(in: directory)
+                .filter { normalized($0.pathExtension) == "exe" }
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+                .filter { siglusResourceNames(of: $0, in: directory) != SiglusResourceNames() }
+            return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
         case .kirikiri:
             break
         }
@@ -1049,6 +1093,55 @@ public enum GameScanner {
             }
         }
         return best
+    }
+
+    /// The renamed Scene.pck and Gameexe.dat a SiglusEngine executable loads,
+    /// read from the file names stored in it (UTF-16 or ASCII), as patched
+    /// executables of translated releases rename them (Scene.chs and the
+    /// like). Only names present in `directory` count; the original names
+    /// give nil.
+    public static func siglusResourceNames(of executable: URL, in directory: URL) -> SiglusResourceNames {
+        // SiglusEngine executables are a few megabytes; anything far larger
+        // is not one.
+        guard let size = try? executable.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 64 << 20,
+              let data = try? Data(contentsOf: executable, options: .mappedIfSafe) else { return SiglusResourceNames() }
+        let present = Set(((try? rootFiles(in: directory)) ?? []).map { normalized($0.lastPathComponent) })
+        func names(after prefix: String, allowed: (Character) -> Bool) -> [String] {
+            var found: [String] = []
+            for wide in [true, false] {
+                let needle = wide ? Data(prefix.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }) : Data(prefix.utf8)
+                let step = wide ? 2 : 1
+                var searchStart = data.startIndex
+                while let range = data.range(of: needle, in: searchStart..<data.endIndex) {
+                    var suffix = ""
+                    var index = range.upperBound
+                    while index + step <= data.endIndex, suffix.count < 16 {
+                        if wide && data[index + 1] != 0 { break }
+                        let character = Character(Unicode.Scalar(data[index]))
+                        guard character.isASCII, allowed(character) else { break }
+                        suffix.append(character)
+                        index += step
+                    }
+                    found.append(prefix + suffix)
+                    searchStart = range.upperBound
+                }
+            }
+            return found
+        }
+        let isNameCharacter = { (character: Character) in character.isLetter || character.isNumber || character == "_" }
+        func pick(_ candidates: [String], originals: Set<String>) -> String? {
+            candidates.first { name in
+                name.contains(".") && !name.hasSuffix(".")
+                    && !originals.contains(normalized(name))
+                    && present.contains(normalized(name))
+            }
+        }
+        let scenes = names(after: "Scene.", allowed: isNameCharacter)
+        let gameexes = names(after: "Gameexe", allowed: { isNameCharacter($0) || $0 == "." })
+        return SiglusResourceNames(
+            scene: pick(scenes, originals: [normalized("Scene.pck")]),
+            gameexe: pick(gameexes, originals: [normalized("Gameexe.dat"), normalized("Gameexe.ini")])
+        )
     }
 
     /// Whether a Windows executable carries an XP3 archive after its image,
