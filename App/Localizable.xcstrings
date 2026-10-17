@@ -3669,18 +3669,18 @@
         }
       }
     },
-    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games and Ren’Py 8 for Ren’Py games.\n\nThe app includes no game content." : {
+    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games and siglus_rs for SiglusEngine games.\n\nThe app includes no game content." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8 を内蔵しています。\n\nアプリにゲームは含まれていません。"
+            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs を内蔵しています。\n\nアプリにゲームは含まれていません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis，以及用于 Ren’Py 游戏的 Ren’Py 8。\n\n应用不附带游戏内容。"
+            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8，以及用于 SiglusEngine 游戏的 siglus_rs。\n\n应用不附带游戏内容。"
           }
         }
       }
@@ -4411,6 +4411,120 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "openArtemis 已停止。"
+          }
+        }
+      }
+    },
+    "No SiglusEngine data found (Scene.pck or Gameexe.dat)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine のデータ（Scene.pck または Gameexe.dat）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 SiglusEngine 数据（Scene.pck 或 Gameexe.dat）"
+          }
+        }
+      }
+    },
+    "SiglusEngine failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 启动失败。"
+          }
+        }
+      }
+    },
+    "SiglusEngine failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 启动失败：%@"
+          }
+        }
+      }
+    },
+    "SiglusEngine stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 已停止。"
+          }
+        }
+      }
+    },
+    "SiglusEngine stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 已停止：%@"
+          }
+        }
+      }
+    },
+    "Yes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是"
+          }
+        }
+      }
+    },
+    "No" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いいえ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "否"
           }
         }
       }

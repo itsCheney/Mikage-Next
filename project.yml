@@ -37,6 +37,8 @@ targets:
         embed: true
       - framework: build/RenPyRuntime.xcframework
         embed: true
+      - framework: build/SiglusRuntime.xcframework
+        embed: true
       # OpenGL ES on Metal, which the shared SDL3 links for GL windows
       # (Ren'Py) instead of Apple's deprecated OpenGLES.
       - framework: build/MetalANGLE.xcframework

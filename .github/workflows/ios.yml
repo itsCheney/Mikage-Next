@@ -46,6 +46,9 @@ jobs:
       - name: Record Ren'Py runtime revision
         id: renpy-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/RenPyRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record Siglus runtime revision
+        id: siglus-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SiglusRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -407,6 +410,45 @@ jobs:
         with:
           path: build/RenPyRuntime.xcframework
           key: ${{ steps.cache-renpy-runtime.outputs.cache-primary-key }}
+      # SiglusEngine: the siglus_rs fork (Rust, wgpu on Metal, kira audio)
+      # as a dynamic framework. It needs no SDL, vcpkg or FFmpeg.
+      - name: Restore Siglus runtime framework
+        id: cache-siglus-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SiglusRuntime.xcframework
+          key: siglus-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-siglus-ios.sh') }}-${{ steps.siglus-revision.outputs.rev }}
+      - name: Install Rust for Siglus
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache Siglus Rust builds
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/siglus/target
+          key: siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SiglusRuntime/Source/Cargo.lock') }}-${{ steps.siglus-revision.outputs.rev }}
+          restore-keys: |
+            siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SiglusRuntime/Source/Cargo.lock') }}-
+            siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build Siglus runtime framework
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-siglus-ios.sh 2>&1 | tee build/siglus-runtime-build.log
+      - name: Save Siglus runtime framework
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SiglusRuntime.xcframework
+          key: ${{ steps.cache-siglus-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

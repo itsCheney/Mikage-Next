@@ -18,3 +18,7 @@
 	path = Engine/RenPyRuntime/Source
 	url = https://github.com/itsCheney/renpy.git
 	branch = mikage
+[submodule "Engine/SiglusRuntime/Source"]
+	path = Engine/SiglusRuntime/Source
+	url = https://github.com/itsCheney/siglus_rs.git
+	branch = mikage

@@ -48,6 +48,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("ons").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("renpy").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("artemis").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: documents.appendingPathComponent("siglus").path))
         XCTAssertTrue(repository.libraryURL.path.hasPrefix(metadata.path))
     }
 
@@ -148,6 +149,18 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(game.engine, .renpy)
         XCTAssertEqual(game.availability, .ready)
         XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(game.launchTarget, ".")
+    }
+
+    func testSiglusGameLaunchesFromItsFolder() throws {
+        try repository.ensureStructure()
+        let siglus = repository.engineRoot(for: .siglus).appendingPathComponent("Siglus Game")
+        try FileManager.default.createDirectory(at: siglus, withIntermediateDirectories: true)
+        try Data("pck".utf8).write(to: siglus.appendingPathComponent("scene.pck"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: siglus), [.siglus])
+        let game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .siglus)
+        XCTAssertEqual(game.availability, .ready)
         XCTAssertEqual(game.launchTarget, ".")
     }
 

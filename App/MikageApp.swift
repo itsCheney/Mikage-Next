@@ -126,7 +126,8 @@ final class AppModel: ObservableObject {
             .kirikiri: NativeKRKRSession(),
             .onscripter: NativeONSSession(),
             .artemis: NativeArtemisSession(),
-            .renpy: NativeRenPySession()
+            .renpy: NativeRenPySession(),
+            .siglus: NativeSiglusSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 

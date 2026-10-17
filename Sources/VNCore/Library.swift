@@ -8,6 +8,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
     case onscripter
     case renpy
     case artemis
+    case siglus
 
     public var id: String { rawValue }
 
@@ -17,6 +18,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .onscripter: return "ons"
         case .renpy: return "renpy"
         case .artemis: return "artemis"
+        case .siglus: return "siglus"
         }
     }
 
@@ -26,6 +28,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .onscripter: return "ONScripter"
         case .renpy: return "Ren’Py"
         case .artemis: return "Artemis"
+        case .siglus: return "SiglusEngine"
         }
     }
 
@@ -726,6 +729,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No Artemis data found (root.pfs or system.ini)"))
             case .renpy:
                 availability = .invalid(String(localized: "No Ren’Py game found (a game folder with .rpy, .rpyc or .rpa files)"))
+            case .siglus:
+                availability = .invalid(String(localized: "No SiglusEngine data found (Scene.pck or Gameexe.dat)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -760,6 +765,10 @@ public enum GameScanner {
             // Ren'Py runs the folder that holds game/ (or the .rpa archives
             // themselves).
             return try isRenPyGame(in: directory) ? (.directory, ".") : nil
+        }
+        if engine == .siglus {
+            // siglus_rs finds Scene.pck and Gameexe.dat in the game folder.
+            return try isSiglusGame(in: directory) ? (.directory, ".") : nil
         }
         guard engine == .kirikiri else { return nil }
         let entries = try rootFiles(in: directory)
@@ -824,6 +833,7 @@ public enum GameScanner {
         }
 
         if try isRenPyGame(in: directory) { matches.append(.renpy) }
+        if try isSiglusGame(in: directory) { matches.append(.siglus) }
 
         return matches
     }
@@ -839,6 +849,11 @@ public enum GameScanner {
             normalized($0.pathExtension) == "rpa"
         }
         return hasRenPyScript || hasRenPyArchive
+    }
+
+    private static func isSiglusGame(in directory: URL) throws -> Bool {
+        let names = Set(try rootFiles(in: directory).map { normalized($0.lastPathComponent) })
+        return names.contains(normalized("Scene.pck")) || names.contains(normalized("Gameexe.dat"))
     }
 
     private static func isArtemisGame(_ entries: [URL]) -> Bool {

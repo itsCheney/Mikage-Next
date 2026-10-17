@@ -9,9 +9,10 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 ## 功能
 
 **游戏库**
-- 每个引擎在 App 的“文稿”中有自己的文件夹：`krkr/`、`ons/`、`renpy/` 和 `artemis/`。用“文件”App 把游戏文件夹放进去，或者在游戏库右上角点 + 导入文件夹。
+- 每个引擎在 App 的“文稿”中有自己的文件夹：`krkr/`、`ons/`、`renpy/`、`artemis/` 和 `siglus/`。用“文件”App 把游戏文件夹放进去，或者在游戏库右上角点 + 导入文件夹。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
+- SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。
 - ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏优先使用根目录的 `startup.tjs`；没有的话，依次在 `启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、`data.xp3` 中选择第一个通过签名校验的 XP3。
 - 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。
@@ -45,6 +46,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 | ONScripter（ONScripter Yuri） | 支持 | 支持 |
 | Ren’Py | 支持 | 尚未支持 |
 | Artemis（openArtemis） | 支持 | 试验性 |
+| SiglusEngine（siglus_rs） | 支持 | 试验性 |
 
 ZIP 导入和 Wi-Fi 上传暂未实现。后续引擎的接入计划见 [docs/PHASE-2-MULTI-ENGINE-PLAN.md](docs/PHASE-2-MULTI-ENGINE-PLAN.md)。
 
@@ -62,6 +64,7 @@ bash scripts/build-krkr-ios.sh   # 生成 build/KRKRRuntime.xcframework
 bash scripts/build-ons-ios.sh    # 生成 build/ONSRuntime.xcframework
 bash scripts/build-artemis-ios.sh  # 生成 build/ArtemisRuntime.xcframework
 bash scripts/build-renpy-ios.sh  # 生成 build/RenPyRuntime.xcframework（需要 Python 3.12）
+bash scripts/build-siglus-ios.sh # 生成 build/SiglusRuntime.xcframework（需要 Rust 及 iOS target）
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -82,12 +85,13 @@ open Mikage.xcodeproj
 | 路径 | 内容 |
 | --- | --- |
 | `App/` | SwiftUI App：游戏库、游戏详情、播放器、设置、存储空间、Bangumi/VNDB 关联、字符串目录 |
-| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter、Artemis 和 Ren’Py 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
+| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter、Artemis、Ren’Py 和 SiglusEngine 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
 | `Sources/VNCore/` | Swift 包：游戏库扫描与导入、路径安全、Bangumi 和 VNDB 客户端、条目匹配 |
 | `Engine/KRKRRuntime/` | 以子模块固定版本的 KRKRSDL3 运行时（[krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)） |
 | `Engine/ONSRuntime/` | 以子模块固定版本的 ONScripter Yuri（[Mikage 分支](https://github.com/itsCheney/OnscripterYuri)），经 sdl2-compat 运行在共享的 SDL3 上 |
 | `Engine/ArtemisRuntime/` | 以子模块固定版本的 openArtemis（[Mikage 分支](https://github.com/itsCheney/openartemis)），直接运行在共享的 SDL3 上 |
 | `Engine/RenPyRuntime/` | 以子模块固定版本的 Ren’Py 8（[mikage 分支](https://github.com/itsCheney/renpy)），连同 CPython 3.12 运行在共享的 SDL3 上，OpenGL ES 由 MetalANGLE 提供 |
+| `Engine/SiglusRuntime/` | 以子模块固定版本的 siglus_rs（[mikage 分支](https://github.com/itsCheney/siglus_rs)），Rust 实现，用 wgpu 直接渲染到 Metal，不使用 SDL |
 | `Engine/SDL3/patches/`、`Engine/MetalANGLE/` | 让共享 SDL3 的 OpenGL ES 窗口使用 MetalANGLE 而非 Apple 已弃用的 OpenGLES 的补丁，以及 MetalANGLE 的许可证 |
 | `Engine/MikageSDLHost/` | 基于 SDL 主回调的引擎运行时编译进去的共享宿主层（KiriKiri 和 Artemis）：驱动 SDL 主回调、停止与前后台、音频会话、每局之间的复位 |
 | `Tests/` | Swift 单元测试和原生运行时测试 |
@@ -98,6 +102,6 @@ open Mikage.xcodeproj
 
 Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
 
-内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。内置的 Ren’Py 以 MIT 为主（部分组件为 LGPL），CPython 使用 PSF 许可证，MetalANGLE 使用 BSD 许可证，见 [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md)。分发构建产物前请先阅读。
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。内置的 Ren’Py 以 MIT 为主（部分组件为 LGPL），CPython 使用 PSF 许可证，MetalANGLE 使用 BSD 许可证，见 [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md)。内置的 siglus_rs 以 MPL-2.0 发布（WMV 解码的部分文件为 LGPL-2.1-or-later），见 [Engine/SiglusRuntime/README.md](Engine/SiglusRuntime/README.md)。分发构建产物前请先阅读。
 
-KiriKiri、ONScripter、Ren’Py、Artemis、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。
+KiriKiri、ONScripter、Ren’Py、Artemis、SiglusEngine、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。
