@@ -398,38 +398,119 @@ final class NativeSiglusSession: NSObject, KRKRSession {
 
     /// Games ask for Windows faces (MS Gothic, MS Mincho); PingFang stands in
     /// for both (Mashiro's choice: one face for Chinese translations and
-    /// Japanese originals alike), read in place from the system fonts, with a
-    /// per-character fallback chain behind it.
+    /// Japanese originals alike), with a per-character fallback chain behind it.
     private static func registerSystemFonts() {
         guard !fontsRegistered else { return }
         fontsRegistered = true
         let main = Locale.preferredLanguages.first.map(Self.prefersTraditionalChinese) == true
             ? "PingFangTC-Regular" : "PingFangSC-Regular"
-        for family: Int32 in [0, 1] {
-            guard let url = systemFontURL(main) else { continue }
-            AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": url.path])
-            url.path.withCString { path in
-                main.withCString { siglus_mikage_register_font_face(path, family, $0) }
+        if let url = systemFontFile(main) {
+            for family: Int32 in [0, 1] {
+                AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": url.path])
+                url.path.withCString { siglus_mikage_register_font_face($0, family, "") }
             }
         }
-        // Characters the game's face lacks (Simplified Chinese in a translated
-        // game drawn with a Japanese face, Hangul...) come from these, in order.
+        // Characters the main face lacks (Hangul...) come from these, in order.
         let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
         for name in fallbacks where name != main {
-            guard let url = systemFontURL(name) else { continue }
+            guard let url = systemFontFile(name) else { continue }
             AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": url.path])
-            url.path.withCString { path in
-                name.withCString { siglus_mikage_register_fallback_font(path, $0) }
-            }
+            url.path.withCString { siglus_mikage_register_fallback_font($0, "") }
         }
     }
 
-    /// The file holding the system face with this PostScript name, if the
-    /// device has it (CoreText substitutes another face for a missing name).
-    private static func systemFontURL(_ name: String) -> URL? {
+    /// A standalone copy of the system face with this PostScript name, built
+    /// from its tables. The system files can't be used in place: PingFang's
+    /// lives in a private framework the app can't read, and siglus_rs would
+    /// keep a whole collection in memory for one face.
+    private static func systemFontFile(_ name: String) -> URL? {
         let font = CTFontCreateWithName(name as CFString, 16, nil)
-        guard CTFontCopyPostScriptName(font) as String == name else { return nil }
-        return CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
+        guard CTFontCopyPostScriptName(font) as String == name else {
+            AppDiagnostics.shared.event("bridge", "siglus.fontMissing", ["name": name])
+            return nil
+        }
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let directory = caches.appendingPathComponent("Mikage/Fonts", isDirectory: true)
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+            .filter { $0.isLetter || $0.isNumber || $0 == "." }
+        let url = directory.appendingPathComponent("\(name)-\(system).ttf")
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        guard let data = sfntData(font) else {
+            AppDiagnostics.shared.event("bridge", "siglus.fontExportFailed", ["name": name])
+            return nil
+        }
+        do {
+            // Copies made for an older system are stale.
+            if let old = try? FileManager.default.contentsOfDirectory(atPath: directory.path) {
+                for file in old where file.hasPrefix(name + "-") {
+                    try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+                }
+            }
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            AppDiagnostics.shared.event("bridge", "siglus.fontExportFailed", ["name": name, "error": error.localizedDescription])
+            return nil
+        }
+    }
+
+    /// The font's tables packed into one OpenType file.
+    private static func sfntData(_ font: CTFont) -> Data? {
+        guard let available = CTFontCopyAvailableTables(font, []) else { return nil }
+        // The array holds the tags themselves, not CFNumbers.
+        let tags = (0..<CFArrayGetCount(available)).map {
+            UInt32(truncatingIfNeeded: UInt(bitPattern: CFArrayGetValueAtIndex(available, $0)))
+        }
+        var tables: [(tag: UInt32, data: Data)] = []
+        for tag in tags.sorted() {
+            guard let table = CTFontCopyTable(font, tag, []) as Data? else { continue }
+            tables.append((tag, table))
+        }
+        let glyf: UInt32 = 0x676C_7966
+        guard !tables.isEmpty else { return nil }
+        var file = Data()
+        func append32(_ value: UInt32) { withUnsafeBytes(of: value.bigEndian) { file.append(contentsOf: $0) } }
+        func append16(_ value: UInt16) { withUnsafeBytes(of: value.bigEndian) { file.append(contentsOf: $0) } }
+        let count = UInt16(tables.count)
+        var power = 1
+        while power * 2 <= Int(count) { power *= 2 }
+        let searchRange = UInt16(power * 16)
+        append32(tables.contains { $0.tag == glyf } ? 0x0001_0000 : 0x4F54_544F)
+        append16(count)
+        append16(searchRange)
+        append16(UInt16(power.trailingZeroBitCount))
+        append16(count * 16 - searchRange)
+        var offset = 12 + tables.count * 16
+        for table in tables {
+            append32(table.tag)
+            append32(checksum(table.data))
+            append32(UInt32(offset))
+            append32(UInt32(table.data.count))
+            offset += (table.data.count + 3) & ~3
+        }
+        for table in tables {
+            file.append(table.data)
+            file.append(Data(count: (4 - table.data.count % 4) % 4))
+        }
+        return file
+    }
+
+    private static func checksum(_ data: Data) -> UInt32 {
+        var sum: UInt32 = 0
+        data.withUnsafeBytes { bytes in
+            var index = 0
+            while index < bytes.count {
+                var word: UInt32 = 0
+                for byte in 0..<4 {
+                    word <<= 8
+                    if index + byte < bytes.count { word |= UInt32(bytes[index + byte]) }
+                }
+                sum &+= word
+                index += 4
+            }
+        }
+        return sum
     }
 
     private static func prefersTraditionalChinese(_ languageTag: String) -> Bool {
