@@ -28,7 +28,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .onscripter: return "ONScripter"
         case .renpy: return "Ren’Py"
         case .artemis: return "Artemis"
-        case .siglus: return "SiglusEngine"
+        case .siglus: return "Siglus"
         }
     }
 
@@ -98,11 +98,11 @@ public struct LibraryRepository: Sendable {
     public static let dropTipNames = ["DROP_GAMES_HERE", "把游戏放在这里"]
     static let dropTipText = """
     Put each game's folder here, directly in this folder, then return to Mikage.
-    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py or SiglusEngine) by itself.
+    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py or Siglus) by itself.
     This file goes away once a game is found.
 
     把每个游戏的文件夹直接放在这里，然后回到 Mikage。
-    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py 或 SiglusEngine）。
+    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py 或 Siglus）。
     找到游戏后，这个文件会自动删除。
 
     """
