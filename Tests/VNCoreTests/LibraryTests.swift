@@ -160,10 +160,13 @@ final class LibraryTests: XCTestCase {
         // 启动游戏 is Chinese; other readers get the untagged archive.
         XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["en"])?.relativePath, "data.xp3")
 
+        // startup.tjs leads the untagged files, but a file in the player's
+        // language still wins.
         try script(in: folder)
-        let target = try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["zh-Hans"])
+        let target = try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["en"])
         XCTAssertEqual(target?.kind, .directory)
         XCTAssertEqual(target?.relativePath, ".")
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .kirikiri, preferredLanguages: ["zh-Hans"])?.relativePath, "启动游戏.xp3")
     }
 
     func testStartupFollowsThePlayersLanguage() throws {
