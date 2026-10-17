@@ -396,36 +396,46 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         }
     }
 
-    /// Games ask for Windows faces (MS Gothic, MS Mincho); Hiragino stands in
-    /// for them, read in place from the system fonts, with a per-character
-    /// fallback chain behind it.
+    /// Games ask for Windows faces (MS Gothic, MS Mincho); PingFang stands in
+    /// for both (Mashiro's choice: one face for Chinese translations and
+    /// Japanese originals alike), read in place from the system fonts, with a
+    /// per-character fallback chain behind it.
     private static func registerSystemFonts() {
         guard !fontsRegistered else { return }
         fontsRegistered = true
-        let faces: [(String, Int32)] = [
-            ("HiraginoSans-W3", 0),
-            ("HiraMinProN-W3", 1),
-            ("PingFangSC-Regular", 0)
-        ]
-        for (name, family) in faces {
-            let font = CTFontCreateWithName(name as CFString, 16, nil)
-            guard let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL else { continue }
-            AppDiagnostics.shared.event("bridge", "siglus.font", ["name": name, "path": url.path])
-            url.path.withCString { siglus_mikage_register_font($0, family) }
+        let main = Locale.preferredLanguages.first.map(Self.prefersTraditionalChinese) == true
+            ? "PingFangTC-Regular" : "PingFangSC-Regular"
+        for family: Int32 in [0, 1] {
+            guard let url = systemFontURL(main) else { continue }
+            AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": url.path])
+            url.path.withCString { path in
+                main.withCString { siglus_mikage_register_font_face(path, family, $0) }
+            }
         }
         // Characters the game's face lacks (Simplified Chinese in a translated
         // game drawn with a Japanese face, Hangul...) come from these, in order.
         let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
-        for name in fallbacks {
-            let font = CTFontCreateWithName(name as CFString, 16, nil)
-            // CoreText substitutes another face for a missing name.
-            guard CTFontCopyPostScriptName(font) as String == name,
-                  let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL else { continue }
+        for name in fallbacks where name != main {
+            guard let url = systemFontURL(name) else { continue }
             AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": url.path])
             url.path.withCString { path in
                 name.withCString { siglus_mikage_register_fallback_font(path, $0) }
             }
         }
+    }
+
+    /// The file holding the system face with this PostScript name, if the
+    /// device has it (CoreText substitutes another face for a missing name).
+    private static func systemFontURL(_ name: String) -> URL? {
+        let font = CTFontCreateWithName(name as CFString, 16, nil)
+        guard CTFontCopyPostScriptName(font) as String == name else { return nil }
+        return CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL
+    }
+
+    private static func prefersTraditionalChinese(_ languageTag: String) -> Bool {
+        let parts = languageTag.lowercased().split(separator: "-")
+        guard parts.first == "zh" else { return false }
+        return parts.contains("hant") || (!parts.contains("hans") && parts.contains { ["tw", "hk", "mo"].contains($0) })
     }
 }
 
