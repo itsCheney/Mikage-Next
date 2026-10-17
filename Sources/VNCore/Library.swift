@@ -275,10 +275,15 @@ public struct LibraryRepository: Sendable {
             for game in games {
                 guard try game.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else { continue }
                 let name = "\(engine.documentsDirectoryName)/\(game.lastPathComponent)"
-                guard !installed.contains(name) else { continue }
+                let destination = engineRoot(for: engine).appendingPathComponent(game.lastPathComponent, isDirectory: true)
+                guard !installed.contains(name) else {
+                    try addMissingFiles(from: game, to: destination)
+                    continue
+                }
                 recorded.insert(name)
                 if try containsFolder(named: game.lastPathComponent, in: engineRoot(for: engine)) { continue }
                 try importFolder(game, engine: engine)
+                try Data().write(to: destination.appendingPathComponent(Self.builtInMarkerName))
                 copied.append(name)
             }
         }
@@ -289,6 +294,39 @@ public struct LibraryRepository: Sendable {
             try encoder.encode(recorded.sorted()).write(to: builtInGamesURL, options: .atomic)
         }
         return copied
+    }
+
+    /// Marks a game folder as a copy of a built-in game, so later app
+    /// versions can add files to it.
+    static let builtInMarkerName = ".mikage-builtin"
+
+    /// Copies files a newer app version added to a built-in game into the
+    /// player's copy. Files already there, including the player's saves and
+    /// Ren'Py's compiled scripts, are left as they are.
+    private func addMissingFiles(from source: URL, to destination: URL) throws {
+        let fm = FileManager.default
+        let marker = destination.appendingPathComponent(Self.builtInMarkerName)
+        if !fm.fileExists(atPath: marker.path) {
+            // Copies made before the marker existed: claim the folder only
+            // when its script is still the bundled one byte for byte.
+            let script = "game/script.rpy"
+            guard let bundled = try? Data(contentsOf: source.appendingPathComponent(script)),
+                  let installed = try? Data(contentsOf: destination.appendingPathComponent(script)),
+                  bundled == installed else { return }
+            try Data().write(to: marker)
+        }
+        guard let walker = fm.enumerator(at: source, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+        let base = source.resolvingSymlinksInPath().path
+        for case let item as URL in walker {
+            let path = item.resolvingSymlinksInPath().path
+            guard path.hasPrefix(base + "/") else { continue }
+            let target = destination.appendingPathComponent(String(path.dropFirst(base.count + 1)))
+            if try item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
+                try fm.createDirectory(at: target, withIntermediateDirectories: true)
+            } else if !fm.fileExists(atPath: target.path) {
+                try fm.copyItem(at: item, to: target)
+            }
+        }
     }
 
     public func relink(_ record: GameRecord, to source: URL) throws {

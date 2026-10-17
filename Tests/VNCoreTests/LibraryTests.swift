@@ -167,6 +167,21 @@ final class LibraryTests: XCTestCase {
         XCTAssertTrue(try repository.scan().active.isEmpty)
     }
 
+    func testBuiltInGameGetsFilesANewerAppAdds() throws {
+        let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
+        try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
+        let root = sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true)
+        try repository.installBuiltInGames(from: root)
+
+        let installed = repository.engineRoot(for: .renpy).appendingPathComponent("The Question/game")
+        try Data("changed by the game".utf8).write(to: installed.appendingPathComponent("script.rpy"))
+        try Data("font".utf8).write(to: bundled.appendingPathComponent("SourceHanSansLite.ttf"))
+
+        XCTAssertEqual(try repository.installBuiltInGames(from: root), [])
+        XCTAssertEqual(try Data(contentsOf: installed.appendingPathComponent("SourceHanSansLite.ttf")), Data("font".utf8))
+        XCTAssertEqual(try Data(contentsOf: installed.appendingPathComponent("script.rpy")), Data("changed by the game".utf8))
+    }
+
     func testBuiltInGameKeepsAFolderAlreadyInTheLibrary() throws {
         let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
         try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))
@@ -176,6 +191,7 @@ final class LibraryTests: XCTestCase {
         try Data("mine".utf8).write(to: existing.appendingPathComponent("note.txt"))
 
         let root = sandbox.appendingPathComponent("Bundle/BuiltInGames", isDirectory: true)
+        XCTAssertEqual(try repository.installBuiltInGames(from: root), [])
         XCTAssertEqual(try repository.installBuiltInGames(from: root), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: existing.appendingPathComponent("note.txt").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: existing.appendingPathComponent("game").path))
