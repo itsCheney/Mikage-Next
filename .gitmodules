@@ -1,7 +1,7 @@
 [submodule "Engine/KRKRRuntime/Source"]
 	path = Engine/KRKRRuntime/Source
 	url = https://github.com/itsCheney/krkrsdl3_build.git
-	branch = runtime-dev
+	branch = dev
 [submodule "Engine/SDL3/Source"]
 	path = Engine/SDL3/Source
 	url = https://github.com/libsdl-org/SDL.git

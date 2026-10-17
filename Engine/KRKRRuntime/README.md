@@ -4,8 +4,8 @@ Mikage Next builds KRKRSDL3 as an embeddable iOS dynamic framework instead of us
 
 Pinned inputs:
 
-- `krkrsdl3_build` fork submodule: `74b7caa64a5f771d6d8334c4905128c488fb1257` (`itsCheney/krkrsdl3_build`, branch `runtime-dev`)
-- nested `krkrsdl3` core submodule: `e9cd5a68afd5bce4c7d6c4cc9d5dd15c2ce45e94` (`itsCheney/krkrsdl3`, branch `runtime-dev`)
+- `krkrsdl3_build` fork submodule: `74b7caa64a5f771d6d8334c4905128c488fb1257` (`itsCheney/krkrsdl3_build`, branch `dev`)
+- nested `krkrsdl3` core submodule: `e9cd5a68afd5bce4c7d6c4cc9d5dd15c2ce45e94` (`itsCheney/krkrsdl3`, branch `dev`)
 - vcpkg baseline: `8e8dfb4ba483886936ded5ca201b500b8d8b0096`
 - shared SDL3 submodule `Engine/SDL3/Source`: `release-3.4.12` (`f87239e71e42da91ca317a12eefb82cfbf3393eb`), the same SDL release vcpkg provides at that baseline
 
