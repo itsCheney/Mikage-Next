@@ -276,6 +276,33 @@ void testIconAndGPU() {
     krkrsdl3::backend = nullptr;
 }
 
+// E-mote characters nest icons far deeper than 16 surfaces. Fully inherited
+// placements coalesce, so depth alone must not push them back onto the CPU.
+void testDeepGPUChain() {
+    Fixture f; RecordingBackend renderer; renderer.gpu = true; krkrsdl3::backend = &renderer;
+    emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
+    icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
+    source.icon["icon"] = &icon; f.file._source["source"] = &source;
+    emotenode* parent = nullptr;
+    for (int depth = 0; depth < 40; ++depth) parent = f.node("layout" + std::to_string(depth), "layout", parent);
+    auto* node = f.node("icon", "icon", parent); node->frameList.front()->hasbp = true; f.step(0);
+    auto* ref = f.ref(node);
+    check(ref->renderMethod.size() > 40, "icon sits under a deep layout chain");
+    check(ref->_useGPUDeform && ref->_meshVertices.empty(), "deep inherited chain deforms on the GPU");
+    check(emoteplayer::emoteSurfaceContributionCount(ref->renderMethod) <= 3, "inherited placements coalesce");
+
+    // Every partially inherited ancestor keeps its own contribution; a chain
+    // that overflows the shader's slots keeps the exact CPU mesh.
+    std::vector<emoteRender> partial(40);
+    for (auto& surface : partial) surface.currInheritMask = emoteplayer::emoteLinearInheritMask & ~0x10u;
+    std::vector<krkrsdl3::TVPMeshDeformSurface> surfaces;
+    check(emoteplayer::emoteSurfaceContributionCount(partial) == partial.size() + 1, "partial inheritance counted per surface");
+    check(!emoteplayer::buildGPUDeformSurfaces(partial, surfaces), "overflowing chain stays on the CPU");
+    partial.resize(emoteplayer::emoteMaxGPUDeformContributions - 1);
+    check(emoteplayer::buildGPUDeformSurfaces(partial, surfaces), "chain that fits the shader slots is accepted");
+    krkrsdl3::backend = nullptr;
+}
+
 // Hit-test transparency hints rely on mayCoverPixel never missing a pixel the
 // rasterizer can write: it must contain every exact hit and stay bounded.
 void testCoverage() {
@@ -374,7 +401,7 @@ void runBenchmarks() {
 int main(int argc, char**) {
     try {
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesAndIsolation();
-        testSharedSentinelsAndLoop(); testIconAndGPU(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
+        testSharedSentinelsAndLoop(); testIconAndGPU(); testDeepGPUChain(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
         if (argc > 1) runBenchmarks();
         return 0;
