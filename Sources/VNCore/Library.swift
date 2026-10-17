@@ -103,12 +103,12 @@ enum StartupLanguage: Equatable {
     static func tags(in fileName: String) -> Set<StartupLanguage> {
         let original = (fileName as NSString).deletingPathExtension
         let base = original.lowercased()
-        let words = original.split(whereSeparator: { !($0.isASCII && ($0.isLetter || $0.isNumber)) })
-        var tokens = Set(words.map { $0.lowercased() })
+        let parts = original.split(whereSeparator: { !($0.isASCII && ($0.isLetter || $0.isNumber)) })
+        var tokens = Set(parts.map { $0.lowercased() })
         // A capitalized tag run into the name, as in SiglusEngineCHS or
         // GameEN, counts as a word too.
-        for word in words {
-            tokens.formUnion(uppercaseRuns(in: word).map { $0.lowercased() })
+        for part in parts {
+            tokens.formUnion(uppercaseRuns(in: part).map { $0.lowercased() })
         }
         var result = Set<StartupLanguage>()
         for (language, set) in words where !tokens.isDisjoint(with: set) { result.insert(language) }
