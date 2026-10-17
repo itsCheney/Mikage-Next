@@ -12,7 +12,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 - 用“文件”App 把游戏文件夹直接放进 App 的“文稿”，或者在游戏库右上角点 + 导入文件夹。Mikage 会根据文件自动识别引擎。游戏库里还没有自己的游戏时，“文稿”里会有 `DROP_GAMES_HERE` 和 `把游戏放在这里` 两个提示文件，找到游戏后自动删除。旧版本按引擎分开的 `krkr/`、`ons/`、`renpy/`、`artemis/` 文件夹会在更新后首次打开时移到“文稿”并删除。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
-- SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件，中文系统下自动选用。
+- SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件，中文系统下自动选用。部分“高压”重打包版把 g00 图片换成了 UCI（H.264）格式，Mikage 也能显示。
 - ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏可以从根目录的 `startup.tjs`、通过签名校验的 XP3，或末尾附带 XP3 的 `.exe` 启动。Mikage 会优先选择文件名标明了你的语言的那个（如中文的 `xxx_CHS.exe`、`启动游戏.xp3`，英文的 `xxx_EN.exe`）；都没有标明时，依次选 `startup.tjs`、`启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、带 XP3 的 `.exe`、`data.xp3`。在游戏详情页的“启动文件”里也可以手动指定。
 - 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。

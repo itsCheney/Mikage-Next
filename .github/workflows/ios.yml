@@ -411,13 +411,13 @@ jobs:
           path: build/RenPyRuntime.xcframework
           key: ${{ steps.cache-renpy-runtime.outputs.cache-primary-key }}
       # SiglusEngine: the siglus_rs fork (Rust, wgpu on Metal, kira audio)
-      # as a dynamic framework. It needs no SDL, vcpkg or FFmpeg.
+      # as a dynamic framework, with KiriKiri's FFmpeg linked in for H.264.
       - name: Restore Siglus runtime framework
         id: cache-siglus-runtime
         uses: actions/cache/restore@v4
         with:
           path: build/SiglusRuntime.xcframework
-          key: siglus-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-siglus-ios.sh') }}-${{ steps.siglus-revision.outputs.rev }}
+          key: siglus-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-siglus-ios.sh', 'Engine/SiglusRuntime/H264Decoder.c') }}-${{ steps.siglus-revision.outputs.rev }}
       - name: Install Rust for Siglus
         if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
         run: |
