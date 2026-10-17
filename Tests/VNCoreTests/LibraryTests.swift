@@ -199,7 +199,12 @@ final class LibraryTests: XCTestCase {
     private func siglusExecutable(named name: String, in folder: URL, naming files: [String]) throws {
         var bytes: [UInt8] = [0x4D, 0x5A] + [UInt8](repeating: 0, count: 62)
         for file in files {
-            bytes += Array("\\".utf16 + file.utf16).flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] } + [0, 0, 0x41, 0x42]
+            let units: [UInt16] = Array("\\\(file)".utf16)
+            for unit in units {
+                bytes.append(UInt8(unit & 0xFF))
+                bytes.append(UInt8(unit >> 8))
+            }
+            bytes += [0, 0, 0x41, 0x42]
         }
         try write(bytes, named: name, in: folder)
     }
