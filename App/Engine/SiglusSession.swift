@@ -397,7 +397,8 @@ final class NativeSiglusSession: NSObject, KRKRSession {
     }
 
     /// Games ask for Windows faces (MS Gothic, MS Mincho); Hiragino stands in
-    /// for them, read in place from the system fonts.
+    /// for them, read in place from the system fonts, with a per-character
+    /// fallback chain behind it.
     private static func registerSystemFonts() {
         guard !fontsRegistered else { return }
         fontsRegistered = true
@@ -411,6 +412,19 @@ final class NativeSiglusSession: NSObject, KRKRSession {
             guard let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL else { continue }
             AppDiagnostics.shared.event("bridge", "siglus.font", ["name": name, "path": url.path])
             url.path.withCString { siglus_mikage_register_font($0, family) }
+        }
+        // Characters the game's face lacks (Simplified Chinese in a translated
+        // game drawn with a Japanese face, Hangul...) come from these, in order.
+        let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
+        for name in fallbacks {
+            let font = CTFontCreateWithName(name as CFString, 16, nil)
+            // CoreText substitutes another face for a missing name.
+            guard CTFontCopyPostScriptName(font) as String == name,
+                  let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL else { continue }
+            AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": url.path])
+            url.path.withCString { path in
+                name.withCString { siglus_mikage_register_fallback_font(path, $0) }
+            }
         }
     }
 }

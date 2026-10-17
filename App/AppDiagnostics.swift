@@ -5,6 +5,7 @@ import KRKRRuntime
 import ONSRuntime
 import ArtemisRuntime
 import RenPyRuntime
+import SiglusRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -37,6 +38,7 @@ final class AppDiagnostics: @unchecked Sendable {
         MikageONSSetLogCallback(nil)
         MikageArtemisSetLogCallback(nil)
         MikageRenPySetLogCallback(nil)
+        siglus_mikage_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -44,6 +46,9 @@ final class AppDiagnostics: @unchecked Sendable {
             MikageONSSetLogCallback(mikageONSDiagnosticLogCallback)
             MikageArtemisSetLogCallback(mikageArtemisDiagnosticLogCallback)
             MikageRenPySetLogCallback(mikageRenPyDiagnosticLogCallback)
+            // Warnings and errors: siglus_rs logs what it couldn't load or
+            // draw there; info and below are per-frame chatter.
+            siglus_mikage_set_log_callback(mikageSiglusDiagnosticLogCallback, nil, 2)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -206,4 +211,12 @@ private func mikageRenPyDiagnosticLogCallback(
 ) {
     guard let source, let message else { return }
     AppDiagnostics.shared.runtime(source: "RenPy." + String(cString: source), level: level, message: String(cString: message))
+}
+
+private func mikageSiglusDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "Siglus." + target, level: level, message: String(cString: message))
 }

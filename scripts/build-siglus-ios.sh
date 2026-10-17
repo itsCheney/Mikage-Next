@@ -88,7 +88,7 @@ EOF
 EOF
 
     local binary="${framework}/${FRAMEWORK_NAME}"
-    for symbol in siglus_ios_create siglus_ios_touch siglus_mikage_step siglus_mikage_register_font siglus_mikage_set_resource_names; do
+    for symbol in siglus_ios_create siglus_ios_touch siglus_mikage_step siglus_mikage_register_font siglus_mikage_set_resource_names siglus_mikage_register_fallback_font siglus_mikage_set_log_callback; do
         if ! nm -gU "${binary}" | grep " _${symbol}$" >/dev/null; then
             echo "${binary} does not export ${symbol}." >&2
             exit 1
