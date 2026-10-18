@@ -233,6 +233,32 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try pick(["ja-JP"]), StartupFile(.directory, "."))
     }
 
+    func testLanguageNamedSiglusExecutablesAreStartupFiles() throws {
+        let folder = try directory("SiglusNamed")
+        for file in ["Scene.pck", "Gameexe.dat", "Scene.cn", "Gameexe.cn"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(file))
+        }
+        // Packed executables: no resource names can be read from them.
+        for name in ["SiglusEngine.exe", "Rewrite中文.exe", "Rewrite_CHS.exe", "Config.exe"] {
+            try Data("MZ".utf8).write(to: folder.appendingPathComponent(name))
+        }
+
+        XCTAssertEqual(
+            Set(try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath)),
+            [".", "Rewrite_CHS.exe", "Rewrite中文.exe"]
+        )
+        // The folder's only renamed copies are the ones they load.
+        XCTAssertEqual(
+            GameScanner.siglusResourceNames(of: folder.appendingPathComponent("Rewrite中文.exe"), in: folder),
+            SiglusResourceNames(scene: "Scene.cn", gameexe: "Gameexe.cn")
+        )
+        XCTAssertEqual(GameScanner.siglusResourceNames(of: folder.appendingPathComponent("SiglusEngine.exe"), in: folder), SiglusResourceNames())
+        let chinese = try XCTUnwrap(GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["zh-Hans-CN"]))
+        XCTAssertEqual(chinese.kind, .archive)
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["ja-JP"]), StartupFile(.directory, "."))
+        XCTAssertEqual(StartupLanguage.tags(in: "Rewrite汉化.exe"), [.simplifiedChinese])
+    }
+
     func testCapitalTagsRunIntoANameCount() {
         XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngineCHS.exe"), [.simplifiedChinese])
         XCTAssertEqual(StartupLanguage.tags(in: "GameEN.exe"), [.english])

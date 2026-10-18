@@ -1026,12 +1026,16 @@ public enum GameScanner {
         case .siglus:
             // siglus_rs finds Scene.pck and Gameexe.dat in the game folder.
             // Patched executables of translated releases load renamed copies;
-            // each one present becomes a startup file of its own.
+            // each one present, or named for a language (xxx中文.exe,
+            // xxx_CHS.exe), becomes a startup file of its own.
             guard try isSiglusGame(in: directory) else { return [] }
             let executables = try rootFiles(in: directory)
                 .filter { normalized($0.pathExtension) == "exe" }
                 .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-                .filter { siglusResourceNames(of: $0, in: directory) != SiglusResourceNames() }
+                .filter {
+                    !StartupLanguage.tags(in: $0.lastPathComponent).isEmpty
+                        || siglusResourceNames(of: $0, in: directory) != SiglusResourceNames()
+                }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
         case .kirikiri:
             break
@@ -1099,8 +1103,27 @@ public enum GameScanner {
     /// read from the file names stored in it (UTF-16 or ASCII), as patched
     /// executables of translated releases rename them (Scene.chs and the
     /// like). Only names present in `directory` count; the original names
-    /// give nil.
+    /// give nil. When nothing readable names them (a packed executable), an
+    /// executable named for a language takes the folder's only renamed copy.
     public static func siglusResourceNames(of executable: URL, in directory: URL) -> SiglusResourceNames {
+        let found = siglusResourceNamesStored(in: executable, directory: directory)
+        guard found == SiglusResourceNames(), !StartupLanguage.tags(in: executable.lastPathComponent).isEmpty else {
+            return found
+        }
+        let files = ((try? rootFiles(in: directory)) ?? []).map(\.lastPathComponent)
+        func only(_ prefix: String, besides originals: Set<String>) -> String? {
+            let renamed = files.filter {
+                normalized($0).hasPrefix(normalized(prefix)) && !originals.contains(normalized($0))
+            }
+            return renamed.count == 1 ? renamed[0] : nil
+        }
+        return SiglusResourceNames(
+            scene: only("Scene.", besides: [normalized("Scene.pck")]),
+            gameexe: only("Gameexe.", besides: [normalized("Gameexe.dat"), normalized("Gameexe.ini")])
+        )
+    }
+
+    private static func siglusResourceNamesStored(in executable: URL, directory: URL) -> SiglusResourceNames {
         // SiglusEngine executables are a few megabytes; anything far larger
         // is not one.
         guard let size = try? executable.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 64 << 20,
