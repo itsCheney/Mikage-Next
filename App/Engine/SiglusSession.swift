@@ -404,43 +404,72 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         fontsRegistered = true
         let main = Locale.preferredLanguages.first.map(Self.prefersTraditionalChinese) == true
             ? "PingFangTC-Regular" : "PingFangSC-Regular"
-        if let url = systemFontFile(main) {
+        // Each face twice: the system file itself, where the app can read
+        // it, then a copy rebuilt from its tables. siglus_rs passes over a
+        // file it can't load or whose characters it can't map.
+        for (path, face) in fontFiles(main) {
             for family: Int32 in [0, 1] {
-                AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": url.path])
-                url.path.withCString { siglus_mikage_register_font_face($0, family, "") }
+                AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": path])
+                path.withCString { path in face.withCString { siglus_mikage_register_font_face(path, family, $0) } }
             }
         }
         // Characters the main face lacks (Hangul...) come from these, in order.
         let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
         for name in fallbacks where name != main {
-            guard let url = systemFontFile(name) else { continue }
-            AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": url.path])
-            url.path.withCString { siglus_mikage_register_fallback_font($0, "") }
+            for (path, face) in fontFiles(name) {
+                AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": path])
+                path.withCString { path in face.withCString { siglus_mikage_register_fallback_font(path, $0) } }
+            }
         }
     }
 
-    /// A standalone copy of the system face with this PostScript name, built
-    /// from its tables. The system files can't be used in place: PingFang's
-    /// lives in a private framework the app can't read, and siglus_rs would
-    /// keep a whole collection in memory for one face.
-    private static func systemFontFile(_ name: String) -> URL? {
+    /// The files siglus_rs can try for the system face with this PostScript
+    /// name, each with the face to use in it.
+    private static func fontFiles(_ name: String) -> [(path: String, face: String)] {
         let font = CTFontCreateWithName(name as CFString, 16, nil)
         guard CTFontCopyPostScriptName(font) as String == name else {
             AppDiagnostics.shared.event("bridge", "siglus.fontMissing", ["name": name])
-            return nil
+            return []
         }
+        var files: [(path: String, face: String)] = []
+        if let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL {
+            let readable = FileManager.default.isReadableFile(atPath: url.path)
+            AppDiagnostics.shared.event("bridge", "siglus.fontFile", ["name": name, "path": url.path, "readable": String(readable)])
+            if readable { files.append((url.path, name)) }
+        }
+        if let copy = exportedFontFile(font, name: name) { files.append((copy.path, "")) }
+        return files
+    }
+
+    /// A standalone copy of a system face, built from its tables, for faces
+    /// whose file the app can't read (PingFang's lives in a private
+    /// framework). Kept in Caches per system version.
+    private static func exportedFontFile(_ font: CTFont, name: String) -> URL? {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let directory = caches.appendingPathComponent("Mikage/Fonts", isDirectory: true)
         let system = ProcessInfo.processInfo.operatingSystemVersionString
             .filter { $0.isLetter || $0.isNumber || $0 == "." }
-        let url = directory.appendingPathComponent("\(name)-\(system).ttf")
+        let url = directory.appendingPathComponent("\(name)-v2-\(system).ttf")
         if FileManager.default.fileExists(atPath: url.path) { return url }
-        guard let data = sfntData(font) else {
+        guard let exported = sfntData(font) else {
             AppDiagnostics.shared.event("bridge", "siglus.fontExportFailed", ["name": name])
             return nil
         }
+        let (data, tags) = exported
+        // Whether CoreText itself maps characters in the rebuilt file.
+        var mapped = "unknown"
+        if let descriptor = CTFontManagerCreateFontDescriptorFromData(data as CFData) {
+            let copy = CTFontCreateWithFontDescriptor(descriptor, 16, nil)
+            let characters = Array("A\u{3042}\u{4E2D}".utf16)
+            var glyphs = [CGGlyph](repeating: 0, count: characters.count)
+            _ = CTFontGetGlyphsForCharacters(copy, characters, &glyphs, characters.count)
+            mapped = glyphs.map { String($0) }.joined(separator: ",")
+        }
+        AppDiagnostics.shared.event("bridge", "siglus.fontExport", [
+            "name": name, "bytes": String(data.count), "tables": tags.joined(separator: " "), "glyphs": mapped,
+        ])
         do {
-            // Copies made for an older system are stale.
+            // Copies made for an older system or build are stale.
             if let old = try? FileManager.default.contentsOfDirectory(atPath: directory.path) {
                 for file in old where file.hasPrefix(name + "-") {
                     try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
@@ -456,7 +485,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
     }
 
     /// The font's tables packed into one OpenType file.
-    private static func sfntData(_ font: CTFont) -> Data? {
+    private static func sfntData(_ font: CTFont) -> (Data, [String])? {
         guard let available = CTFontCopyAvailableTables(font, []) else { return nil }
         // The array holds the tags themselves, not CFNumbers.
         let tags = (0..<CFArrayGetCount(available)).map {
@@ -493,7 +522,10 @@ final class NativeSiglusSession: NSObject, KRKRSession {
             file.append(table.data)
             file.append(Data(count: (4 - table.data.count % 4) % 4))
         }
-        return file
+        let names = tables.map { table in
+            String(decoding: withUnsafeBytes(of: table.tag.bigEndian) { Array($0) }, as: UTF8.self) + ":\(table.data.count)"
+        }
+        return (file, names)
     }
 
     private static func checksum(_ data: Data) -> UInt32 {

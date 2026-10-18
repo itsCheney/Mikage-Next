@@ -47,7 +47,9 @@ static int32_t mikage_siglus_decode_h264(const uint8_t *data, size_t length, uin
         result = -4;
         goto done;
     }
-    if ((uint32_t)frame->width != width || (uint32_t)frame->height != height) {
+    // 4:2:0 frames have even sizes: an odd-sized image is coded one pixel
+    // larger, so take its top-left part.
+    if ((uint32_t)frame->width != width + (width & 1) || (uint32_t)frame->height != height + (height & 1)) {
         result = -5;
         goto done;
     }
