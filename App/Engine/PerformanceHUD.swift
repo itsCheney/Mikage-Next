@@ -908,7 +908,8 @@ final class PerformanceHUDContainer: UIView {
             : hosting.sizeThatFits(in: CGSize(width: model.hudWidth, height: safe.height))
         let x: CGFloat
         if placement.tucked {
-            x = placement.leading ? safe.minX : safe.maxX - size.width
+            // Flush with the screen edge, past the safe area, as a tab.
+            x = placement.leading ? bounds.minX : bounds.maxX - size.width
         } else {
             x = placement.leading ? safe.minX + Self.margin : safe.maxX - Self.margin - size.width
         }
