@@ -66,6 +66,11 @@ final class KRKROverlayModel: ObservableObject {
     @Published var frameHistory: [Double?] = []
     /// The game's auto, skip and story controls as the engine last reported.
     @Published var controls = GameControlState()
+    /// Ctrl is held for the Skip quick action.
+    @Published var controlSkipHeld = false
+    /// Either skip runs: the menu's Skip and the Skip quick action light
+    /// together, though each starts its own kind of skip.
+    var skipping: Bool { controls.contains(.skip) || controlSkipHeld }
     /// The quick action buttons show; the menu turns them off for a while.
     @Published var quickActionsOn = true
     @Published var mouseOn = false
@@ -118,7 +123,10 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
     private var refreshTimer: Timer?
     private var ballHidden = false
     private var restoreGesture: UITapGestureRecognizer?
-    private var controlSkipHeld = false
+    private var controlSkipHeld: Bool {
+        get { model.controlSkipHeld }
+        set { model.controlSkipHeld = newValue }
+    }
 
     init(
         gameTitle: String,
@@ -266,9 +274,9 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         if gameSizeChanged {
             floatingControls?.relayout(animated: false)
         }
-        // The game turns auto off itself (a click, a choice); keep the
-        // quick action's state current.
-        if model.quickActions.contains(.auto) && !model.menuVisible {
+        // The game turns auto and skip off itself (a click, a choice,
+        // unread text); keep the quick actions' state current.
+        if (model.quickActions.contains(.auto) || model.quickActions.contains(.skip)) && !model.menuVisible {
             refreshControls()
         }
         guard model.performanceVisible else { return }
@@ -348,6 +356,8 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         case .command(let command):
             AppDiagnostics.shared.event("overlay", "menu.command", ["command": String(describing: command)])
             switch command {
+            case .skip where model.skipping:
+                stopSkipping()
             case .auto, .skip:
                 // Toggles stay in the menu, which shows their new state.
                 _ = controls.run(command)
@@ -405,10 +415,13 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         case .screenshot:
             model.sharedImage = onScreenshot?()
         case .skip:
+            if model.skipping {
+                stopSkipping()
+                return
+            }
             // Ctrl held: skips read and unread text alike, unlike the menu's Skip.
-            controlSkipHeld.toggle()
-            if !controls.setControlSkip(controlSkipHeld) {
-                controlSkipHeld = false
+            controlSkipHeld = controls.setControlSkip(true)
+            if !controlSkipHeld {
                 floatingControls?.showToast(String(localized: "Not available right now"))
             }
             updateQuickActionStates()
@@ -429,20 +442,37 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    /// Stops whichever skip runs: lets go of Ctrl and turns the game's
+    /// own skip off.
+    private func stopSkipping() {
+        if controlSkipHeld {
+            controlSkipHeld = false
+            _ = controls.setControlSkip(false)
+        }
+        if model.controls.contains(.skip) {
+            _ = controls.run(.skip)
+        }
+        updateQuickActionStates()
+        refreshSoon()
+    }
+
     private func updateQuickActionStates() {
         guard let floatingControls else { return }
         for item in floatingControls.items {
             guard let kind = QuickActionKind(rawValue: item.id) else { continue }
             let on: Bool
             switch kind {
-            case .skip: on = controlSkipHeld
+            case .skip: on = model.skipping
             case .auto: on = model.controls.contains(.auto)
             case .mouse: on = model.mouseOn
             case .stats: on = model.performanceVisible
             default: continue
             }
-            item.button.configuration = FloatingButtonStyle.quickActionConfiguration(on: on)
-            item.button.accessibilityValue = on ? String(localized: "On") : String(localized: "Off")
+            let value = on ? String(localized: "On") : String(localized: "Off")
+            // Runs every tick; a new configuration restarts the glass.
+            guard item.button.accessibilityValue != value else { continue }
+            item.button.configuration = FloatingButtonStyle.quickActionConfiguration(on: on, symbol: kind.symbol)
+            item.button.accessibilityValue = value
             floatingControls.setActive(on, id: item.id)
         }
     }
@@ -738,7 +768,7 @@ private struct KRKROverlayView: View {
             }
             HStack(spacing: 8) {
                 toggleTile("Auto", "play.fill", command: .auto, on: model.controls.contains(.auto))
-                toggleTile("Skip", "forward.fill", command: .skip, on: model.controls.contains(.skip), detail: Text("Read only"))
+                toggleTile("Skip", "forward.fill", command: .skip, on: model.skipping, detail: Text("Read only"))
             }
         }
     }
@@ -809,7 +839,7 @@ private struct KRKROverlayView: View {
 
     /// The game's own auto and skip; they turn each other off.
     private func toggleTile(_ title: LocalizedStringKey, _ symbol: String, command: GameCommand, on: Bool, detail: Text? = nil) -> some View {
-        let enabled = model.controls.allows(command)
+        let enabled = model.controls.allows(command) || on
         return Button { model.perform?(.command(command)) } label: {
             slimLabel(title, symbol, detail: detail)
         }

@@ -379,13 +379,14 @@ enum FloatingButtonStyle {
     }
 
     static func quickAction(symbol: String) -> UIButton {
-        let button = UIButton(configuration: quickActionConfiguration(on: false))
-        button.setImage(UIImage(systemName: symbol), for: .normal)
+        let button = UIButton(configuration: quickActionConfiguration(on: false, symbol: symbol))
         decorate(button)
         return button
     }
 
-    static func quickActionConfiguration(on: Bool) -> UIButton.Configuration {
+    /// The whole configuration, image included: a button given a new
+    /// configuration drops the image of the old one.
+    static func quickActionConfiguration(on: Bool, symbol: String) -> UIButton.Configuration {
         var configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
             configuration = on ? .prominentGlass() : .glass()
@@ -397,6 +398,7 @@ enum FloatingButtonStyle {
             ? accent.withAlphaComponent(0.62)
             : UIColor(red: 14 / 255, green: 16 / 255, blue: 30 / 255, alpha: 0.42)
         configuration.baseForegroundColor = .white
+        configuration.image = UIImage(systemName: symbol)
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         configuration.contentInsets = .zero
         return configuration
