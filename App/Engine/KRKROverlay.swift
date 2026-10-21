@@ -23,7 +23,8 @@ struct KRKRPerformanceSnapshot {
     var residentMemoryBytes: UInt64 = 0
     /// All threads, percent of one core; negative until the second sample.
     var processCPUPercent = -1.0
-    var busiestThreads = ""
+    /// Busiest thread groups first.
+    var busiestThreads: [ThreadCPUSample.Group] = []
     var elapsedSeconds = 0
     /// KiriKiri's layer compositor reports its mode; other engines don't have one.
     var showsLayerCompositing = true
@@ -41,7 +42,7 @@ struct GameMenuAction: Identifiable {
 }
 
 @MainActor
-private final class KRKROverlayModel: ObservableObject {
+final class KRKROverlayModel: ObservableObject {
     @Published var menuVisible = false
     @Published var performance = KRKRPerformanceSnapshot()
     @Published var sharedImage: UIImage?
@@ -49,8 +50,14 @@ private final class KRKROverlayModel: ObservableObject {
     @Published var engineActions: [GameMenuAction] = []
     /// Engine tiles work only at some points of the game.
     @Published var engineActionsAvailable = true
+    @Published var hudPlacement: PerformanceHUDPlacement
+    /// The full HUD's width, narrowed on small screens.
+    @Published var hudWidth: CGFloat = 400
+    /// Frame interval of each metrics tick, oldest first; nil for idle ticks.
+    @Published var frameHistory: [Double?] = []
 
     let gameTitle: String
+    let engineName: String
     let performanceDetail: PerformanceDetail
     var onCloseMenu: (() -> Void)?
     var onExit: (() -> Void)?
@@ -58,11 +65,20 @@ private final class KRKROverlayModel: ObservableObject {
     var onMarkFinished: (() -> Void)?
     var onScreenshot: (() -> UIImage?)?
     var onTogglePerformance: (() -> Void)?
+    var onTuckHUD: ((Bool) -> Void)?
 
-    init(gameTitle: String, performanceVisible: Bool, performanceDetail: PerformanceDetail, renderer: String) {
+    init(
+        gameTitle: String,
+        engineName: String,
+        performanceVisible: Bool,
+        performanceDetail: PerformanceDetail,
+        renderer: String
+    ) {
         self.gameTitle = gameTitle
+        self.engineName = engineName
         self.performanceVisible = performanceVisible
         self.performanceDetail = performanceDetail
+        hudPlacement = PerformanceHUDPlacement.saved(for: performanceDetail)
         performance.renderer = renderer
     }
 }
@@ -71,13 +87,21 @@ private final class KRKROverlayModel: ObservableObject {
 final class KRKROverlayCoordinator: NSObject {
     private let model: KRKROverlayModel
     private var hostingController: UIHostingController<KRKROverlayView>?
+    private var hudContainer: PerformanceHUDContainer?
     private weak var containerView: UIView?
     private var floatingButton: UIButton?
     private var engineActionsAvailable: (() -> Bool)?
 
-    init(gameTitle: String, performanceVisible: Bool, performanceDetail: PerformanceDetail, renderer: String) {
+    init(
+        gameTitle: String,
+        engineName: String,
+        performanceVisible: Bool,
+        performanceDetail: PerformanceDetail,
+        renderer: String
+    ) {
         model = KRKROverlayModel(
             gameTitle: gameTitle,
+            engineName: engineName,
             performanceVisible: performanceVisible,
             performanceDetail: performanceDetail,
             renderer: renderer
@@ -98,6 +122,13 @@ final class KRKROverlayCoordinator: NSObject {
     ) {
         guard let rootController = window.rootViewController else { return }
         AppDiagnostics.shared.event("overlay", "install", ["windowBounds": NSCoder.string(for: window.bounds), "root": String(describing: type(of: rootController))])
+        // Under the menu layer, which covers it while the menu is open.
+        let hud = PerformanceHUDContainer(model: model)
+        hud.attach(to: rootController)
+        hud.isHidden = !model.performanceVisible
+        hudContainer = hud
+        model.onTuckHUD = { [weak hud] tucked in hud?.setTucked(tucked) }
+
         let overlay = KRKROverlayView(model: model)
         let controller = UIHostingController(rootView: overlay)
         controller.view.backgroundColor = .clear
@@ -162,16 +193,28 @@ final class KRKROverlayCoordinator: NSObject {
 
     func setPerformanceVisible(_ visible: Bool) {
         model.performanceVisible = visible
+        if visible {
+            model.frameHistory = []
+        }
+        hudContainer?.isHidden = !visible
+        hudContainer?.setNeedsLayout()
     }
 
     func update(_ performance: KRKRPerformanceSnapshot) {
         model.performance = performance
+        guard model.performanceVisible else { return }
+        model.frameHistory.append(performance.isIdle ? nil : performance.frameTimeMilliseconds)
+        if model.frameHistory.count > PerformanceHUDView.historyLength {
+            model.frameHistory.removeFirst(model.frameHistory.count - PerformanceHUDView.historyLength)
+        }
+        // Values change width as they tick.
+        hudContainer?.setNeedsLayout()
     }
 
     // Render only UIKit overlays over the native Metal screenshot. Drawing the
     // full SDL hierarchy would cover the captured image with an empty GPU view.
     func drawScreenshotOverlay(in window: UIWindow) {
-        let views = [hostingController?.view, floatingButton].compactMap { $0 }
+        let views = [hudContainer, hostingController?.view, floatingButton].compactMap { $0 }
         guard let container = containerView else { return }
         for view in container.subviews where views.contains(where: { $0 === view }) {
             guard !view.isHidden, view.alpha > 0 else { continue }
@@ -184,6 +227,8 @@ final class KRKROverlayCoordinator: NSObject {
         AppDiagnostics.shared.event("overlay", "remove")
         floatingButton?.removeFromSuperview()
         floatingButton = nil
+        hudContainer?.detach()
+        hudContainer = nil
         hostingController?.willMove(toParent: nil)
         hostingController?.view.removeFromSuperview()
         hostingController?.removeFromParent()
@@ -250,12 +295,6 @@ private struct KRKROverlayView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if model.performanceVisible {
-                performanceHUD
-                    .padding(18)
-                    .allowsHitTesting(false)
-            }
-
             if model.menuVisible {
                 Color.black.opacity(0.36)
                     .ignoresSafeArea()
@@ -276,77 +315,6 @@ private struct KRKROverlayView: View {
                 ActivitySheet(items: [image])
             }
         }
-    }
-
-    @ViewBuilder
-    private var performanceHUD: some View {
-        switch model.performanceDetail {
-        case .simple: simplePerformanceHUD
-        case .full: fullPerformanceHUD
-        }
-    }
-
-    /// Frame rate and draw calls, then CPU, memory and GPU memory.
-    private var simplePerformanceHUD: some View {
-        let stats = model.performance
-        let memory = ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory)
-        let gpuMemory = ByteCountFormatter.string(fromByteCount: Int64(stats.gpuMemoryBytes), countStyle: .memory)
-        return VStack(alignment: .leading, spacing: 2) {
-            if stats.drawCallsPerFrame >= 0 {
-                Text("\(stats.framesPerSecond, specifier: "%.0f") FPS · DC \(stats.drawCallsPerFrame, specifier: "%.0f")")
-            } else {
-                Text("\(stats.framesPerSecond, specifier: "%.0f") FPS")
-            }
-            if stats.processCPUPercent >= 0 {
-                Text("CPU \(stats.processCPUPercent, specifier: "%.0f%%") · RAM \(memory) · GPU \(gpuMemory)")
-            } else {
-                Text("RAM \(memory) · GPU \(gpuMemory)")
-            }
-        }
-        .font(.system(size: 12, design: .monospaced))
-        .foregroundStyle(.white)
-        .padding(7)
-        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityIdentifier("krkr-performance-hud")
-    }
-
-    private var fullPerformanceHUD: some View {
-        let stats = model.performance
-        return VStack(alignment: .leading, spacing: 2) {
-            Text("\(stats.framesPerSecond, specifier: "%.1f") FPS · interval \(stats.frameTimeMilliseconds, specifier: "%.1f") ms")
-            Text("Main thread \(stats.cpuFrameTimeMilliseconds, specifier: "%.1f") ms · peak \(stats.maxCpuFrameTimeMilliseconds, specifier: "%.1f") ms")
-            if stats.gpuSubmissionTimeMilliseconds >= 0 {
-                Text("GPU submit \(stats.gpuSubmissionTimeMilliseconds, specifier: "%.1f") ms")
-            }
-            if stats.presentationWaitTimeMilliseconds >= 0 {
-                Text("Present wait \(stats.presentationWaitTimeMilliseconds, specifier: "%.1f") ms")
-            }
-            Text(verbatim: "\(stats.drawableWidth)×\(stats.drawableHeight) · \(stats.renderer)")
-            if stats.showsLayerCompositing {
-                stats.gpuLayerComposition ? Text("Layer compositing · GPU Metal") : Text("Layer compositing · Software")
-            }
-            if stats.showsLayerCompositing && stats.gpuLayerComposition {
-                Text("Ops \(stats.gpuLayerOperations) · CPU fallbacks \(stats.layerCPUFallbacks)")
-                Text("Upload \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerUploadedBytes), countStyle: .memory)) · readback \(ByteCountFormatter.string(fromByteCount: Int64(stats.layerReadbackBytes), countStyle: .memory))")
-            }
-            Text("Memory \(ByteCountFormatter.string(fromByteCount: Int64(stats.residentMemoryBytes), countStyle: .memory)) · GPU \(ByteCountFormatter.string(fromByteCount: Int64(stats.gpuMemoryBytes), countStyle: .memory))")
-            if stats.drawCallsPerFrame >= 0 {
-                Text("Draw calls \(stats.drawCallsPerFrame, specifier: "%.0f") per frame")
-            }
-            if stats.processCPUPercent >= 0 {
-                Text("All threads CPU \(stats.processCPUPercent, specifier: "%.0f%%")")
-                if !stats.busiestThreads.isEmpty {
-                    Text(stats.busiestThreads)
-                        .lineLimit(1)
-                }
-            }
-            Text("Session \(duration(stats.elapsedSeconds))")
-        }
-        .font(.system(size: 12, design: .monospaced))
-        .foregroundStyle(.white)
-        .padding(9)
-        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
-        .accessibilityIdentifier("krkr-performance-hud")
     }
 
     private var menuPanel: some View {

@@ -219,6 +219,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
+            engineName: EngineID.kirikiri.displayName,
             performanceVisible: configuration.performance,
             performanceDetail: configuration.performanceDetail,
             renderer: rendererLabel
@@ -795,7 +796,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerPsTableUploadedBytes: raw.layerPsTableUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
                 processCPUPercent: cpuSample?.processPercent ?? -1,
-                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
+                busiestThreads: Array(cpuSample?.groups.prefix(2) ?? []),
                 elapsedSeconds: elapsedSeconds,
                 drawCallsPerFrame: raw.drawCallsPerFrame,
                 gpuMemoryBytes: metalAllocatedBytes()

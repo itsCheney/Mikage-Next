@@ -159,6 +159,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
+            engineName: EngineID.siglus.displayName,
             performanceVisible: configuration.performance,
             performanceDetail: configuration.performanceDetail,
             renderer: Self.rendererLabel

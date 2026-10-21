@@ -1,50 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%.0f FPS" : {
+    "%.0f /frame" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%.0f FPS"
+            "value" : "%.0f /フレーム"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%.0f FPS"
-          }
-        }
-      }
-    },
-    "%.0f FPS · DC %.0f" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$.0f FPS · DC %2$.0f"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$.0f FPS · DC %2$.0f"
-          }
-        }
-      }
-    },
-    "%.1f FPS · interval %.1f ms" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$.1f FPS · 間隔 %2$.1f ms"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$.1f FPS · 间隔 %2$.1f ms"
+            "value" : "%.0f /帧"
           }
         }
       }
@@ -754,18 +722,18 @@
         }
       }
     },
-    "All threads CPU %.0f%%" : {
+    "All threads" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全スレッド CPU %.0f%%"
+            "value" : "全スレッド"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部线程 CPU %.0f%%"
+            "value" : "全部线程"
           }
         }
       }
@@ -1762,22 +1730,6 @@
         }
       }
     },
-    "CPU %.0f%% · RAM %@ · GPU %@" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU %1$.0f%% · RAM %2$@ · GPU %3$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU %1$.0f%% · 内存 %2$@ · GPU %3$@"
-          }
-        }
-      }
-    },
     "Create a Bangumi Account" : {
       "localizations" : {
         "ja" : {
@@ -2162,18 +2114,50 @@
         }
       }
     },
-    "Draw calls %.0f per frame" : {
+    "Drag the panel to move it. Drag it past the screen edge to tuck it away." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "描画コール %.0f / フレーム"
+            "value" : "ドラッグで移動、画面の端までドラッグでしまえます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每帧绘制调用 %.0f 次"
+            "value" : "拖动以移动，拖到屏幕边缘可收起。"
+          }
+        }
+      }
+    },
+    "Draw calls" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描画呼び出し"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绘制调用"
+          }
+        }
+      }
+    },
+    "Drawable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
           }
         }
       }
@@ -2612,6 +2596,38 @@
         }
       }
     },
+    "Frame time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレーム時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帧耗时"
+          }
+        }
+      }
+    },
+    "Frame times for the last 40 seconds" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直近 40 秒のフレーム時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 40 秒的帧耗时"
+          }
+        }
+      }
+    },
     "Frees %@" : {
       "localizations" : {
         "ja" : {
@@ -2836,18 +2852,34 @@
         }
       }
     },
-    "GPU submit %.1f ms" : {
+    "GPU memory" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GPU 送信 %.1f ms"
+            "value" : "GPU メモリ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GPU 提交 %.1f ms"
+            "value" : "GPU 内存"
+          }
+        }
+      }
+    },
+    "GPU submit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPU 送信"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPU 提交"
           }
         }
       }
@@ -2944,6 +2976,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隐藏敏感图片"
+          }
+        }
+      }
+    },
+    "Idle" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "静止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "静止"
           }
         }
       }
@@ -3088,6 +3136,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "信息"
+          }
+        }
+      }
+    },
+    "Interval" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間隔"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "间隔"
           }
         }
       }
@@ -3301,34 +3365,18 @@
         }
       }
     },
-    "Layer compositing · GPU Metal" : {
+    "Layers" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "レイヤー合成 · GPU Metal"
+            "value" : "レイヤー合成"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "图层合成 · GPU Metal"
-          }
-        }
-      }
-    },
-    "Layer compositing · Software" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "レイヤー合成 · ソフトウェア"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "图层合成 · 软件"
+            "value" : "图层合成"
           }
         }
       }
@@ -3559,18 +3607,18 @@
         }
       }
     },
-    "Main thread %.1f ms · peak %.1f ms" : {
+    "Main thread" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メインスレッド %1$.1f ms · ピーク %2$.1f ms"
+            "value" : "メインスレッド"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主线程 %1$.1f ms · 峰值 %2$.1f ms"
+            "value" : "主线程"
           }
         }
       }
@@ -3671,18 +3719,34 @@
         }
       }
     },
-    "Memory %@ · GPU %@" : {
+    "Memory" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモリ %1$@ · GPU %2$@"
+            "value" : "メモリ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内存 %1$@ · GPU %2$@"
+            "value" : "内存"
+          }
+        }
+      }
+    },
+    "Memory & transfer" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリと転送"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存与传输"
           }
         }
       }
@@ -4483,6 +4547,70 @@
         }
       }
     },
+    "Ops / CPU fallbacks" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演算 / CPU 代替"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "算子 / CPU 回退"
+          }
+        }
+      }
+    },
+    "Peak" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピーク"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "峰值"
+          }
+        }
+      }
+    },
+    "Present wait" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "呈现等待"
+          }
+        }
+      }
+    },
+    "RAM" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存"
+          }
+        }
+      }
+    },
     "Rank #%lld" : {
       "localizations" : {
         "ja" : {
@@ -4495,6 +4623,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排名 #%lld"
+          }
+        }
+      }
+    },
+    "Readback" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リードバック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回读"
+          }
+        }
+      }
+    },
+    "Rendering" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描画"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "渲染"
+          }
+        }
+      }
+    },
+    "Show Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示を出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开性能统计"
           }
         }
       }
@@ -4563,6 +4739,70 @@
         }
       }
     },
+    "Software" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソフトウェア"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件"
+          }
+        }
+      }
+    },
+    "Tuck Away Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示をしまう"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起性能统计"
+          }
+        }
+      }
+    },
+    "unnamed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前なし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        }
+      }
+    },
+    "Upload" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传"
+          }
+        }
+      }
+    },
     "Yes" : {
       "localizations" : {
         "ja" : {
@@ -4607,22 +4847,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "openArtemis 已停止：%@"
-          }
-        }
-      }
-    },
-    "Ops %llu · CPU fallbacks %llu" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "演算 %1$llu · CPU フォールバック %2$llu"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "算子 %1$llu · CPU 回退 %2$llu"
           }
         }
       }
@@ -4867,22 +5091,6 @@
         }
       }
     },
-    "Present wait %.1f ms" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "表示待ち %.1f ms"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "呈现等待 %.1f ms"
-          }
-        }
-      }
-    },
     "Progress" : {
       "localizations" : {
         "ja" : {
@@ -4943,22 +5151,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出"
-          }
-        }
-      }
-    },
-    "RAM %@ · GPU %@" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "RAM %1$@ · GPU %2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内存 %1$@ · GPU %2$@"
           }
         }
       }
@@ -6809,22 +7001,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游玩时自动更新状态"
-          }
-        }
-      }
-    },
-    "Upload %@ · readback %@" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップロード %1$@ · リードバック %2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上传 %1$@ · 回读 %2$@"
           }
         }
       }

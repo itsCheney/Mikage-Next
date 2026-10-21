@@ -146,6 +146,7 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
+            engineName: EngineID.artemis.displayName,
             performanceVisible: configuration.performance,
             performanceDetail: configuration.performanceDetail,
             renderer: Self.rendererLabel
@@ -384,7 +385,7 @@ final class NativeArtemisSession: NSObject, KRKRSession {
                 renderer: backend.isEmpty ? Self.rendererLabel : "\(Self.rendererLabel) · \(backend)",
                 residentMemoryBytes: processResidentMemoryBytes(),
                 processCPUPercent: cpuSample?.processPercent ?? -1,
-                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
+                busiestThreads: Array(cpuSample?.groups.prefix(2) ?? []),
                 elapsedSeconds: elapsedSeconds,
                 showsLayerCompositing: false,
                 drawCallsPerFrame: raw.drawCallsPerFrame,
