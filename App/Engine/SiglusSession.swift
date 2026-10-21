@@ -93,6 +93,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
 
         state = .starting
         await Self.registerSystemFonts()
+        SiglusMovieDecoder.register()
         configureAudioSession(respectSilentMode: configuration.respectSilentMode)
 
         // siglus_rs keeps saves in the game's savedata folder, which is
