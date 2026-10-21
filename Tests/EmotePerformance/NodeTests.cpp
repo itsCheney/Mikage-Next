@@ -1,6 +1,7 @@
 // Production runner/geometry coverage. Fixtures only construct decoded PSB
 // resources and observe GPU command encoding; no runner code is extracted.
 #include "emoterunner.h"
+#include <set>
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -85,6 +86,8 @@ public:
     int draws = 0;
     float opacity = 0;
     std::vector<EmoteVertex> vertices;
+    std::vector<std::pair<char, void*>> events; // 'T' target, 'C' clear, 'M' mask, 'D' draw
+    uintptr_t nextTarget = 0x1000;
     const char* GetName() const override { return "fixture"; }
     void BeginFrame(int, int) override {}
     void EndFrame() override {}
@@ -92,10 +95,10 @@ public:
     void UpdateWindowTexture(void*, const uint8_t*, int, int, int) override {}
     void DestroyWindowTexture(void*) override {}
     void DrawWindowTexture(void*, float, float, float, float) override {}
-    void* CreateTarget(int, int) override { return this; }
+    void* CreateTarget(int, int) override { nextTarget += 0x100; return reinterpret_cast<void*>(nextTarget); }
     void DestroyTarget(void*) override {}
-    void SetTarget(void*) override {}
-    void ClearTarget(bool) override {}
+    void SetTarget(void* target) override { events.emplace_back('T', target); }
+    void ClearTarget(bool) override { events.emplace_back('C', nullptr); }
     uint8_t* LockTarget(void*, int&) override { return nullptr; }
     void UnlockTarget(void*) override {}
     void* GetTargetTexture(void*) override { return this; }
@@ -103,14 +106,14 @@ public:
     void* CreateTexture(int, int) override { return this; }
     void UpdateTexture(void*, const uint8_t*, int, int, int) override {}
     void DestroyTexture(void*) override {}
-    void SetMask(void*) override {}
+    void SetMask(void* mask) override { events.emplace_back('M', mask); }
     void SetBlendMode(int, const float*) override {}
     void DrawMesh(const float* data, int count, const uint16_t*, int, void*, float opa, const float*) override {
-        ++draws; opacity = opa; auto* v = reinterpret_cast<const EmoteVertex*>(data); vertices.assign(v, v + count);
+        ++draws; opacity = opa; events.emplace_back('D', nullptr); auto* v = reinterpret_cast<const EmoteVertex*>(data); vertices.assign(v, v + count);
     }
     bool SupportsMeshDeformation() const override { return gpu; }
     bool DrawDeformedMesh(int, int, const krkrsdl3::TVPMeshDeformSurface*, int, void*, float opa, const float*) override {
-        ++draws; opacity = opa; return true;
+        ++draws; opacity = opa; events.emplace_back('D', nullptr); return true;
     }
     void LayerSetBlend(int, float, const float*) override {}
     void LayerDrawRect(void*, float, float, float, float, float, float, float, float) override {}
@@ -156,15 +159,88 @@ struct Fixture {
     emotenoderef* ref(emotenode* node) { return engine._mainMotionRef->getNodeRef(node); }
 };
 
+// Shape hit areas keep the frame's surface chain; their mesh is built on use.
+const emoterect& shapeArea(const emotemotionref& motion, const std::string& label) {
+    for (const auto& area : motion.shapeNodeAreas)
+        if (area.label == label) return area.geometry();
+    static const emoterect none;
+    return none;
+}
+
+void testLazyShapeGeometry() {
+    Fixture f; auto* circle = f.node("circle", "shape/circle");
+    f.step(0);
+    const auto& recorded = f.engine._mainMotionRef->shapeNodeAreas;
+    check(recorded.size() == 1 && !recorded.front().built, "recording a shape builds no mesh");
+    // Centre of the 200x200 view: inside the unit circle mapped to clip space.
+    check(recorded.front().contains(0.0f, 0.0f), "circle contains its centre");
+    check(recorded.front().built && recorded.front().vertices.size() == 65, "first query builds the circle");
+    check(!recorded.front().contains(0.99f, 0.99f), "circle excludes the corner");
+    std::vector<EmoteVertex> eager; std::vector<uint16_t> eagerIndices;
+    buildShapeMesh(recorded.front().methods, 1, eager, eagerIndices);
+    check(eager.size() == recorded.front().vertices.size() &&
+          near(eager[7].x, recorded.front().vertices[7].x) &&
+          near(eager[7].y, recorded.front().vertices[7].y), "lazy mesh equals the eager build");
+    f.step(1);
+    check(!f.engine._mainMotionRef->shapeNodeAreas.front().built, "next frame drops the stale mesh");
+    (void)circle;
+}
+
+// Masks are drawn before the canvas, so the canvas is drawn without a target switch.
+void testMaskPrepass() {
+    RecordingBackend renderer; krkrsdl3::backend = &renderer; // outlives the engine's mask pool
+    Fixture f;
+    emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
+    icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
+    source.icon["icon"] = &icon; f.file._source["source"] = &source;
+    std::vector<emotenode*> bodies;
+    for (int i = 0; i < 7; ++i) bodies.push_back(f.node("body" + std::to_string(i), "icon"));
+    auto* stencil = f.node("stencil", "icon");
+    void* canvas = reinterpret_cast<void*>(0x10);
+    void* playerMask = reinterpret_cast<void*>(0x20);
+    auto run = [&](size_t maskedCount, bool prepare = true) {
+        f.step(0);
+        for (size_t i = 0; i < bodies.size(); ++i) {
+            auto& method = f.ref(bodies[i])->renderMethod.front();
+            method.hasStencil = i < maskedCount;
+            method.layerNode.assign(i < maskedCount ? 1 : 0, f.ref(stencil));
+        }
+        renderer.events.clear();
+        if (prepare) f.engine.prepareMasks(&renderer, f.limit, playerMask);
+        renderer.SetTarget(canvas); renderer.ClearTarget(true);
+        const size_t canvasStart = renderer.events.size() - 2;
+        f.engine.draw(&renderer, canvas, f.limit, playerMask);
+        size_t switches = 0, maskedDraws = 0;
+        std::set<void*> masks;
+        for (size_t i = canvasStart; i < renderer.events.size(); ++i) {
+            const auto& [kind, target] = renderer.events[i];
+            if (kind == 'T' && target != canvas) ++switches;
+            if (kind == 'M' && target) { ++maskedDraws; masks.insert(target); }
+        }
+        return std::tuple<size_t, size_t, size_t>{switches, maskedDraws, masks.size()};
+    };
+    auto [switches, maskedDraws, distinct] = run(3);
+    check(switches == 0, "prepared masks leave the canvas pass unbroken");
+    check(maskedDraws == 3 && distinct == 3, "each masked node samples its own mask");
+    check(f.ref(bodies[0])->wasDrawn && f.ref(bodies[6])->wasDrawn, "prepass keeps every node drawn");
+    std::tie(switches, maskedDraws, distinct) = run(5);
+    check(switches == 0 && maskedDraws == 5 && distinct == 5, "player mask plus pool covers five masks");
+    std::tie(switches, maskedDraws, distinct) = run(6); // mask set + stencil draw per node
+    check(switches == 12 && maskedDraws == 6 && distinct == 1, "more masks than targets draw in place");
+    std::tie(switches, maskedDraws, distinct) = run(3, false);
+    check(switches == 6 && maskedDraws == 3 && distinct == 3, "draw without a prepass still uses separate masks");
+    f.engine.releaseMaskTargets(); krkrsdl3::backend = nullptr;
+}
+
 void testStaticAndDependencies() {
     Fixture f; auto* shape = f.node("shape");
-    f.step(0); const auto original = f.ref(shape)->_shapeArea.vertices;
+    f.step(0); const auto original = shapeArea(*f.engine._mainMotionRef, shape->label).vertices;
     for (int i = 1; i < 20; ++i) f.step(float(i));
-    check(near(original[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "stationary shape keeps its geometry");
+    check(near(original[0].x, shapeArea(*f.engine._mainMotionRef, shape->label).vertices[0].x), "stationary shape keeps its geometry");
     f.root.front().attachMat = glm::translate(f.root.front().attachMat, glm::vec3(10, 0, 0));
-    f.step(20); check(!near(original[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "root transform changes vertices");
-    const float left = f.ref(shape)->_shapeArea.left; f.limit.viewW = 400; f.step(21);
-    check(!near(left, f.ref(shape)->_shapeArea.left), "viewport changes shape script bounds");
+    f.step(20); check(!near(original[0].x, shapeArea(*f.engine._mainMotionRef, shape->label).vertices[0].x), "root transform changes vertices");
+    const float left = shapeArea(*f.engine._mainMotionRef, shape->label).left; f.limit.viewW = 400; f.step(21);
+    check(!near(left, shapeArea(*f.engine._mainMotionRef, shape->label).left), "viewport changes shape script bounds");
     shape->removed = true; f.step(22);
     check(f.engine._mainMotionRef->shapeNodeAreas.empty(), "hidden shape removed");
     shape->removed = false; f.step(23); check(f.engine._mainMotionRef->shapeNodeAreas.size() == 1, "shape resurfaces");
@@ -176,20 +252,20 @@ void testStaticAndDependencies() {
 void testParentAndSubmotion() {
     Fixture f; auto* parent = f.node("parent", "layout");
     auto* child = f.node("child", "shape/rect", parent);
-    f.step(0); auto old = f.ref(child)->_shapeArea.vertices;
+    f.step(0); auto old = shapeArea(*f.engine._mainMotionRef, child->label).vertices;
     parent->frameList[0]->coordX = 7; f.step(0);
-    check(!near(old[0].x, f.ref(child)->_shapeArea.vertices[0].x), "child geometry follows parent");
+    check(!near(old[0].x, shapeArea(*f.engine._mainMotionRef, child->label).vertices[0].x), "child geometry follows parent");
     parent->frameList[0]->angle = 20; parent->frameList[0]->zx = -1; f.step(0);
-    check(!near(old[1].x, f.ref(child)->_shapeArea.vertices[1].x), "rotation and mirror propagate");
+    check(!near(old[1].x, shapeArea(*f.engine._mainMotionRef, child->label).vertices[1].x), "rotation and mirror propagate");
     auto* instance = f.node("instance", "motion/chara/sub");
     auto* sub = f.node("animated", "shape/rect", nullptr, &f.submotion); f.next(sub, 60, 30);
     f.step(0); auto* subref = f.ref(instance)->currentMtnRef;
     check(subref && subref->shapeNodeAreas.size() == 1, "submotion shape collected");
-    old = subref->shapeNodeAreas.front().vertices;
+    old = subref->shapeNodeAreas.front().geometry().vertices;
     f.step(10); check(f.ref(instance)->currentMtnRef == subref, "submotion instance pooled");
-    check(!near(old[0].x, subref->shapeNodeAreas.front().vertices[0].x), "submotion clock advances under static parent");
-    old = subref->shapeNodeAreas.front().vertices; instance->frameList[0]->timeOffset = 20; f.step(10);
-    check(!near(old[0].x, subref->shapeNodeAreas.front().vertices[0].x), "submotion time offset moves its pose");
+    check(!near(old[0].x, subref->shapeNodeAreas.front().geometry().vertices[0].x), "submotion clock advances under static parent");
+    old = subref->shapeNodeAreas.front().geometry().vertices; instance->frameList[0]->timeOffset = 20; f.step(10);
+    check(!near(old[0].x, subref->shapeNodeAreas.front().geometry().vertices[0].x), "submotion time offset moves its pose");
     instance->frameList[0]->src = "layout"; f.step(10);
     check(f.engine._mainMotionRef->_subMotionRefs.empty(), "submotion removed on selection change");
     instance->frameList[0]->src = "motion/chara/sub"; f.step(10);
@@ -203,17 +279,17 @@ void testVariablesAndIsolation() {
     emoteVar parameter; parameter.id = "pose"; parameter.division = 60;
     f.motion.parameter.push_back(&parameter);
     auto* shape = f.node("shape"); shape->isParameterize = true; shape->parameterIdx = 0; f.next(shape, 60, 40);
-    f.engine.resetControls(); f.step(0); const auto old = f.ref(shape)->_shapeArea.vertices;
+    f.engine.resetControls(); f.step(0); const auto old = shapeArea(*f.engine._mainMotionRef, shape->label).vertices;
     auto advance = [&](emoteengine& engine, double tick) {
         engine.controlTick = tick; engine.updateTimelineControl(tick, true); engine.updateEyeControl(tick, true);
     };
     f.engine.setVariable("pose", 1, 30, 0); advance(f.engine, 15); f.step(15);
     check(near(float(f.engine.getVariable("pose")), 0.5f), "variable transition reaches half at half time");
-    check(!near(old[0].x, f.ref(shape)->_shapeArea.vertices[0].x), "variable changes prepared geometry");
+    check(!near(old[0].x, shapeArea(*f.engine._mainMotionRef, shape->label).vertices[0].x), "variable changes prepared geometry");
     emoteengine second; second._mainfile = &f.file; second._mainmotion = &f.motion; second.resetControls();
     advance(second, 15); second.progress(15, f.root, f.limit);
     check(second._mainMotionRef.get() != f.engine._mainMotionRef.get(), "players own runtime nodes");
-    check(near(second._mainMotionRef->getNodeRef(shape)->_shapeArea.vertices[0].x, old[0].x), "shared resource players stay isolated");
+    check(near(shapeArea(*second._mainMotionRef, shape->label).vertices[0].x, old[0].x), "shared resource players stay isolated");
     check(near(float(f.metadata._varList["pose"]), 0), "player writes leave shared metadata unchanged");
     eyeControl eye; eye.label = "pose"; eye.beginFrame = 0; eye.endFrame = 1;
     eye.blinkFrameCount = 4; eye.blinkIntervalMin = eye.blinkIntervalMax = 2;
@@ -400,6 +476,7 @@ void runBenchmarks() {
 }
 int main(int argc, char**) {
     try {
+        testLazyShapeGeometry(); testMaskPrepass();
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesAndIsolation();
         testSharedSentinelsAndLoop(); testIconAndGPU(); testDeepGPUChain(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
