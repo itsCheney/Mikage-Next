@@ -122,6 +122,9 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
     private var onSetPerformance: ((Bool) -> Void)?
     private var refreshTimer: Timer?
     private var ballHidden = false
+    /// The HUD and floating buttons wait, unseen, until the game's size
+    /// places them, so they don't jump from the screen edges into the bars.
+    private var controlsRevealed = false
     private var restoreGesture: UITapGestureRecognizer?
     private var controlSkipHeld: Bool {
         get { model.controlSkipHeld }
@@ -214,6 +217,10 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         }
         root.addSubview(floating)
         floatingControls = floating
+        hud.alpha = 0
+        floating.alpha = 0
+        // Ren'Py reports no game size; show them anyway after a moment.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.revealControls() }
 
         let overlay = KRKROverlayView(model: model)
         let controller = UIHostingController(rootView: overlay)
@@ -233,8 +240,21 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         hostingController = controller
     }
 
+    private func revealControls() {
+        guard !controlsRevealed else { return }
+        controlsRevealed = true
+        floatingControls?.relayout(animated: false)
+        hudContainer?.setNeedsLayout()
+        hudContainer?.layoutIfNeeded()
+        UIView.animate(withDuration: 0.25) {
+            self.floatingControls?.alpha = 1
+            self.hudContainer?.alpha = 1
+        }
+    }
+
     func showMenu() {
         AppDiagnostics.shared.event("overlay", "menu.show")
+        revealControls()
         guard let controller = hostingController else { return }
         // The three-finger tap that opened the menu also brings the button back.
         setBallHidden(false)
@@ -273,6 +293,7 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         model.performance = performance
         if gameSizeChanged {
             floatingControls?.relayout(animated: false)
+            if performance.gameSize != .zero { revealControls() }
         }
         // The game turns auto and skip off itself (a click, a choice,
         // unread text); keep the quick actions' state current.

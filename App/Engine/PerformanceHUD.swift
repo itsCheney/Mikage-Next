@@ -850,6 +850,12 @@ final class PerformanceHUDContainer: UIView {
         return hit === self ? nil : hit
     }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // The bars reach the screen edge only once the orientation is known.
+        setNeedsLayout()
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         let safe = bounds.inset(by: safeAreaInsets)
@@ -860,7 +866,11 @@ final class PerformanceHUDContainer: UIView {
         let dock = self.dock(in: safe).dock
         if model.hudDock != dock {
             model.hudDock = dock
-            AppDiagnostics.shared.event("overlay", "performanceHUD.docked", ["dock": String(describing: dock)])
+            AppDiagnostics.shared.event("overlay", "performanceHUD.docked", [
+                "dock": String(describing: dock),
+                "orientation": String(window?.windowScene?.interfaceOrientation.rawValue ?? -1),
+                "safe": NSCoder.string(for: safe)
+            ])
             // Measure again once SwiftUI has the new layout.
             DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() }
         }
@@ -912,7 +922,9 @@ final class PerformanceHUDContainer: UIView {
     /// on the camera's side stops at the safe area; the other one runs to
     /// the screen edge, as the black margin does.
     private func barEdges(_ safe: CGRect) -> (leading: CGFloat, trailing: CGFloat) {
-        switch window?.windowScene?.interfaceOrientation {
+        let scene = window?.windowScene
+            ?? UIApplication.shared.connectedScenes.lazy.compactMap { $0 as? UIWindowScene }.first
+        switch scene?.interfaceOrientation {
         case .landscapeRight:
             // The camera is on the left.
             return (safe.minX, bounds.maxX)
@@ -934,13 +946,13 @@ final class PerformanceHUDContainer: UIView {
                 x = placement.leading ? safe.minX + 24 : safe.maxX - 24 - size.width
                 y = safe.minY + (game.minY - safe.minY - size.height) / 2
             } else {
-                // Centered in the wider bar, near the top.
+                // Snapped to the outer edge of the wider bar, near the top
+                // but clear of the screen's rounded corner.
                 let (leading, trailing) = barEdges(safe)
                 let leftRoom = game.minX - leading
                 let rightRoom = trailing - game.maxX
-                let middle = rightRoom >= leftRoom ? (game.maxX + trailing) / 2 : (leading + game.minX) / 2
-                x = middle - size.width / 2
-                y = safe.minY + 14
+                x = rightRoom >= leftRoom ? trailing - size.width : leading
+                y = max(safe.minY + 14, 36)
             }
             return CGRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
         }
