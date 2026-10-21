@@ -92,7 +92,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         }
 
         state = .starting
-        Self.registerSystemFonts()
+        await Self.registerSystemFonts()
         configureAudioSession(respectSilentMode: configuration.respectSilentMode)
 
         // siglus_rs keeps saves in the game's savedata folder, which is
@@ -399,74 +399,82 @@ final class NativeSiglusSession: NSObject, KRKRSession {
     /// Games ask for Windows faces (MS Gothic, MS Mincho); PingFang stands in
     /// for both (Mashiro's choice: one face for Chinese translations and
     /// Japanese originals alike), with a per-character fallback chain behind it.
-    private static func registerSystemFonts() {
+    private static func registerSystemFonts() async {
         guard !fontsRegistered else { return }
         fontsRegistered = true
         let main = Locale.preferredLanguages.first.map(Self.prefersTraditionalChinese) == true
             ? "PingFangTC-Regular" : "PingFangSC-Regular"
-        // Each face twice: the system file itself, where the app can read
-        // it, then a copy rebuilt from its tables. siglus_rs passes over a
-        // file it can't load or whose characters it can't map.
-        for (path, face) in fontFiles(main) {
+        // Characters the main face lacks (Hangul...) come from these, in order.
+        let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
+            .filter { $0 != main }
+        // Rebuilding a face takes a few seconds the first time.
+        let files = await Task.detached(priority: .userInitiated) {
+            (main: Self.fontFiles(main), fallbacks: fallbacks.map { ($0, Self.fontFiles($0)) })
+        }.value
+        for (path, face) in files.main {
             for family: Int32 in [0, 1] {
                 AppDiagnostics.shared.event("bridge", "siglus.font", ["name": main, "family": String(family), "path": path])
                 path.withCString { path in face.withCString { siglus_mikage_register_font_face(path, family, $0) } }
             }
         }
-        // Characters the main face lacks (Hangul...) come from these, in order.
-        let fallbacks = ["PingFangSC-Regular", "PingFangTC-Regular", "HiraginoSans-W3", "AppleSDGothicNeo-Regular"]
-        for name in fallbacks where name != main {
-            for (path, face) in fontFiles(name) {
+        for (name, faces) in files.fallbacks {
+            for (path, face) in faces {
                 AppDiagnostics.shared.event("bridge", "siglus.fallbackFont", ["name": name, "path": path])
                 path.withCString { path in face.withCString { siglus_mikage_register_fallback_font(path, $0) } }
             }
         }
     }
 
-    /// The files siglus_rs can try for the system face with this PostScript
-    /// name, each with the face to use in it.
-    private static func fontFiles(_ name: String) -> [(path: String, face: String)] {
+    /// The file siglus_rs uses for the system face with this PostScript
+    /// name, with the face to use in it: the system file itself when the app
+    /// can read it and its outlines are TrueType or CFF, else a copy rebuilt
+    /// through CoreText. PingFang's file lives in a private framework and,
+    /// since iOS 18, keeps its outlines in Apple's own hvgl table.
+    nonisolated private static func fontFiles(_ name: String) -> [(path: String, face: String)] {
         let font = CTFontCreateWithName(name as CFString, 16, nil)
         guard CTFontCopyPostScriptName(font) as String == name else {
             AppDiagnostics.shared.event("bridge", "siglus.fontMissing", ["name": name])
             return []
         }
-        var files: [(path: String, face: String)] = []
         if let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL {
             let readable = FileManager.default.isReadableFile(atPath: url.path)
-            AppDiagnostics.shared.event("bridge", "siglus.fontFile", ["name": name, "path": url.path, "readable": String(readable)])
-            if readable { files.append((url.path, name)) }
+            let outlines = hasStandardOutlines(font)
+            AppDiagnostics.shared.event("bridge", "siglus.fontFile", [
+                "name": name, "path": url.path, "readable": String(readable), "outlines": String(outlines),
+            ])
+            if readable && outlines { return [(url.path, name)] }
         }
-        if let copy = exportedFontFile(font, name: name) { files.append((copy.path, "")) }
-        return files
+        return exportedFontFile(name).map { [($0.path, "")] } ?? []
     }
 
-    /// A standalone copy of a system face, built from its tables, for faces
-    /// whose file the app can't read (PingFang's lives in a private
-    /// framework). Kept in Caches per system version.
-    private static func exportedFontFile(_ font: CTFont, name: String) -> URL? {
+    nonisolated private static func hasStandardOutlines(_ font: CTFont) -> Bool {
+        guard let available = CTFontCopyAvailableTables(font, []) else { return false }
+        // The array holds the tags themselves, not CFNumbers.
+        let tags = (0..<CFArrayGetCount(available)).map {
+            UInt32(truncatingIfNeeded: UInt(bitPattern: CFArrayGetValueAtIndex(available, $0)))
+        }
+        let glyf: UInt32 = 0x676C_7966, cff: UInt32 = 0x4346_4620, cff2: UInt32 = 0x4346_4632
+        return tags.contains { $0 == glyf || $0 == cff || $0 == cff2 }
+    }
+
+    /// A TrueType copy of a system face, its outlines, advances and
+    /// character map taken from CoreText. Kept in Caches per system version.
+    nonisolated private static func exportedFontFile(_ name: String) -> URL? {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         let directory = caches.appendingPathComponent("Mikage/Fonts", isDirectory: true)
         let system = ProcessInfo.processInfo.operatingSystemVersionString
             .filter { $0.isLetter || $0.isNumber || $0 == "." }
-        let url = directory.appendingPathComponent("\(name)-v2-\(system).ttf")
+        let url = directory.appendingPathComponent("\(name)-v3-\(system).ttf")
         if FileManager.default.fileExists(atPath: url.path) { return url }
-        guard let exported = sfntData(font) else {
+        let started = CFAbsoluteTimeGetCurrent()
+        guard let exported = trueTypeData(name) else {
             AppDiagnostics.shared.event("bridge", "siglus.fontExportFailed", ["name": name])
             return nil
         }
-        let (data, tags) = exported
-        // Whether CoreText itself maps characters in the rebuilt file.
-        var mapped = "unknown"
-        if let descriptor = CTFontManagerCreateFontDescriptorFromData(data as CFData) {
-            let copy = CTFontCreateWithFontDescriptor(descriptor, 16, nil)
-            let characters = Array("A\u{3042}\u{4E2D}".utf16)
-            var glyphs = [CGGlyph](repeating: 0, count: characters.count)
-            _ = CTFontGetGlyphsForCharacters(copy, characters, &glyphs, characters.count)
-            mapped = glyphs.map { String($0) }.joined(separator: ",")
-        }
+        let (data, glyphs) = exported
         AppDiagnostics.shared.event("bridge", "siglus.fontExport", [
-            "name": name, "bytes": String(data.count), "tables": tags.joined(separator: " "), "glyphs": mapped,
+            "name": name, "bytes": String(data.count), "glyphs": String(glyphs),
+            "seconds": String(format: "%.2f", CFAbsoluteTimeGetCurrent() - started),
         ])
         do {
             // Copies made for an older system or build are stale.
@@ -484,51 +492,275 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         }
     }
 
-    /// The font's tables packed into one OpenType file.
-    private static func sfntData(_ font: CTFont) -> (Data, [String])? {
-        guard let available = CTFontCopyAvailableTables(font, []) else { return nil }
-        // The array holds the tags themselves, not CFNumbers.
-        let tags = (0..<CFArrayGetCount(available)).map {
-            UInt32(truncatingIfNeeded: UInt(bitPattern: CFArrayGetValueAtIndex(available, $0)))
+    /// Builds a TrueType font (cmap, glyf, loca, hmtx and the tables they
+    /// need) holding the glyphs of every character the face maps in planes
+    /// 0 to 2, at one font unit per point.
+    nonisolated private static func trueTypeData(_ name: String) -> (Data, Int)? {
+        let probe = CTFontCreateWithName(name as CFString, 16, nil)
+        let unitsPerEm = CTFontGetUnitsPerEm(probe)
+        guard unitsPerEm > 0 else { return nil }
+        let font = CTFontCreateWithName(name as CFString, CGFloat(unitsPerEm), nil)
+
+        // Character map, in code point order.
+        var mapped: [(scalar: UInt32, glyph: CGGlyph)] = []
+        var scalar: UInt32 = 0
+        while scalar < 0x30000 {
+            var scalars: [UInt32] = []
+            var units: [UniChar] = []
+            while scalars.count < 4096 && scalar < 0x30000 {
+                if !(0xD800...0xDFFF).contains(scalar) {
+                    scalars.append(scalar)
+                    if scalar < 0x10000 {
+                        units.append(UniChar(scalar))
+                    } else {
+                        let value = scalar - 0x10000
+                        units.append(UniChar(0xD800 + (value >> 10)))
+                        units.append(UniChar(0xDC00 + (value & 0x3FF)))
+                    }
+                }
+                scalar += 1
+            }
+            var glyphs = [CGGlyph](repeating: 0, count: units.count)
+            _ = CTFontGetGlyphsForCharacters(font, units, &glyphs, units.count)
+            var index = 0
+            for value in scalars {
+                if glyphs[index] != 0 { mapped.append((value, glyphs[index])) }
+                index += value < 0x10000 ? 1 : 2
+            }
         }
-        var tables: [(tag: UInt32, data: Data)] = []
-        for tag in tags.sorted() {
-            guard let table = CTFontCopyTable(font, tag, []) as Data? else { continue }
-            tables.append((tag, table))
+        guard !mapped.isEmpty else { return nil }
+
+        // Glyphs renumbered in first-use order, .notdef first.
+        var order: [CGGlyph] = [0]
+        var newID: [CGGlyph: UInt16] = [0: 0]
+        for entry in mapped where newID[entry.glyph] == nil {
+            guard order.count < 0xFFFF else { break }
+            newID[entry.glyph] = UInt16(order.count)
+            order.append(entry.glyph)
         }
-        let glyf: UInt32 = 0x676C_7966
-        guard !tables.isEmpty else { return nil }
+        var advances = [CGSize](repeating: .zero, count: order.count)
+        CTFontGetAdvancesForGlyphs(font, .horizontal, order, &advances, order.count)
+
+        var glyf = Data()
+        var loca = Data()
+        var hmtx = Data()
+        var maxPoints = 0, maxContours = 0
+        var fontBox: [Int16] = [.max, .max, .min, .min]
+        var maxAdvance: UInt16 = 0
+        for (index, glyph) in order.enumerated() {
+            loca.appendBE(UInt32(glyf.count))
+            let contours = CTFontCreatePathForGlyph(font, glyph, nil).map(trueTypeContours) ?? []
+            let points = Array(contours.joined())
+            let advance = UInt16(clamping: Int(advances[index].width.rounded()))
+            maxAdvance = max(maxAdvance, advance)
+            guard let first = points.first else {
+                hmtx.appendBE(advance)
+                hmtx.appendBE(UInt16(0))
+                continue
+            }
+            var box = [first.x, first.y, first.x, first.y]
+            for point in points {
+                box = [min(box[0], point.x), min(box[1], point.y), max(box[2], point.x), max(box[3], point.y)]
+            }
+            fontBox = [min(fontBox[0], box[0]), min(fontBox[1], box[1]), max(fontBox[2], box[2]), max(fontBox[3], box[3])]
+            maxPoints = max(maxPoints, points.count)
+            maxContours = max(maxContours, contours.count)
+            hmtx.appendBE(advance)
+            hmtx.appendBE(UInt16(bitPattern: box[0]))
+
+            glyf.appendBE(UInt16(contours.count))
+            for value in box { glyf.appendBE(UInt16(bitPattern: value)) }
+            var end = -1
+            for contour in contours {
+                end += contour.count
+                glyf.appendBE(UInt16(end))
+            }
+            glyf.appendBE(UInt16(0))
+            for point in points { glyf.append(point.onCurve ? 1 : 0) }
+            var previous: Int16 = 0
+            for point in points {
+                glyf.appendBE(UInt16(bitPattern: Int16(clamping: Int(point.x) - Int(previous))))
+                previous = point.x
+            }
+            previous = 0
+            for point in points {
+                glyf.appendBE(UInt16(bitPattern: Int16(clamping: Int(point.y) - Int(previous))))
+                previous = point.y
+            }
+            glyf.append(Data(count: (4 - glyf.count % 4) % 4))
+        }
+        loca.appendBE(UInt32(glyf.count))
+        let box = fontBox[0] <= fontBox[2] ? fontBox : [0, 0, 0, 0]
+
+        var head = Data()
+        head.appendBE(UInt32(0x0001_0000))
+        head.appendBE(UInt32(0x0001_0000))
+        head.appendBE(UInt32(0))
+        head.appendBE(UInt32(0x5F0F_3CF5))
+        head.appendBE(UInt16(0x000B))
+        head.appendBE(UInt16(unitsPerEm))
+        head.append(Data(count: 16))
+        for value in box { head.appendBE(UInt16(bitPattern: value)) }
+        head.appendBE(UInt16(0))
+        head.appendBE(UInt16(8))
+        head.appendBE(UInt16(2))
+        head.appendBE(UInt16(1))
+        head.appendBE(UInt16(0))
+
+        var hhea = Data()
+        hhea.appendBE(UInt32(0x0001_0000))
+        hhea.appendBE(UInt16(bitPattern: Int16(clamping: Int(CTFontGetAscent(font).rounded()))))
+        hhea.appendBE(UInt16(bitPattern: Int16(clamping: -Int(CTFontGetDescent(font).rounded()))))
+        hhea.appendBE(UInt16(bitPattern: Int16(clamping: Int(CTFontGetLeading(font).rounded()))))
+        hhea.appendBE(maxAdvance)
+        hhea.appendBE(UInt16(bitPattern: box[0]))
+        hhea.appendBE(UInt16(0))
+        hhea.appendBE(UInt16(bitPattern: box[2]))
+        hhea.appendBE(UInt16(1))
+        hhea.append(Data(count: 2 + 2 + 8 + 2))
+        hhea.appendBE(UInt16(order.count))
+
+        var maxp = Data()
+        maxp.appendBE(UInt32(0x0001_0000))
+        maxp.appendBE(UInt16(order.count))
+        maxp.appendBE(UInt16(clamping: maxPoints))
+        maxp.appendBE(UInt16(clamping: maxContours))
+        maxp.appendBE(UInt16(0))
+        maxp.appendBE(UInt16(0))
+        maxp.appendBE(UInt16(2))
+        maxp.append(Data(count: 16))
+
+        // Format 12 groups of consecutive characters on consecutive glyphs.
+        var groups: [(start: UInt32, end: UInt32, glyph: UInt32)] = []
+        for entry in mapped {
+            guard let id = newID[entry.glyph].map(UInt32.init) else { continue }
+            if let last = groups.last, last.end + 1 == entry.scalar, last.glyph + (last.end - last.start) + 1 == id {
+                groups[groups.count - 1].end = entry.scalar
+            } else {
+                groups.append((entry.scalar, entry.scalar, id))
+            }
+        }
+        var cmap = Data()
+        cmap.appendBE(UInt16(0))
+        cmap.appendBE(UInt16(1))
+        cmap.appendBE(UInt16(3))
+        cmap.appendBE(UInt16(10))
+        cmap.appendBE(UInt32(12))
+        cmap.appendBE(UInt16(12))
+        cmap.appendBE(UInt16(0))
+        cmap.appendBE(UInt32(16 + 12 * groups.count))
+        cmap.appendBE(UInt32(0))
+        cmap.appendBE(UInt32(groups.count))
+        for group in groups {
+            cmap.appendBE(group.start)
+            cmap.appendBE(group.end)
+            cmap.appendBE(group.glyph)
+        }
+
+        var post = Data()
+        post.appendBE(UInt32(0x0003_0000))
+        post.append(Data(count: 28))
+
+        let tables: [(tag: String, data: Data)] = [
+            ("cmap", cmap), ("glyf", glyf), ("head", head), ("hhea", hhea),
+            ("hmtx", hmtx), ("loca", loca), ("maxp", maxp), ("post", post),
+        ]
+        return (sfnt(tables), order.count)
+    }
+
+    private struct TrueTypePoint {
+        var x: Int16
+        var y: Int16
+        var onCurve: Bool
+    }
+
+    /// A glyph path as TrueType contours: lines and quadratic curves as they
+    /// are, each cubic curve as two quadratics (one per half).
+    nonisolated private static func trueTypeContours(_ path: CGPath) -> [[TrueTypePoint]] {
+        var contours: [[TrueTypePoint]] = []
+        var current: [TrueTypePoint] = []
+        var last = CGPoint.zero
+        var start = CGPoint.zero
+        func point(_ p: CGPoint, _ onCurve: Bool) -> TrueTypePoint {
+            TrueTypePoint(x: Int16(clamping: Int(p.x.rounded())), y: Int16(clamping: Int(p.y.rounded())), onCurve: onCurve)
+        }
+        func close() {
+            // A contour closes by itself: drop an end point that repeats the start.
+            if current.count > 1, let first = current.first, let end = current.last,
+               end.onCurve, end.x == first.x, end.y == first.y {
+                current.removeLast()
+            }
+            if current.count > 2 { contours.append(current) }
+            current = []
+        }
+        func mid(_ a: CGPoint, _ b: CGPoint) -> CGPoint { CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2) }
+        func control(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, _ d: CGPoint) -> CGPoint {
+            CGPoint(x: (3 * (b.x + c.x) - a.x - d.x) / 4, y: (3 * (b.y + c.y) - a.y - d.y) / 4)
+        }
+        path.applyWithBlock { element in
+            let points = element.pointee.points
+            switch element.pointee.type {
+            case .moveToPoint:
+                close()
+                current.append(point(points[0], true))
+                last = points[0]
+                start = points[0]
+            case .addLineToPoint:
+                current.append(point(points[0], true))
+                last = points[0]
+            case .addQuadCurveToPoint:
+                current.append(point(points[0], false))
+                current.append(point(points[1], true))
+                last = points[1]
+            case .addCurveToPoint:
+                let (p0, c1, c2, p3) = (last, points[0], points[1], points[2])
+                let ab = mid(p0, c1), bc = mid(c1, c2), cd = mid(c2, p3)
+                let abc = mid(ab, bc), bcd = mid(bc, cd), middle = mid(abc, bcd)
+                current.append(point(control(p0, ab, abc, middle), false))
+                current.append(point(middle, true))
+                current.append(point(control(middle, bcd, cd, p3), false))
+                current.append(point(p3, true))
+                last = p3
+            case .closeSubpath:
+                close()
+                last = start
+            @unknown default:
+                break
+            }
+        }
+        close()
+        return contours
+    }
+
+    /// Tables packed into one TrueType file.
+    nonisolated private static func sfnt(_ tables: [(tag: String, data: Data)]) -> Data {
+        let tables = tables.sorted { $0.tag < $1.tag }
         var file = Data()
-        func append32(_ value: UInt32) { withUnsafeBytes(of: value.bigEndian) { file.append(contentsOf: $0) } }
-        func append16(_ value: UInt16) { withUnsafeBytes(of: value.bigEndian) { file.append(contentsOf: $0) } }
         let count = UInt16(tables.count)
         var power = 1
         while power * 2 <= Int(count) { power *= 2 }
         let searchRange = UInt16(power * 16)
-        append32(tables.contains { $0.tag == glyf } ? 0x0001_0000 : 0x4F54_544F)
-        append16(count)
-        append16(searchRange)
-        append16(UInt16(power.trailingZeroBitCount))
-        append16(count * 16 - searchRange)
+        file.appendBE(UInt32(0x0001_0000))
+        file.appendBE(count)
+        file.appendBE(searchRange)
+        file.appendBE(UInt16(power.trailingZeroBitCount))
+        file.appendBE(count * 16 - searchRange)
         var offset = 12 + tables.count * 16
         for table in tables {
-            append32(table.tag)
-            append32(checksum(table.data))
-            append32(UInt32(offset))
-            append32(UInt32(table.data.count))
+            file.append(contentsOf: Array(table.tag.utf8))
+            file.appendBE(checksum(table.data))
+            file.appendBE(UInt32(offset))
+            file.appendBE(UInt32(table.data.count))
             offset += (table.data.count + 3) & ~3
         }
         for table in tables {
             file.append(table.data)
             file.append(Data(count: (4 - table.data.count % 4) % 4))
         }
-        let names = tables.map { table in
-            String(decoding: withUnsafeBytes(of: table.tag.bigEndian) { Array($0) }, as: UTF8.self) + ":\(table.data.count)"
-        }
-        return (file, names)
+        return file
     }
 
-    private static func checksum(_ data: Data) -> UInt32 {
+    nonisolated private static func checksum(_ data: Data) -> UInt32 {
         var sum: UInt32 = 0
         data.withUnsafeBytes { bytes in
             var index = 0
@@ -710,4 +942,9 @@ final class SiglusViewController: UIViewController {
 private func withOptionalCString<Result>(_ string: String?, _ body: (UnsafePointer<CChar>?) -> Result) -> Result {
     guard let string else { return body(nil) }
     return string.withCString { body($0) }
+}
+
+private extension Data {
+    mutating func appendBE(_ value: UInt16) { Swift.withUnsafeBytes(of: value.bigEndian) { append(contentsOf: $0) } }
+    mutating func appendBE(_ value: UInt32) { Swift.withUnsafeBytes(of: value.bigEndian) { append(contentsOf: $0) } }
 }
