@@ -446,6 +446,40 @@
         }
       }
     },
+    "%lld ratings" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rating"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld ratings"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 人评分"
+          }
+        }
+      }
+    },
     "%lld saves" : {
       "localizations" : {
         "ja" : {
@@ -4429,6 +4463,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到 SiglusEngine 数据（Scene.pck 或 Gameexe.dat）"
+          }
+        }
+      }
+    },
+    "Opens the game in %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ でこの作品を開きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 打开这部作品"
+          }
+        }
+      }
+    },
+    "Rank #%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "順位 #%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排名 #%lld"
           }
         }
       }

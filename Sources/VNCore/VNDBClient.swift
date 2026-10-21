@@ -57,9 +57,13 @@ public struct VNDBVisualNovel: Decodable, Equatable, Sendable {
     public var screenshots: [Image]
     public var developers: [Developer]
     public var tags: [Tag]
+    /// Bayesian rating from 10 to 100; nil without votes.
+    public var rating: Double?
+    public var votecount: Int?
 
     private enum CodingKeys: String, CodingKey {
         case id, title, alttitle, titles, released, description, image, screenshots, developers, tags
+        case rating, votecount
     }
 
     public init(
@@ -72,7 +76,9 @@ public struct VNDBVisualNovel: Decodable, Equatable, Sendable {
         image: Image? = nil,
         screenshots: [Image] = [],
         developers: [Developer] = [],
-        tags: [Tag] = []
+        tags: [Tag] = [],
+        rating: Double? = nil,
+        votecount: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -84,6 +90,8 @@ public struct VNDBVisualNovel: Decodable, Equatable, Sendable {
         self.screenshots = screenshots
         self.developers = developers
         self.tags = tags
+        self.rating = rating
+        self.votecount = votecount
     }
 
     public init(from decoder: Decoder) throws {
@@ -99,6 +107,14 @@ public struct VNDBVisualNovel: Decodable, Equatable, Sendable {
         screenshots = (try? container.decodeIfPresent([Image].self, forKey: .screenshots)) ?? []
         developers = (try? container.decodeIfPresent([Developer].self, forKey: .developers)) ?? []
         tags = (try? container.decodeIfPresent([Tag].self, forKey: .tags)) ?? []
+        rating = try? container.decodeIfPresent(Double.self, forKey: .rating)
+        votecount = try? container.decodeIfPresent(Int.self, forKey: .votecount)
+    }
+
+    /// The rating out of 10, with a rank looked up separately.
+    public func communityRating(rank: Int?) -> CommunityRating? {
+        guard let rating, rating > 0, let votecount, votecount > 0 else { return nil }
+        return CommunityRating(score: rating / 10, votes: votecount, rank: rank)
     }
 
     /// The title in its original script, falling back to the main title.
@@ -174,7 +190,8 @@ public struct VNDBClient: Sendable {
         "image.url", "image.sexual", "image.violence", "image.dims",
         "screenshots.url", "screenshots.sexual", "screenshots.violence", "screenshots.dims",
         "developers.name", "developers.original",
-        "tags.name", "tags.rating", "tags.spoiler"
+        "tags.name", "tags.rating", "tags.spoiler",
+        "rating", "votecount"
     ].joined(separator: ",")
 
     private let http: MetadataHTTP
@@ -197,6 +214,21 @@ public struct VNDBClient: Sendable {
 
     public func visualNovel(id: String) async throws -> VNDBVisualNovel? {
         try await fetch(filters: ["id", "=", id], sort: nil, limit: 1).first
+    }
+
+    /// The novel's place in VNDB's ranking by rating: one more than the
+    /// number of novels rated higher.
+    public func rank(ofRating rating: Double) async throws -> Int {
+        struct Count: Decodable { var count: Int }
+        let filters: [Any] = ["rating", ">", rating]
+        let body: [String: Any] = ["filters": filters, "count": true, "results": 0]
+        let request = try http.request(
+            Self.baseURL.appendingPathComponent("vn"),
+            method: "POST",
+            authorization: authorization,
+            json: body
+        )
+        return try http.decode(Count.self, from: try await http.send(request)).count + 1
     }
 
     private func fetch(filters: [Any], sort: String?, limit: Int) async throws -> [VNDBVisualNovel] {

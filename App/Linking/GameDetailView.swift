@@ -3,12 +3,13 @@ import PhotosUI
 import ImageIO
 import VNCore
 
-/// A game's page: banner and cover, play, the player's status and rating,
-/// local progress with each service's sync state, and the details fetched
+/// A game's page: banner and cover, each service's community rating, play,
+/// the player's status and rating, local progress with each service's sync state, and the details fetched
 /// from Bangumi and VNDB.
 struct GameDetailView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     let game: GameRecord
 
     @State private var photo: PhotosPickerItem?
@@ -50,6 +51,7 @@ struct GameDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 banner
                 titles
+                communityRatings
                 primaryActions
                 VStack(alignment: .leading, spacing: 24) {
                     progress
@@ -228,6 +230,92 @@ struct GameDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 20)
+    }
+
+    // MARK: Community ratings
+
+    /// One card per service that has a score, each opening the game's page
+    /// there. Hidden until either service has ratings.
+    @ViewBuilder
+    private var communityRatings: some View {
+        let cards = MetadataService.allCases.compactMap { service in
+            communityRating(service).map { (service: service, rating: $0) }
+        }
+        if !cards.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(cards, id: \.service) { card in
+                    ratingCard(card.service, card.rating)
+                }
+                if cards.count == 1 {
+                    // A lone card keeps its width rather than stretching.
+                    Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 18)
+        }
+    }
+
+    private func communityRating(_ service: MetadataService) -> CommunityRating? {
+        switch service {
+        case .bangumi: return current.link?.bangumiID == nil ? nil : metadata?.bangumiRating
+        case .vndb: return current.link?.vndbID == nil ? nil : metadata?.vndbRating
+        }
+    }
+
+    private func serviceURL(_ service: MetadataService) -> URL? {
+        switch service {
+        case .bangumi: return current.link?.bangumiURL
+        case .vndb: return current.link?.vndbURL
+        }
+    }
+
+    private func ratingCard(_ service: MetadataService, _ rating: CommunityRating) -> some View {
+        Button {
+            if let url = serviceURL(service) { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Text(verbatim: service.displayName)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    if let rank = rating.rank {
+                        Text("Rank #\(rank)")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                }
+                .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(rating.score, format: .number.precision(.fractionLength(1)))
+                        .font(.system(size: 30, weight: .bold))
+                        .monospacedDigit()
+                    Spacer(minLength: 0)
+                    Text("\(rating.votes) ratings")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .foregroundStyle(.primary)
+            .padding(.vertical, 12)
+            .padding(.leading, 16)
+            .padding(.trailing, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 1.5, y: 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(serviceURL(service) == nil)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(Text("Opens the game in \(service.displayName)"))
     }
 
     // MARK: Play, status and rating
