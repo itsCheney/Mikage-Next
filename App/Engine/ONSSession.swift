@@ -177,7 +177,8 @@ final class NativeONSSession: NSObject, KRKRSession {
                     return state
                 },
                 setControlSkip: { MikageONSSetControlSkip($0) },
-                sendPointer: { MikageONSSendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+                sendPointer: { MikageONSSendPointer($0.rawValue, Float($1.x), Float($1.y)) },
+                describe: { "wait=" + String(MikageONSWaitState(), radix: 16) }
             ),
             storyWaitsOnText: true,
             onExit: { [weak self] in

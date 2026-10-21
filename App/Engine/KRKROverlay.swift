@@ -261,6 +261,10 @@ final class KRKROverlayCoordinator: NSObject, UIGestureRecognizerDelegate {
         controller.view.isUserInteractionEnabled = true
         containerView?.bringSubviewToFront(controller.view)
         refreshControls()
+        AppDiagnostics.shared.event("overlay", "menu.controls", [
+            "controls": String(model.controls.rawValue, radix: 16),
+            "engine": controls.describe()
+        ])
         model.menuVisible = true
         refreshTimer?.invalidate()
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in

@@ -821,6 +821,11 @@ final class PerformanceHUDContainer: UIView {
         backgroundColor = .clear
         hosting.view.backgroundColor = .clear
         hosting.view.isOpaque = false
+        // The panel is placed by frame, flush with the screen edge when it
+        // docks; SwiftUI would otherwise pull it back inside the safe area.
+        if #available(iOS 16.4, *) {
+            hosting.safeAreaRegions = []
+        }
         addSubview(hosting.view)
         pan = UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
         hosting.view.addGestureRecognizer(pan)

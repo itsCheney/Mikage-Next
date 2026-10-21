@@ -65,6 +65,8 @@ struct GameControls {
     var setControlSkip: (Bool) -> Bool = { _ in false }
     /// A mouse at a point in the engine window, in points.
     var sendPointer: (PointerPhase, CGPoint) -> Bool = { _, _ in false }
+    /// What the engine is waiting on, for the diagnostics log.
+    var describe: () -> String = { "" }
 }
 
 /// A floating button that runs one action with a tap.
