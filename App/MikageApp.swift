@@ -314,8 +314,8 @@ final class AppModel: ObservableObject {
     }
 
     /// Rescans the game folders. Folders the library didn't have are
-    /// offered in the new-games toast unless `announceNewGames` is false.
-    func refreshLibrary(showErrors: Bool = true, announceNewGames: Bool = true) async {
+    /// offered in the new-games toast unless `offerNewGames` is false.
+    func refreshLibrary(showErrors: Bool = true, offerNewGames: Bool = true) async {
         guard !scanning else { return }
         // A pull-to-refresh is the retry path out of a failed launch load.
         guard retryLoadIfNeeded() else {
@@ -346,7 +346,7 @@ final class AppModel: ObservableObject {
                 return (try repository.scan(), Set(copied.map { ($0 as NSString).lastPathComponent }))
             }.value
             apply(snapshot)
-            if announceNewGames {
+            if offerNewGames {
                 announceNewGames(snapshot.active.filter { !known.contains($0.id) && !builtIn.contains($0.folderName) })
             }
             AppDiagnostics.shared.event("library", "scan.end", ["active": String(snapshot.active.count), "missing": String(snapshot.missing.count)])
@@ -378,7 +378,7 @@ final class AppModel: ObservableObject {
                 try await Task.detached(priority: .userInitiated) {
                     try repository.importFolder(url, engine: engine)
                 }.value
-                await refreshLibrary(announceNewGames: false)
+                await refreshLibrary(offerNewGames: false)
                 requestMatch(forImported: url, engine: engine)
             } else {
                 AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
@@ -405,7 +405,7 @@ final class AppModel: ObservableObject {
             try await Task.detached(priority: .userInitiated) {
                 try repository.importFolder(url, engine: engine)
             }.value
-            await refreshLibrary(announceNewGames: false)
+            await refreshLibrary(offerNewGames: false)
             requestMatch(forImported: url, engine: engine)
         } catch {
             alert = error.localizedDescription
