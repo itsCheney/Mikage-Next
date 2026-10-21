@@ -1,6 +1,7 @@
 // Production runner/geometry coverage. Fixtures only construct decoded PSB
 // resources and observe GPU command encoding; no runner code is extracted.
 #include "emoterunner.h"
+#include "emotephysics.h"
 #include <set>
 #include <chrono>
 #include <iostream>
@@ -15,6 +16,11 @@ void check(bool value, const char* message) {
 }
 bool near(float a, float b) { return std::abs(a - b) < 1e-5f; }
 }
+
+// emotefile's TJS string tables stay empty here; the VM is not linked, so
+// their element destructors only need to exist.
+TJS::tTJSVariant::~tTJSVariant() {}
+void TJS::tTJSVariantString::Release() {}
 
 // Resource decoding and texture upload are outside this CPU suite. The fixture
 // initializes the real production resource types without invoking PSB parsing.
@@ -230,6 +236,60 @@ void testMaskPrepass() {
     std::tie(switches, maskedDraws, distinct) = run(3, false);
     check(switches == 6 && maskedDraws == 3 && distinct == 3, "draw without a prepass still uses separate masks");
     f.engine.releaseMaskTargets(); krkrsdl3::backend = nullptr;
+}
+
+// Nodes share one parent chain: each must hand it back unchanged.
+void testSharedChain() {
+    Fixture f; RecordingBackend renderer; krkrsdl3::backend = &renderer;
+    emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
+    icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
+    source.icon["icon"] = &icon; f.file._source["source"] = &source;
+    auto* deep = f.node("deep", "layout"); deep->frameList.front()->coordZ = .5;
+    auto* child = f.node("child", "icon", deep);
+    auto* masked = f.node("masked", "layout"); masked->type = 12;
+    masked->stencilCompositeMaskLayerList = {"stencil"};
+    auto* maskedChild = f.node("maskedChild", "icon", masked);
+    auto* stencil = f.node("stencil", "icon");
+    auto* sibling = f.node("sibling", "icon");
+    const auto root = f.root.front().attachMat;
+    for (int i = 0; i < 2; ++i) {
+        f.step(float(i));
+        check(f.root.size() == 1 && f.root.front().attachMat == root && !f.root.front().hasStencil &&
+              f.root.front().layerNode.empty(), "caller's chain is handed back unchanged");
+        check(f.ref(child)->renderMethod.size() == 3 && !near(f.ref(child)->getCurrentRenderZ(), 0),
+              "child inherits its parent's depth");
+        check(near(f.ref(sibling)->getCurrentRenderZ(), 0) && f.ref(sibling)->renderMethod.size() == 2,
+              "sibling does not inherit another branch's depth");
+        const auto& maskedMethod = f.ref(maskedChild)->renderMethod.front();
+        check(maskedMethod.hasStencil && maskedMethod.layerNode.size() == 1 &&
+              maskedMethod.layerNode.front() == f.ref(stencil), "type 12 mask reaches its children");
+        check(!f.ref(sibling)->needsMask() && !f.ref(stencil)->needsMask(), "mask stays in its branch");
+        check(f.ref(deep)->renderMethod.empty(), "layouts keep no chain copy");
+    }
+    krkrsdl3::backend = nullptr;
+}
+
+// Physics samples reuse one tree and evaluate only branches with an anchor.
+void testPhysicsSample() {
+    Fixture f;
+    auto* body = f.node("body", "layout");
+    auto* anchor = f.node("anchor", "layout", body);
+    auto* other = f.node("other", "layout");
+    auto* otherChild = f.node("otherChild", "layout", other);
+    bustControl rule; rule.baseLayer = "anchor";
+    f.engine.physics.reset({&rule}, {}, {});
+    f.engine.samplePhysics(0, f.root.front(), f.limit);
+    auto* sample = f.engine.physicsSample();
+    check(sample && sample->getNodeRef(anchor)->frame && sample->getNodeRef(body)->frame,
+          "anchor and its parent are sampled");
+    check(!sample->getNodeRef(other)->frame && !sample->getNodeRef(otherChild)->frame,
+          "branches without an anchor are skipped");
+    f.engine.samplePhysics(1, f.root.front(), f.limit);
+    check(f.engine.physicsSample() == sample, "sample tree is reused");
+    bustControl moved; moved.baseLayer = "otherChild";
+    f.engine.physics.reset({&moved}, {}, {});
+    f.engine.samplePhysics(2, f.root.front(), f.limit);
+    check(sample->getNodeRef(otherChild)->frame, "a new anchor set is honoured");
 }
 
 void testStaticAndDependencies() {
@@ -468,15 +528,42 @@ double benchmark(int animatedEvery, int players) {
         for (auto& instance : instances) instance->step(float(frame % 60));
     return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
+// Chains of nested Bezier layouts ending in a GPU-deformed icon, like E-mote
+// characters, with every node animated. Returns microseconds per node update.
+double deepBenchmark(int depth) {
+    RecordingBackend renderer; renderer.gpu = true; krkrsdl3::backend = &renderer;
+    Fixture f;
+    emotesource source{&f.file, 0}; emoteicon icon{&f.file, 0};
+    icon.width = icon.height = 32; icon.originX = icon.originY = 16; icon.selftexture = &icon;
+    source.icon["icon"] = &icon; f.file._source["source"] = &source;
+    int count = 0;
+    for (int chain = 0; chain < 300 / depth; ++chain) {
+        emotenode* parent = nullptr;
+        for (int d = 0; d < depth; ++d, ++count) {
+            parent = f.node("character_part_" + std::to_string(chain) + "_" + std::to_string(d),
+                            d + 1 == depth ? "icon" : "layout", parent);
+            parent->frameList.front()->hasbp = d + 1 < depth;
+            f.next(parent, 60, 10);
+        }
+    }
+    f.step(0);
+    const auto start = std::chrono::steady_clock::now();
+    for (int frame = 0; frame < 600; ++frame) f.step(float(frame % 60));
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    krkrsdl3::backend = nullptr;
+    return ms * 1000.0 / 600 / count;
+}
 void runBenchmarks() {
     for (int players : {1, 2}) for (int animatedEvery : {0, 4, 1})
         std::cout << "BENCH players=" << players << " animated=" << (animatedEvery ? 100 / animatedEvery : 0)
             << "% progress_ms=" << benchmark(animatedEvery, players) << '\n';
+    for (int depth : {1, 8, 16})
+        std::cout << "BENCH deep depth=" << depth << " us_per_node=" << deepBenchmark(depth) << '\n';
 }
 }
 int main(int argc, char**) {
     try {
-        testLazyShapeGeometry(); testMaskPrepass();
+        testLazyShapeGeometry(); testMaskPrepass(); testSharedChain(); testPhysicsSample();
         testStaticAndDependencies(); testParentAndSubmotion(); testVariablesAndIsolation();
         testSharedSentinelsAndLoop(); testIconAndGPU(); testDeepGPUChain(); testDrawOrder(); testEarlySeek(); testSourceResolution(); testCoverage();
         std::cout << "Production node/geometry: " << checks << " checks passed\n";
