@@ -44,6 +44,7 @@ final class NativeArtemisSession: NSObject, KRKRSession {
     private var requestedForeground = true
     private var elapsedSeconds = 0
     private var performanceEnabled = false
+    private var gameSize: CGSize?
     private let threadCPU = ThreadCPUSampler()
 
     override init() {
@@ -143,6 +144,7 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         }
 
         performanceEnabled = configuration.performance
+        gameSize = nil
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
@@ -389,9 +391,26 @@ final class NativeArtemisSession: NSObject, KRKRSession {
                 elapsedSeconds: elapsedSeconds,
                 showsLayerCompositing: false,
                 drawCallsPerFrame: raw.drawCallsPerFrame,
-                gpuMemoryBytes: metalAllocatedBytes()
+                gpuMemoryBytes: metalAllocatedBytes(),
+                gameSize: capturedGameSize() ?? .zero
             )
         )
+    }
+
+    /// The game's resolution, from one captured frame, so the simple HUD
+    /// can dock in the bars around it. Captured once per session.
+    private func capturedGameSize() -> CGSize? {
+        if let gameSize { return gameSize }
+        var frame = MikageArtemisCapturedFrame()
+        guard MikageArtemisCaptureFrame(&frame) else { return nil }
+        defer { MikageArtemisFreeCapturedFrame(&frame) }
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        let size = letterboxedGameSize(
+            CGSize(width: Int(frame.width), height: Int(frame.height)),
+            stretchedToScreen: false
+        )
+        gameSize = size
+        return size
     }
 }
 

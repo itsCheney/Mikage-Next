@@ -31,6 +31,9 @@ struct KRKRPerformanceSnapshot {
     /// Negative when the engine doesn't report it.
     var drawCallsPerFrame = -1.0
     var gpuMemoryBytes: UInt64 = 0
+    /// The game as shown before scaling to the screen, stretch included;
+    /// zero when unknown. The simple HUD docks in the bars around it.
+    var gameSize = CGSize.zero
 }
 
 /// An engine's own tile in the game menu, such as ONScripter's backlog.
@@ -51,6 +54,7 @@ final class KRKROverlayModel: ObservableObject {
     /// Engine tiles work only at some points of the game.
     @Published var engineActionsAvailable = true
     @Published var hudPlacement: PerformanceHUDPlacement
+    @Published var hudDock = PerformanceHUDDock.floating
     /// The full HUD's width, narrowed on small screens.
     @Published var hudWidth: CGFloat = 400
     /// Frame interval of each metrics tick, oldest first; nil for idle ticks.
@@ -66,6 +70,7 @@ final class KRKROverlayModel: ObservableObject {
     var onScreenshot: (() -> UIImage?)?
     var onTogglePerformance: (() -> Void)?
     var onTuckHUD: ((Bool) -> Void)?
+    var onFoldHUD: (() -> Void)?
 
     init(
         gameTitle: String,
@@ -128,6 +133,7 @@ final class KRKROverlayCoordinator: NSObject {
         hud.isHidden = !model.performanceVisible
         hudContainer = hud
         model.onTuckHUD = { [weak hud] tucked in hud?.setTucked(tucked) }
+        model.onFoldHUD = { [weak hud] in hud?.toggleFolded() }
 
         let overlay = KRKROverlayView(model: model)
         let controller = UIHostingController(rootView: overlay)

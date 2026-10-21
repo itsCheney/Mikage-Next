@@ -385,6 +385,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         snapshot.residentMemoryBytes = resident
         snapshot.showsLayerCompositing = false
         snapshot.gpuMemoryBytes = metalAllocatedBytes()
+        snapshot.gameSize = controller?.gameSize ?? .zero
         overlayCoordinator?.update(snapshot)
     }
 
@@ -815,6 +816,8 @@ final class SiglusViewController: UIViewController {
     private(set) var lastDrawablePixels: (UInt32, UInt32) = (0, 0)
     private var handle: UnsafeMutableRawPointer?
     private var logicalSize = CGSize(width: 1280, height: 720)
+    /// The game's own resolution, letterboxed into the view.
+    var gameSize: CGSize { logicalSize }
     private var viewportPoints = CGRect(x: 0, y: 0, width: 1, height: 1)
     private var activeTouch: UITouch?
 

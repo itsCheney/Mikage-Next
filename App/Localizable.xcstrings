@@ -4675,6 +4675,38 @@
         }
       }
     },
+    "Shows all stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての項目を表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示全部数据"
+          }
+        }
+      }
+    },
+    "Shows only the frame rate" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレームレートだけを表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只显示帧率"
+          }
+        }
+      }
+    },
     "SiglusEngine failed to start." : {
       "localizations" : {
         "ja" : {

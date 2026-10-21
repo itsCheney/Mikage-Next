@@ -8,6 +8,8 @@ struct PerformanceHUDPlacement: Equatable {
     var leading = true
     var top = true
     var tucked = false
+    /// The simple HUD folds to the frame rate alone; a tap toggles it.
+    var folded = false
 
     private static func key(_ detail: PerformanceDetail) -> String {
         "performanceHUD.placement.\(detail.rawValue)"
@@ -21,16 +23,38 @@ struct PerformanceHUDPlacement: Equatable {
         return PerformanceHUDPlacement(
             leading: stored["leading"] ?? true,
             top: stored["top"] ?? true,
-            tucked: stored["tucked"] ?? false
+            tucked: stored["tucked"] ?? false,
+            folded: stored["folded"] ?? false
         )
     }
 
     func save(for detail: PerformanceDetail) {
         UserDefaults.standard.set(
-            ["leading": leading, "top": top, "tucked": tucked],
+            ["leading": leading, "top": top, "tucked": tucked, "folded": folded],
             forKey: Self.key(detail)
         )
     }
+}
+
+/// Where the simple HUD sits. A letterboxed game leaves black bars, and
+/// the HUD docks in them so it never covers the game: a narrow column in
+/// side bars (a 16:9 game on an iPhone), a card in wide ones (4:3), or a
+/// tile in the bar above (an iPad). Without room it floats over the game.
+enum PerformanceHUDDock: Equatable {
+    case floating
+    case column
+    case card
+    case bar
+
+    static let columnWidth: CGFloat = 60
+    static let cardWidth: CGFloat = 132
+}
+
+/// The game's size on screen before scaling: KiriKiri and ONScripter widen
+/// a landscape game narrower than 16:9 to 16:9 when the player asks.
+func letterboxedGameSize(_ size: CGSize, stretchedToScreen: Bool) -> CGSize {
+    guard stretchedToScreen, size.width >= size.height, size.width * 9 < size.height * 16 else { return size }
+    return CGSize(width: size.height * 16 / 9, height: size.height)
 }
 
 extension KRKRPerformanceSnapshot {
@@ -63,6 +87,14 @@ private enum HUDPalette {
 private enum HUDFormat {
     static func bytes(_ count: UInt64) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .memory)
+    }
+
+    /// Short enough for the docked column: "261 MB", "1.2 GB".
+    static func compactBytes(_ count: UInt64) -> String {
+        let megabytes = Double(count) / 1_048_576
+        return megabytes < 1000
+            ? String(format: "%.0f MB", megabytes)
+            : String(format: "%.1f GB", megabytes / 1024)
     }
 
     static func milliseconds(_ value: Double) -> String {
@@ -116,7 +148,7 @@ struct PerformanceHUDView: View {
 
     var body: some View {
         Group {
-            if model.hudPlacement.tucked {
+            if model.hudPlacement.tucked && model.hudDock == .floating {
                 HUDTab(
                     stats: model.performance,
                     detail: model.performanceDetail,
@@ -127,7 +159,14 @@ struct PerformanceHUDView: View {
             } else {
                 switch model.performanceDetail {
                 case .simple:
-                    SimplePerformanceHUD(stats: model.performance, history: model.frameHistory)
+                    SimplePerformanceHUD(
+                        stats: model.performance,
+                        history: model.frameHistory,
+                        dock: model.hudDock,
+                        folded: model.hudPlacement.folded
+                    ) {
+                        model.onFoldHUD?()
+                    }
                 case .full:
                     FullPerformanceHUD(
                         stats: model.performance,
@@ -148,61 +187,183 @@ struct PerformanceHUDView: View {
 
 // MARK: Simple
 
-/// Two rows: the frame rate with its trend and draw calls, then CPU,
-/// memory and GPU memory.
+/// The frame rate with its trend, draw calls, CPU, memory and GPU memory,
+/// laid out for where it sits. A tap folds it to the frame rate alone.
 private struct SimplePerformanceHUD: View {
     let stats: KRKRPerformanceSnapshot
     let history: [Double?]
+    let dock: PerformanceHUDDock
+    let folded: Bool
+    let toggleFolded: () -> Void
+
+    private var color: Color { HUDPalette.rate(stats) }
+    private var fps: String { stats.isIdle ? "—" : String(format: "%.0f", stats.framesPerSecond) }
 
     var body: some View {
-        let color = HUDPalette.rate(stats)
+        Button(action: toggleFolded) {
+            Group {
+                if folded {
+                    foldedTile
+                } else {
+                    switch dock {
+                    case .column: column
+                    case .card: card
+                    case .floating, .bar: tile
+                    }
+                }
+            }
+            .foregroundStyle(.white)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Performance"))
+        .accessibilityHint(folded ? Text("Shows all stats") : Text("Shows only the frame rate"))
+        .accessibilityIdentifier("krkr-performance-hud")
+    }
+
+    // MARK: Layouts
+
+    private var foldedTile: some View {
+        HStack(spacing: 6) {
+            dot(8)
+            Text(verbatim: fps)
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .fixedSize()
+        .modifier(HUDGlass(shape: Capsule()))
+    }
+
+    /// Two rows, for floating over the game or the bar above it.
+    private var tile: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 8, height: 8)
+                dot(8)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(verbatim: stats.isIdle ? "—" : String(format: "%.0f", stats.framesPerSecond))
+                    Text(verbatim: fps)
                         .font(.system(size: 17, weight: .bold, design: .monospaced))
-                    Group {
-                        if stats.isIdle {
-                            Text("Idle")
-                        } else {
-                            Text(verbatim: "FPS")
-                        }
-                    }
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    unit(size: 11)
                 }
                 if !stats.isIdle {
-                    Sparkline(values: history.suffix(20).map { $0 ?? 0 }, color: color)
+                    Sparkline(values: trend(20), color: color)
                         .frame(width: 44, height: 18)
                 }
                 if stats.drawCallsPerFrame >= 0 {
                     Spacer(minLength: 6)
-                    metric(Text(verbatim: "DC"), String(format: "%.0f", stats.drawCallsPerFrame))
+                    inlineMetric(Text(verbatim: "DC"), drawCalls)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 12) {
                 if stats.processCPUPercent >= 0 {
-                    metric(Text(verbatim: "CPU"), String(format: "%.0f%%", stats.processCPUPercent))
+                    inlineMetric(Text(verbatim: "CPU"), cpu)
                 }
-                metric(Text("RAM"), HUDFormat.bytes(stats.residentMemoryBytes))
-                metric(Text(verbatim: "GPU"), HUDFormat.bytes(stats.gpuMemoryBytes))
+                inlineMetric(Text("RAM"), HUDFormat.compactBytes(stats.residentMemoryBytes))
+                inlineMetric(Text(verbatim: "GPU"), HUDFormat.compactBytes(stats.gpuMemoryBytes))
             }
             .padding(.leading, 18)
         }
         .padding(EdgeInsets(top: 8, leading: 12, bottom: 9, trailing: 14))
         .fixedSize()
-        .foregroundStyle(.white)
         .modifier(HUDGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Performance"))
-        .accessibilityIdentifier("krkr-performance-hud")
     }
 
-    private func metric(_ key: Text, _ value: String) -> some View {
+    /// 60 points wide, for the bars beside a 16:9 game on an iPhone.
+    private var column: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 5) {
+                dot(7)
+                Text(verbatim: fps)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            unit(size: 9.5)
+                .padding(.top, -4)
+            if !stats.isIdle {
+                Sparkline(values: trend(20), color: color)
+                    .frame(width: 44, height: 16)
+            }
+            Rectangle()
+                .fill(.white.opacity(0.18))
+                .frame(width: 32, height: 1)
+            if stats.drawCallsPerFrame >= 0 {
+                stackedMetric(Text(verbatim: "DC"), drawCalls, size: 12)
+            }
+            if stats.processCPUPercent >= 0 {
+                stackedMetric(Text(verbatim: "CPU"), cpu, size: 12)
+            }
+            stackedMetric(Text("RAM"), HUDFormat.compactBytes(stats.residentMemoryBytes), size: 12)
+            stackedMetric(Text(verbatim: "GPU"), HUDFormat.compactBytes(stats.gpuMemoryBytes), size: 12)
+        }
+        .padding(EdgeInsets(top: 10, leading: 6, bottom: 12, trailing: 6))
+        .frame(width: PerformanceHUDDock.columnWidth)
+        .modifier(HUDGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
+    }
+
+    /// 132 points wide, for the bars beside a 4:3 game.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                dot(8)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(verbatim: fps)
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                    unit(size: 11)
+                }
+            }
+            if !stats.isIdle {
+                Sparkline(values: trend(30), color: color)
+                    .frame(height: 22)
+            }
+            Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 8) {
+                GridRow {
+                    stackedMetric(Text(verbatim: "DC"), stats.drawCallsPerFrame >= 0 ? drawCalls : "—", size: 13)
+                    stackedMetric(Text(verbatim: "CPU"), stats.processCPUPercent >= 0 ? cpu : "—", size: 13)
+                }
+                GridRow {
+                    stackedMetric(Text("RAM"), HUDFormat.compactBytes(stats.residentMemoryBytes), size: 13)
+                    stackedMetric(Text(verbatim: "GPU"), HUDFormat.compactBytes(stats.gpuMemoryBytes), size: 13)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: PerformanceHUDDock.cardWidth, alignment: .leading)
+        .modifier(HUDGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous)))
+    }
+
+    // MARK: Parts
+
+    private var drawCalls: String { String(format: "%.0f", stats.drawCallsPerFrame) }
+    private var cpu: String { String(format: "%.0f%%", stats.processCPUPercent) }
+
+    private func trend(_ count: Int) -> [Double] {
+        history.suffix(count).map { $0 ?? 0 }
+    }
+
+    private func dot(_ size: CGFloat) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+    }
+
+    @ViewBuilder
+    private func unit(size: CGFloat) -> some View {
+        Group {
+            if stats.isIdle {
+                Text("Idle")
+            } else {
+                Text(verbatim: "FPS")
+            }
+        }
+        .font(.system(size: size, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.72))
+    }
+
+    private func inlineMetric(_ key: Text, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             key
                 .font(.system(size: 11))
@@ -211,6 +372,18 @@ private struct SimplePerformanceHUD: View {
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
         }
         .lineLimit(1)
+    }
+
+    private func stackedMetric(_ key: Text, _ value: String, size: CGFloat) -> some View {
+        VStack(alignment: dock == .column ? .center : .leading, spacing: 1) {
+            key
+                .font(.system(size: size - 2.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+            Text(verbatim: value)
+                .font(.system(size: size, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
     }
 }
 
@@ -609,14 +782,16 @@ private struct HUDTab: View {
 // MARK: Hosting
 
 /// Full-screen layer that holds only the HUD: touches anywhere else reach
-/// the game. Drag the HUD and it settles in the nearest corner; drag it past
-/// the left or right edge and it tucks away.
+/// the game. The simple HUD docks in a letterboxed game's bars when they
+/// have room. Otherwise drag the HUD and it settles in the nearest corner;
+/// drag it past the left or right edge and it tucks away.
 @MainActor
 final class PerformanceHUDContainer: UIView {
     private static let margin: CGFloat = 12
 
     private let model: KRKROverlayModel
     private let hosting: UIHostingController<PerformanceHUDView>
+    private var pan: UIPanGestureRecognizer!
     private var dragStart: CGPoint?
 
     init(model: KRKROverlayModel) {
@@ -627,9 +802,8 @@ final class PerformanceHUDContainer: UIView {
         hosting.view.backgroundColor = .clear
         hosting.view.isOpaque = false
         addSubview(hosting.view)
-        hosting.view.addGestureRecognizer(
-            UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
-        )
+        pan = UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
+        hosting.view.addGestureRecognizer(pan)
     }
 
     @available(*, unavailable)
@@ -663,6 +837,15 @@ final class PerformanceHUDContainer: UIView {
         if model.hudWidth != width {
             model.hudWidth = width
         }
+        let dock = self.dock(in: safe).dock
+        if model.hudDock != dock {
+            model.hudDock = dock
+            AppDiagnostics.shared.event("overlay", "performanceHUD.docked", ["dock": String(describing: dock)])
+            // Measure again once SwiftUI has the new layout.
+            DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() }
+        }
+        // A docked HUD stays in its bar; only a floating one moves.
+        pan.isEnabled = dock == .floating
         guard dragStart == nil else { return }
         hosting.view.frame = restingFrame(model.hudPlacement)
     }
@@ -673,8 +856,52 @@ final class PerformanceHUDContainer: UIView {
         settle(at: placement)
     }
 
+    func toggleFolded() {
+        var placement = model.hudPlacement
+        placement.folded.toggle()
+        settle(at: placement)
+    }
+
+    /// The game's rectangle when it is letterboxed, and the dock that fits
+    /// the widest bar beside or above it.
+    private func dock(in safe: CGRect) -> (dock: PerformanceHUDDock, game: CGRect) {
+        let size = model.performance.gameSize
+        guard model.performanceDetail == .simple, size.width > 0, size.height > 0, !bounds.isEmpty else {
+            return (.floating, .zero)
+        }
+        let fit = min(bounds.width / size.width, bounds.height / size.height)
+        let shown = CGSize(width: size.width * fit, height: size.height * fit)
+        let game = CGRect(
+            x: (bounds.width - shown.width) / 2, y: (bounds.height - shown.height) / 2,
+            width: shown.width, height: shown.height
+        )
+        let side = max(game.minX - safe.minX, safe.maxX - game.maxX)
+        if side >= PerformanceHUDDock.cardWidth + 12 { return (.card, game) }
+        if side >= PerformanceHUDDock.columnWidth + 8 { return (.column, game) }
+        if game.minY - safe.minY >= 64 { return (.bar, game) }
+        return (.floating, game)
+    }
+
     private func restingFrame(_ placement: PerformanceHUDPlacement) -> CGRect {
         let safe = bounds.inset(by: safeAreaInsets)
+        let (dock, game) = dock(in: safe)
+        if dock != .floating {
+            let size = hosting.sizeThatFits(in: safe.size)
+            let x: CGFloat
+            let y: CGFloat
+            if dock == .bar {
+                x = placement.leading ? safe.minX + 24 : safe.maxX - 24 - size.width
+                y = safe.minY + (game.minY - safe.minY - size.height) / 2
+            } else {
+                // Centered in the wider bar, near the top.
+                let leftRoom = game.minX - safe.minX
+                let rightRoom = safe.maxX - game.maxX
+                let middle = rightRoom >= leftRoom ? (game.maxX + safe.maxX) / 2 : (safe.minX + game.minX) / 2
+                x = middle - size.width / 2
+                y = safe.minY + 14
+            }
+            return CGRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
+        }
         let size = placement.tucked
             ? PerformanceHUDView.tabSize(model.performanceDetail)
             : hosting.sizeThatFits(in: CGSize(width: model.hudWidth, height: safe.height))
@@ -734,11 +961,12 @@ final class PerformanceHUDContainer: UIView {
     }
 
     private func settle(at placement: PerformanceHUDPlacement) {
-        let tuckChanged = placement.tucked != model.hudPlacement.tucked
+        let sizeChanged = placement.tucked != model.hudPlacement.tucked || placement.folded != model.hudPlacement.folded
         model.hudPlacement = placement
         placement.save(for: model.performanceDetail)
         AppDiagnostics.shared.event("overlay", "performanceHUD.placed", [
-            "leading": String(placement.leading), "top": String(placement.top), "tucked": String(placement.tucked)
+            "leading": String(placement.leading), "top": String(placement.top),
+            "tucked": String(placement.tucked), "folded": String(placement.folded)
         ])
         UIView.animate(
             withDuration: 0.4,
@@ -749,7 +977,7 @@ final class PerformanceHUDContainer: UIView {
         ) {
             self.hosting.view.frame = self.restingFrame(placement)
         }
-        if tuckChanged {
+        if sizeChanged {
             // The panel's size settles once SwiftUI has swapped in the new content.
             DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() }
         }

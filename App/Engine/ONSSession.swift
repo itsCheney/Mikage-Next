@@ -44,6 +44,8 @@ final class NativeONSSession: NSObject, KRKRSession {
     private var requestedForeground = true
     private var elapsedSeconds = 0
     private var performanceEnabled = false
+    private var stretchesToScreen = false
+    private var gameSize: CGSize?
     private let threadCPU = ThreadCPUSampler()
 
     override init() {
@@ -145,6 +147,8 @@ final class NativeONSSession: NSObject, KRKRSession {
         }
 
         performanceEnabled = configuration.performance
+        stretchesToScreen = configuration.stretchToScreen
+        gameSize = nil
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
@@ -437,9 +441,26 @@ final class NativeONSSession: NSObject, KRKRSession {
                 elapsedSeconds: elapsedSeconds,
                 showsLayerCompositing: false,
                 drawCallsPerFrame: raw.drawCallsPerFrame,
-                gpuMemoryBytes: metalAllocatedBytes()
+                gpuMemoryBytes: metalAllocatedBytes(),
+                gameSize: capturedGameSize() ?? .zero
             )
         )
+    }
+
+    /// The game's resolution, from one captured frame, so the simple HUD
+    /// can dock in the bars around it. Captured once per session.
+    private func capturedGameSize() -> CGSize? {
+        if let gameSize { return gameSize }
+        var frame = MikageONSCapturedFrame()
+        guard MikageONSCaptureFrame(&frame) else { return nil }
+        defer { MikageONSFreeCapturedFrame(&frame) }
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        let size = letterboxedGameSize(
+            CGSize(width: Int(frame.width), height: Int(frame.height)),
+            stretchedToScreen: stretchesToScreen
+        )
+        gameSize = size
+        return size
     }
 }
 

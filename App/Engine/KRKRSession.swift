@@ -94,6 +94,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     private var elapsedSeconds = 0
     private var rendererLabel = RendererPreference.storageDefault.displayName
     private var performanceEnabled = false
+    private var stretchesToScreen = false
     private var displayTicks = 0
     private var previousCommandTicks = 0
     private var previousCommandCounters: [String: UInt64] = [:]
@@ -216,6 +217,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
         rendererLabel = configuration.renderer.displayName
         performanceEnabled = configuration.performance
+        stretchesToScreen = configuration.stretchToScreen
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
@@ -799,7 +801,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 busiestThreads: Array(cpuSample?.groups.prefix(2) ?? []),
                 elapsedSeconds: elapsedSeconds,
                 drawCallsPerFrame: raw.drawCallsPerFrame,
-                gpuMemoryBytes: metalAllocatedBytes()
+                gpuMemoryBytes: metalAllocatedBytes(),
+                gameSize: letterboxedGameSize(
+                    CGSize(width: Int(raw.gameWidth), height: Int(raw.gameHeight)),
+                    stretchedToScreen: stretchesToScreen
+                )
             )
         )
     }
