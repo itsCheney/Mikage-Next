@@ -794,6 +794,25 @@ final class PerformanceHUDContainer: UIView {
     private let hosting: UIHostingController<PerformanceHUDView>
     private var pan: UIPanGestureRecognizer!
     private var dragStart: CGPoint?
+    /// Called when the HUD comes to rest somewhere new, so the floating
+    /// buttons can make room.
+    var onMove: (() -> Void)?
+
+    /// Where the HUD rests, for the floating buttons to keep clear of.
+    var occupiedFrame: CGRect? {
+        isHidden || superview == nil ? nil : hosting.view.frame
+    }
+
+    /// A letterboxed game's rectangle in `bounds`, or nil when its size is unknown.
+    static func gameRect(for size: CGSize, in bounds: CGRect) -> CGRect? {
+        guard size.width > 0, size.height > 0, !bounds.isEmpty else { return nil }
+        let fit = min(bounds.width / size.width, bounds.height / size.height)
+        let shown = CGSize(width: size.width * fit, height: size.height * fit)
+        return CGRect(
+            x: bounds.minX + (bounds.width - shown.width) / 2, y: bounds.minY + (bounds.height - shown.height) / 2,
+            width: shown.width, height: shown.height
+        )
+    }
 
     init(model: KRKROverlayModel) {
         self.model = model
@@ -848,7 +867,18 @@ final class PerformanceHUDContainer: UIView {
         // A docked HUD stays in its bar; only a floating one moves.
         pan.isEnabled = dock == .floating
         guard dragStart == nil else { return }
-        hosting.view.frame = restingFrame(model.hudPlacement)
+        let resting = restingFrame(model.hudPlacement)
+        if hosting.view.frame != resting {
+            hosting.view.frame = resting
+            onMove?()
+        }
+    }
+
+    /// Shows the other level of detail, where that level was last left.
+    func reloadPlacement() {
+        model.hudPlacement = PerformanceHUDPlacement.saved(for: model.performanceDetail)
+        setNeedsLayout()
+        DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() }
     }
 
     func setTucked(_ tucked: Bool) {
@@ -866,16 +896,10 @@ final class PerformanceHUDContainer: UIView {
     /// The game's rectangle when it is letterboxed, and the dock that fits
     /// the widest bar beside or above it.
     private func dock(in safe: CGRect) -> (dock: PerformanceHUDDock, game: CGRect) {
-        let size = model.performance.gameSize
-        guard model.performanceDetail == .simple, size.width > 0, size.height > 0, !bounds.isEmpty else {
+        guard model.performanceDetail == .simple,
+              let game = Self.gameRect(for: model.performance.gameSize, in: bounds) else {
             return (.floating, .zero)
         }
-        let fit = min(bounds.width / size.width, bounds.height / size.height)
-        let shown = CGSize(width: size.width * fit, height: size.height * fit)
-        let game = CGRect(
-            x: (bounds.width - shown.width) / 2, y: (bounds.height - shown.height) / 2,
-            width: shown.width, height: shown.height
-        )
         let side = max(game.minX - safe.minX, safe.maxX - game.maxX)
         if side >= PerformanceHUDDock.cardWidth + 12 { return (.card, game) }
         if side >= PerformanceHUDDock.columnWidth + 8 { return (.column, game) }
@@ -979,6 +1003,7 @@ final class PerformanceHUDContainer: UIView {
         ) {
             self.hosting.view.frame = self.restingFrame(placement)
         }
+        onMove?()
         if sizeChanged {
             // The panel's size settles once SwiftUI has swapped in the new content.
             DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() }

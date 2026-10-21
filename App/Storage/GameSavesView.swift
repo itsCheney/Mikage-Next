@@ -94,7 +94,7 @@ struct GameSavesView: View {
         .task { reload() }
         .refreshable { reload() }
         .confirmationDialog(
-            "Delete No.\(confirmDelete?.slot ?? 0)?",
+            "Delete \(confirmDelete.map(Self.slotName) ?? "")?",
             isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
             titleVisibility: .visible,
             presenting: confirmDelete
@@ -141,7 +141,7 @@ struct GameSavesView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Continue from Latest Save")
                         .font(.headline)
-                    Text(verbatim: "No.\(save.slot) · \(Self.relativeDate(save.date))")
+                    Text(verbatim: "\(Self.slotName(save)) · \(Self.relativeDate(save.date))")
                         .font(.footnote)
                         .opacity(0.88)
                 }
@@ -169,7 +169,7 @@ struct GameSavesView: View {
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(verbatim: "No.\(save.slot)")
+                    Text(verbatim: Self.slotName(save))
                         .font(.body.weight(.semibold))
                     Text(verbatim: ONSSaveDate.short(save.date))
                         .font(.footnote)
@@ -263,6 +263,10 @@ struct GameSavesView: View {
         formatter.doesRelativeDateFormatting = true
         return formatter
     }()
+
+    static func slotName(_ save: ONSSave) -> String {
+        save.isQuickSave ? String(localized: "Quick Save") : "No.\(save.slot)"
+    }
 
     static func relativeDate(_ date: Date) -> String {
         relativeFormatter.string(from: date)

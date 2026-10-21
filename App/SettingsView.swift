@@ -9,8 +9,6 @@ struct SettingsView: View {
     /// Owned here rather than by the Advanced page so a logging failure is
     /// caught while that page is closed.
     @State private var diagnosticError: String?
-    /// Mirrors `settings.idleOpacity` while dragging; committed on release.
-    @State private var idleOpacity: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -53,31 +51,17 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
 
-                    Toggle(isOn: $model.settings.floatingButton) {
-                        SettingLabel("Floating Button", systemImage: "moon.stars.fill")
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
+                    NavigationLink {
+                        FloatingButtonSettingsView()
+                    } label: {
                         HStack {
-                            SettingLabel("Idle Opacity", systemImage: "circle.lefthalf.filled")
+                            SettingLabel("Floating Button", systemImage: "moon.stars.fill")
                             Spacer()
-                            Text(verbatim: "\(Int(idleOpacity * 100))%")
+                            Text(floatingButtonSummary)
                                 .foregroundStyle(.secondary)
-                                .monospacedDigit()
                         }
-                        // Bound to local state: committing every intermediate
-                        // value would re-encode and write the whole preference
-                        // file on each drag callback.
-                        Slider(
-                            value: $idleOpacity,
-                            in: 0.1...1,
-                            onEditingChanged: { editing in
-                                if !editing { model.settings.idleOpacity = idleOpacity }
-                            }
-                        )
-                        .accessibilityLabel("Idle Opacity")
                     }
-                    .padding(.vertical, 4)
+                    .accessibilityIdentifier("floating-button-settings-link")
 
                     Toggle(isOn: $model.settings.stretchToScreen) {
                         SettingLabel("Stretch 4:3 Games to 16:9", systemImage: "arrow.left.and.right")
@@ -171,7 +155,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("Settings")
-            .onAppear { idleOpacity = model.settings.idleOpacity }
         }
         .alert("Mikage", isPresented: $showInfo) {
             Button("OK", role: .cancel) { }
@@ -196,6 +179,13 @@ struct SettingsView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
+    }
+
+    /// "On · 2 actions", or "Off".
+    private var floatingButtonSummary: String {
+        model.settings.floatingButton
+            ? String(localized: "On · \(model.settings.quickActions.count) actions")
+            : String(localized: "Off")
     }
 
     /// "Bangumi, VNDB" for connected services, or a prompt when none is.

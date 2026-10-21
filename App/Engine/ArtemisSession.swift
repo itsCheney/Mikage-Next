@@ -155,8 +155,13 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { MikageArtemisRunCommand($0.rawValue) },
+                state: { GameControlState(rawValue: MikageArtemisGameControls()) },
+                setControlSkip: { MikageArtemisSetControlSkip($0) },
+                sendPointer: { MikageArtemisSendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+            ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
@@ -172,7 +177,7 @@ final class NativeArtemisSession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
 
@@ -309,8 +314,8 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         _ = MikageArtemisStep()
     }
 
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 
@@ -334,8 +339,13 @@ final class NativeArtemisSession: NSObject, KRKRSession {
         // Reading the stats resets the engine's stage profile, so read them
         // once per tick for both the HUD and the diagnostics log.
         guard performanceEnabled || diagnosticsEnabled, MikageArtemisGetStats(&raw) else {
+            // The floating buttons still settle in the bars beside the game.
             overlayCoordinator?.update(
-                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+                KRKRPerformanceSnapshot(
+                    renderer: Self.rendererLabel,
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: capturedGameSize() ?? .zero
+                )
             )
             return
         }
@@ -371,8 +381,13 @@ final class NativeArtemisSession: NSObject, KRKRSession {
             ])
         }
         guard performanceEnabled else {
+            // The floating buttons still settle in the bars beside the game.
             overlayCoordinator?.update(
-                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+                KRKRPerformanceSnapshot(
+                    renderer: Self.rendererLabel,
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: capturedGameSize() ?? .zero
+                )
             )
             return
         }

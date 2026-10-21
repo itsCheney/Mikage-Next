@@ -111,6 +111,11 @@ MIKAGE_SDL_HOST_API void MikageSDLHostNotifyMenu(void);
 // for games that only offer a way back through the keyboard. False when no
 // session is running.
 MIKAGE_SDL_HOST_API bool MikageSDLHostSendBackKey(void);
+// Queues a key press or release, such as Ctrl held for skipping.
+MIKAGE_SDL_HOST_API bool MikageSDLHostSendKey(SDL_Scancode scancode, SDL_Keycode key, bool down);
+// The host's trackpad cursor, as a mouse at x, y in window points.
+// phase: 0 move, 1 left down, 2 left up, 3 right down, 4 right up.
+MIKAGE_SDL_HOST_API bool MikageSDLHostSendPointer(int32_t phase, float x, float y);
 
 MIKAGE_SDL_HOST_API bool MikageSDLHostIsRunning(void);
 MIKAGE_SDL_HOST_API bool MikageSDLHostIsForeground(void);

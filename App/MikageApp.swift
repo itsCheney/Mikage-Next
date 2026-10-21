@@ -294,6 +294,7 @@ final class AppModel: ObservableObject {
             floatingButton: settings.floatingButton,
             idleOpacity: settings.idleOpacity,
             threeFingerMenu: settings.threeFingerMenu,
+            quickActions: settings.quickActions,
             stretchToScreen: settings.stretchToScreen,
             respectSilentMode: settings.respectSilentMode,
             performance: settings.performance,

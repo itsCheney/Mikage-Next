@@ -284,10 +284,10 @@ extern "C" void MikageSDLHostNotifyMenu(void)
         menuCallback(callbackContext);
 }
 
-extern "C" bool MikageSDLHostSendBackKey(void)
+namespace {
+
+SDL_Window *inputWindow()
 {
-    if (!running)
-        return false;
     SDL_Window *window = SDL_GetKeyboardFocus();
     if (!window) {
         int count = 0;
@@ -296,6 +296,58 @@ extern "C" bool MikageSDLHostSendBackKey(void)
             window = windows[0];
         SDL_free(windows);
     }
+    return window;
+}
+
+} // namespace
+
+extern "C" bool MikageSDLHostSendKey(SDL_Scancode scancode, SDL_Keycode key, bool down)
+{
+    if (!running)
+        return false;
+    SDL_Window *window = inputWindow();
+    SDL_Event event{};
+    event.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+    event.key.timestamp = SDL_GetTicksNS();
+    event.key.windowID = window ? SDL_GetWindowID(window) : 0;
+    event.key.scancode = scancode;
+    event.key.key = key;
+    event.key.down = down;
+    return SDL_PushEvent(&event);
+}
+
+extern "C" bool MikageSDLHostSendPointer(int32_t phase, float x, float y)
+{
+    if (!running || !foreground || phase < 0 || phase > 4)
+        return false;
+    SDL_Window *window = inputWindow();
+    const SDL_WindowID windowID = window ? SDL_GetWindowID(window) : 0;
+    SDL_Event event{};
+    if (phase == 0) {
+        event.type = SDL_EVENT_MOUSE_MOTION;
+        event.motion.timestamp = SDL_GetTicksNS();
+        event.motion.windowID = windowID;
+        event.motion.x = x;
+        event.motion.y = y;
+        return SDL_PushEvent(&event);
+    }
+    const bool down = phase == 1 || phase == 3;
+    event.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    event.button.timestamp = SDL_GetTicksNS();
+    event.button.windowID = windowID;
+    event.button.button = phase >= 3 ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT;
+    event.button.down = down;
+    event.button.clicks = 1;
+    event.button.x = x;
+    event.button.y = y;
+    return SDL_PushEvent(&event);
+}
+
+extern "C" bool MikageSDLHostSendBackKey(void)
+{
+    if (!running)
+        return false;
+    SDL_Window *window = inputWindow();
     SDL_Event event{};
     event.key.timestamp = SDL_GetTicksNS();
     event.key.windowID = window ? SDL_GetWindowID(window) : 0;

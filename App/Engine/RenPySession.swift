@@ -158,8 +158,13 @@ final class NativeRenPySession: NSObject, KRKRSession {
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { MikageRenPyRunCommand($0.rawValue) },
+                state: { GameControlState(rawValue: MikageRenPyGameControls()) },
+                setControlSkip: { MikageRenPySetControlSkip($0) },
+                sendPointer: { MikageRenPySendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+            ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
@@ -176,7 +181,7 @@ final class NativeRenPySession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
 
@@ -288,8 +293,8 @@ final class NativeRenPySession: NSObject, KRKRSession {
         _ = MikageRenPyStep()
     }
 
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 

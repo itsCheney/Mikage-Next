@@ -167,8 +167,13 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { [weak self] in self?.controller?.runCommand($0) ?? false },
+                state: { [weak self] in GameControlState(rawValue: self?.controller?.controlState() ?? 0) },
+                setControlSkip: { [weak self] in self?.controller?.setControlSkip($0) ?? false },
+                sendPointer: { [weak self] in self?.controller?.sendPointer($0, at: $1) ?? false }
+            ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestStop()
@@ -186,7 +191,7 @@ final class NativeSiglusSession: NSObject, KRKRSession {
                 self?.requestStop()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
 
@@ -339,8 +344,8 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         }
     }
 
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 
@@ -371,8 +376,13 @@ final class NativeSiglusSession: NSObject, KRKRSession {
             ])
         }
         guard performanceEnabled else {
+            // The floating buttons still settle in the bars beside the game.
             overlayCoordinator?.update(
-                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+                KRKRPerformanceSnapshot(
+                    renderer: Self.rendererLabel,
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: controller?.gameSize ?? .zero
+                )
             )
             return
         }
@@ -884,6 +894,35 @@ final class SiglusViewController: UIViewController {
         guard pixels.width != lastDrawablePixels.0 || pixels.height != lastDrawablePixels.1 else { return }
         lastDrawablePixels = (pixels.width, pixels.height)
         siglus_ios_resize_viewport(handle, pixels.width, pixels.height, x, y, width, height)
+    }
+
+    /// The game menu's and quick actions' commands; Siglus runs auto,
+    /// read skip, quick save and quick load (the game's first quick slot).
+    func runCommand(_ command: GameCommand) -> Bool {
+        guard let handle, command.rawValue <= GameCommand.quickLoad.rawValue else { return false }
+        return siglus_mikage_command(handle, command.rawValue) != 0
+    }
+
+    func controlState() -> UInt32 {
+        handle.map { siglus_mikage_controls($0) } ?? 0
+    }
+
+    /// Ctrl held, which skips read and unread text alike.
+    func setControlSkip(_ held: Bool) -> Bool {
+        guard let handle else { return false }
+        siglus_mikage_key(handle, 0x11, held ? 1 : 0)
+        return true
+    }
+
+    /// The trackpad cursor, from a point in this view.
+    func sendPointer(_ phase: PointerPhase, at point: CGPoint) -> Bool {
+        guard let handle else { return false }
+        let game = CGPoint(
+            x: (point.x - viewportPoints.minX) * logicalSize.width / max(viewportPoints.width, 1),
+            y: (point.y - viewportPoints.minY) * logicalSize.height / max(viewportPoints.height, 1)
+        )
+        siglus_mikage_pointer(handle, phase.rawValue, Double(game.x), Double(game.y))
+        return true
     }
 
     func sendSecondaryClickAtCenter() {

@@ -65,10 +65,15 @@ public struct ONSSave: Identifiable, Equatable, Sendable {
     public let line: ONSLine
     public let thumbnailURL: URL?
     public var id: Int { slot }
+    /// Written by the in-game Quick Save, in a slot of its own.
+    public var isQuickSave: Bool { slot == ONSSaveFiles.quickSaveSlot }
 }
 
 public enum ONSSaveFiles {
     public static let detailsFolderName = "Mikage"
+    /// Quick Save's slot, outside the game's own save menu
+    /// (MikageONSQuickSaveSlot).
+    public static let quickSaveSlot = 1000
 
     public static func dataURL(slot: Int, in saves: URL) -> URL {
         saves.appendingPathComponent("save\(slot).dat")

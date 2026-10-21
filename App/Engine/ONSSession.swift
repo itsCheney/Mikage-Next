@@ -159,8 +159,27 @@ final class NativeONSSession: NSObject, KRKRSession {
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { command in
+                    switch command {
+                    case .backlog: return Self.openPanel(.backlog)
+                    case .save: return Self.openPanel(.save)
+                    case .load: return Self.openPanel(.load)
+                    default: return MikageONSRunCommand(command.rawValue)
+                    }
+                },
+                state: {
+                    var state = GameControlState(rawValue: MikageONSGameControls())
+                    if MikageONSCanOpenPanel() {
+                        state.formUnion([.canBacklog, .canSave, .canLoad])
+                    }
+                    return state
+                },
+                setControlSkip: { MikageONSSetControlSkip($0) },
+                sendPointer: { MikageONSSendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+            ),
+            storyWaitsOnText: true,
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
@@ -176,19 +195,7 @@ final class NativeONSSession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() },
-            engineActions: [
-                GameMenuAction(id: "backlog", title: "Backlog", symbol: "text.alignleft") {
-                    Self.openPanel(.backlog)
-                },
-                GameMenuAction(id: "save", title: "Save", symbol: "square.and.arrow.down") {
-                    Self.openPanel(.save)
-                },
-                GameMenuAction(id: "load", title: "Load", symbol: "square.and.arrow.up") {
-                    Self.openPanel(.load)
-                }
-            ],
-            engineActionsAvailable: { MikageONSCanOpenPanel() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
 
@@ -314,9 +321,11 @@ final class NativeONSSession: NSObject, KRKRSession {
         showMenuOverlay()
     }
 
-    private static func openPanel(_ panel: ONSPanel) {
+    @discardableResult
+    private static func openPanel(_ panel: ONSPanel) -> Bool {
         let opened = MikageONSOpenPanel(panel.runtimeKind)
         AppDiagnostics.shared.event("onsPanel", "open.requested", ["panel": String(describing: panel), "sent": String(opened)])
+        return opened
     }
 
     /// The engine opened a panel and waits for the player, or closed it
@@ -395,8 +404,8 @@ final class NativeONSSession: NSObject, KRKRSession {
         MikageONSStep()
     }
 
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
     }
 
@@ -417,8 +426,13 @@ final class NativeONSSession: NSObject, KRKRSession {
         }
         var raw = MikageONSStats()
         guard performanceEnabled, MikageONSGetStats(&raw) else {
+            // The floating buttons still settle in the bars beside the game.
             overlayCoordinator?.update(
-                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+                KRKRPerformanceSnapshot(
+                    renderer: Self.rendererLabel,
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: capturedGameSize() ?? .zero
+                )
             )
             return
         }

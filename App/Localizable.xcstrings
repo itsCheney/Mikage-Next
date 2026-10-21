@@ -514,6 +514,22 @@
         }
       }
     },
+    "3-finger tap restores" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3本指タップで戻せます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三指轻点可恢复"
+          }
+        }
+      }
+    },
     "@%@ · Connected" : {
       "localizations" : {
         "ja" : {
@@ -638,6 +654,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账号与同步"
+          }
+        }
+      }
+    },
+    "Add %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加%@"
           }
         }
       }
@@ -770,6 +802,22 @@
         }
       }
     },
+    "Auto" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动"
+          }
+        }
+      }
+    },
     "Automatic" : {
       "localizations" : {
         "ja" : {
@@ -802,6 +850,22 @@
         }
       }
     },
+    "Available" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加できるアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可添加"
+          }
+        }
+      }
+    },
     "Back" : {
       "localizations" : {
         "ja" : {
@@ -814,6 +878,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回"
+          }
+        }
+      }
+    },
+    "Back (Esc)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る (Esc)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回 (Esc)"
           }
         }
       }
@@ -1150,6 +1230,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "候选作品"
+          }
+        }
+      }
+    },
+    "Can’t quick save here" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここではクイックセーブできません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处无法快速存档"
           }
         }
       }
@@ -1826,6 +1922,22 @@
         }
       }
     },
+    "Delete %@?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除%@？"
+          }
+        }
+      }
+    },
     "Delete Game and Saves" : {
       "localizations" : {
         "ja" : {
@@ -1838,22 +1950,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除游戏和存档"
-          }
-        }
-      }
-    },
-    "Delete No.%lld?" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No.%lld を削除しますか？"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除 No.%lld？"
           }
         }
       }
@@ -2126,6 +2222,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拖动以移动，拖到屏幕边缘可收起。"
+          }
+        }
+      }
+    },
+    "Drag to move the pointer, tap to click." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドラッグでポインタを移動、タップでクリックします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动以移动指针，轻点以点击。"
           }
         }
       }
@@ -2960,6 +3072,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用于定位黑屏等问题，默认关闭。记录 App、窗口方向、前后台、音频切换、KRKR 和 SDL 事件；最多约 16 MB，自动轮转，关闭后保留已有记录。可能包含游戏名、资源名及错误文本，分享前请检查。不读取游戏文件或存档，无法代替系统崩溃报告。"
+          }
+        }
+      }
+    },
+    "Hide Button" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ボタンを隠す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏按钮"
           }
         }
       }
@@ -3879,6 +4007,22 @@
         }
       }
     },
+    "Mouse" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マウス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鼠标"
+          }
+        }
+      }
+    },
     "My Rating" : {
       "localizations" : {
         "ja" : {
@@ -4061,6 +4205,22 @@
         }
       }
     },
+    "No quick actions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクションなし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有快捷操作"
+          }
+        }
+      }
+    },
     "No Ren’Py game found (a game folder with .rpy, .rpyc or .rpa files)" : {
       "localizations" : {
         "ja" : {
@@ -4141,6 +4301,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "都不是？按名称搜索"
+          }
+        }
+      }
+    },
+    "Not available right now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今は使用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前不可用"
           }
         }
       }
@@ -4317,6 +4493,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搁置"
+          }
+        }
+      }
+    },
+    "On · %lld actions" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On · %lld action"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On · %lld actions"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン · %lld 個のアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启 · %lld 个操作"
           }
         }
       }
@@ -4595,6 +4805,102 @@
         }
       }
     },
+    "Puts the menu button and quick actions back in their corners." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューボタンとクイックアクションを元の隅に戻します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将菜单按钮和快捷操作放回各自的角落。"
+          }
+        }
+      }
+    },
+    "Quick Actions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷操作"
+          }
+        }
+      }
+    },
+    "Quick actions float on their own beside the game and run with one tap. Skip here also skips unread text, like holding Ctrl." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクションはゲームの横に単独で浮かび、タップ1回で実行します。ここのスキップは Ctrl を押したままのように、未読テキストもスキップします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷操作独立悬浮在游戏旁，轻点一下即可执行。这里的快进如同按住 Ctrl，也会跳过未读文本。"
+          }
+        }
+      }
+    },
+    "Quick Load" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速读档"
+          }
+        }
+      }
+    },
+    "Quick Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速存档"
+          }
+        }
+      }
+    },
+    "Quick saved · %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックセーブしました · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已快速存档 · %@"
+          }
+        }
+      }
+    },
     "RAM" : {
       "localizations" : {
         "ja" : {
@@ -4627,6 +4933,22 @@
         }
       }
     },
+    "Read only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既読のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅已读"
+          }
+        }
+      }
+    },
     "Readback" : {
       "localizations" : {
         "ja" : {
@@ -4643,6 +4965,22 @@
         }
       }
     },
+    "Remove %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除%@"
+          }
+        }
+      }
+    },
     "Rendering" : {
       "localizations" : {
         "ja" : {
@@ -4655,6 +4993,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "渲染"
+          }
+        }
+      }
+    },
+    "Reset Positions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置をリセット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        }
+      }
+    },
+    "Show Floating Button" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フローティングボタンを表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示悬浮按钮"
           }
         }
       }
@@ -4771,6 +5141,22 @@
         }
       }
     },
+    "Skip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快进"
+          }
+        }
+      }
+    },
     "Software" : {
       "localizations" : {
         "ja" : {
@@ -4783,6 +5169,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "软件"
+          }
+        }
+      }
+    },
+    "Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "性能统计"
+          }
+        }
+      }
+    },
+    "Story" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストーリー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剧情"
+          }
+        }
+      }
+    },
+    "Switches between off, simple and full" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフ・シンプル・フルを切り替えます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在关闭、简洁和完整之间切换"
+          }
+        }
+      }
+    },
+    "Tap with three fingers to bring the button back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3本指でタップするとボタンが戻ります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三指轻点即可让按钮重新出现"
+          }
+        }
+      }
+    },
+    "The button fades to this opacity after a few seconds without a touch. Drag it anywhere; it snaps to the nearest edge, or into the bar beside the game." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数秒間触れないと、ボタンはこの不透明度まで薄くなります。好きな場所へドラッグでき、離すと最寄りの端、またはゲーム横の余白に吸着します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "几秒钟没有触碰后，按钮会淡出到此透明度。可将它拖到任意位置，松手后会吸附到最近的边缘，或游戏旁的黑边中。"
+          }
+        }
+      }
+    },
+    "This session %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のプレイ %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次游玩 %@"
+          }
+        }
+      }
+    },
+    "Trackpad" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トラックパッド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触控板"
           }
         }
       }
@@ -5055,22 +5553,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已玩 %@"
-          }
-        }
-      }
-    },
-    "Played %@ this session" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今回のプレイ時間 %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本次已游玩 %@"
           }
         }
       }

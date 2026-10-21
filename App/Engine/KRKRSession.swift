@@ -28,6 +28,7 @@ struct KRKRLaunchConfiguration {
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
+    var quickActions: [QuickActionKind] = QuickActionKind.defaults
     let stretchToScreen: Bool
     let respectSilentMode: Bool
     let performance: Bool
@@ -228,8 +229,13 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { MikageKRKRRunCommand($0.rawValue) },
+                state: { GameControlState(rawValue: MikageKRKRGameControls()) },
+                setControlSkip: { MikageKRKRSetControlSkip($0) },
+                sendPointer: { MikageKRKRSendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+            ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
@@ -245,7 +251,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
         AppDiagnostics.shared.windows("overlay.installed")
@@ -270,8 +276,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     /// Shows or hides the performance HUD for this session only; the launch
     /// default stays in Settings › Advanced.
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         AppDiagnostics.shared.event("session", "performanceHUD.toggled", ["enabled": String(performanceEnabled)])
         // The next metrics tick, within a second, fills in the numbers.
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
@@ -766,10 +772,19 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             elapsedSeconds += 1
         }
         guard performanceEnabled else {
+            // The floating buttons still settle in the bars beside the game.
+            var raw = MikageKRKRStats()
+            let gameSize = MikageKRKRGetStats(&raw)
+                ? letterboxedGameSize(
+                    CGSize(width: Int(raw.gameWidth), height: Int(raw.gameHeight)),
+                    stretchedToScreen: stretchesToScreen
+                )
+                : .zero
             overlayCoordinator?.update(
                 KRKRPerformanceSnapshot(
                     renderer: rendererLabel,
-                    elapsedSeconds: elapsedSeconds
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: gameSize
                 )
             )
             return
