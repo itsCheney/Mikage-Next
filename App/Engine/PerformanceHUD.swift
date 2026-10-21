@@ -900,11 +900,27 @@ final class PerformanceHUDContainer: UIView {
               let game = Self.gameRect(for: model.performance.gameSize, in: bounds) else {
             return (.floating, .zero)
         }
-        let side = max(game.minX - safe.minX, safe.maxX - game.maxX)
+        let (leading, trailing) = barEdges(safe)
+        let side = max(game.minX - leading, trailing - game.maxX)
         if side >= PerformanceHUDDock.cardWidth + 12 { return (.card, game) }
         if side >= PerformanceHUDDock.columnWidth + 8 { return (.column, game) }
         if game.minY - safe.minY >= 64 { return (.bar, game) }
         return (.floating, game)
+    }
+
+    /// How far the bars beside the game reach. In landscape only the bar
+    /// on the camera's side stops at the safe area; the other one runs to
+    /// the screen edge, as the black margin does.
+    private func barEdges(_ safe: CGRect) -> (leading: CGFloat, trailing: CGFloat) {
+        switch window?.windowScene?.interfaceOrientation {
+        case .landscapeRight:
+            // The camera is on the left.
+            return (safe.minX, bounds.maxX)
+        case .landscapeLeft:
+            return (bounds.minX, safe.maxX)
+        default:
+            return (safe.minX, safe.maxX)
+        }
     }
 
     private func restingFrame(_ placement: PerformanceHUDPlacement) -> CGRect {
@@ -919,9 +935,10 @@ final class PerformanceHUDContainer: UIView {
                 y = safe.minY + (game.minY - safe.minY - size.height) / 2
             } else {
                 // Centered in the wider bar, near the top.
-                let leftRoom = game.minX - safe.minX
-                let rightRoom = safe.maxX - game.maxX
-                let middle = rightRoom >= leftRoom ? (game.maxX + safe.maxX) / 2 : (safe.minX + game.minX) / 2
+                let (leading, trailing) = barEdges(safe)
+                let leftRoom = game.minX - leading
+                let rightRoom = trailing - game.maxX
+                let middle = rightRoom >= leftRoom ? (game.maxX + trailing) / 2 : (leading + game.minX) / 2
                 x = middle - size.width / 2
                 y = safe.minY + 14
             }
