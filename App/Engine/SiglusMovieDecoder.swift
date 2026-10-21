@@ -15,7 +15,10 @@ enum SiglusMovieDecoder {
                 guard let path, let info else { return nil }
                 let url = URL(fileURLWithPath: String(cString: path))
                 let reader = wantAudio != 0 ? SiglusMovieReader(audioOf: url) : SiglusMovieReader(videoOf: url)
-                guard let reader else { return nil }
+                guard let reader else {
+                    AppDiagnostics.shared.event("bridge", "siglus.movieOpen", ["file": url.lastPathComponent, "audio": String(wantAudio != 0), "ok": "false"])
+                    return nil
+                }
                 info.pointee = reader.info
                 return Unmanaged.passRetained(reader).toOpaque()
             },
@@ -45,7 +48,7 @@ private final class SiglusMovieReader {
     private var pendingOffset = 0
 
     init?(videoOf url: URL) {
-        let asset = AVURLAsset(url: url)
+        let asset = Self.mp4Asset(url)
         guard let track = Self.wait({ try await asset.loadTracks(withMediaType: .video) })?.first,
               let size = Self.wait({ try await track.load(.naturalSize) }),
               size.width >= 1, size.height >= 1,
@@ -67,7 +70,7 @@ private final class SiglusMovieReader {
     }
 
     init?(audioOf url: URL) {
-        let asset = AVURLAsset(url: url)
+        let asset = Self.mp4Asset(url)
         guard let track = Self.wait({ try await asset.loadTracks(withMediaType: .audio) })?.first,
               let formats = Self.wait({ try await track.load(.formatDescriptions) }),
               let format = formats.first,
@@ -149,6 +152,24 @@ private final class SiglusMovieReader {
         return Int64(count / channels)
     }
 
+    /// AVFoundation picks the container by file extension and finds no
+    /// tracks in an MP4 named .mpg, so it's told the type, or on iOS 16 opens
+    /// the file through a link named .mp4.
+    private static func mp4Asset(_ url: URL) -> AVURLAsset {
+        if #available(iOS 17.0, *) {
+            return AVURLAsset(url: url, options: [AVURLAssetOverrideMIMETypeKey: "video/mp4"])
+        }
+        let links = FileManager.default.temporaryDirectory.appendingPathComponent("SiglusMovies", isDirectory: true)
+        let link = links.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp4")
+        do {
+            try FileManager.default.createDirectory(at: links, withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: url)
+            return AVURLAsset(url: link)
+        } catch {
+            return AVURLAsset(url: url)
+        }
+    }
+
     private static func durationMs(of asset: AVURLAsset) -> UInt64 {
         guard let duration = wait({ try await asset.load(.duration) }), duration.isNumeric else { return 0 }
         return UInt64(max(0, duration.seconds * 1000).rounded())
@@ -159,7 +180,11 @@ private final class SiglusMovieReader {
         let box = SiglusLoadResult<T>()
         let done = DispatchSemaphore(value: 0)
         Task.detached {
-            box.value = try? await operation()
+            do {
+                box.value = try await operation()
+            } catch {
+                AppDiagnostics.shared.event("bridge", "siglus.movieLoad", ["error": error.localizedDescription])
+            }
             done.signal()
         }
         done.wait()
