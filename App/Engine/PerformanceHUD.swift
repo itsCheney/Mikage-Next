@@ -111,11 +111,12 @@ private struct HUDGlass<S: Shape>: ViewModifier {
     let shape: S
 
     func body(content: Content) -> some View {
+        // A light tint, no blur: the game stays visible behind the stats,
+        // and a soft text shadow keeps them readable over bright scenes.
         content
-            .background(shape.fill(HUDPalette.ground.opacity(0.6)))
-            .background(.ultraThinMaterial, in: shape)
-            .overlay(shape.stroke(.white.opacity(0.2), lineWidth: 1))
-            .shadow(color: .black.opacity(0.28), radius: 10, y: 6)
+            .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
+            .background(shape.fill(HUDPalette.ground.opacity(0.38)))
+            .overlay(shape.stroke(.white.opacity(0.18), lineWidth: 1))
     }
 }
 
