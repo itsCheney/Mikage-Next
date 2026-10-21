@@ -247,6 +247,12 @@ struct LibraryToastView: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color(red: 0x24 / 255, green: 0x8A / 255, blue: 0x3D / 255)))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(toast.title)
                     .font(.subheadline.weight(.semibold))
@@ -255,14 +261,22 @@ struct LibraryToastView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
             if toast.previous != nil {
-                Button("Undo") { model.undoToast() }
-                    .font(.subheadline.weight(.semibold))
-                    .nativeGlassButtonStyle()
+                // A plain capsule: the glass button style pads itself and
+                // sat off the toast's trailing edge.
+                Button { model.undoToast() } label: {
+                    Text("Undo")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
+                        .background(Color(uiColor: .systemBackground).opacity(0.7), in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.leading, 18)
+        .padding(.leading, 16)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
         .frame(minHeight: 64)

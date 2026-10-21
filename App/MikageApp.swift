@@ -59,6 +59,8 @@ final class AppModel: ObservableObject {
     @Published var lastSyncError: String?
     /// The glass notice over the library after a status changed by itself.
     @Published var toast: LibraryToast?
+    /// Game folders a rescan found, offered for import.
+    @Published var newGamesToast: NewGamesToast?
     /// A just-imported game waiting for its Bangumi/VNDB match.
     @Published var matchRequest: GameRecord?
     /// A game marked finished from the in-game menu, waiting for its rating.
@@ -311,7 +313,9 @@ final class AppModel: ObservableObject {
         return pendingLoadSlot
     }
 
-    func refreshLibrary(showErrors: Bool = true) async {
+    /// Rescans the game folders. Folders the library didn't have are
+    /// offered in the new-games toast unless `announceNewGames` is false.
+    func refreshLibrary(showErrors: Bool = true, announceNewGames: Bool = true) async {
         guard !scanning else { return }
         // A pull-to-refresh is the retry path out of a failed launch load.
         guard retryLoadIfNeeded() else {
@@ -326,10 +330,12 @@ final class AppModel: ObservableObject {
         do {
             let repository = self.repository
             let builtInGamesRoot = self.builtInGamesRoot
-            let snapshot = try await Task.detached(priority: .userInitiated) {
+            let known = Set((games + missingGames).map(\.id))
+            let (snapshot, builtIn) = try await Task.detached(priority: .userInitiated) {
+                var copied: [String] = []
                 if let builtInGamesRoot {
                     do {
-                        let copied = try repository.installBuiltInGames(from: builtInGamesRoot)
+                        copied = try repository.installBuiltInGames(from: builtInGamesRoot)
                         if !copied.isEmpty {
                             AppDiagnostics.shared.event("library", "builtin.installed", ["games": copied.joined(separator: ",")])
                         }
@@ -337,9 +343,12 @@ final class AppModel: ObservableObject {
                         AppDiagnostics.shared.event("library", "builtin.failed", ["error": error.localizedDescription])
                     }
                 }
-                return try repository.scan()
+                return (try repository.scan(), Set(copied.map { ($0 as NSString).lastPathComponent }))
             }.value
             apply(snapshot)
+            if announceNewGames {
+                announceNewGames(snapshot.active.filter { !known.contains($0.id) && !builtIn.contains($0.folderName) })
+            }
             AppDiagnostics.shared.event("library", "scan.end", ["active": String(snapshot.active.count), "missing": String(snapshot.missing.count)])
         } catch {
             AppDiagnostics.shared.event("library", "scan.failed", ["error": error.localizedDescription])
@@ -369,7 +378,7 @@ final class AppModel: ObservableObject {
                 try await Task.detached(priority: .userInitiated) {
                     try repository.importFolder(url, engine: engine)
                 }.value
-                await refreshLibrary()
+                await refreshLibrary(announceNewGames: false)
                 requestMatch(forImported: url, engine: engine)
             } else {
                 AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
@@ -396,7 +405,7 @@ final class AppModel: ObservableObject {
             try await Task.detached(priority: .userInitiated) {
                 try repository.importFolder(url, engine: engine)
             }.value
-            await refreshLibrary()
+            await refreshLibrary(announceNewGames: false)
             requestMatch(forImported: url, engine: engine)
         } catch {
             alert = error.localizedDescription

@@ -182,6 +182,22 @@
         }
       }
     },
+    "%@ · from the Files app" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ·「ファイル」から"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 来自“文件” App"
+          }
+        }
+      }
+    },
     "%@ · Keep the saves, free %@" : {
       "localizations" : {
         "ja" : {
@@ -2194,6 +2210,22 @@
         }
       }
     },
+    "Dismiss" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "ja" : {
@@ -2564,6 +2596,22 @@
         }
       }
     },
+    "Fetching covers and details from Bangumi and VNDB…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB からカバーと情報を取得中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在从 Bangumi 和 VNDB 获取封面与资料…"
+          }
+        }
+      }
+    },
     "Find on Bangumi & VNDB" : {
       "localizations" : {
         "ja" : {
@@ -2704,6 +2752,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文件夹已移除"
+          }
+        }
+      }
+    },
+    "Found %lld new games" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Found %lld new game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Found %lld new games"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいゲーム %lld 本"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现 %lld 款新游戏"
           }
         }
       }
@@ -3172,6 +3254,22 @@
         }
       }
     },
+    "Import" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入"
+          }
+        }
+      }
+    },
     "Import Folder" : {
       "localizations" : {
         "ja" : {
@@ -3232,6 +3330,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新导入同一个文件夹即可继续游玩，存档会自动恢复。"
+          }
+        }
+      }
+    },
+    "Imported %lld games" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld games"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 本を読み込みました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 %lld 款游戏"
           }
         }
       }
@@ -3843,6 +3975,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新匹配作品"
+          }
+        }
+      }
+    },
+    "Matched %lld of %lld · View to match the rest" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld 本を紐付け ·「表示」で残りを紐付け"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配 %lld/%lld 款 · 点“查看”匹配其余"
+          }
+        }
+      }
+    },
+    "Matched with Bangumi and VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB に紐付けました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配 Bangumi 和 VNDB"
           }
         }
       }
@@ -5329,6 +5493,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上传"
+          }
+        }
+      }
+    },
+    "View" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看"
           }
         }
       }
