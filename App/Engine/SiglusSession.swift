@@ -896,10 +896,11 @@ final class SiglusViewController: UIViewController {
         siglus_ios_resize_viewport(handle, pixels.width, pixels.height, x, y, width, height)
     }
 
-    /// The game menu's and quick actions' commands; Siglus runs auto,
-    /// read skip, quick save and quick load (the game's first quick slot).
+    /// The game menu's and quick actions' commands; quick save and load use
+    /// the game's first quick slot, backlog, save and load open the game's
+    /// own screens.
     func runCommand(_ command: GameCommand) -> Bool {
-        guard let handle, command.rawValue <= GameCommand.quickLoad.rawValue else { return false }
+        guard let handle else { return false }
         return siglus_mikage_command(handle, command.rawValue) != 0
     }
 
