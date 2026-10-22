@@ -9,8 +9,6 @@ struct SettingsView: View {
     /// Owned here rather than by the Advanced page so a logging failure is
     /// caught while that page is closed.
     @State private var diagnosticError: String?
-    /// Mirrors `settings.idleOpacity` while dragging; committed on release.
-    @State private var idleOpacity: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -53,31 +51,21 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
 
-                    Toggle(isOn: $model.settings.floatingButton) {
-                        SettingLabel("Floating Button", systemImage: "moon.stars.fill")
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
+                    NavigationLink {
+                        FloatingButtonSettingsView()
+                    } label: {
                         HStack {
-                            SettingLabel("Idle Opacity", systemImage: "circle.lefthalf.filled")
+                            SettingLabel("Floating Button", systemImage: "moon.stars.fill")
                             Spacer()
-                            Text(verbatim: "\(Int(idleOpacity * 100))%")
+                            Text(floatingButtonSummary)
                                 .foregroundStyle(.secondary)
-                                .monospacedDigit()
                         }
-                        // Bound to local state: committing every intermediate
-                        // value would re-encode and write the whole preference
-                        // file on each drag callback.
-                        Slider(
-                            value: $idleOpacity,
-                            in: 0.1...1,
-                            onEditingChanged: { editing in
-                                if !editing { model.settings.idleOpacity = idleOpacity }
-                            }
-                        )
-                        .accessibilityLabel("Idle Opacity")
                     }
-                    .padding(.vertical, 4)
+                    .accessibilityIdentifier("floating-button-settings-link")
+
+                    Toggle(isOn: $model.settings.stretchToScreen) {
+                        SettingLabel("Stretch 4:3 Games to 16:9", systemImage: "arrow.left.and.right")
+                    }
 
                     Toggle(isOn: $model.settings.threeFingerMenu) {
                         SettingLabel("Three-Finger Tap for Menu", systemImage: "hand.tap")
@@ -115,7 +103,7 @@ struct SettingsView: View {
                 } header: {
                     Text("General")
                 } footer: {
-                    Text("Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly into the engine folders under Documents.")
+                    Text("Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly in Documents.")
                 }
 
                 Section {
@@ -143,7 +131,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime, which scans for and launches KiriKiri games automatically. ONScripter, Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content."))
+                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games and siglus_rs for SiglusEngine games.\n\nThe app includes no game content."))
                     } label: {
                         SettingLabel("About Mikage", systemImage: "info.circle")
                     }
@@ -167,7 +155,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("Settings")
-            .onAppear { idleOpacity = model.settings.idleOpacity }
         }
         .alert("Mikage", isPresented: $showInfo) {
             Button("OK", role: .cancel) { }
@@ -192,6 +179,13 @@ struct SettingsView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
+    }
+
+    /// "On · 2 actions", or "Off".
+    private var floatingButtonSummary: String {
+        model.settings.floatingButton
+            ? String(localized: "On · \(model.settings.quickActions.count) actions")
+            : String(localized: "Off")
     }
 
     /// "Bangumi, VNDB" for connected services, or a prompt when none is.
@@ -235,20 +229,19 @@ struct AdvancedSettingsView: View {
                 .pickerStyle(.menu)
 
                 Toggle("Show Performance Stats on Launch", isOn: $model.settings.performance)
+
+                Picker("Performance Stats", selection: $model.settings.performanceDetail) {
+                    ForEach(PerformanceDetail.allCases, id: \.self) {
+                        Text($0.displayName).tag($0)
+                    }
+                }
+                .pickerStyle(.menu)
             } header: {
                 Text("Graphics")
             } footer: {
                 Text("If the picture looks wrong, switch to Software Compositing · Metal. Metal accelerates offscreen drawing, Emote and D3DLayer; regular KRKR layers are still composited on the CPU. Performance stats can also be toggled any time from the in-game menu.")
             }
 
-            Section {
-                Toggle("Emote Candidate Animation", isOn: $model.settings.experimentalEmote)
-                    .accessibilityIdentifier("experimental-emote-toggle")
-            } header: {
-                Text("Animation")
-            } footer: {
-                Text("A new Emote playback method for comparing motion smoothness. Off by default. Takes effect the next time a game launches; if motions or expressions look wrong, turn it off and reopen the game.")
-            }
 
             Section {
                 Toggle("Full Diagnostic Log", isOn: $diagnosticLogging)

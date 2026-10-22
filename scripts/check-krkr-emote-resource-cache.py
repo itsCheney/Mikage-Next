@@ -88,6 +88,7 @@ public:
     using std::wstring::wstring;
     ttstr(const std::wstring& value) : std::wstring(value) {}
     bool StartsWith(const wchar_t* value) const { return find(value) == 0; }
+    std::string AsStdString() const { return std::string(begin(), end()); }
     ttstr SubString(std::size_t from, std::size_t size) const { return substr(from, size); }
 };
 using tTJSString = ttstr;
@@ -155,6 +156,19 @@ public:
         return {std::make_shared<int>(rootReads), {}};
     }
 };
+// The pool's own rules are covered by the EmoteMetadata loader harness; this
+// double records that managers hand files to it and take them from it.
+int releasedFiles = 0, poolTakes = 0;
+emotefile* pooledFile = nullptr;
+void ReleaseEmoteFile(emotefile* file) { ++releasedFiles; delete file; }
+emotefile* TakePooledEmoteFile(const std::string&, std::int32_t) {
+    ++poolTakes;
+    auto* file = pooledFile;
+    pooledFile = nullptr;
+    return file;
+}
+std::size_t PooledEmoteFileCount() { return pooledFile ? 1 : 0; }
+std::uint64_t PooledEmoteFileHits() { return 0; }
 '''
     tests = r'''
 ResourceManager::ResourceManager(iTJSDispatch2*, tjs_int) {
@@ -188,7 +202,7 @@ int main() {
         assert(clearReasons.back() == "scriptClearCache");
         fakeNow += 1000000000;
         manager.unload(L"lzfs://./private/assets/hero.psb");
-        assert(liveFiles == 0 && resolutions == 5);
+        assert(liveFiles == 0 && resolutions == 5 && releasedFiles == 1);
         manager.ensureLoaded(L"private/assets/hero.psb");
         assert(fileLoads == 2 && rootReads == 2 && liveFiles == 1);
         fakeNow += 1000000000;
@@ -252,6 +266,20 @@ int main() {
         assert(logs.back().find("sharedCacheHit=0 customDecrypt=1") != std::string::npos);
         ResourceManager::setEmotePSBDecryptFunc({});
         ResourceManager::setEmotePSBDecryptSeed(0);
+    }
+    assert(liveFiles == 0);
+    {
+        // A file another manager released is taken from the pool, not reloaded.
+        ResourceManager manager(nullptr, 0);
+        pooledFile = new emotefile();
+        auto* expected = pooledFile;
+        const int loadsBefore = fileLoads, takesBefore = poolTakes;
+        manager.ensureLoaded(L"pooled.psb");
+        assert(fileLoads == loadsBefore && poolTakes == takesBefore + 1);
+        assert(manager.GetPlayerByName(L"pooled.psb") == expected);
+        const int releasedBefore = releasedFiles;
+        manager.unloadAll();
+        assert(releasedFiles == releasedBefore + 1);
     }
     assert(liveFiles == 0);
     for (const auto& log : logs) {

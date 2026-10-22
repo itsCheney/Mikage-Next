@@ -2,6 +2,10 @@ import Foundation
 import UIKit
 import AVFAudio
 import KRKRRuntime
+import ONSRuntime
+import ArtemisRuntime
+import RenPyRuntime
+import SiglusRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -31,10 +35,20 @@ final class AppDiagnostics: @unchecked Sendable {
 
     @MainActor func configure(enabled: Bool) throws {
         MikageKRKRSetLogCallback(nil)
+        MikageONSSetLogCallback(nil)
+        MikageArtemisSetLogCallback(nil)
+        MikageRenPySetLogCallback(nil)
+        siglus_mikage_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
             MikageKRKRSetLogCallback(mikageDiagnosticLogCallback)
+            MikageONSSetLogCallback(mikageONSDiagnosticLogCallback)
+            MikageArtemisSetLogCallback(mikageArtemisDiagnosticLogCallback)
+            MikageRenPySetLogCallback(mikageRenPyDiagnosticLogCallback)
+            // Warnings and errors: siglus_rs logs what it couldn't load or
+            // draw there; info and below are per-frame chatter.
+            siglus_mikage_set_log_callback(mikageSiglusDiagnosticLogCallback, nil, 2)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -178,4 +192,31 @@ private func mikageDiagnosticLogCallback(
 ) {
     guard let source, let message else { return }
     AppDiagnostics.shared.runtime(source: String(cString: source), level: level, message: String(cString: message))
+}
+
+private func mikageONSDiagnosticLogCallback(_ level: Int32, _ message: UnsafePointer<CChar>?) {
+    guard let message else { return }
+    AppDiagnostics.shared.runtime(source: "ONS", level: level, message: String(cString: message))
+}
+
+private func mikageArtemisDiagnosticLogCallback(
+    _ source: UnsafePointer<CChar>?, _ level: Int32, _ message: UnsafePointer<CChar>?
+) {
+    guard let source, let message else { return }
+    AppDiagnostics.shared.runtime(source: "Artemis." + String(cString: source), level: level, message: String(cString: message))
+}
+
+private func mikageRenPyDiagnosticLogCallback(
+    _ source: UnsafePointer<CChar>?, _ level: Int32, _ message: UnsafePointer<CChar>?
+) {
+    guard let source, let message else { return }
+    AppDiagnostics.shared.runtime(source: "RenPy." + String(cString: source), level: level, message: String(cString: message))
+}
+
+private func mikageSiglusDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "Siglus." + target, level: level, message: String(cString: message))
 }

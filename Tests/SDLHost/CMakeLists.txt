@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 3.20)
+project(SDLHostTests LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+get_filename_component(HOST "${CMAKE_CURRENT_LIST_DIR}/../../Engine/MikageSDLHost" REALPATH)
+find_package(SDL3 CONFIG REQUIRED)
+# The production host core with a recording audio session in place of
+# AVAudioSession; SDL itself is real and runs headless.
+add_executable(sdl-host-tests SDLHostTests.cpp "${HOST}/MikageSDLHost.cpp")
+target_include_directories(sdl-host-tests PRIVATE "${HOST}")
+target_link_libraries(sdl-host-tests PRIVATE SDL3::SDL3)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(sdl-host-tests PRIVATE -Wall -Wextra -Werror)
+endif()
+enable_testing()
+add_test(NAME sdl-host-tests COMMAND sdl-host-tests)
+set_tests_properties(sdl-host-tests PROPERTIES ENVIRONMENT "SDL_VIDEO_DRIVER=dummy;SDL_AUDIO_DRIVER=dummy")

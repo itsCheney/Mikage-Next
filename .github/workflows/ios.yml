@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, master, beta, metal_dev, codex/emote-perf]
+    branches: [main, master, beta, dev, runtime-dev, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,15 +34,33 @@ jobs:
           else
             echo "KRKR_NEEDS_VCPKG_BOOTSTRAP=true" >> "$GITHUB_ENV"
           fi
+      - name: Record shared SDL3 revision
+        id: sdl3-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SDL3/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record ONScripter runtime revision
+        id: ons-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/ONSRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record openArtemis runtime revision
+        id: artemis-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/ArtemisRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record Ren'Py runtime revision
+        id: renpy-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/RenPyRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record Siglus runtime revision
+        id: siglus-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SiglusRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
-      # PSB...) only read the KRKR runtime, their C++ harnesses, the scripts
-      # they run, and the App/Engine bridge two wiring checks inspect. When
-      # none of those, nor the toolchain, changed since a run that passed
-      # them, skip them: a pass marker is cached under a fingerprint of
-      # exactly those inputs. Git tree hashes cover the runtime submodule's
-      # pinned commit. Dispatch with force_native_tests to run them anyway.
+      # PSB...) only read the KRKR runtime, the shared SDL host, their C++
+      # harnesses, the scripts they run, and the few App files two wiring
+      # checks inspect. When none of those, nor the toolchain, changed since
+      # a run that passed them, skip them: a pass marker is cached under a
+      # fingerprint of exactly those inputs. The ONScripter and SDL3 pins,
+      # the engine build scripts and the rest of App do not reach these
+      # tests, so they stay out. Git tree hashes cover the runtime
+      # submodule's pinned commit. Dispatch with force_native_tests to run
+      # them anyway.
       - name: Fingerprint native runtime tests
         id: native-fingerprint
         run: |
@@ -51,9 +69,13 @@ jobs:
             echo "sdl3=$(brew list --versions sdl3)"
             cmake --version | head -n 1
             python3 --version
-            for path in Engine scripts App/Engine .github/workflows/ios.yml; do
+            for path in Engine/KRKRRuntime Engine/MikageSDLHost \
+                App/AppBuildInfo.swift App/SettingsView.swift App/AppDiagnostics.swift App/Info.plist \
+                App/Engine/KRKRSession.swift App/Engine/KRKROverlay.swift App/Engine/KRKRLayerWorkSample.swift \
+                .github/workflows/ios.yml; do
               echo "${path}=$(git rev-parse "HEAD:${path}")"
             done
+            git ls-tree HEAD scripts/ | grep -Ev 'scripts/(build-(krkr|ons|sdl3|renpy)|fetch-metalangle)-ios\.sh$'
             # Swift test targets run in their own steps below.
             git ls-tree HEAD Tests/ | grep -Ev 'Tests/(MikageTests|VNCoreTests)$'
           } | tee build-native-fingerprint.txt
@@ -78,11 +100,12 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
           cmake --build build/metal-render-tests --parallel
           ctest --test-dir build/metal-render-tests --output-on-failure
-      # Nearly all of this step was three serial runs of an unoptimized
-      # metal-layer-tests binary under the Metal validation layer (about
-      # 283 s + 165 s + 154 s), dominated by the tvpgl software reference and
-      # the per-pixel comparisons. Build those with -O2 but without NDEBUG so
-      # assertions stay on, and run the three variants side by side.
+      # Nearly all of this step is metal-layer-tests under the Metal
+      # validation layer: about 78,000 GPU readbacks per Layer pass, each
+      # checked against the tvpgl software reference. Build with -O2 but
+      # without NDEBUG so assertions stay on, and run the three pipeline
+      # variants side by side. Only the default variant repeats the passes
+      # over three Layer sessions; each check prints a TIME line.
       - name: Compare Metal Layer with software RenderManager
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
@@ -125,12 +148,6 @@ jobs:
           cmake -S Tests/EmoteMetadata -B build/emote-metadata-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/emote-metadata-tests --parallel
           ctest --test-dir build/emote-metadata-tests --output-on-failure
-      - name: Test Emote animation integration
-        if: steps.native-tests.outputs.cache-hit != 'true'
-        run: |
-          cmake -S Tests/EmoteAnimation -B build/emote-animation-tests -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/emote-animation-tests --parallel
-          ctest --test-dir build/emote-animation-tests --output-on-failure
       - name: Test Emote performance state and production node evaluation
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
@@ -155,12 +172,32 @@ jobs:
           cmake -S Tests/PSBFile -B build/psb-file-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/psb-file-tests --parallel
           ctest --test-dir build/psb-file-tests --output-on-failure
+      - name: Test sound buffer pan through SDL's disk audio driver
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/AudioPan -B build/audio-pan-tests -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/audio-pan-tests --parallel
+          ctest --test-dir build/audio-pan-tests --output-on-failure
+      - name: Test layerExSave PNG encoding and cancel
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/LayerExSave -B build/layerexsave-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/layerexsave-tests --parallel
+          ctest --test-dir build/layerexsave-tests --output-on-failure
       - name: Test layer input and pointer presentation lifecycle
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
           cmake -S Tests/LayerInput -B build/layer-input-tests -DCMAKE_BUILD_TYPE=Release
           cmake --build build/layer-input-tests --parallel
           ctest --test-dir build/layer-input-tests --output-on-failure
+      - name: Test shared SDL host lifecycle
+        if: steps.native-tests.outputs.cache-hit != 'true'
+        run: |
+          cmake -S Tests/SDLHost -B build/sdl-host-tests -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix sdl3)"
+          cmake --build build/sdl-host-tests --parallel
+          ctest --test-dir build/sdl-host-tests --output-on-failure
       - name: Record native runtime test result
         if: steps.native-tests.outputs.cache-hit != 'true'
         run: |
@@ -210,15 +247,40 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/krkr-ccache
-          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          key: krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh') }}
           restore-keys: |
             krkr-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      # MetalANGLE (OpenGL ES on Metal) is a pinned, checksummed download.
+      # The shared SDL3 links it for GL windows instead of Apple's OpenGLES.
+      - name: Fetch MetalANGLE
+        run: bash scripts/fetch-metalangle-ios.sh
+      # One SDL3.xcframework is embedded in the app and shared by every
+      # engine runtime. It only depends on the pinned SDL submodule, its
+      # patches, this script, MetalANGLE and the toolchain.
+      - name: Restore shared SDL3 framework
+        id: cache-sdl3
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SDL3.xcframework
+          key: sdl3-framework-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-sdl3-ios.sh', 'scripts/fetch-metalangle-ios.sh', 'Engine/SDL3/patches/**') }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Build shared SDL3 framework
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-sdl3-ios.sh 2>&1 | tee build/sdl3-build.log
+      - name: Save shared SDL3 framework
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SDL3.xcframework
+          key: ${{ steps.cache-sdl3.outputs.cache-primary-key }}
       - name: Restore KRKR runtime framework
         id: cache-krkr-runtime
         uses: actions/cache/restore@v4
         with:
           path: build/KRKRRuntime.xcframework
-          key: krkr-runtime-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('.gitmodules', 'Engine/KRKRRuntime/Source/**', 'scripts/build-krkr-ios.sh') }}
+          key: krkr-runtime-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/KRKRRuntime/Source/**', 'Engine/MikageSDLHost/**', 'scripts/build-krkr-ios.sh', 'scripts/build-sdl3-ios.sh') }}-${{ steps.sdl3-revision.outputs.rev }}
       - name: Build KRKR runtime framework
         if: steps.cache-krkr-runtime.outputs.cache-hit != 'true'
         run: |
@@ -231,6 +293,162 @@ jobs:
         with:
           path: build/KRKRRuntime.xcframework
           key: ${{ steps.cache-krkr-runtime.outputs.cache-primary-key }}
+      # ONScripter runs on the shared SDL3 through sdl2-compat, which its
+      # CMake build fetches at a pinned commit along with SDL2_image,
+      # SDL2_mixer, SDL2_ttf and Lua. It decodes movies with the FFmpeg the
+      # KRKR step installs, so the key follows KRKR's vcpkg inputs.
+      - name: Restore ONScripter runtime framework
+        id: cache-ons-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/ONSRuntime.xcframework
+          key: ons-runtime-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ons-ios.sh', 'scripts/build-sdl3-ios.sh', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.ons-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Build ONScripter runtime framework
+        if: steps.cache-ons-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-ons-ios.sh 2>&1 | tee build/ons-runtime-build.log
+      - name: Save ONScripter runtime framework
+        if: steps.cache-ons-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/ONSRuntime.xcframework
+          key: ${{ steps.cache-ons-runtime.outputs.cache-primary-key }}
+      # openArtemis links the shared SDL3 and the FFmpeg the KRKR step
+      # installs; its other dependencies come from its own vcpkg manifest,
+      # with triplets that match KRKR's so the binary cache is shared.
+      - name: Restore openArtemis runtime framework
+        id: cache-artemis-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/ArtemisRuntime.xcframework
+          key: artemis-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-artemis-ios.sh', 'scripts/build-sdl3-ios.sh', 'Engine/MikageSDLHost/**', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.artemis-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      # openArtemis's own vcpkg packages are not in the KRKR archive cache
+      # (that key rarely misses, so it is seldom saved again); keep its
+      # installed trees on an exact key instead.
+      - name: Cache openArtemis installed dependencies
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/artemis-vcpkg-installed
+          key: artemis-vcpkg-installed-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/ArtemisRuntime/Source/vcpkg.json', 'Engine/ArtemisRuntime/Source/cmake/triplets/arm64-ios.cmake', 'Engine/ArtemisRuntime/Source/cmake/triplets/arm64-ios-simulator.cmake') }}
+      # Compiler results, so a small engine change recompiles only what it
+      # touches (same ccache setup as KRKR).
+      - name: Cache openArtemis compilation results
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/artemis-ccache
+          key: artemis-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ steps.artemis-revision.outputs.rev }}-${{ hashFiles('Engine/MikageSDLHost/**', 'scripts/build-artemis-ios.sh') }}
+          restore-keys: |
+            artemis-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build openArtemis runtime framework
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-artemis-ios.sh 2>&1 | tee build/artemis-runtime-build.log
+      - name: Save openArtemis runtime framework
+        if: steps.cache-artemis-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/ArtemisRuntime.xcframework
+          key: ${{ steps.cache-artemis-runtime.outputs.cache-primary-key }}
+      # Ren'Py: CPython 3.12 cross-built for iOS, Ren'Py's Cython modules
+      # and pyobjus in one framework, on the shared SDL3 and MetalANGLE, with
+      # the FFmpeg the KRKR step installs. A host Python 3.12 generates the
+      # C and builds CPython; it stays off PATH for the other steps.
+      - name: Restore Ren'Py runtime framework
+        id: cache-renpy-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/RenPyRuntime.xcframework
+          key: renpy-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-renpy-ios.sh', 'scripts/build-sdl3-ios.sh', 'scripts/fetch-metalangle-ios.sh', 'Engine/SDL3/patches/**', 'Engine/KRKRRuntime/Source/vcpkg.json', 'Engine/KRKRRuntime/Source/vcpkg-configuration.json', 'Engine/KRKRRuntime/Source/vcpkg/ports/**', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios.cmake', 'Engine/KRKRRuntime/Source/vcpkg/triplets/arm64-ios-simulator.cmake') }}-${{ steps.renpy-revision.outputs.rev }}-${{ steps.sdl3-revision.outputs.rev }}
+      - name: Set up host Python for Ren'Py
+        id: renpy-host-python
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          update-environment: false
+      - name: Cache Ren'Py installed dependencies
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/renpy-vcpkg-installed
+          key: renpy-vcpkg-installed-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/RenPyRuntime/Source/mikage/vcpkg.json', 'Engine/RenPyRuntime/Source/mikage/triplets/**') }}
+      # CPython only changes with its patches and libraries; bump the key
+      # when build_python in the script changes.
+      - name: Cache Ren'Py's CPython builds
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/renpy/python-install-iphoneos
+            build/renpy/python-install-iphonesimulator
+          key: renpy-cpython-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/RenPyRuntime/Source/mikage/python/**', 'Engine/RenPyRuntime/Source/mikage/vcpkg.json') }}
+      - name: Cache Ren'Py compilation results
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/renpy-ccache
+          key: renpy-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ steps.renpy-revision.outputs.rev }}-${{ hashFiles('scripts/build-renpy-ios.sh') }}
+          restore-keys: |
+            renpy-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build Ren'Py runtime framework
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        env:
+          RENPY_HOST_PYTHON: ${{ steps.renpy-host-python.outputs.python-path }}
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-renpy-ios.sh 2>&1 | tee build/renpy-runtime-build.log
+      - name: Save Ren'Py runtime framework
+        if: steps.cache-renpy-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/RenPyRuntime.xcframework
+          key: ${{ steps.cache-renpy-runtime.outputs.cache-primary-key }}
+      # SiglusEngine: the siglus_rs fork (Rust, wgpu on Metal, kira audio)
+      # as a dynamic framework, with KiriKiri's FFmpeg linked in for H.264.
+      - name: Restore Siglus runtime framework
+        id: cache-siglus-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SiglusRuntime.xcframework
+          key: siglus-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-siglus-ios.sh', 'Engine/SiglusRuntime/H264Decoder.c') }}-${{ steps.siglus-revision.outputs.rev }}
+      - name: Install Rust for Siglus
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache Siglus Rust builds
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/siglus/target
+          key: siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SiglusRuntime/Source/Cargo.lock') }}-${{ steps.siglus-revision.outputs.rev }}
+          restore-keys: |
+            siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SiglusRuntime/Source/Cargo.lock') }}-
+            siglus-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build Siglus runtime framework
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-siglus-ios.sh 2>&1 | tee build/siglus-runtime-build.log
+      - name: Save Siglus runtime framework
+        if: steps.cache-siglus-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SiglusRuntime.xcframework
+          key: ${{ steps.cache-siglus-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py
@@ -260,6 +478,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             MIKAGE_SOURCE_REVISION="${MIKAGE_SOURCE_REVISION}" \
             2>&1 | tee build/app-tests.log
+      - name: Collect simulator crash reports
+        if: failure()
+        run: |
+          mkdir -p build
+          for report in "${HOME}"/Library/Logs/DiagnosticReports/Mikage*; do
+            [ -f "${report}" ] || continue
+            cp "${report}" "build/crash-$(basename "${report}").log"
+          done
       - name: Build unsigned iPhone app
         env:
           # Mikage's Bangumi app (bgm.tv/dev/app), from repository secrets.

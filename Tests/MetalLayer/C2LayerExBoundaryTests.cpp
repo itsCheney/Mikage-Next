@@ -5,6 +5,7 @@
 #include "CPUConsumerTrace.h"
 #include "ncbind/ncbind.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -111,8 +112,11 @@ static void plutovg_canvas_fill_rect(plutovg_canvas_t* c,float,float,float,float
     for(int y=c->clip.top;y<c->clip.bottom;++y) for(int x=c->clip.left;x<c->clip.right;++x)
         std::memcpy(c->surface->data+size_t(y)*c->surface->pitch+x*4,&c->color,4);
 }
-static bool plutovg_surface_write_to_png(plutovg_surface_t*,const tjs_char*) { return true; }
-static void plutovg_font_face_text_extents(plutovg_font_face_t*,float,const tjs_char*,int length,int,plutovg_rect_t* r) { *r={0,0,float(length)*5,10}; }
+typedef void (*plutovg_write_func_t)(void*,void*,int);
+static int TestRecordSaves=0;
+static bool plutovg_surface_write_to_png_stream(plutovg_surface_t*,plutovg_write_func_t,void*) { ++TestRecordSaves;return true; }
+static tTJSBinaryStream* TVPCreateBinaryStreamForWrite(const ttstr&,const ttstr&) { return nullptr; }
+static float plutovg_font_face_text_extents(plutovg_font_face_t*,float,const tjs_char*,int length,int,plutovg_rect_t* r) { *r={0,-8,float(length)*5,10};return float(length)*5; }
 enum SmoothingMode { SmoothingModeAntiAlias=4 };
 enum TextRenderingHint { TextRenderingHintAntiAlias=4 };
 struct RectF { tjs_real x=0,y=0,w=0,h=0;RectF()=default;RectF(tjs_real X,tjs_real Y,tjs_real W,tjs_real H):x(X),y(Y),w(W),h(H) {} };
@@ -130,9 +134,12 @@ struct FontInfo {
     plutovg_font_face_t face;
     plutovg_font_face_t* getFontFace() const { return const_cast<plutovg_font_face_t*>(&face); }
     float getEmSize() const { return 10; }
+    float getAscent() const { return 8; }
+    float getLineSpacing() const { return 12; }
 };
 struct GdipImage {
     int width,height;uint32_t bgColor=0;plutovg_surface_t* _surface=nullptr;
+    int type=1;plutovg_matrix_t transMtx;
     GdipImage(int w,int h):width(w),height(h) {}
     explicit GdipImage(plutovg_surface_t* s):width(s?s->width:0),height(s?s->height:0),_surface(s) { if(s) ++s->refs; }
     ~GdipImage() { if(_surface) plutovg_surface_destroy(_surface); }
@@ -141,6 +148,8 @@ struct GdipImage {
 };
 
 #include "ProductionLayerExBoundary.inc"
+// Record replay draws through paths and paints, which this oracle doubles away.
+void LayerExDraw::replayRecord(const GdipImage*,const plutovg_matrix_t&) {}
 
 struct TestDrawObject {
     iTJSDispatch2* object=new tTJSCustomObject;
@@ -303,7 +312,9 @@ int RunC2LayerExBoundaryTests() {
         FontInfo font;
         {
             ncbInvocationPolicy<LayerExDraw>::Scope scope(TJS_N("measureString"),ncbInvocationKind::Method,fixture.object);
-            RequireDraw(draw->measureString(&font,TJS_N("abc")).w==15,"measurement result changed");
+            // Advance 15 plus the 1/6 em GDI+ padding on each side; one line.
+            const RectF box=draw->measureString(&font,TJS_N("abc"));
+            RequireDraw(std::fabs(box.w-(15+10/6.0*2))<1e-4 && box.h==12 && box.x==0 && box.y==0,"measurement result changed");
         }
         {
             ncbInvocationPolicy<LayerExDraw>::Scope scope(TJS_N("measureStringInternal"),ncbInvocationKind::Method,fixture.object);

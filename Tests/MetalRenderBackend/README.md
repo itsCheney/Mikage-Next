@@ -8,16 +8,12 @@ write masks, deferred Fill, sampling and submission boundaries. The native test
 body gets a compile-only Windows check. Binder fixtures execute extracted
 production traversal/copy/forwarding methods to check unused temporary removal,
 coordinates, alpha-presentation side effects, nested ownership and exclusions.
-See ../../docs/NATIVE-METAL-ORDINARY-PIPELINES-BASELINE.md for support and gates.
 
-P2D adds production initialization-policy checks and a bounded hotspot recorder,
-the extracted production C++ attribution helpers, and formatter-to-parser tests.
-The native suite also checks logical zero before first use, partial-write borders,
+P2D adds production initialization-policy checks. The native suite also checks logical zero before first use, partial-write borders,
 full upload/copy initialization elision, full Fill clear precision and pass reuse,
 alpha-table replacement after fast Fill, aliases and asynchronous reads. Its
 test bodies compile as an unlinked object on Windows; actual Metal execution
-still requires Apple. See ../../docs/NATIVE-METAL-P2D-BASELINE.md for limits and
-device A/B acceptance.
+still requires Apple.
 
 This executable links the production Metal and software offscreen backends
 without the game engine. On macOS it verifies:
@@ -52,8 +48,7 @@ MTL_DEBUG_LAYER=1 ctest --test-dir build/metal-render-tests --output-on-failure
 On Apple hosts without a Metal device, the executable returns 77, which CTest
 reports as skipped. A skip does **not** validate native shaders or rendering.
 On non-Apple hosts only the software transfer/reference and diagnostic metadata
-tests run. C3 atlas/arena allocation and ownership conditions, plus the actual
-aggregate formatter and parser, also run portably. Native C3 test bodies get a
+tests run. C3 atlas/arena allocation and ownership conditions also run portably. Native C3 test bodies get a
 compile-only C++ check; this does not compile Objective-C++ or validate GPU access.
 The iOS build workflow compiles this test executable and runs it when the
 runner exposes a Metal device.
@@ -74,7 +69,6 @@ and shared R8 glyphs against the original scratch operator. Tile rendering must
 retain one pass; snapshot-compute devices retain their required target copies.
 Repeated resets before submission must retain the old atlas memory budget until
 completion. CTest runs both ordinary and forced-compute configurations on Apple.
-See ../../docs/NATIVE-METAL-P2C-C3-BASELINE.md for evidence and device gates.
 
 The Layer suite also covers the P2A prepared affine blend domain. Nonrectangular
 Alpha/ConstAlpha/AdditiveAlpha and Photoshop quads use compute with GPU snapshots;

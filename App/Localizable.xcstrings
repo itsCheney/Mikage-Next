@@ -1,18 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%.1f FPS · interval %.1f ms" : {
+    "%.0f /frame" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$.1f FPS · 間隔 %2$.1f ms"
+            "value" : "%.0f /フレーム"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$.1f FPS · 间隔 %2$.1f ms"
+            "value" : "%.0f /帧"
           }
         }
       }
@@ -178,6 +178,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本次 %@"
+          }
+        }
+      }
+    },
+    "%@ · from the Files app" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ·「ファイル」から"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 来自“文件” App"
           }
         }
       }
@@ -414,6 +430,72 @@
         }
       }
     },
+    "%lld ratings" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rating"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld ratings"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の評価"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 人评分"
+          }
+        }
+      }
+    },
+    "%lld saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブ %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个存档"
+          }
+        }
+      }
+    },
+    "%lld saves · %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブ %1$lld 件 · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 个存档 · %2$@"
+          }
+        }
+      }
+    },
     "%lld times" : {
       "localizations" : {
         "en" : {
@@ -444,6 +526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 次"
+          }
+        }
+      }
+    },
+    "3-finger tap restores" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3本指タップで戻せます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三指轻点可恢复"
           }
         }
       }
@@ -528,22 +626,6 @@
         }
       }
     },
-    "A new Emote playback method for comparing motion smoothness. Off by default. Takes effect the next time a game launches; if motions or expressions look wrong, turn it off and reopen the game." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "動きの滑らかさを比較するための新しい Emote 再生方式です。デフォルトはオフです。次回ゲームを起動したときに反映されます。動きや表情に異常がある場合は、オフにしてゲームを開き直してください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新的 Emote 播放方式，用于对比动作流畅度，默认关闭。下次启动游戏时生效；若动作或表情异常，可关闭后重新进入游戏。"
-          }
-        }
-      }
-    },
     "About Mikage" : {
       "localizations" : {
         "ja" : {
@@ -588,6 +670,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账号与同步"
+          }
+        }
+      }
+    },
+    "Add %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加%@"
           }
         }
       }
@@ -672,18 +770,18 @@
         }
       }
     },
-    "All threads CPU %.0f%%" : {
+    "All threads" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全スレッド CPU %.0f%%"
+            "value" : "全スレッド"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部线程 CPU %.0f%%"
+            "value" : "全部线程"
           }
         }
       }
@@ -704,22 +802,6 @@
         }
       }
     },
-    "Animation" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アニメーション"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "动画"
-          }
-        }
-      }
-    },
     "Appearance" : {
       "localizations" : {
         "ja" : {
@@ -732,6 +814,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外观"
+          }
+        }
+      }
+    },
+    "Auto" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动"
           }
         }
       }
@@ -768,6 +866,70 @@
         }
       }
     },
+    "Available" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加できるアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可添加"
+          }
+        }
+      }
+    },
+    "Back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回"
+          }
+        }
+      }
+    },
+    "Back (Esc)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る (Esc)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回 (Esc)"
+          }
+        }
+      }
+    },
+    "Back to Game" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームに戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回游戏"
+          }
+        }
+      }
+    },
     "Background Fill" : {
       "localizations" : {
         "ja" : {
@@ -780,6 +942,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景填充"
+          }
+        }
+      }
+    },
+    "Backlog" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回看"
+          }
+        }
+      }
+    },
+    "Backlog and saves open when the game is waiting on its text." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームがテキストでクリック待ちのときに、バックログとセーブ・ロードを開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "游戏停在对话等待点按时，才能打开回看和存读档。"
           }
         }
       }
@@ -1056,6 +1250,22 @@
         }
       }
     },
+    "Can’t quick save here" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここではクイックセーブできません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此处无法快速存档"
+          }
+        }
+      }
+    },
     "Change Cover" : {
       "localizations" : {
         "ja" : {
@@ -1296,6 +1506,22 @@
         }
       }
     },
+    "Continue from Latest Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新のセーブから再開"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从最新存档继续"
+          }
+        }
+      }
+    },
     "Continue Playing" : {
       "localizations" : {
         "ja" : {
@@ -1372,6 +1598,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法删除游戏：%@"
+          }
+        }
+      }
+    },
+    "Couldn’t delete the save: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを削除できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法删除存档：%@"
           }
         }
       }
@@ -1696,6 +1938,22 @@
         }
       }
     },
+    "Delete %@?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除%@？"
+          }
+        }
+      }
+    },
     "Delete Game and Saves" : {
       "localizations" : {
         "ja" : {
@@ -1740,6 +1998,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除记录与历史"
+          }
+        }
+      }
+    },
+    "Delete Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除存档"
           }
         }
       }
@@ -1936,6 +2210,22 @@
         }
       }
     },
+    "Dismiss" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "ja" : {
@@ -1948,6 +2238,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成"
+          }
+        }
+      }
+    },
+    "Drag the panel to move it. Drag it past the screen edge to tuck it away." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドラッグで移動、画面の端までドラッグでしまえます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动以移动，拖到屏幕边缘可收起。"
+          }
+        }
+      }
+    },
+    "Drag to move the pointer, tap to click." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドラッグでポインタを移動、タップでクリックします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动以移动指针，轻点以点击。"
+          }
+        }
+      }
+    },
+    "Draw calls" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描画呼び出し"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绘制调用"
+          }
+        }
+      }
+    },
+    "Drawable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面"
           }
         }
       }
@@ -2018,6 +2372,22 @@
         }
       }
     },
+    "Each slot is the game’s own save file in savedata, so its original menu can still read them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各スロットは savedata 内のゲーム自身のセーブファイルなので、ゲーム本来のメニューからも読めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每个存档位就是 savedata 里游戏自己的存档文件，游戏原本的菜单也能读取。"
+          }
+        }
+      }
+    },
     "Email" : {
       "localizations" : {
         "ja" : {
@@ -2034,18 +2404,34 @@
         }
       }
     },
-    "Emote Candidate Animation" : {
+    "Empty Slot" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Emote 候補アニメーション"
+            "value" : "空きスロット"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Emote 候选动画"
+            "value" : "空存档位"
+          }
+        }
+      }
+    },
+    "Empty slots aren’t shown. Deleted saves can’t be recovered." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空きスロットは表示されません。削除したセーブは元に戻せません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空存档位不显示。删除后无法恢复。"
           }
         }
       }
@@ -2130,6 +2516,38 @@
         }
       }
     },
+    "Export" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出"
+          }
+        }
+      }
+    },
+    "Export All Saves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのセーブを書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出全部存档"
+          }
+        }
+      }
+    },
     "Export Diagnostic Log" : {
       "localizations" : {
         "ja" : {
@@ -2174,6 +2592,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在导出…"
+          }
+        }
+      }
+    },
+    "Fetching covers and details from Bangumi and VNDB…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB からカバーと情報を取得中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在从 Bangumi 和 VNDB 获取封面与资料…"
           }
         }
       }
@@ -2322,6 +2756,72 @@
         }
       }
     },
+    "Found %lld new games" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Found %lld new game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Found %lld new games"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいゲーム %lld 本"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现 %lld 款新游戏"
+          }
+        }
+      }
+    },
+    "Frame time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレーム時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帧耗时"
+          }
+        }
+      }
+    },
+    "Frame times for the last 40 seconds" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直近 40 秒のフレーム時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 40 秒的帧耗时"
+          }
+        }
+      }
+    },
     "Frees %@" : {
       "localizations" : {
         "ja" : {
@@ -2334,6 +2834,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "释放 %@"
+          }
+        }
+      }
+    },
+    "Full" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整"
           }
         }
       }
@@ -2530,18 +3046,34 @@
         }
       }
     },
-    "GPU submit %.1f ms" : {
+    "GPU memory" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GPU 送信 %.1f ms"
+            "value" : "GPU メモリ"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GPU 提交 %.1f ms"
+            "value" : "GPU 内存"
+          }
+        }
+      }
+    },
+    "GPU submit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPU 送信"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPU 提交"
           }
         }
       }
@@ -2626,6 +3158,22 @@
         }
       }
     },
+    "Hide Button" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ボタンを隠す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏按钮"
+          }
+        }
+      }
+    },
     "Hide Sensitive Images" : {
       "localizations" : {
         "ja" : {
@@ -2638,6 +3186,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隐藏敏感图片"
+          }
+        }
+      }
+    },
+    "Idle" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "静止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "静止"
           }
         }
       }
@@ -2686,6 +3250,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图片"
+          }
+        }
+      }
+    },
+    "Import" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入"
           }
         }
       }
@@ -2754,6 +3334,40 @@
         }
       }
     },
+    "Imported %lld games" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld games"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 本を読み込みました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导入 %lld 款游戏"
+          }
+        }
+      }
+    },
     "In Game" : {
       "localizations" : {
         "ja" : {
@@ -2782,6 +3396,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "信息"
+          }
+        }
+      }
+    },
+    "Interval" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "間隔"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "间隔"
+          }
+        }
+      }
+    },
+    "Jump Back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回"
+          }
+        }
+      }
+    },
+    "Jump back to this line" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセリフに戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回到这一句"
+          }
+        }
+      }
+    },
+    "Jump back to this line?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセリフに戻りますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回到这一句？"
           }
         }
       }
@@ -2899,6 +3577,22 @@
         }
       }
     },
+    "Latest" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        }
+      }
+    },
     "Launches" : {
       "localizations" : {
         "ja" : {
@@ -2931,34 +3625,18 @@
         }
       }
     },
-    "Layer compositing · GPU Metal" : {
+    "Layers" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "レイヤー合成 · GPU Metal"
+            "value" : "レイヤー合成"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "图层合成 · GPU Metal"
-          }
-        }
-      }
-    },
-    "Layer compositing · Software" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "レイヤー合成 · ソフトウェア"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "图层合成 · 软件"
+            "value" : "图层合成"
           }
         }
       }
@@ -3141,6 +3819,38 @@
         }
       }
     },
+    "Load" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读档"
+          }
+        }
+      }
+    },
+    "Load No.%lld?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld をロードしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取 No.%lld？"
+          }
+        }
+      }
+    },
     "Logging stopped: %@" : {
       "localizations" : {
         "ja" : {
@@ -3157,18 +3867,18 @@
         }
       }
     },
-    "Main thread %.1f ms · peak %.1f ms" : {
+    "Main thread" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メインスレッド %1$.1f ms · ピーク %2$.1f ms"
+            "value" : "メインスレッド"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主线程 %1$.1f ms · 峰值 %2$.1f ms"
+            "value" : "主线程"
           }
         }
       }
@@ -3269,18 +3979,66 @@
         }
       }
     },
-    "Memory %@" : {
+    "Matched %lld of %lld · View to match the rest" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモリ %@"
+            "value" : "%lld/%lld 本を紐付け ·「表示」で残りを紐付け"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内存 %@"
+            "value" : "已匹配 %lld/%lld 款 · 点“查看”匹配其余"
+          }
+        }
+      }
+    },
+    "Matched with Bangumi and VNDB" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bangumi と VNDB に紐付けました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配 Bangumi 和 VNDB"
+          }
+        }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存"
+          }
+        }
+      }
+    },
+    "Memory & transfer" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリと転送"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存与传输"
           }
         }
       }
@@ -3301,18 +4059,18 @@
         }
       }
     },
-    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime, which scans for and launches KiriKiri games automatically. ONScripter, Ren’Py and Artemis folders already appear in the Library; their runtimes will follow in later stages.\n\nThe app includes no game content." : {
+    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games and siglus_rs for SiglusEngine games.\n\nThe app includes no game content." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKRKRSDL3 ランタイムを内蔵し、KiriKiri ゲームの自動スキャンと起動に対応しています。ONScripter、Ren’Py、Artemis のフォルダはライブラリに表示されますが、ランタイムは今後対応予定です。\n\nアプリにゲームは含まれていません。"
+            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs を内蔵しています。\n\nアプリにゲームは含まれていません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n当前内置 KRKRSDL3 runtime，支持自动扫描并启动 KiriKiri 游戏。ONScripter、Ren’Py 与 Artemis 目录已接入游戏库，运行时将在后续阶段适配。\n\n应用不附带游戏内容。"
+            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8，以及用于 SiglusEngine 游戏的 siglus_rs。\n\n应用不附带游戏内容。"
           }
         }
       }
@@ -3413,6 +4171,22 @@
         }
       }
     },
+    "Mouse" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マウス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鼠标"
+          }
+        }
+      }
+    },
     "My Rating" : {
       "localizations" : {
         "ja" : {
@@ -3461,6 +4235,22 @@
         }
       }
     },
+    "Newest First" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい順"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新的在前"
+          }
+        }
+      }
+    },
     "No account connected" : {
       "localizations" : {
         "ja" : {
@@ -3473,6 +4263,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未连接账号"
+          }
+        }
+      }
+    },
+    "No Artemis data found (root.pfs or system.ini)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artemis のデータ（root.pfs または system.ini）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 Artemis 数据（root.pfs 或 system.ini）"
           }
         }
       }
@@ -3543,6 +4351,72 @@
         }
       }
     },
+    "No ONScripter script found (0.txt, 00.txt or nscript.dat)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter のスクリプト（0.txt、00.txt、nscript.dat）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 ONScripter 脚本（0.txt、00.txt 或 nscript.dat）"
+          }
+        }
+      }
+    },
+    "No quick actions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクションなし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有快捷操作"
+          }
+        }
+      }
+    },
+    "No Ren’Py game found (a game folder with .rpy, .rpyc or .rpa files)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py のゲームが見つかりません（.rpy、.rpyc、.rpa を含む game フォルダ）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 Ren’Py 游戏（包含 .rpy、.rpyc 或 .rpa 文件的 game 文件夹）"
+          }
+        }
+      }
+    },
+    "No saves yet. Saves made in the game appear here." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだセーブがありません。ゲーム内でセーブするとここに表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有存档。在游戏里存档后会显示在这里。"
+          }
+        }
+      }
+    },
     "No supported game structure was found. Choose the engine manually." : {
       "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
       "extractionState" : "manual",
@@ -3591,6 +4465,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "都不是？按名称搜索"
+          }
+        }
+      }
+    },
+    "Not available right now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今は使用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前不可用"
           }
         }
       }
@@ -3691,6 +4581,22 @@
         }
       }
     },
+    "Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前"
+          }
+        }
+      }
+    },
     "Off" : {
       "localizations" : {
         "ja" : {
@@ -3755,6 +4661,120 @@
         }
       }
     },
+    "On · %lld actions" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On · %lld action"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "On · %lld actions"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン · %lld 個のアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启 · %lld 个操作"
+          }
+        }
+      }
+    },
+    "ONScripter didn’t create a usable window." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が使用可能なウインドウを作成しませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 没有创建可用的窗口。"
+          }
+        }
+      }
+    },
+    "ONScripter failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 启动失败。"
+          }
+        }
+      }
+    },
+    "ONScripter failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 启动失败：%@"
+          }
+        }
+      }
+    },
+    "ONScripter stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 已停止。"
+          }
+        }
+      }
+    },
+    "ONScripter stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ONScripter 已停止：%@"
+          }
+        }
+      }
+    },
     "Open Game Menu" : {
       "localizations" : {
         "ja" : {
@@ -3803,18 +4823,740 @@
         }
       }
     },
-    "Ops %llu · CPU fallbacks %llu" : {
+    "openArtemis didn’t create a usable window." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "演算 %1$llu · CPU フォールバック %2$llu"
+            "value" : "openArtemis が使用可能なウインドウを作成しませんでした。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "算子 %1$llu · CPU 回退 %2$llu"
+            "value" : "openArtemis 没有创建可用的窗口。"
+          }
+        }
+      }
+    },
+    "openArtemis failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis 启动失败。"
+          }
+        }
+      }
+    },
+    "openArtemis failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis 启动失败：%@"
+          }
+        }
+      }
+    },
+    "openArtemis stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis 已停止。"
+          }
+        }
+      }
+    },
+    "No SiglusEngine data found (Scene.pck or Gameexe.dat)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine のデータ（Scene.pck または Gameexe.dat）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 SiglusEngine 数据（Scene.pck 或 Gameexe.dat）"
+          }
+        }
+      }
+    },
+    "Opens the game in %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ でこの作品を開きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 打开这部作品"
+          }
+        }
+      }
+    },
+    "Ops / CPU fallbacks" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演算 / CPU 代替"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "算子 / CPU 回退"
+          }
+        }
+      }
+    },
+    "Peak" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピーク"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "峰值"
+          }
+        }
+      }
+    },
+    "Present wait" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "呈现等待"
+          }
+        }
+      }
+    },
+    "Puts the menu button and quick actions back in their corners." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューボタンとクイックアクションを元の隅に戻します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将菜单按钮和快捷操作放回各自的角落。"
+          }
+        }
+      }
+    },
+    "Quick Actions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷操作"
+          }
+        }
+      }
+    },
+    "Quick actions float on their own beside the game and run with one tap. Skip here also skips unread text, like holding Ctrl." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックアクションはゲームの横に単独で浮かび、タップ1回で実行します。ここのスキップは Ctrl を押したままのように、未読テキストもスキップします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷操作独立悬浮在游戏旁，轻点一下即可执行。这里的快进如同按住 Ctrl，也会跳过未读文本。"
+          }
+        }
+      }
+    },
+    "Quick Load" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速读档"
+          }
+        }
+      }
+    },
+    "Quick Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速存档"
+          }
+        }
+      }
+    },
+    "Quick saved · %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックセーブしました · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已快速存档 · %@"
+          }
+        }
+      }
+    },
+    "RAM" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存"
+          }
+        }
+      }
+    },
+    "Rank #%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "順位 #%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排名 #%lld"
+          }
+        }
+      }
+    },
+    "Read only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既読のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅已读"
+          }
+        }
+      }
+    },
+    "Readback" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リードバック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回读"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除%@"
+          }
+        }
+      }
+    },
+    "Rendering" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描画"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "渲染"
+          }
+        }
+      }
+    },
+    "Reset Positions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置をリセット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置位置"
+          }
+        }
+      }
+    },
+    "Show Floating Button" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フローティングボタンを表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示悬浮按钮"
+          }
+        }
+      }
+    },
+    "Show Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示を出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开性能统计"
+          }
+        }
+      }
+    },
+    "Shows all stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての項目を表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示全部数据"
+          }
+        }
+      }
+    },
+    "Shows only the frame rate" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレームレートだけを表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只显示帧率"
+          }
+        }
+      }
+    },
+    "SiglusEngine failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 启动失败。"
+          }
+        }
+      }
+    },
+    "SiglusEngine failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 启动失败：%@"
+          }
+        }
+      }
+    },
+    "SiglusEngine stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 已停止。"
+          }
+        }
+      }
+    },
+    "SiglusEngine stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SiglusEngine 已停止：%@"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快进"
+          }
+        }
+      }
+    },
+    "Software" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソフトウェア"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件"
+          }
+        }
+      }
+    },
+    "Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "性能统计"
+          }
+        }
+      }
+    },
+    "Story" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストーリー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剧情"
+          }
+        }
+      }
+    },
+    "Switches between off, simple and full" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフ・シンプル・フルを切り替えます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在关闭、简洁和完整之间切换"
+          }
+        }
+      }
+    },
+    "Tap with three fingers to bring the button back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3本指でタップするとボタンが戻ります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三指轻点即可让按钮重新出现"
+          }
+        }
+      }
+    },
+    "The button fades to this opacity after a few seconds without a touch. Drag it anywhere; it snaps to the nearest edge, or into the bar beside the game." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数秒間触れないと、ボタンはこの不透明度まで薄くなります。好きな場所へドラッグでき、離すと最寄りの端、またはゲーム横の余白に吸着します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "几秒钟没有触碰后，按钮会淡出到此透明度。可将它拖到任意位置，松手后会吸附到最近的边缘，或游戏旁的黑边中。"
+          }
+        }
+      }
+    },
+    "This session %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のプレイ %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次游玩 %@"
+          }
+        }
+      }
+    },
+    "Trackpad" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トラックパッド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触控板"
+          }
+        }
+      }
+    },
+    "Tuck Away Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示をしまう"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起性能统计"
+          }
+        }
+      }
+    },
+    "unnamed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前なし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        }
+      }
+    },
+    "Upload" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传"
+          }
+        }
+      }
+    },
+    "View" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看"
+          }
+        }
+      }
+    },
+    "Yes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是"
+          }
+        }
+      }
+    },
+    "No" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いいえ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "否"
+          }
+        }
+      }
+    },
+    "openArtemis stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "openArtemis 已停止：%@"
           }
         }
       }
@@ -3831,6 +5573,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原名"
+          }
+        }
+      }
+    },
+    "Overwrite" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上書き"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖"
+          }
+        }
+      }
+    },
+    "Overwrite No.%lld?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld に上書きしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖 No.%lld？"
           }
         }
       }
@@ -3863,6 +5637,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "性能"
+          }
+        }
+      }
+    },
+    "Performance Stats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パフォーマンス表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "性能统计"
           }
         }
       }
@@ -3947,22 +5737,6 @@
         }
       }
     },
-    "Played %@ this session" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今回のプレイ時間 %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本次已游玩 %@"
-          }
-        }
-      }
-    },
     "Played on This Device" : {
       "localizations" : {
         "ja" : {
@@ -4011,22 +5785,6 @@
         }
       }
     },
-    "Present wait %.1f ms" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "表示待ち %.1f ms"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "呈现等待 %.1f ms"
-          }
-        }
-      }
-    },
     "Progress" : {
       "localizations" : {
         "ja" : {
@@ -4043,18 +5801,34 @@
         }
       }
     },
-    "Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app." : {
+    "Progress after it is replaced, and anything unsaved is lost." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ゲームフォルダを Documents/krkr、ons、renpy、artemis のいずれかに入れてください。アプリに戻ると自動でスキャンされます。"
+            "value" : "これ以降の進行は置き換わり、セーブしていない内容は失われます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把游戏文件夹放入 Documents/krkr、ons、renpy 或 artemis，返回 App 后会自动扫描。"
+            "value" : "这之后的进度会被替换，未存档的内容将丢失。"
+          }
+        }
+      }
+    },
+    "Put game folders directly in Documents. They’re scanned automatically when you return to the app." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲームフォルダを Documents に直接入れてください。アプリに戻ると自動でスキャンされます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把游戏文件夹直接放入 Documents，返回 App 后会自动扫描。"
           }
         }
       }
@@ -4411,6 +6185,118 @@
         }
       }
     },
+    "Ren’Py can run one game each time Mikage opens. Close Mikage from the app switcher and open it again to play another Ren’Py game." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py は Mikage を開くたびに 1 本のゲームしか実行できません。別の Ren’Py ゲームを遊ぶには、App スイッチャーで Mikage を終了してから開き直してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次打开 Mikage 只能运行一个 Ren’Py 游戏。要玩另一个 Ren’Py 游戏，请在多任务界面关闭 Mikage 后重新打开。"
+          }
+        }
+      }
+    },
+    "Ren’Py didn’t create a usable window." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py が使用できるウィンドウを作成しませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py 未能创建可用的窗口。"
+          }
+        }
+      }
+    },
+    "Ren’Py failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py を起動できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py 启动失败。"
+          }
+        }
+      }
+    },
+    "Ren’Py failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py を起動できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py 启动失败：%@"
+          }
+        }
+      }
+    },
+    "Ren’Py stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py 已停止。"
+          }
+        }
+      }
+    },
+    "Ren’Py stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren’Py 已停止：%@"
+          }
+        }
+      }
+    },
+    "Replay Voice" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ボイスを再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重播语音"
+          }
+        }
+      }
+    },
     "Respect Silent Mode" : {
       "localizations" : {
         "ja" : {
@@ -4491,6 +6377,38 @@
         }
       }
     },
+    "Save Slots" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブスロット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存档位"
+          }
+        }
+      }
+    },
+    "Save to No.%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No.%lld にセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存到 No.%lld"
+          }
+        }
+      }
+    },
     "Saved. Will sync when possible" : {
       "localizations" : {
         "ja" : {
@@ -4519,6 +6437,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存档"
+          }
+        }
+      }
+    },
+    "Saves live in the game folder’s savedata, the same files the in-game save and load menus use." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブはゲームフォルダの savedata にあり、ゲーム内のセーブ・ロードメニューと同じファイルです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存档保存在游戏文件夹的 savedata 中，游戏内的存档和读档菜单用的是同一份。"
+          }
+        }
+      }
+    },
+    "Saves your current progress and screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の進行と画面を保存します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存当前进度和画面。"
           }
         }
       }
@@ -4827,6 +6777,22 @@
         }
       }
     },
+    "Simple" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンプル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简洁"
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "ja" : {
@@ -4955,6 +6921,22 @@
         }
       }
     },
+    "Start from This Save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このセーブから始める"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这个存档开始"
+          }
+        }
+      }
+    },
     "Started" : {
       "localizations" : {
         "ja" : {
@@ -4999,6 +6981,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存储空间"
+          }
+        }
+      }
+    },
+    "Stretch 4:3 Games to 16:9" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4:3 のゲームを 16:9 に引き伸ばす"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 4:3 游戏拉伸为 16:9"
           }
         }
       }
@@ -5163,6 +7161,38 @@
         }
       }
     },
+    "Tap a line to jump back to it" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セリフをタップしてそこへ戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按一句台词，跳回那里"
+          }
+        }
+      }
+    },
+    "Tap to save here" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップしてここにセーブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按以存到这里"
+          }
+        }
+      }
+    },
     "The %@ engine isn’t supported yet" : {
       "localizations" : {
         "ja" : {
@@ -5311,6 +7341,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游戏库文件仍无法读取。请检查 Application Support/Mikage/library-v2.json。"
+          }
+        }
+      }
+    },
+    "The old save is replaced with your current progress." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のセーブは現在の進行で置き換わります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原来的存档会被当前进度替换。"
           }
         }
       }
@@ -5605,6 +7651,22 @@
         }
       }
     },
+    "Unsaved progress will be lost." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セーブしていない進行は失われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前未存档的进度会丢失。"
+          }
+        }
+      }
+    },
     "Up to about 16 MB, rotated automatically" : {
       "localizations" : {
         "ja" : {
@@ -5633,22 +7695,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游玩时自动更新状态"
-          }
-        }
-      }
-    },
-    "Upload %@ · readback %@" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップロード %1$@ · リードバック %2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上传 %1$@ · 回读 %2$@"
           }
         }
       }
@@ -5845,18 +7891,18 @@
         }
       }
     },
-    "Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly into the engine folders under Documents." : {
+    "Wi-Fi upload and ZIP import aren’t available yet. Import with the plus button at the top right of the Library, or put game folders directly in Documents." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wi-Fi アップロードと ZIP の読み込みにはまだ対応していません。ライブラリ右上のプラスボタンから読み込むか、Documents 内のエンジンフォルダにゲームフォルダを直接入れてください。"
+            "value" : "Wi-Fi アップロードと ZIP の読み込みにはまだ対応していません。ライブラリ右上のプラスボタンから読み込むか、ゲームフォルダを Documents に直接入れてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "局域网上传与 ZIP 导入尚未接入。可以通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents 下的引擎目录。"
+            "value" : "局域网上传与 ZIP 导入尚未接入。可以通过游戏库右上角的加号导入，或直接将游戏文件夹放入 Documents。"
           }
         }
       }
@@ -5889,6 +7935,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游戏文件和存档也可以在“文件”App 的 Mikage Next 中直接管理。"
+          }
+        }
+      }
+    },
+    "You can jump back to any of the last 200 lines this session. Earlier lines are read-only." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のプレイで直近 200 行まで戻れます。それより前は読むだけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以跳回本次游玩中最近的 200 句台词。更早的内容只能回看。"
           }
         }
       }
@@ -5973,36 +8035,36 @@
         }
       }
     },
-    "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly into the krkr, ons, renpy or artemis folder under Documents." : {
+    "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly in Documents." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ZIP の展開と Wi-Fi アップロードにはまだ対応していません。ゲームフォルダを Documents 内の krkr、ons、renpy、artemis フォルダに直接入れることもできます。"
+            "value" : "ZIP の展開と Wi-Fi アップロードにはまだ対応していません。ゲームフォルダを Documents に直接入れることもできます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents 下的 krkr、ons、renpy 或 artemis 目录。"
+            "value" : "ZIP 解压与局域网上传尚未接入。也可以直接把游戏文件夹放入 Documents。"
           }
         }
       }
     },
-    "“%@” already exists in the target engine folder. Rename the folder first." : {
+    "“%@” already exists in Documents. Rename the folder first." : {
       "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
       "extractionState" : "manual",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%@」は読み込み先のエンジンフォルダにすでに存在します。先にフォルダ名を変更してください。"
+            "value" : "「%@」は Documents にすでに存在します。先にフォルダ名を変更してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@”已存在于目标引擎目录中，请先重命名文件夹。"
+            "value" : "“%@”已存在于 Documents 中，请先重命名文件夹。"
           }
         }
       }
@@ -6019,6 +8081,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%1$@”仍在你的 Bangumi 收藏中。%2$@"
+          }
+        }
+      }
+    },
+    "Startup file" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动文件"
+          }
+        }
+      }
+    },
+    "Automatic (%@)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動（%@）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动（%@）"
+          }
+        }
+      }
+    },
+    "Couldn’t change the startup file: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ファイルを変更できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更改启动文件：%@"
+          }
+        }
+      }
+    },
+    "Original" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オリジナル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原版"
           }
         }
       }

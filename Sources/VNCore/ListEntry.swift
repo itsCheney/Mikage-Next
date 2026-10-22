@@ -189,6 +189,21 @@ public struct ArtworkCandidate: Codable, Equatable, Sendable {
     }
 }
 
+/// A service's community score for a game.
+public struct CommunityRating: Codable, Equatable, Sendable {
+    /// Out of 10.
+    public var score: Double
+    public var votes: Int
+    /// Place in the service's ranking; nil while the game is unranked.
+    public var rank: Int?
+
+    public init(score: Double, votes: Int, rank: Int? = nil) {
+        self.score = score
+        self.votes = votes
+        self.rank = rank
+    }
+}
+
 /// Details merged from both services. Bangumi supplies the Chinese title,
 /// synopsis and tags; VNDB supplies developer, release date and screenshots.
 /// Each falls back to the other service when its preferred source has none.
@@ -207,6 +222,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
     public var tags: [String]
     public var posters: [ArtworkCandidate]
     public var screenshots: [ArtworkCandidate]
+    public var bangumiRating: CommunityRating?
+    public var vndbRating: CommunityRating?
     public var fetchedAt: Date?
     /// How the details were put together. Details from an older format are
     /// fetched again, since sensitivity flags and poster order changed.
@@ -214,7 +231,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
 
     /// Format 2: VNDB's cover leads, and only explicit images count as
     /// sensitive (Bangumi's R18 flag marks the game, not its cover).
-    public static let currentFormat = 2
+    /// Format 3: each service's community rating.
+    public static let currentFormat = 3
 
     public var isStale: Bool { format < Self.currentFormat }
 
@@ -229,6 +247,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         tags: [String] = [],
         posters: [ArtworkCandidate] = [],
         screenshots: [ArtworkCandidate] = [],
+        bangumiRating: CommunityRating? = nil,
+        vndbRating: CommunityRating? = nil,
         fetchedAt: Date? = nil,
         format: Int = LinkedMetadata.currentFormat
     ) {
@@ -242,6 +262,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         self.tags = tags
         self.posters = posters
         self.screenshots = screenshots
+        self.bangumiRating = bangumiRating
+        self.vndbRating = vndbRating
         self.fetchedAt = fetchedAt
         self.format = format
     }
@@ -258,6 +280,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         posters = try container.decodeIfPresent([ArtworkCandidate].self, forKey: .posters) ?? []
         screenshots = try container.decodeIfPresent([ArtworkCandidate].self, forKey: .screenshots) ?? []
+        bangumiRating = try? container.decodeIfPresent(CommunityRating.self, forKey: .bangumiRating)
+        vndbRating = try? container.decodeIfPresent(CommunityRating.self, forKey: .vndbRating)
         fetchedAt = try container.decodeIfPresent(Date.self, forKey: .fetchedAt)
         format = (try? container.decodeIfPresent(Int.self, forKey: .format)) ?? 1
     }
@@ -306,9 +330,11 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
     }
 
     /// Combines details from the two services by the preference above.
+    /// `vndbRank` comes from a separate count query; VNDB returns no rank.
     public static func merged(
         vndb: VNDBVisualNovel?,
         bangumi: BangumiSubject?,
+        vndbRank: Int? = nil,
         fetchedAt: Date = Date()
     ) -> LinkedMetadata {
         var result = LinkedMetadata(fetchedAt: fetchedAt)
@@ -336,6 +362,8 @@ public struct LinkedMetadata: Codable, Equatable, Sendable {
             result.posters.append(ArtworkCandidate(url: poster, sensitive: false))
         }
         result.screenshots = vndb?.screenshots.map(\.candidate) ?? []
+        result.bangumiRating = bangumi?.communityRating
+        result.vndbRating = vndb?.communityRating(rank: vndbRank)
         return result
     }
 

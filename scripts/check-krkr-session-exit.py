@@ -35,6 +35,8 @@ def main():
 #include <stdexcept>
 #include <string>
 bool systemAlive, pluginsAlive, vmAlive, backendAlive, emoteCacheRetained;
+bool throwInCompact, throwSilentInUninit, TVPSystemUninitCalled;
+int exitLogs;
 bool graphicCacheRetained, emoteSessionRetained;
 int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears, emoteCacheTrims;
 const int TVP_COMPACT_LEVEL_MINIMIZE=15;
@@ -60,12 +62,20 @@ void TrimSharedEmoteResourceCache(const char*) { emoteCacheRetained=false; ++emo
 void TVPInvalidateMovieSession() {} void TVPFinalizeVideoOverlaySession() {}
 void TVPResetXP3FilterSession() { assert(backendAlive); }
 void* TVPGetScriptEngine() { return vmAlive ? reinterpret_cast<void*>(1) : nullptr; }
+struct eTJSSilent {};
+struct eTJS { std::string GetMessage() const { return "script error"; } };
+void TVPAddLog(const std::string&) { ++exitLogs; }
 void TVPDeliverCompactEvent(int) {
     // The game's save callback loads another script from its ZIP archive.
     assert(systemAlive && pluginsAlive && vmAlive && backendAlive); ++saves;
     emoteCacheRetained=true;
+    if (throwInCompact) throw eTJS();
 }
-void TVPSystemUninit() { systemAlive=false; }
+void TVPSystemUninit() {
+    TVPSystemUninitCalled=true;
+    if (throwSilentInUninit) throw eTJSSilent();
+    systemAlive=false; TVPSystemUninitCalled=false;
+}
 void TVPUnloadPlugins() { pluginsAlive=false; }
 void TVPResetEventState() {}
 void TVPResetGraphicSessionState() { graphicCacheRetained=false; }
@@ -107,7 +117,8 @@ struct tTVPArchiveCache {
     tTVPArchive* Get(ttstr name);
 };
 '''
-    production = function(CORE / "core/main/TVPApplication.cpp", "void tTVPApplication::OnExit()")
+    production = function(CORE / "core/main/TVPApplication.cpp", "template <typename Stage>\nvoid RunExitStage(")
+    production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "void tTVPApplication::OnExit()")
     production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "tTVPApplication::~tTVPApplication()")
     production += "\n" + function(CORE / "core/main/TVPApplication.cpp", "struct tTVPClearEmoteResourceCacheCallback") + ";"
     production += "\nstatic tTVPClearEmoteResourceCacheCallback TVPClearEmoteResourceCacheCallback;"
@@ -144,13 +155,20 @@ int main() {
     assert(!emoteCacheRetained && emoteCacheClears==101);
     systemAlive=pluginsAlive=backendAlive=true;vmAlive=false;
     tTVPApplication earlyFailure;earlyFailure.OnExit();assert(saves==50 && !emoteCacheRetained);
+    // A stage that throws (a script error in a save callback, System.exit in
+    // an at-exit handler) must not skip the rest of the teardown.
+    systemAlive=pluginsAlive=vmAlive=backendAlive=true;
+    throwInCompact=throwSilentInUninit=true;
+    { tTVPApplication failing; failing.OnExit(); }
+    assert(!vmAlive && !pluginsAlive && !TVPSystemUninitCalled && exitLogs==1);
+    throwInCompact=throwSilentInUninit=false;
     TVPWindow window;window.RequestUserClose();assert(window.queries==1 && window.forced==0);
     window.RequestUserClose();assert(window.queries==1);
     window.Closing=false;window.RequestUserClose();assert(window.queries==2 && window.forced==0);
     tTVPArchiveCache cache;bool rejected=false;
     try { cache.Get("game.zip"); } catch(const std::runtime_error&) { rejected=true; }
     assert(rejected && nullHolders==0 && cacheAdds==0);
-    std::cout<<"PASS: 50 save-before-storage/plugin-shutdown sessions, Emote cache teardown, early failure, native close cancellation and null archive guard\n";
+    std::cout<<"PASS: 50 save-before-storage/plugin-shutdown sessions, Emote cache teardown, early failure, throwing exit stages, native close cancellation and null archive guard\n";
 }
 '''
     with tempfile.TemporaryDirectory(prefix="mikage-session-exit-") as directory:

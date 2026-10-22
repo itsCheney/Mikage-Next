@@ -18,6 +18,7 @@
 // Compile the exact production bridge. Only host lifecycle/log registration
 // globals are substituted; every field copy and interval reset is production.
 static bool running=true;
+static bool MikageSDLHostIsRunning() { return running; }
 static void TestLog(const char*,int32_t,const char*) {}
 static std::atomic<MikageKRKRLogCallback> diagnosticCallback{TestLog};
 #include "ProductionTriangleProfileBridge.inc"

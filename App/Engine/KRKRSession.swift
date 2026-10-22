@@ -28,12 +28,18 @@ struct KRKRLaunchConfiguration {
     let floatingButton: Bool
     let idleOpacity: Double
     let threeFingerMenu: Bool
+    var quickActions: [QuickActionKind] = QuickActionKind.defaults
+    let stretchToScreen: Bool
     let respectSilentMode: Bool
-    let experimentalEmote: Bool
     let performance: Bool
+    let performanceDetail: PerformanceDetail
     let gameTitle: String
     /// Newline-separated movie file names to skip, or nil to skip none.
     let skippedMovies: String?
+    /// Which runtime plays the game. KiriKiri-only fields are ignored by others.
+    var engine: EngineID = .kirikiri
+    /// ONScripter save slot to start from instead of the title.
+    var loadSlot: Int? = nil
 }
 
 enum KRKRSessionState: Equatable {
@@ -44,7 +50,6 @@ enum KRKRSessionError: LocalizedError {
     case alreadyRunning
     case missingHostWindow
     case invalidGameDirectory
-    case orientationUnavailable
     case audioSession(String)
     case runtime(String)
 
@@ -56,8 +61,6 @@ enum KRKRSessionError: LocalizedError {
             return String(localized: "Couldn’t get the current iOS window, so KRKR wasn’t started.")
         case .invalidGameDirectory:
             return String(localized: "The game folder or its launch entry no longer exists.")
-        case .orientationUnavailable:
-            return String(localized: "Couldn’t switch to landscape. Make sure Orientation Lock allows landscape, rotate the device, then try again.")
         case .audioSession(let message):
             return String(localized: "Couldn’t switch the audio session, so the game will stay muted: \(message)")
         case .runtime(let message):
@@ -66,15 +69,11 @@ enum KRKRSessionError: LocalizedError {
     }
 }
 
+/// Runs KRKR on the shared SDL host: the host turns the scene, swaps windows,
+/// steps the engine every frame and follows the app's foreground state; this
+/// class adds KRKR's bridge, overlay and diagnostics.
 @MainActor
 final class NativeKRKRSession: NSObject, KRKRSession {
-    @MainActor
-    private final class DisplayLinkTarget: NSObject {
-        weak var owner: NativeKRKRSession?
-        init(owner: NativeKRKRSession) { self.owner = owner }
-        @objc func tick() { owner?.step() }
-    }
-
     private(set) var state: KRKRSessionState = .idle {
         didSet {
             AppDiagnostics.shared.event("session", "state.changed", ["from": String(describing: oldValue), "to": String(describing: state)])
@@ -85,53 +84,28 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     var onReturningToLibrary: (() -> Void)?
     var onMarkFinished: (() -> Void)?
 
-    private weak var hostWindow: UIWindow?
     private weak var engineWindow: UIWindow?
-    private weak var windowScene: UIWindowScene?
-    private var previousOrientation: UIInterfaceOrientation = .unknown
-    private var displayLink: CADisplayLink?
-    private var displayLinkTarget: DisplayLinkTarget?
+    private let presentation = SDLHostPresentation()
+    private let frameDriver = SDLHostFrameDriver()
+    private var lifecycleObserver: SDLHostLifecycleObserver?
     private var metricsTimer: Timer?
     private var overlayCoordinator: KRKROverlayCoordinator?
-    private var observers: [NSObjectProtocol] = []
     private var isForeground = true
     private var requestedForeground = true
     private var elapsedSeconds = 0
     private var rendererLabel = RendererPreference.storageDefault.displayName
     private var performanceEnabled = false
+    private var stretchesToScreen = false
     private var displayTicks = 0
     private var previousCommandTicks = 0
     private var previousCommandCounters: [String: UInt64] = [:]
     private var lastStepResult = "none"
-    private var isStepping = false
     private let threadCPU = ThreadCPUSampler()
 
     override init() {
         super.init()
-        let center = NotificationCenter.default
-        observers.append(
-            center.addObserver(
-                forName: UIApplication.willResignActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.setForeground(false) }
-            }
-        )
-        observers.append(
-            center.addObserver(
-                forName: UIApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.setForeground(true) }
-            }
-        )
-    }
-
-    deinit {
-        for observer in observers {
-            NotificationCenter.default.removeObserver(observer)
+        lifecycleObserver = SDLHostLifecycleObserver { [weak self] active in
+            self?.setForeground(active)
         }
     }
 
@@ -168,7 +142,6 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                                          "entryPoint": configuration.entryPoint.lastPathComponent,
                                          "targetKind": String(describing: configuration.targetKind),
                                          "requestedRenderer": configuration.renderer.rawValue,
-                                         "emoteAnimationMode": configuration.experimentalEmote ? "integrated" : "legacy",
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -179,14 +152,12 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         lastStepResult = "none"
         AppDiagnostics.shared.windows("launch.hostWindow")
         state = .preparingOrientation
-        hostWindow = window
-        windowScene = scene
-        previousOrientation = scene.interfaceOrientation
+        presentation.begin(hostWindow: window, scene: scene)
         do {
-            try await prepareLandscape(scene: scene, window: window, controller: viewController)
+            try await presentation.prepareLandscape(scene: scene, window: window, controller: viewController)
         } catch {
             state = .failed(error.localizedDescription)
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             throw error
         }
 
@@ -203,11 +174,11 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             runtimePath.append("/")
         }
         AppDiagnostics.shared.event("bridge", "start.scheduledOnRunLoop")
-        let started = await KRKRMainRunLoop.perform {
+        let started = await SDLHostMainRunLoop.perform {
             AppDiagnostics.shared.event("bridge", "start.enteredFromRunLoop")
             return runtimePath.withCString { gamePath in
                 configuration.renderer.rawValue.withCString { renderer in
-                    MikageKRKRSetExperimentalEmote(configuration.experimentalEmote)
+                    MikageKRKRSetStretchToScreen(configuration.stretchToScreen)
                     return MikageKRKRStart(
                         gamePath,
                         renderer,
@@ -226,7 +197,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             let message = String(cString: MikageKRKRLastError())
             AppDiagnostics.shared.event("bridge", "start.failed", ["message": message])
             state = .failed(message)
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             throw KRKRSessionError.runtime(message)
         }
         let startupWarning = String(cString: MikageKRKRLastError())
@@ -241,25 +212,37 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             AppDiagnostics.shared.event("UIKit", "SDL.window.missing")
             MikageKRKRRequestStop()
             state = .failed(String(localized: "KRKR didn’t create a usable SDL window."))
-            await restorePreviousOrientation()
+            await presentation.restorePreviousOrientation()
             throw KRKRSessionError.runtime(String(localized: "KRKR didn’t create a usable SDL window."))
         }
 
         rendererLabel = configuration.renderer.displayName
         performanceEnabled = configuration.performance
+        stretchesToScreen = configuration.stretchToScreen
         elapsedSeconds = 0
         let overlay = KRKROverlayCoordinator(
             gameTitle: configuration.gameTitle,
+            engineName: EngineID.kirikiri.displayName,
             performanceVisible: configuration.performance,
+            performanceDetail: configuration.performanceDetail,
             renderer: rendererLabel
         )
         overlay.install(
             in: engineWindow,
-            floatingButtonEnabled: configuration.floatingButton,
-            floatingButtonOpacity: configuration.idleOpacity,
+            options: GameOverlayOptions(configuration: configuration),
+            controls: GameControls(
+                run: { MikageKRKRRunCommand($0.rawValue) },
+                state: { GameControlState(rawValue: MikageKRKRGameControls()) },
+                setControlSkip: { MikageKRKRSetControlSkip($0) },
+                sendPointer: { MikageKRKRSendPointer($0.rawValue, Float($1.x), Float($1.y)) }
+            ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
                 self?.requestNativeExit()
+            },
+            onBack: {
+                let sent = MikageKRKRSendBack()
+                AppDiagnostics.shared.event("session", "back.requested", ["sent": String(sent)])
             },
             onMarkFinished: { [weak self] in
                 AppDiagnostics.shared.event("session", "markFinished.requested")
@@ -268,22 +251,17 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 self?.requestNativeExit()
             },
             onScreenshot: { [weak self] in self?.snapshot() },
-            onTogglePerformance: { [weak self] in self?.togglePerformanceHUD() }
+            onSetPerformance: { [weak self] in self?.setPerformanceHUD($0) }
         )
         overlayCoordinator = overlay
         AppDiagnostics.shared.windows("overlay.installed")
 
-        let target = DisplayLinkTarget(owner: self)
-        let link = CADisplayLink(target: target, selector: #selector(DisplayLinkTarget.tick))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
-        link.add(to: .main, forMode: .common)
+        frameDriver.start(preferredFramesPerSecond: 60) { [weak self] in self?.step() }
         AppDiagnostics.shared.event("session", "displayLink.configured", [
             "preferredFPS": "60", "maximumScreenFPS": String(engineWindow.screen.maximumFramesPerSecond),
             "thermalState": String(ProcessInfo.processInfo.thermalState.rawValue),
             "lowPowerMode": String(ProcessInfo.processInfo.isLowPowerModeEnabled)
         ])
-        displayLinkTarget = target
-        displayLink = link
         startMetricsTimer()
         state = .running
         isForeground = true
@@ -292,15 +270,14 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             isForeground = false
         }
 
-        engineWindow.makeKeyAndVisible()
-        hostWindow?.isHidden = true
+        presentation.showEngineWindow(engineWindow)
         AppDiagnostics.shared.windows("launch.windowsSwitched")
     }
 
     /// Shows or hides the performance HUD for this session only; the launch
     /// default stays in Settings › Advanced.
-    private func togglePerformanceHUD() {
-        performanceEnabled.toggle()
+    private func setPerformanceHUD(_ enabled: Bool) {
+        performanceEnabled = enabled
         AppDiagnostics.shared.event("session", "performanceHUD.toggled", ["enabled": String(performanceEnabled)])
         // The next metrics tick, within a second, fills in the numbers.
         overlayCoordinator?.setPerformanceVisible(performanceEnabled)
@@ -398,9 +375,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
     fileprivate func runtimeFinished(success: Bool, message: String?) async {
         AppDiagnostics.shared.event("bridge", "completion", ["success": String(success), "message": message ?? ""])
-        displayLink?.invalidate()
-        displayLink = nil
-        displayLinkTarget = nil
+        frameDriver.stop()
         metricsTimer?.invalidate()
         metricsTimer = nil
         overlayCoordinator?.remove()
@@ -409,9 +384,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
 
         state = .restoringOrientation
         onReturningToLibrary?()
-        hostWindow?.isHidden = false
-        hostWindow?.makeKeyAndVisible()
-        await restorePreviousOrientation()
+        presentation.showHostWindow()
+        await presentation.restorePreviousOrientation()
         AppDiagnostics.shared.windows("return.windowsRestored")
         AppDiagnostics.shared.endGame()
 
@@ -435,105 +409,8 @@ final class NativeKRKRSession: NSObject, KRKRSession {
         return false
     }
 
-    private func prepareLandscape(
-        scene: UIWindowScene,
-        window: UIWindow,
-        controller: UIViewController
-    ) async throws {
-        controller.setNeedsUpdateOfSupportedInterfaceOrientations()
-        window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        let preferences = UIWindowScene.GeometryPreferences.iOS(
-            interfaceOrientations: [.landscapeLeft, .landscapeRight]
-        )
-        AppDiagnostics.shared.event("UIKit", "geometry.landscape.request")
-        scene.requestGeometryUpdate(preferences) { error in
-            AppDiagnostics.shared.event("UIKit", "geometry.landscape.rejected", ["error": error.localizedDescription])
-        }
-        UIViewController.attemptRotationToDeviceOrientation()
-
-        for _ in 0..<80 {
-            let sceneLandscape = scene.interfaceOrientation.isLandscape
-            let sceneBounds = scene.coordinateSpace.bounds
-            let windowBounds = window.bounds
-            if sceneLandscape,
-               sceneBounds.width > sceneBounds.height,
-               windowBounds.width > windowBounds.height {
-                AppDiagnostics.shared.windows("geometry.landscape.ready")
-                await Task.yield()
-                return
-            }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-        AppDiagnostics.shared.windows("geometry.landscape.timeout")
-        throw KRKRSessionError.orientationUnavailable
-    }
-
-    private func restorePreviousOrientation() async {
-        guard let scene = windowScene else { return }
-        let targetOrientation = previousOrientation
-        let mask: UIInterfaceOrientationMask
-        switch targetOrientation {
-        case .portrait:
-            mask = .portrait
-        case .portraitUpsideDown:
-            mask = .portraitUpsideDown
-        case .landscapeLeft:
-            mask = .landscapeLeft
-        case .landscapeRight:
-            mask = .landscapeRight
-        default:
-            mask = UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
-        }
-        hostWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
-        AppDiagnostics.shared.event("UIKit", "geometry.restore.request", ["orientation": String(targetOrientation.rawValue)])
-        scene.requestGeometryUpdate(preferences) { error in
-            AppDiagnostics.shared.event("UIKit", "geometry.restore.rejected", ["error": error.localizedDescription])
-        }
-        UIViewController.attemptRotationToDeviceOrientation()
-
-        let expectsPortrait = targetOrientation.isPortrait ||
-            (targetOrientation == .unknown && UIDevice.current.userInterfaceIdiom != .pad)
-        let expectsLandscape = targetOrientation.isLandscape
-        var stableLayoutSamples = 0
-        for _ in 0..<60 {
-            let sceneBounds = scene.coordinateSpace.bounds
-            let windowBounds = hostWindow?.bounds ?? .zero
-            let layoutMatches: Bool
-            if expectsPortrait {
-                layoutMatches = scene.interfaceOrientation.isPortrait &&
-                    sceneBounds.height > sceneBounds.width &&
-                    windowBounds.height > windowBounds.width
-            } else if expectsLandscape {
-                layoutMatches = scene.interfaceOrientation.isLandscape &&
-                    sceneBounds.width > sceneBounds.height &&
-                    windowBounds.width > windowBounds.height
-            } else {
-                layoutMatches = true
-            }
-
-            if layoutMatches {
-                stableLayoutSamples += 1
-                if stableLayoutSamples >= 3 { break }
-            } else {
-                stableLayoutSamples = 0
-            }
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-        hostWindow?.layoutIfNeeded()
-        AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
-        try? await Task.sleep(nanoseconds: 100_000_000)
-        windowScene = nil
-        previousOrientation = .unknown
-    }
-
     private func step() {
         guard state == .running || state == .stopping else { return }
-        // A synchronous SDL dialog pumps the run loop, which can fire another
-        // display-link callback before the current script invocation returns.
-        guard !isStepping else { return }
-        isStepping = true
-        defer { isStepping = false }
         displayTicks += 1
         let result = MikageKRKRStep()
         lastStepResult = String(describing: result)
@@ -895,10 +772,19 @@ final class NativeKRKRSession: NSObject, KRKRSession {
             elapsedSeconds += 1
         }
         guard performanceEnabled else {
+            // The floating buttons still settle in the bars beside the game.
+            var raw = MikageKRKRStats()
+            let gameSize = MikageKRKRGetStats(&raw)
+                ? letterboxedGameSize(
+                    CGSize(width: Int(raw.gameWidth), height: Int(raw.gameHeight)),
+                    stretchedToScreen: stretchesToScreen
+                )
+                : .zero
             overlayCoordinator?.update(
                 KRKRPerformanceSnapshot(
                     renderer: rendererLabel,
-                    elapsedSeconds: elapsedSeconds
+                    elapsedSeconds: elapsedSeconds,
+                    gameSize: gameSize
                 )
             )
             return
@@ -927,8 +813,14 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                 layerPsTableUploadedBytes: raw.layerPsTableUploadedBytes,
                 residentMemoryBytes: residentMemoryBytes(),
                 processCPUPercent: cpuSample?.processPercent ?? -1,
-                busiestThreads: cpuSample?.summary(limit: 2) ?? "",
-                elapsedSeconds: elapsedSeconds
+                busiestThreads: Array(cpuSample?.groups.prefix(2) ?? []),
+                elapsedSeconds: elapsedSeconds,
+                drawCallsPerFrame: raw.drawCallsPerFrame,
+                gpuMemoryBytes: metalAllocatedBytes(),
+                gameSize: letterboxedGameSize(
+                    CGSize(width: Int(raw.gameWidth), height: Int(raw.gameHeight)),
+                    stretchedToScreen: stretchesToScreen
+                )
             )
         )
     }
@@ -965,21 +857,7 @@ final class NativeKRKRSession: NSObject, KRKRSession {
     }
 
     private func residentMemoryBytes() -> UInt64 {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(
-            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size
-        )
-        let result = withUnsafeMutablePointer(to: &info) { pointer in
-            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(
-                    mach_task_self_,
-                    task_flavor_t(MACH_TASK_BASIC_INFO),
-                    $0,
-                    &count
-                )
-            }
-        }
-        return result == KERN_SUCCESS ? UInt64(info.resident_size) : 0
+        processResidentMemoryBytes()
     }
 }
 

@@ -44,7 +44,8 @@ functions = ["void LayerExDraw::updateRect(", "LayerExDraw::LayerExDraw(",
              "void LayerExDraw::recreateRecord(", "void LayerExDraw::destroyRecord(",
              "void LayerExDraw::setRecord(", "bool LayerExDraw::redraw(",
              "GdipImage* LayerExDraw::getRecordImage(", "bool LayerExDraw::redrawRecord(",
-             "bool LayerExDraw::saveRecord(", "RectF LayerExDraw::measureString(",
+             "bool LayerExDraw::saveRecord(", "static tjs_real textPadding(",
+             "RectF LayerExDraw::measureString(",
              "RectF LayerExDraw::measureStringInternal("]
 for view in ("ViewTransform", "Transform"):
     for verb in ("set", "reset", "rotate", "scale", "translate"):
@@ -80,11 +81,23 @@ if a.capture_output:
           "void LayerExDraw::deferCapturedUpdate(","bool LayerExDraw::spanCaptureStateSafe(",
           "void LayerExDraw::stageCapturedRecord(",
           "void LayerExDraw::stageCapturedClear(",
-          "bool LayerExDraw::spanCaptureTargetAliased(","RectF LayerExDraw::drawPath(",
+          "bool LayerExDraw::spanCaptureTargetAliased(","void LayerExDraw::unionBounds(","void LayerExDraw::recordPath(","void LayerExDraw::replayRecord(","RectF LayerExDraw::drawPath(",
           "RectF LayerExDraw::getPathExtents(","void LayerExDraw::draw(","void LayerExDraw::fill(",
           "RectF LayerExDraw::_drawPath(","RectF LayerExDraw::drawLine(","RectF LayerExDraw::drawRectangle(",
-          "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine("]
+          "RectF LayerExDraw::drawImageStretch(","RectF LayerExDraw::drawImageAffine(",
+          "RectF GdipImage::GetBounds(","bool LayerExDraw::loadRecord(",
+          "static PointF textOrigin(","RectF LayerExDraw::drawString(",
+          "void LayerExDraw::getGlyphOutline(","void LayerExDraw::getTextOutline("]
     cap+="\n"+"\n".join(block(draw,signature) for signature in more)+"\n"
+    # Private font loading, against an in-memory stream.
+    fonts=["static std::string lowerFontName(const tjs_char* name)",
+           "static std::string lowerFontName(const ttstr& name)","static void appendUtf8(",
+           "static tjs_uint fontU32(","static bool isFontCollection(","static tjs_uint fontFaceCount(",
+           "static std::vector<std::string> readFontFamilies(","static void fontDataDestroy(",
+           "static void fontFaceRelease(","static plutovg_font_face_t* loadFontFace(",
+           "static plutovg_font_face_t* findFontFace("]
+    cap+=block(draw,"struct FontFaceEntry")+";\nstatic std::vector<FontFaceEntry> g_fontFaces;\n"
+    cap+="\n".join(block(draw,signature) for signature in fonts)+"\n"
     # Keep the production native type, constructor and default NCBind boxing.
     # Other subclass methods are outside this binding oracle's scope. Refuse
     # extraction if the production registration/conversion shape changes.

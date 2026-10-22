@@ -62,7 +62,7 @@ struct MatchView: View {
             Text("Recognized from the folder name")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(verbatim: "\(game.engine.documentsDirectoryName)/\(game.folderName)")
+            Text(verbatim: game.folderName)
                 .font(.system(.footnote, design: .monospaced))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)

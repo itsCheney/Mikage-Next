@@ -1,0 +1,43 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 93a99bc..0953f1c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -2783,7 +2783,15 @@ elseif(APPLE)
+     sdl_link_dependency(metal LIBS "$<LINK_LIBRARY:FRAMEWORK,Metal>" PKG_CONFIG_LINK_OPTIONS "-Wl,-framework,Metal")
+   endif()
+   if(SDL_FRAMEWORK_OPENGLES)
+-    sdl_link_dependency(opengles LIBS "$<LINK_LIBRARY:FRAMEWORK,OpenGLES>" PKG_CONFIG_LINK_OPTIONS "-Wl,-framework,OpenGLES")
++    if(SDL_MIKAGE_METALANGLE_DIR)
++      # Mikage: OpenGL ES comes from MetalANGLE (GLES on Metal), never from
++      # Apple's deprecated OpenGLES framework.
++      target_compile_definitions(SDL3-shared PRIVATE METALANGLE)
++      target_compile_options(SDL3-shared PRIVATE "-F${SDL_MIKAGE_METALANGLE_DIR}")
++      target_link_options(SDL3-shared PRIVATE "-F${SDL_MIKAGE_METALANGLE_DIR}" "-Wl,-framework,MetalANGLE")
++    else()
++      sdl_link_dependency(opengles LIBS "$<LINK_LIBRARY:FRAMEWORK,OpenGLES>" PKG_CONFIG_LINK_OPTIONS "-Wl,-framework,OpenGLES")
++    endif()
+   endif()
+   if(SDL_FRAMEWORK_QUARTZCORE)
+     sdl_link_dependency(quartz_core LIBS "$<LINK_LIBRARY:FRAMEWORK,QuartzCore>" PKG_CONFIG_LINK_OPTIONS "-Wl,-framework,QuartzCore")
+diff --git a/src/video/uikit/SDL_uikitopengles.m b/src/video/uikit/SDL_uikitopengles.m
+index 82d57ca..2da470a 100644
+--- a/src/video/uikit/SDL_uikitopengles.m
++++ b/src/video/uikit/SDL_uikitopengles.m
+@@ -61,7 +61,17 @@ SDL_FunctionPointer UIKit_GL_GetProcAddress(SDL_VideoDevice *_this, const char *
+     /* Look through all SO's for the proc symbol.  Here's why:
+      * -Looking for the path to the OpenGL Library seems not to work in the iOS Simulator.
+      * -We don't know that the path won't change in the future. */
++#ifdef METALANGLE
++    /* Mikage: resolve GL entry points from MetalANGLE only, so Apple's
++     * OpenGLES can never answer first. SDL links MetalANGLE, so it is loaded. */
++    static void *metalangle = NULL;
++    if (!metalangle) {
++        metalangle = dlopen("@rpath/MetalANGLE.framework/MetalANGLE", RTLD_LAZY | RTLD_NOLOAD);
++    }
++    return dlsym(metalangle ? metalangle : RTLD_DEFAULT, proc);
++#else
+     return dlsym(RTLD_DEFAULT, proc);
++#endif
+ }
+ 
+ /*
