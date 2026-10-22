@@ -47,6 +47,28 @@ struct RootView: View {
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.newGamesToast)
+            .confirmationDialog(
+                "Which file should this game start from?",
+                isPresented: Binding(
+                    get: { model.startupRequest != nil },
+                    set: { if !$0 { model.startupRequest = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: model.startupRequest
+            ) { request in
+                ForEach(request.choices, id: \.relativePath) { file in
+                    let name = AppModel.startupName(file.relativePath, engine: request.game.engine)
+                    Button(file.relativePath == request.game.launchTarget
+                        ? String(localized: "\(name) (Suggested)")
+                        : name
+                    ) {
+                        model.launch(request, from: file)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Mikage remembers your choice. You can change it later under Startup file on the game’s page.")
+            }
             .alert("Notice", isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }

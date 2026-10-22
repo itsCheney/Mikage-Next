@@ -48,6 +48,9 @@ final class AppModel: ObservableObject {
     @Published var player: GameRecord?
     /// The ONScripter save slot the next launch starts from, if any.
     var pendingLoadSlot: Int?
+    /// A game with several startup files and none picked yet, waiting for
+    /// the player to pick the one it starts from.
+    @Published var startupRequest: StartupRequest?
     @Published var pendingImport: PendingGameImport?
 
     // MARK: Bangumi and VNDB
@@ -279,8 +282,29 @@ final class AppModel: ObservableObject {
             alert = availabilityText(game)
             return
         }
+        // The first launch of a game with several startup files (a
+        // translated release beside the original) asks which one to run;
+        // the answer is kept like a pick on the game's page.
+        if game.chosenStartup == nil {
+            let choices = startupChoices(game)
+            if choices.count > 1 {
+                startupRequest = StartupRequest(game: game, choices: choices, slot: slot)
+                return
+            }
+        }
         pendingLoadSlot = slot
         player = game
+    }
+
+    /// Keeps `file` as the startup file of the asked game and plays it.
+    func launch(_ request: StartupRequest, from file: StartupFile) {
+        chooseStartup(file.relativePath, for: request.game)
+        guard let game = games.first(where: { $0.id == request.game.id }),
+              game.chosenStartup == file.relativePath else { return }
+        // The player covers the whole app; present it once the dialog is gone.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            self.launch(game, fromSaveSlot: request.slot)
+        }
     }
 
     func launchConfiguration(for game: GameRecord) throws -> KRKRLaunchConfiguration {
@@ -510,6 +534,15 @@ final class AppModel: ObservableObject {
         (try? repository.startupCandidates(for: game)) ?? []
     }
 
+    /// How a startup file is shown: "." is startup.tjs for KiriKiri and the
+    /// folder's original data for the other engines.
+    nonisolated static func startupName(_ relativePath: String?, engine: EngineID) -> String {
+        guard let relativePath, relativePath != "." else {
+            return engine == .kirikiri ? "startup.tjs" : String(localized: "Original")
+        }
+        return relativePath
+    }
+
     /// `path` nil goes back to picking the startup file automatically.
     func chooseStartup(_ path: String?, for game: GameRecord) {
         AppDiagnostics.shared.event("library", "startup.choose", ["folder": game.folderName, "file": path ?? "auto"])
@@ -569,4 +602,14 @@ final class AppModel: ObservableObject {
         games = snapshot.active
         missingGames = snapshot.missing
     }
+}
+
+/// The startup files offered when `game` first launches; `slot` is the save
+/// the launch was asked to start from.
+struct StartupRequest: Identifiable {
+    let game: GameRecord
+    let choices: [StartupFile]
+    let slot: Int?
+
+    var id: UUID { game.id }
 }

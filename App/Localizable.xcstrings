@@ -8262,6 +8262,54 @@
           }
         }
       }
+    },
+    "%@ (Suggested)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（おすすめ）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（推荐）"
+          }
+        }
+      }
+    },
+    "Which file should this game start from?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このゲームをどのファイルから起動しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个游戏要从哪个文件启动？"
+          }
+        }
+      }
+    },
+    "Mikage remembers your choice. You can change it later under Startup file on the game’s page." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択は保存されます。あとからゲームのページの「起動ファイル」で変更できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikage 会记住你的选择，之后可在游戏页面的“启动文件”中更改。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

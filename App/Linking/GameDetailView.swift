@@ -638,10 +638,7 @@ struct GameDetailView: View {
     /// "." is the folder itself: startup.tjs for KiriKiri, the original
     /// files (Scene.pck and Gameexe.dat) for Siglus.
     private func startupName(_ relativePath: String?) -> String {
-        guard let relativePath, relativePath != "." else {
-            return current.engine == .kirikiri ? "startup.tjs" : String(localized: "Original")
-        }
-        return relativePath
+        AppModel.startupName(relativePath, engine: current.engine)
     }
 
     private var links: some View {
