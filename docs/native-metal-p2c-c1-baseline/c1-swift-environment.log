@@ -1,3 +1,0 @@
-usage: check-krkr-work-profile-swift.py [-h] [--swiftc SWIFTC]
-                                        [--sdk {macosx,iphonesimulator}]
-check-krkr-work-profile-swift.py: error: Apple Swift/Xcode is required; portable C++ checks do not validate ClangImporter

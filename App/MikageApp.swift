@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
     @Published var missingGames: [GameRecord] = []
     @Published var settings: PlayerSettings {
         didSet {
-            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer.rawValue, "appearance": settings.appearance.rawValue, "respectSilentMode": String(settings.respectSilentMode), "performance": String(settings.performance), "experimentalEmote": String(settings.experimentalEmote)])
+            AppDiagnostics.shared.event("settings", "preferences.changed", ["renderer": settings.renderer.rawValue, "appearance": settings.appearance.rawValue, "respectSilentMode": String(settings.respectSilentMode), "performance": String(settings.performance)])
             if let data = Self.encoded(settings) {
                 defaults.set(data, forKey: Self.settingsKey)
             }
@@ -46,6 +46,8 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var player: GameRecord?
+    /// The ONScripter save slot the next launch starts from, if any.
+    var pendingLoadSlot: Int?
     @Published var pendingImport: PendingGameImport?
 
     // MARK: Bangumi and VNDB
@@ -57,6 +59,8 @@ final class AppModel: ObservableObject {
     @Published var lastSyncError: String?
     /// The glass notice over the library after a status changed by itself.
     @Published var toast: LibraryToast?
+    /// Game folders a rescan found, offered for import.
+    @Published var newGamesToast: NewGamesToast?
     /// A just-imported game waiting for its Bangumi/VNDB match.
     @Published var matchRequest: GameRecord?
     /// A game marked finished from the in-game menu, waiting for its rating.
@@ -80,6 +84,9 @@ final class AppModel: ObservableObject {
 
     private(set) var libraryReadable = true
     let repository: LibraryRepository
+    /// Games shipped in the app for testing engines, copied into the library
+    /// once. Nil for a repository a caller passed in, like tests do.
+    let builtInGamesRoot: URL?
     let krkrSession: any KRKRSession
     let defaults: UserDefaults
 
@@ -114,7 +121,16 @@ final class AppModel: ObservableObject {
     ) {
         self.defaults = defaults
         self.repository = repository ?? Self.appRepository()
-        krkrSession = session ?? NativeKRKRSession()
+        builtInGamesRoot = repository == nil
+            ? Bundle.main.resourceURL?.appendingPathComponent("BuiltInGames", isDirectory: true)
+            : nil
+        krkrSession = session ?? EngineSessionRouter(sessions: [
+            .kirikiri: NativeKRKRSession(),
+            .onscripter: NativeONSSession(),
+            .artemis: NativeArtemisSession(),
+            .renpy: NativeRenPySession(),
+            .siglus: NativeSiglusSession()
+        ])
         self.tokens = tokens ?? KeychainTokenStore()
 
         let stored = defaults.data(forKey: Self.settingsKey)
@@ -254,17 +270,20 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func launch(_ game: GameRecord) {
-        AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName])
-        guard game.engine == .kirikiri, game.availability.canLaunch else {
+    /// Plays the game, from one of its saves when `slot` is given (only
+    /// ONScripter games start from a save).
+    func launch(_ game: GameRecord, fromSaveSlot slot: Int? = nil) {
+        AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName, "slot": slot.map(String.init) ?? ""])
+        guard game.engine.isLaunchSupported, game.availability.canLaunch else {
             alert = availabilityText(game)
             return
         }
+        pendingLoadSlot = slot
         player = game
     }
 
     func launchConfiguration(for game: GameRecord) throws -> KRKRLaunchConfiguration {
-        guard game.engine == .kirikiri, game.availability.canLaunch else {
+        guard game.engine.isLaunchSupported, game.availability.canLaunch else {
             throw LibraryError.noGame
         }
         let directory = try repository.directory(for: game)
@@ -277,15 +296,26 @@ final class AppModel: ObservableObject {
             floatingButton: settings.floatingButton,
             idleOpacity: settings.idleOpacity,
             threeFingerMenu: settings.threeFingerMenu,
+            quickActions: settings.quickActions,
+            stretchToScreen: settings.stretchToScreen,
             respectSilentMode: settings.respectSilentMode,
-            experimentalEmote: settings.experimentalEmote,
             performance: settings.performance,
+            performanceDetail: settings.performanceDetail,
             gameTitle: displayTitle(game),
-            skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos)
+            skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos),
+            engine: game.engine,
+            loadSlot: takePendingLoadSlot()
         )
     }
 
-    func refreshLibrary(showErrors: Bool = true) async {
+    private func takePendingLoadSlot() -> Int? {
+        defer { pendingLoadSlot = nil }
+        return pendingLoadSlot
+    }
+
+    /// Rescans the game folders. Folders the library didn't have are
+    /// offered in the new-games toast unless `offerNewGames` is false.
+    func refreshLibrary(showErrors: Bool = true, offerNewGames: Bool = true) async {
         guard !scanning else { return }
         // A pull-to-refresh is the retry path out of a failed launch load.
         guard retryLoadIfNeeded() else {
@@ -299,10 +329,26 @@ final class AppModel: ObservableObject {
         defer { scanning = false }
         do {
             let repository = self.repository
-            let snapshot = try await Task.detached(priority: .userInitiated) {
-                try repository.scan()
+            let builtInGamesRoot = self.builtInGamesRoot
+            let known = Set((games + missingGames).map(\.id))
+            let (snapshot, builtIn) = try await Task.detached(priority: .userInitiated) {
+                var copied: [String] = []
+                if let builtInGamesRoot {
+                    do {
+                        copied = try repository.installBuiltInGames(from: builtInGamesRoot)
+                        if !copied.isEmpty {
+                            AppDiagnostics.shared.event("library", "builtin.installed", ["games": copied.joined(separator: ",")])
+                        }
+                    } catch {
+                        AppDiagnostics.shared.event("library", "builtin.failed", ["error": error.localizedDescription])
+                    }
+                }
+                return (try repository.scan(), Set(copied.map { ($0 as NSString).lastPathComponent }))
             }.value
             apply(snapshot)
+            if offerNewGames {
+                announceNewGames(snapshot.active.filter { !known.contains($0.id) && !builtIn.contains($0.folderName) })
+            }
             AppDiagnostics.shared.event("library", "scan.end", ["active": String(snapshot.active.count), "missing": String(snapshot.missing.count)])
         } catch {
             AppDiagnostics.shared.event("library", "scan.failed", ["error": error.localizedDescription])
@@ -332,7 +378,7 @@ final class AppModel: ObservableObject {
                 try await Task.detached(priority: .userInitiated) {
                     try repository.importFolder(url, engine: engine)
                 }.value
-                await refreshLibrary()
+                await refreshLibrary(offerNewGames: false)
                 requestMatch(forImported: url, engine: engine)
             } else {
                 AppDiagnostics.shared.event("library", "import.engineSelectionRequired", ["matches": String(detected.count)])
@@ -359,7 +405,7 @@ final class AppModel: ObservableObject {
             try await Task.detached(priority: .userInitiated) {
                 try repository.importFolder(url, engine: engine)
             }.value
-            await refreshLibrary()
+            await refreshLibrary(offerNewGames: false)
             requestMatch(forImported: url, engine: engine)
         } catch {
             alert = error.localizedDescription
@@ -455,6 +501,24 @@ final class AppModel: ObservableObject {
                 ?? repository.detectedCoverURL(for: game)
         }
         return repository.customCoverURL(for: game) ?? repository.detectedCoverURL(for: game)
+    }
+
+    /// The files a game can start from, for its page's startup picker.
+    func startupChoices(_ game: GameRecord) -> [StartupFile] {
+        (try? repository.startupCandidates(for: game)) ?? []
+    }
+
+    /// `path` nil goes back to picking the startup file automatically.
+    func chooseStartup(_ path: String?, for game: GameRecord) {
+        AppDiagnostics.shared.event("library", "startup.choose", ["folder": game.folderName, "file": path ?? "auto"])
+        do {
+            let updated = try repository.chooseStartup(path, for: game)
+            if let index = games.firstIndex(where: { $0.id == game.id }) {
+                games[index] = updated
+            }
+        } catch {
+            alert = String(localized: "Couldn’t change the startup file: \(error.localizedDescription)")
+        }
     }
 
     /// Encodes and writes off the main thread: a picked photo can be several

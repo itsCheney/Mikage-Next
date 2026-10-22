@@ -296,7 +296,7 @@ extension AppModel {
         if let id = subject?.id, let full = try? await bangumiClient().subject(id: id) {
             subject = full
         }
-        let metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject)
+        let metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject, vndbRank: await vndbRank(of: novel))
         let remote = await remoteEntry(vndbID: novel?.id, bangumiID: subject?.id)
 
         guard let previous = record(game.id) else { throw LibraryError.recordNotFound }
@@ -339,6 +339,14 @@ extension AppModel {
         }
     }
 
+    /// VNDB returns no rank, so it is counted: the novels rated higher, plus
+    /// one. Nil when the novel has no rating or the count fails; the score
+    /// still shows without it.
+    func vndbRank(of novel: VNDBVisualNovel?) async -> Int? {
+        guard let rating = novel?.rating, rating > 0 else { return nil }
+        return try? await vndbClient().rank(ofRating: rating)
+    }
+
     /// Fetches the linked entries again, keeping the link itself.
     func refreshMetadata(_ game: GameRecord, showErrors: Bool = true) async {
         guard let link = record(game.id)?.link else { return }
@@ -347,7 +355,12 @@ extension AppModel {
         do {
             async let novel = link.vndbID.asyncFlatMap { try await vndb.visualNovel(id: $0) }
             async let subject = link.bangumiID.asyncFlatMap { try await bangumi.subject(id: $0) }
-            let metadata = LinkedMetadata.merged(vndb: try await novel, bangumi: try await subject)
+            let fetchedNovel = try await novel
+            let metadata = LinkedMetadata.merged(
+                vndb: fetchedNovel,
+                bangumi: try await subject,
+                vndbRank: await vndbRank(of: fetchedNovel)
+            )
             updateRecord(game.id) { $0.link?.metadata = metadata }
             await refreshArtwork(for: game.id)
         } catch {
@@ -392,10 +405,11 @@ extension AppModel {
         guard let subject = try? await bangumiClient().subject(id: bangumiID),
               let novel = await counterpart(ofBangumi: subject) else { return false }
         AppDiagnostics.shared.event("linking", "counterpart.added", ["vndb": novel.id])
+        let rank = await vndbRank(of: novel)
         updateRecord(id) { record in
             guard record.link?.bangumiID == bangumiID, record.link?.vndbID == nil else { return }
             record.link?.vndbID = novel.id
-            record.link?.metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject)
+            record.link?.metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject, vndbRank: rank)
         }
         await refreshArtwork(for: id)
         return true

@@ -81,6 +81,31 @@ final class MetadataTests: XCTestCase {
         XCTAssertEqual(metadata.synopsisSource, .vndb)
     }
 
+    func testCommunityRatingsFromBothServices() throws {
+        let subject = try JSONDecoder().decode(BangumiSubject.self, from: Data(#"""
+        {"id":12,"name":"夏影回廊","rating":{"rank":812,"total":2316,"count":{"8":900},"score":7.6}}
+        """#.utf8))
+        struct Results: Decodable { var results: [VNDBVisualNovel] }
+        let novel = try XCTUnwrap(JSONDecoder().decode(Results.self, from: Data(#"""
+        {"results":[{"id":"v1","title":"Natsukage","rating":78.4,"votecount":1048}],"more":false}
+        """#.utf8)).results.first)
+
+        let metadata = LinkedMetadata.merged(vndb: novel, bangumi: subject, vndbRank: 640)
+        XCTAssertEqual(metadata.bangumiRating, CommunityRating(score: 7.6, votes: 2316, rank: 812))
+        XCTAssertEqual(metadata.vndbRating?.votes, 1048)
+        XCTAssertEqual(metadata.vndbRating?.rank, 640)
+        XCTAssertEqual(try XCTUnwrap(metadata.vndbRating?.score), 7.84, accuracy: 0.001)
+
+        // Unranked and unrated entries show no card.
+        let unranked = BangumiSubject(id: 1, name: "New", rating: .init(rank: 0, total: 3, score: 6.0))
+        XCTAssertNil(unranked.communityRating?.rank)
+        XCTAssertNil(BangumiSubject(id: 2, name: "Unrated", rating: .init(rank: 0, total: 0, score: 0)).communityRating)
+        XCTAssertNil(VNDBVisualNovel(id: "v2", title: "Unrated").communityRating(rank: nil))
+
+        let decoded = try JSONDecoder().decode(LinkedMetadata.self, from: JSONEncoder().encode(metadata))
+        XCTAssertEqual(decoded, metadata)
+    }
+
     func testBangumiSubjectDecodesBothInfoboxShapes() throws {
         let json = """
         {"id":12,"name":"夏影回廊","name_cn":"夏影回廊","date":"2019-08-23","summary":"暑假回到海边小镇。",
@@ -158,7 +183,7 @@ final class MetadataTests: XCTestCase {
             metadataRoot: sandbox.appendingPathComponent("Support")
         )
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: .kirikiri).appendingPathComponent("Game")
+        let folder = repository.gamesRoot.appendingPathComponent("Game")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data("// sample".utf8).write(to: folder.appendingPathComponent("startup.tjs"))
         let game = try XCTUnwrap(repository.scan().active.first)

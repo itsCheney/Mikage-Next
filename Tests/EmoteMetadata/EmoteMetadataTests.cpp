@@ -28,8 +28,8 @@ public:
     bool _fullTreeMaterialization = false;
     bool _tjsNameTableReady = false;
     bool _tjsStringTableReady = false;
-    std::vector<std::string> namesCacheTJS;
-    std::vector<std::string> stringsCacheTJS;
+    std::vector<ttstr> namesCacheTJS;
+    std::vector<tTJSVariant> stringsCacheTJS;
     tTJSVariant root();
     tTJSVariant readVariableFrameList(const ttstr& name);
     tTJSVariant readAllObjs(const ttstr& key, tjs_uint32 offset);

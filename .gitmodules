@@ -2,3 +2,23 @@
 	path = Engine/KRKRRuntime/Source
 	url = https://github.com/itsCheney/krkrsdl3_build.git
 	branch = mikage-beta
+[submodule "Engine/SDL3/Source"]
+	path = Engine/SDL3/Source
+	url = https://github.com/libsdl-org/SDL.git
+	shallow = true
+[submodule "Engine/ONSRuntime/Source"]
+	path = Engine/ONSRuntime/Source
+	url = https://github.com/itsCheney/OnscripterYuri.git
+	branch = mikage
+[submodule "Engine/ArtemisRuntime/Source"]
+	path = Engine/ArtemisRuntime/Source
+	url = https://github.com/itsCheney/openartemis.git
+	branch = mikage
+[submodule "Engine/RenPyRuntime/Source"]
+	path = Engine/RenPyRuntime/Source
+	url = https://github.com/itsCheney/renpy.git
+	branch = mikage
+[submodule "Engine/SiglusRuntime/Source"]
+	path = Engine/SiglusRuntime/Source
+	url = https://github.com/itsCheney/siglus_rs.git
+	branch = mikage

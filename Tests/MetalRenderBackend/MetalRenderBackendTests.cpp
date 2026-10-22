@@ -2,6 +2,7 @@
 #include "backend/MetalRenderBackend.h"
 #include "backend/MetalStageDiagnostics.h"
 #include "PointReadTrace.h"
+#include "emotegeometry.h"
 #ifdef TEST_NATIVE_METAL
 #include <SDL3/SDL.h>
 #endif
@@ -461,9 +462,9 @@ void ClearMeshOrderingTests(iTVPRenderBackend& gpu)
     // affine surface maps the UV grid onto the full target without a mask.
     krkrsdl3::TVPMeshDeformSurface surface;
     surface.type = 2;
-    surface.matrix[0] = surface.matrix[5] = 2;
-    surface.matrix[10] = surface.matrix[15] = 1;
-    surface.matrix[12] = surface.matrix[13] = -1;
+    surface.width = surface.height = 1;
+    surface.attach[0] = surface.attach[5] = 2;
+    surface.positionX = surface.positionY = -1;
     const int before = krkrsdl3::g_renderEncoders;
     gpu.ClearTarget(true);
     Require(gpu.DrawDeformedMesh(2, 2, &surface, 1, source, 1.0f), "deformed draw after clear");
@@ -475,6 +476,93 @@ void ClearMeshOrderingTests(iTVPRenderBackend& gpu)
     gpu.DestroyLayerTexture(destination);
     gpu.DestroyTarget(other);
     gpu.DestroyTarget(target);
+}
+// The deformation vertex shader must place every grid vertex where the CPU
+// Emote evaluator does, for a chain using rotation, non-uniform zoom, slant,
+// a Bezier patch, a custom transform order and partial inheritance.
+void DeformChainMatchesCPUTests(iTVPRenderBackend& gpu)
+{
+    using namespace emoteplayer;
+    constexpr int size = 64;
+    std::vector<emoteRender> chain(3);
+    auto& root = chain[0];
+    root.type = 3;
+    root.attachMat = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f / size, 2.0f / size, 1.0f));
+    root.currCoordx = 2; root.currCoordy = -3;
+    root.currAngle = 30; root.currZx = 1.25f; root.currZy = 0.8f; root.currSx = 0.1f;
+    root.currInheritMask = 0x1F0;
+    auto& patch = chain[1];
+    patch.type = 1;
+    patch.width = 40; patch.height = 36; patch.originX = 20; patch.originY = 18;
+    patch.currCoordx = 1; patch.currCoordy = 2; patch.currAngle = -15; patch.currZy = 1.2f;
+    patch.currSy = 0.05f;
+    patch.currInheritMask = 0x1F0 & ~0x20u; // the leaf does not inherit zoom X
+    patch.transformOrder[1] = 3; patch.transformOrder[3] = 1;
+    for (int row = 0; row < 4; ++row)
+        for (int col = 0; col < 4; ++col) {
+            patch.controlPts[(row * 4 + col) * 2] = col / 3.0f + (row == 1 ? 0.08f : 0.0f);
+            patch.controlPts[(row * 4 + col) * 2 + 1] = row / 3.0f + (col == 2 ? -0.06f : 0.0f);
+        }
+    auto& leaf = chain[2];
+    leaf.type = 2;
+    leaf.width = 24; leaf.height = 20; leaf.originX = 12; leaf.originY = 10;
+    leaf.currOx = 1.5f; leaf.currOy = -2; leaf.currCoordx = 3; leaf.currCoordy = 1;
+    leaf.currAngle = 10; leaf.currZx = 0.9f; leaf.currInheritMask = 0x1F0;
+
+    std::vector<EmoteVertex> vertices;
+    std::vector<uint16_t> indices;
+    buildSubdivMesh(chain, 8, 8, vertices, indices);
+    std::vector<krkrsdl3::TVPMeshDeformSurface> surfaces;
+    Require(buildGPUDeformSurfaces(chain, surfaces), "GPU deformation chain built");
+
+    std::vector<uint8_t> pattern(16 * 16 * 4);
+    for (int y = 0; y < 16; ++y)
+        for (int x = 0; x < 16; ++x) {
+            uint8_t* p = pattern.data() + (y * 16 + x) * 4;
+            p[0] = uint8_t(x * 16); p[1] = uint8_t(y * 16); p[2] = uint8_t((x ^ y) * 16); p[3] = 255;
+        }
+    void* source = gpu.CreateTexture(16, 16);
+    void* cpuTarget = gpu.CreateTarget(size, size);
+    void* gpuTarget = gpu.CreateTarget(size, size);
+    Require(source && cpuTarget && gpuTarget, "deformation comparison resources");
+    gpu.UpdateTexture(source, pattern.data(), 16, 16, 64);
+    gpu.SetMask(nullptr);
+    gpu.SetBlendMode(0, nullptr);
+    gpu.SetTarget(cpuTarget);
+    gpu.ClearTarget(true);
+    gpu.DrawMesh(reinterpret_cast<const float*>(vertices.data()), int(vertices.size()),
+                 indices.data(), int(indices.size()), source, 1.0f);
+    gpu.SetTarget(gpuTarget);
+    gpu.ClearTarget(true);
+    Require(gpu.DrawDeformedMesh(8, 8, surfaces.data(), int(surfaces.size()), source, 1.0f),
+            "deformed chain draw");
+
+    const auto read = [&](void* target) {
+        int pitch = 0;
+        auto* pixels = gpu.LockTarget(target, pitch);
+        Require(pixels && pitch == size * 4, "deformation readback");
+        std::vector<uint8_t> result(pixels, pixels + pitch * size);
+        gpu.UnlockTarget(target);
+        return result;
+    };
+    const auto expected = read(cpuTarget), actual = read(gpuTarget);
+    int covered = 0, differing = 0;
+    for (size_t i = 0; i < expected.size(); i += 4) {
+        covered += expected[i + 3] != 0;
+        bool same = true;
+        for (int c = 0; c < 4; ++c)
+            same = same && std::abs(int(expected[i + c]) - int(actual[i + c])) <= 2;
+        differing += !same;
+    }
+    // Vertex positions agree to float rounding; only pixels whose centers sit
+    // on a triangle edge or texel boundary may resolve differently.
+    std::cout << "deform chain: covered " << covered << ", differing " << differing << '\n';
+    Require(covered > size * size / 8, "deformed chain covers the target");
+    Require(differing <= covered / 100 + 4, "GPU deformation matches the CPU Emote evaluator");
+
+    gpu.DestroyTarget(gpuTarget);
+    gpu.DestroyTarget(cpuTarget);
+    gpu.DestroyTexture(source);
 }
 void DirectLayerCopyTests(iTVPRenderBackend& gpu)
 {
@@ -747,6 +835,7 @@ int main(int argc,char** argv)
                 SDL_SetHint("MIKAGE_METAL_DIAGNOSTICS", "1");
                 MeshBatchTests(*gpu);
                 ClearMeshOrderingTests(*gpu);
+                DeformChainMatchesCPUTests(*gpu);
                 DirectLayerCopyTests(*gpu);
                 RegionCopyTests(*gpu);
                 AsyncLayerReadTests(*gpu);

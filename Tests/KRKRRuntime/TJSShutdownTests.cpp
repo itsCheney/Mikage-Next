@@ -152,6 +152,56 @@ void Session(int marker, bool collectBeforeShutdown)
     if (calls != 1) throw std::runtime_error("finalizer must run exactly once during shutdown");
 }
 
+// Games often exit with unreachable object cycles (arrays, dictionaries,
+// method closures). The last engine's heap clear must free them through their
+// members without deleting anything twice, and drop what they referenced.
+void UnreachableCyclesAtExit()
+{
+    int live = 0;
+    auto* vm = new tTJS();
+    {
+        auto* held = new ClosureObserver(live);
+        tTJSVariant value(held, nullptr);
+        held->Release();
+        vm->GetGlobalNoAddRef()->PropSet(TJS_MEMBERENSURE, TJS_N("held"), nullptr, &value,
+                                         vm->GetGlobalNoAddRef());
+    }
+    vm->ExecScript(TJS_N(
+        "class Node {"
+        "  var peer, items, table, method, keep;"
+        "  function Node() { items = []; table = %[]; keep = held; }"
+        "  function touch() { return peer; }"
+        "}"
+        "function makeCycles() {"
+        "  for (var i = 0; i < 200; i++) {"
+        "    var a = new Node(), b = new Node();"
+        "    a.peer = b; b.peer = a;"
+        "    a.items.add(b); b.items.add(a); a.items.add([a, b, %[n:b]]);"
+        "    a.table.self = a; b.table.other = a.table; a.method = b.touch;"
+        "  }"
+        "}"
+        "makeCycles(); delete global.held;"));
+    if (live != 1) throw std::runtime_error("cycle fixture lost its native reference");
+    delete vm;
+    if (live != 0) throw std::runtime_error("exit heap clear kept references held by object cycles");
+}
+
+// Leftover classes, methods, properties and closures span several script
+// blocks, so the block and object heap clears tear down shared contexts.
+void CrossBlockCyclesAtExit()
+{
+    auto* vm = new tTJS();
+    vm->ExecScript(TJS_N("class A { var peer, fn; function A() {} function m() { return 1; } property p { getter() { return 1; } setter(v) {} } }"));
+    vm->ExecScript(TJS_N("class B extends A { function B() { super.A(); } function n() { return 2; } }"));
+    vm->ExecScript(TJS_N("function f3() { return 3; } var tl = this;"));
+    vm->ExecScript(TJS_N("for (var i = 0; i < 50; i++) { var x = new B(), y = new A(); x.peer = y; y.peer = x;"
+        " x.fn = f3; y.fn = x.n; x.cls = B; y.cls = A; y.ctx = tl; }"));
+    vm->ExecScript(TJS_N("function g4() {} class C4 { function m() {} } var h4 = function() { return g4; }; property p4 { getter() { return 4; } }"));
+    vm->ExecScript(TJS_N("var o5 = %[a:function() {}, b:[function(){}, g4]]; o5.self = o5; o5 = void;"));
+    vm->EvalExpression(TJS_N("(function() { return 6; })()"), nullptr);
+    delete vm;
+}
+
 void OverlappingEngines(bool deleteGameFirst)
 {
     auto game=std::make_unique<tTJS>();
@@ -189,6 +239,22 @@ public:
         throw eTJSSilent();
     }
 };
+// A finalize method that throws (or calls System.exit) while the engine is
+// destroyed must not escape ~tTJS, which would terminate the app.
+void ThrowingFinalizersAtExit()
+{
+    auto* vm = new tTJS();
+    {
+        auto* probe=new SilentExitProbe();
+        tTJSVariant value(probe,nullptr); probe->Release();
+        vm->GetGlobalNoAddRef()->PropSet(TJS_MEMBERENSURE,TJS_N("exitProbe"),nullptr,&value,vm->GetGlobalNoAddRef());
+    }
+    vm->ExecScript(TJS_N("class T { var peer; function finalize() { throw new Exception('finalize'); } }"
+                         "class S { var peer; function finalize() { exitProbe(); } }"
+                         "var t = new T(); var s = new S();"
+                         "var c1 = new T(), c2 = new S(); c1.peer = c2; c2.peer = c1; c1 = c2 = void;"));
+    delete vm;
+}
 void SilentExitPassesScriptCatch()
 {
     tTJS engine;
@@ -219,8 +285,11 @@ int main(int argc,char** argv)
             return RunByteCodeCompatibilityStaticTest(argv[2]);
         RunByteCodeCompatibilityTests();
         delete new tTJS(); // No script/register allocation: null pool free is safe.
+        for (int i = 0; i < 3; ++i) UnreachableCyclesAtExit();
+        for (int i = 0; i < 3; ++i) CrossBlockCyclesAtExit();
         XP3SessionLifetime();
         SilentExitPassesScriptCatch();
+        ThrowingFinalizersAtExit();
         for (int i = 0; i < 25; ++i) {
             OverlappingEngines(false);
             OverlappingEngines(true);
@@ -229,7 +298,8 @@ int main(int argc,char** argv)
         }
         std::cout << "PASS: 50 XP3 cache/closure reset sessions, 50 TJS shutdown/GC sessions, "
                      "50 overlapping game/decoder lifetimes in both exit orders, "
-                     "empty VM and reentrant global-access finalizers, "
+                     "empty VM and reentrant global-access finalizers, unreachable and cross-block "
+                     "cycles at exit, throwing finalizers at exit, "
                      "System.exit unwind past script try/catch\n";
         return 0;
     } catch (const std::exception& error) {

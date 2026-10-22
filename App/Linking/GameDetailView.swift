@@ -3,12 +3,13 @@ import PhotosUI
 import ImageIO
 import VNCore
 
-/// A game's page: banner and cover, play, the player's status and rating,
-/// local progress with each service's sync state, and the details fetched
+/// A game's page: banner and cover, each service's community rating, play,
+/// the player's status and rating, local progress with each service's sync state, and the details fetched
 /// from Bangumi and VNDB.
 struct GameDetailView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     let game: GameRecord
 
     @State private var photo: PhotosPickerItem?
@@ -19,18 +20,38 @@ struct GameDetailView: View {
     @State private var confirmUnlink = false
     @State private var refreshing = false
     @State private var choosingArt = false
+    @State private var showingSaves = false
+    @State private var saveCount: Int?
     /// Width over height of the cover on disk; VNDB has both portrait and
     /// landscape package art.
     @State private var posterAspect: CGFloat?
+    /// The files this game can start from; the picker shows only when there
+    /// is more than one.
+    @State private var startupChoices: [StartupFile] = []
 
     private var current: GameRecord { model.record(game.id) ?? game }
     private var metadata: LinkedMetadata? { current.link?.metadata }
 
     var body: some View {
+        // A stack only for the saves page; the game page draws its own header.
+        NavigationStack {
+            page
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: $showingSaves) {
+                    GameSavesView(gameID: current.id) { slot in
+                        play(fromSaveSlot: slot)
+                    }
+                    .environmentObject(model)
+                }
+        }
+    }
+
+    private var page: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 banner
                 titles
+                communityRatings
                 primaryActions
                 VStack(alignment: .leading, spacing: 24) {
                     progress
@@ -211,20 +232,99 @@ struct GameDetailView: View {
         .padding(.horizontal, 20)
     }
 
+    // MARK: Community ratings
+
+    /// One card per service that has a score, each opening the game's page
+    /// there. Hidden until either service has ratings.
+    @ViewBuilder
+    private var communityRatings: some View {
+        let cards = MetadataService.allCases.compactMap { service in
+            communityRating(service).map { (service: service, rating: $0) }
+        }
+        if !cards.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(cards, id: \.service) { card in
+                    ratingCard(card.service, card.rating)
+                }
+                if cards.count == 1 {
+                    // A lone card keeps its width rather than stretching.
+                    Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 18)
+        }
+    }
+
+    private func communityRating(_ service: MetadataService) -> CommunityRating? {
+        switch service {
+        case .bangumi: return current.link?.bangumiID == nil ? nil : metadata?.bangumiRating
+        case .vndb: return current.link?.vndbID == nil ? nil : metadata?.vndbRating
+        }
+    }
+
+    private func serviceURL(_ service: MetadataService) -> URL? {
+        switch service {
+        case .bangumi: return current.link?.bangumiURL
+        case .vndb: return current.link?.vndbURL
+        }
+    }
+
+    private func ratingCard(_ service: MetadataService, _ rating: CommunityRating) -> some View {
+        Button {
+            if let url = serviceURL(service) { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Text(verbatim: service.displayName)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    if let rank = rating.rank {
+                        Text("Rank #\(rank)")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                }
+                .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(rating.score, format: .number.precision(.fractionLength(1)))
+                        .font(.system(size: 30, weight: .bold))
+                        .monospacedDigit()
+                    Spacer(minLength: 0)
+                    Text("\(rating.votes) ratings")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .foregroundStyle(.primary)
+            .padding(.vertical, 12)
+            .padding(.leading, 16)
+            .padding(.trailing, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 1.5, y: 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(serviceURL(service) == nil)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(Text("Opens the game in \(service.displayName)"))
+    }
+
     // MARK: Play, status and rating
 
     private var primaryActions: some View {
         VStack(spacing: 10) {
             if current.availability.canLaunch {
                 Button {
-                    let game = current
-                    let model = self.model
-                    dismiss()
-                    // The player covers the whole app; present it once this
-                    // sheet is gone.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        model.launch(game)
-                    }
+                    play()
                 } label: {
                     Label(
                         current.lastPlayedAt == nil ? LocalizedStringKey("Play") : LocalizedStringKey("Resume"),
@@ -266,6 +366,17 @@ struct GameDetailView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 18)
+    }
+
+    private func play(fromSaveSlot slot: Int? = nil) {
+        let game = current
+        let model = self.model
+        dismiss()
+        // The player covers the whole app; present it once this sheet is
+        // gone.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            model.launch(game, fromSaveSlot: slot)
+        }
     }
 
     private var ratingText: String {
@@ -324,6 +435,36 @@ struct GameDetailView: View {
                     syncState(service)
                 }
             }
+            if current.engine == .onscripter && current.availability.canLaunch {
+                savesRow
+            }
+        }
+    }
+
+    /// ONScripter saves are the game's own files, listed on their own page.
+    private var savesRow: some View {
+        Button {
+            showingSaves = true
+        } label: {
+            DetailRow(label: "Saves") {
+                HStack(spacing: 6) {
+                    if let saveCount {
+                        Text("\(saveCount) saves")
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("game-detail-saves")
+        .task(id: showingSaves) {
+            guard !showingSaves, let directory = try? model.repository.savesURL(for: current) else { return }
+            saveCount = await Task.detached(priority: .utility) {
+                ONSSaveFiles.saves(in: directory).count
+            }.value
         }
     }
 
@@ -421,13 +562,56 @@ struct GameDetailView: View {
                 DetailRow("Released", value: released, divider: metadata?.developer != nil)
             }
             DetailRow("Engine", value: current.engine.displayName, divider: metadata?.developer != nil || metadata?.released != nil)
-            DetailRow("Folder", value: "Documents/\(current.engine.documentsDirectoryName)/\(current.folderName)")
+            DetailRow("Folder", value: "Documents/\(current.folderName)")
+            if startupChoices.count > 1 {
+                DetailRow(label: "Startup file") { startupMenu }
+            }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
             DetailRow("Launches", value: String(localized: "\(current.launchCount) times"))
             if !current.availability.canLaunch {
                 DetailRow("Availability", value: model.availabilityText(current))
             }
         }
+        .task(id: current.folderName) {
+            startupChoices = model.startupChoices(current)
+        }
+    }
+
+    /// Automatic follows the player's language (xxx_CHS.exe, 启动游戏.xp3 for
+    /// Chinese, xxx_EN.exe for English); any listed file can be fixed instead.
+    private var startupMenu: some View {
+        Menu {
+            Picker("Startup file", selection: Binding(
+                get: { current.chosenStartup ?? "" },
+                set: { model.chooseStartup($0.isEmpty ? nil : $0, for: current) }
+            )) {
+                Text("Automatic").tag("")
+                ForEach(startupChoices, id: \.relativePath) { file in
+                    Text(verbatim: startupName(file.relativePath)).tag(file.relativePath)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if current.chosenStartup == nil {
+                    Text("Automatic (\(startupName(current.launchTarget)))")
+                } else {
+                    Text(verbatim: startupName(current.launchTarget))
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote)
+            }
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+    }
+
+    /// "." is the folder itself: startup.tjs for KiriKiri, the original
+    /// files (Scene.pck and Gameexe.dat) for Siglus.
+    private func startupName(_ relativePath: String?) -> String {
+        guard let relativePath, relativePath != "." else {
+            return current.engine == .kirikiri ? "startup.tjs" : String(localized: "Original")
+        }
+        return relativePath
     }
 
     private var links: some View {

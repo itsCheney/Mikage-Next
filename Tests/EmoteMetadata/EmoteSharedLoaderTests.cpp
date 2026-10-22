@@ -56,6 +56,12 @@ bool emotefile::ClearAniTree()
     _metadata = nullptr;
     return true;
 }
+// The fixture tree has one player variable; the real reset is covered by the
+// animation tests.
+void emotefile::ResetPlayState()
+{
+    if (_metadata) _metadata->variable = 0;
+}
 #include "ProductionLoad.inc"
 #include "ProductionReader.inc"
 }
@@ -327,6 +333,48 @@ void archiveInvalidation()
     require(otherAgain.load(TJS_N("other.xp3>first.psb")) && otherAgain.WasSharedCacheHit(),
             "unrelated archive was unnecessarily reloaded");
 }
+void releasedFilesArePooled()
+{
+    resetFixture();
+    Fixture fixture;
+    const auto bytes = fixture.buildFullFile(sampleRoot());
+    loaderFiles["game.xp3>model.psb"] = bytes;
+    loaderFiles["loose/model.psb"] = bytes;
+    auto* file = new emoteplayer::emotefile();
+    require(file->load(TJS_N("game.xp3>model.psb")), "pool test load failed");
+    file->_metadata->variable = 5;
+    const auto trees = loaderTreesCreated;
+    emoteplayer::ReleaseEmoteFile(file);
+    require(emoteplayer::PooledEmoteFileCount() == 1 && loaderLiveTrees == 1, "released archive file was not pooled");
+    require(!emoteplayer::TakePooledEmoteFile("game.xp3>model.psb", 7), "pool ignored the decrypt seed");
+    auto* again = emoteplayer::TakePooledEmoteFile("game.xp3>model.psb", 0);
+    require(again == file && emoteplayer::PooledEmoteFileCount() == 0, "pooled file not handed out");
+    require(again->_metadata->variable == 0 && loaderTreesCreated == trees, "pooled file not reset or tree rebuilt");
+    require(marker(*again) == "mark-A", "pooled file lost its data");
+    emoteplayer::ReleaseEmoteFile(again);
+    emoteplayer::ClearSharedEmoteResourceCache();
+    require(emoteplayer::PooledEmoteFileCount() == 0 && loaderLiveTrees == 0, "cache clear kept pooled files");
+
+    auto* stale = new emoteplayer::emotefile();
+    require(stale->load(TJS_N("game.xp3>model.psb")), "pool test reload failed");
+    emoteplayer::InvalidateSharedEmoteResource("game.xp3");
+    emoteplayer::ReleaseEmoteFile(stale);
+    require(emoteplayer::PooledEmoteFileCount() == 0, "file loaded before an invalidation was pooled");
+    auto* loose = new emoteplayer::emotefile();
+    require(loose->load(TJS_N("loose/model.psb")), "loose pool test load failed");
+    emoteplayer::ReleaseEmoteFile(loose);
+    require(emoteplayer::PooledEmoteFileCount() == 0 && loaderLiveTrees == 0, "loose file was pooled");
+
+    for (int i = 0; i < 8; ++i)
+    {
+        auto* member = new emoteplayer::emotefile();
+        require(member->load(TJS_N("game.xp3>model.psb")), "pool fill load failed");
+        emoteplayer::ReleaseEmoteFile(member);
+    }
+    require(emoteplayer::PooledEmoteFileCount() == 6, "pool exceeded its size");
+    emoteplayer::TrimSharedEmoteResourceCache();
+    require(emoteplayer::PooledEmoteFileCount() == 2, "memory compaction did not trim the pool");
+}
 void dynamicArchiveFilterBypass()
 {
     resetFixture();
@@ -535,6 +583,7 @@ int main()
         encryptedSeedAndReload();
         looseFileChangesAreVisible();
         archiveInvalidation();
+        releasedFilesArePooled();
         dynamicArchiveFilterBypass();
         trimToHonorsLruOrder();
         budgetScalesWithDeviceMemory();

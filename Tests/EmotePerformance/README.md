@@ -30,4 +30,4 @@ transparency hint names exactly the frames drawn since the last clear.
 The opt-in Emote performance experiments (node/capture caches, local update,
 region copy, async pointer alpha, experimental bounds, local pose cache) and
 their Capture, Bounds, Alpha-tile and Host-input suites were removed on
-2026-10-12; see `docs/EMOTE-PERFORMANCE-STATUS.md`.
+2026-10-12.

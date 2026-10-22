@@ -50,6 +50,19 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
         }
     }
 
+    /// The community score; rank 0 means unranked.
+    public struct Rating: Decodable, Equatable, Sendable {
+        public var rank: Int?
+        public var total: Int?
+        public var score: Double?
+
+        public init(rank: Int? = nil, total: Int? = nil, score: Double? = nil) {
+            self.rank = rank
+            self.total = total
+            self.score = score
+        }
+    }
+
     public var id: Int
     public var name: String
     public var nameCN: String?
@@ -61,9 +74,10 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
     public var tags: [Tag]
     public var infobox: [InfoboxItem]
     public var nsfw: Bool?
+    public var rating: Rating?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, date, summary, images, image, tags, infobox, nsfw
+        case id, name, date, summary, images, image, tags, infobox, nsfw, rating
         case nameCN = "name_cn"
     }
 
@@ -77,7 +91,8 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
         image: String? = nil,
         tags: [Tag] = [],
         infobox: [InfoboxItem] = [],
-        nsfw: Bool? = nil
+        nsfw: Bool? = nil,
+        rating: Rating? = nil
     ) {
         self.id = id
         self.name = name
@@ -89,6 +104,7 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
         self.tags = tags
         self.infobox = infobox
         self.nsfw = nsfw
+        self.rating = rating
     }
 
     public init(from decoder: Decoder) throws {
@@ -103,6 +119,14 @@ public struct BangumiSubject: Decodable, Equatable, Sendable {
         tags = (try? container.decodeIfPresent([Tag].self, forKey: .tags)) ?? []
         infobox = (try? container.decodeIfPresent([InfoboxItem].self, forKey: .infobox)) ?? []
         nsfw = try? container.decodeIfPresent(Bool.self, forKey: .nsfw)
+        rating = try? container.decodeIfPresent(Rating.self, forKey: .rating)
+    }
+
+    /// Nil until someone has rated the game.
+    public var communityRating: CommunityRating? {
+        guard let rating, let score = rating.score, score > 0,
+              let votes = rating.total, votes > 0 else { return nil }
+        return CommunityRating(score: score, votes: votes, rank: rating.rank.flatMap { $0 > 0 ? $0 : nil })
     }
 
     /// The package cover at the largest size offered.

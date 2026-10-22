@@ -32,14 +32,21 @@ struct RootView: View {
                 MatchView(game: game).environmentObject(model)
             }
             .overlay(alignment: .bottom) {
-                if let toast = model.toast {
-                    LibraryToastView(toast: toast)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 72)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                VStack(spacing: 8) {
+                    if let toast = model.newGamesToast {
+                        NewGamesToastView(toast: toast)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    if let toast = model.toast {
+                        LibraryToastView(toast: toast)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 72)
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast)
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.newGamesToast)
             .alert("Notice", isPresented: Binding(
                 get: { model.alert != nil },
                 set: { if !$0 { model.alert = nil } }
@@ -281,7 +288,7 @@ struct LibraryView: View {
                 Label("Import Folder", systemImage: "folder.badge.plus")
             }
             Button {
-                model.alert = String(localized: "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly into the krkr, ons, renpy or artemis folder under Documents.")
+                model.alert = String(localized: "ZIP extraction and Wi-Fi upload aren’t available yet. You can also put game folders directly in Documents.")
             } label: {
                 Label("ZIP & Wi-Fi Import", systemImage: "wifi")
             }
@@ -336,7 +343,7 @@ struct LibraryView: View {
             ContentUnavailableView {
                 Label("Your Stories Start Here", systemImage: "books.vertical")
             } description: {
-                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
+                Text("Put game folders directly in Documents. They’re scanned automatically when you return to the app.")
             } actions: {
                 Button("Import Game") { importPicker = true }
                     .buttonStyle(.borderedProminent)
@@ -347,7 +354,7 @@ struct LibraryView: View {
             VStack(spacing: 15) {
                 Label("Your Stories Start Here", systemImage: "books.vertical")
                     .font(.title3.weight(.semibold))
-                Text("Put game folders in Documents/krkr, ons, renpy or artemis. They’re scanned automatically when you return to the app.")
+                Text("Put game folders directly in Documents. They’re scanned automatically when you return to the app.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 Button("Import Game") { importPicker = true }
@@ -949,7 +956,7 @@ struct MissingGamesView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(model.displayTitle(game)).font(.headline)
-                                    Text(verbatim: "Documents/\(game.engine.documentsDirectoryName)/\(game.folderName)")
+                                    Text(verbatim: "Documents/\(game.folderName)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)

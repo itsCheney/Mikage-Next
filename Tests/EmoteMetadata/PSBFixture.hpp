@@ -31,6 +31,9 @@ struct Node {
         return raw(std::move(bytes));
     }
     static Node text(std::string value) { Node n; n.kind = String; n.string = std::move(value); return n; }
+    static Node resource(uint32_t chunk) {
+        Bytes bytes{PSB::ResourceN4}; integer(bytes, chunk, 4); return raw(std::move(bytes));
+    }
     static Node list(std::vector<Node> values) { Node n; n.kind = List; n.items = std::move(values); return n; }
     static Node object(std::vector<std::pair<std::string, Node>> values) {
         Node n; n.kind = Object; n.members = std::move(values); return n;
@@ -68,6 +71,7 @@ public:
 struct Fixture {
     std::vector<std::string> names, strings;
     std::vector<uint32_t> stringOffsets;
+    std::vector<Bytes> chunks; // resource data for Node::resource, in buildFullFile
     uint32_t index(std::vector<std::string>& table, const std::string& value) {
         auto found = std::find(table.begin(), table.end(), value);
         if (found != table.end()) return static_cast<uint32_t>(found - table.begin());
@@ -141,9 +145,16 @@ struct Fixture {
         append(bytes, packed(charset)); append(bytes, packed(namesData)); append(bytes, packed(nameIndexes));
         header.offsetStrings = static_cast<uint32_t>(bytes.size()); append(bytes, packed(stringOffsets));
         header.offsetStringsData = static_cast<uint32_t>(bytes.size()); append(bytes, stringData);
-        header.offsetChunkOffsets = static_cast<uint32_t>(bytes.size()); append(bytes, packed({}));
-        header.offsetChunkLengths = static_cast<uint32_t>(bytes.size()); append(bytes, packed({}));
-        header.offsetChunkData = static_cast<uint32_t>(bytes.size());
+        std::vector<uint32_t> chunkOffsets, chunkLengths;
+        Bytes chunkData;
+        for (const auto& chunk : chunks) {
+            chunkOffsets.push_back(static_cast<uint32_t>(chunkData.size()));
+            chunkLengths.push_back(static_cast<uint32_t>(chunk.size()));
+            append(chunkData, chunk);
+        }
+        header.offsetChunkOffsets = static_cast<uint32_t>(bytes.size()); append(bytes, packed(chunkOffsets));
+        header.offsetChunkLengths = static_cast<uint32_t>(bytes.size()); append(bytes, packed(chunkLengths));
+        header.offsetChunkData = static_cast<uint32_t>(bytes.size()); append(bytes, chunkData);
         if (version >= 4) {
             header.offsetExtraChunkOffsets = static_cast<uint32_t>(bytes.size()); append(bytes, packed({}));
             header.offsetExtraChunkLengths = static_cast<uint32_t>(bytes.size()); append(bytes, packed({}));

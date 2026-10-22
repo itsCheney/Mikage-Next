@@ -68,9 +68,17 @@ final class AppModelTests: XCTestCase {
 
     private func addGame(named name: String, engine: EngineID = .kirikiri) throws {
         try repository.ensureStructure()
-        let folder = repository.engineRoot(for: engine).appendingPathComponent(name)
+        let folder = repository.gamesRoot.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try Data("// sample".utf8).write(to: folder.appendingPathComponent("startup.tjs"))
+        let script: String
+        switch engine {
+        case .onscripter: script = "0.txt"
+        case .renpy: script = "game/script.rpy"
+        default: script = "startup.tjs"
+        }
+        let file = folder.appendingPathComponent(script)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("// sample".utf8).write(to: file)
     }
 
     func testRecordPlaybackAccumulatesTimeAndLaunchCount() throws {
@@ -127,17 +135,32 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(try repository.load().first?.launchCount, 2)
     }
 
-    func testUnsupportedEngineIsRefusedBeforeReachingTheRuntime() throws {
+    func testRenPyGameLaunchesWithItsEngine() throws {
+        try addGame(named: "RenPy Game", engine: .renpy)
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.launch(game)
+        let configuration = try model.launchConfiguration(for: game)
+
+        XCTAssertEqual(model.player?.id, game.id)
+        XCTAssertEqual(configuration.engine, .renpy)
+        XCTAssertEqual(configuration.entryPoint.standardizedFileURL, configuration.gameDirectory.standardizedFileURL)
+    }
+
+    func testOnscripterGameLaunchesWithItsEngine() throws {
         try addGame(named: "ONS Game", engine: .onscripter)
         let model = makeModel()
         settle { await model.refreshLibrary() }
         let game = try XCTUnwrap(model.games.first)
 
         model.launch(game)
+        let configuration = try model.launchConfiguration(for: game)
 
-        XCTAssertNil(model.player)
-        XCTAssertNotNil(model.alert)
-        XCTAssertThrowsError(try model.launchConfiguration(for: game))
+        XCTAssertEqual(model.player?.id, game.id)
+        XCTAssertEqual(configuration.engine, .onscripter)
+        XCTAssertEqual(configuration.entryPoint.standardizedFileURL, configuration.gameDirectory.standardizedFileURL)
     }
 
     func testLaunchConfigurationCarriesTheStoredRendererRawValue() throws {
@@ -152,7 +175,6 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(configuration.renderer, .softwareMetal)
         XCTAssertEqual(configuration.renderer.rawValue, "software-metal")
         XCTAssertTrue(configuration.respectSilentMode)
-        XCTAssertFalse(configuration.experimentalEmote)
         XCTAssertEqual(configuration.gameTitle, "Example")
     }
 
@@ -170,29 +192,11 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(list.split(separator: "\n").contains("signature.wmv"))
     }
 
-    func testExperimentalEmoteIsCapturedForEachLaunch() throws {
-        try addGame(named: "Example")
-        let model = makeModel()
-        settle { await model.refreshLibrary() }
-        let game = try XCTUnwrap(model.games.first)
-
-        XCTAssertFalse(model.settings.experimentalEmote)
-        let first = try model.launchConfiguration(for: game)
-        XCTAssertFalse(first.experimentalEmote)
-        model.settings.experimentalEmote = true
-        let second = try model.launchConfiguration(for: game)
-        XCTAssertTrue(second.experimentalEmote)
-        XCTAssertFalse(first.experimentalEmote)
-        model.settings.experimentalEmote = false
-        XCTAssertFalse(try model.launchConfiguration(for: game).experimentalEmote)
-    }
-
     func testSettingsPersistRawValuesAndReloadAcrossInstances() throws {
         let model = makeModel()
         model.settings.renderer = .softwareMetal
         model.settings.respectSilentMode = false
         model.settings.sort = .title
-        model.settings.experimentalEmote = true
 
         let data = try XCTUnwrap(defaults.data(forKey: "settings.v1"))
         let json = try XCTUnwrap(
@@ -201,24 +205,24 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(json["renderer"] as? String, "software-metal")
         XCTAssertEqual(json["respectSilentMode"] as? Bool, false)
         XCTAssertEqual(json["sort"] as? String, "title")
-        XCTAssertEqual(json["experimentalEmote"] as? Bool, true)
 
         let reloaded = makeModel()
         XCTAssertEqual(reloaded.settings.renderer, .softwareMetal)
         XCTAssertFalse(reloaded.settings.respectSilentMode)
         XCTAssertEqual(reloaded.settings.sort, .title)
-        XCTAssertTrue(reloaded.settings.experimentalEmote)
     }
 
     func testRemovedEmotePerformanceOptionsStillDecode() throws {
-        // The Emote performance experiments were removed. Settings saved while
-        // they existed must still load, keeping every other preference.
+        // The Emote performance experiments and the candidate animation mode
+        // were removed. Settings saved while they existed must still load,
+        // keeping every other preference.
         let saved = try JSONDecoder().decode(PlayerSettings.self, from: Data("""
-            {"experimentalEmote":true,"emoteNodeCache":true,"emoteCaptureCache":true,"emoteLocalUpdate":true,\
+            {"experimentalEmote":true,"performance":true,"emoteNodeCache":true,"emoteCaptureCache":true,"emoteLocalUpdate":true,\
             "emoteRegionCopy":true,"emoteAsyncAlpha":true,"emoteExperimentalBounds":true,"emoteLocalPoseCache":true}
             """.utf8))
-        XCTAssertTrue(saved.experimentalEmote)
+        XCTAssertTrue(saved.performance)
         let reencoded = String(decoding: try JSONEncoder().encode(saved), as: UTF8.self)
+        XCTAssertFalse(reencoded.contains("experimentalEmote"))
         XCTAssertFalse(reencoded.contains("emoteNodeCache"))
         XCTAssertFalse(reencoded.contains("emoteAsyncAlpha"))
     }
@@ -243,7 +247,6 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.settings.idleOpacity, 0.5)
         XCTAssertTrue(model.settings.performance)
         XCTAssertFalse(model.settings.floatingButton)
-        XCTAssertFalse(model.settings.experimentalEmote)
     }
 
     func testPartialSettingsFileKeepsDefaultsForAbsentKeys() throws {
@@ -256,17 +259,6 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.settings.renderer, .metal)
         XCTAssertEqual(model.settings.idleOpacity, PlayerSettings().idleOpacity)
         XCTAssertTrue(model.settings.respectSilentMode)
-        XCTAssertFalse(model.settings.experimentalEmote)
-    }
-
-    func testInvalidExperimentalEmotePreferenceKeepsOtherSettings() throws {
-        defaults.set(
-            try JSONSerialization.data(withJSONObject: ["experimentalEmote": "unknown", "performance": true]),
-            forKey: "settings.v1"
-        )
-        let model = makeModel()
-        XCTAssertFalse(model.settings.experimentalEmote)
-        XCTAssertTrue(model.settings.performance)
     }
 
     func testRefreshRecoversFromAnUnreadableLibraryOnceRepaired() throws {

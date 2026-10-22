@@ -70,9 +70,7 @@ stepping, fixed-point scanline plans and lookup tables remain authoritative.
 Resident RGBA inputs avoid CPU scanlines and per-frame pixel output uploads;
 parameter uploads are counted separately. Actual target aliases, CPU leases,
 unavailable pipelines and unsupported resources retain the CPU path. Undefined
-legacy parameter cases fail explicitly. Portable parity is verified; Apple
-shader execution and paired device performance remain pending in the
-[C4 baseline](NATIVE-METAL-P2C-C4-BASELINE.md).
+legacy parameter cases fail explicitly. Portable parity is verified.
 
 P1A Gamma operations retain immutable 768-byte software LUT snapshots. Two
 recent-version caches create new Metal buffers only for changed versions/content;
@@ -84,22 +82,20 @@ only equal-size forward in-bounds rectangles; unsupported mask scaling/mirroring
 fails before entering the unsafe generic software RGBA resize path.
 
 Gamma_a's software LUT index is clamped to 255 to fix the former index-256
-access for valid alpha/channel pairs; this intentional behavior repair is
-documented with the [P1A baseline](NATIVE-METAL-P1A-BASELINE.md).
+access for valid alpha/channel pairs; this is an intentional behavior repair.
 
 P1B SoftLight/Dodge/Burn use a process-initialized software table export, packed
 source-major into 196608 immutable parameter bytes. The backend uploads this
 bundle once per distinct content and binds buffer(3) on tile, in-place compute
 and snapshot compute. Existing PS Screen/ColorDodge5 stay on their prior helpers.
 `layerPsTableUploads`, `layerPsTableUploadedBytes` and `psTables` rejection counts
-are separate diagnostic fields. See the [P1B baseline](NATIVE-METAL-P1B-BASELINE.md)
-for the remote precheck and portable/native verification boundary.
+are separate diagnostic fields.
 
 Ordinary operation IDs, traits, shader constants and diagnostic sizes come from
 one shared definition. Capability audit output separates missing registrations,
 missing descriptors, declared parameter domains and actual backend availability.
 Dynamic GLSL compilation remains unsupported by these managers and fails without
-registering a null method. See [P0 baseline](NATIVE-METAL-P0-BASELINE.md) and the
+registering a null method. See the
 [ordinary Layer tests](../Tests/MetalLayer/README.md) for verification boundaries.
 
 The optional `CaptureFrame` backend method and C frame capture/free functions

@@ -10,18 +10,23 @@ struct PlayerSettings: Codable {
     var floatingButton = true
     var idleOpacity = 0.38
     var threeFingerMenu = true
+    /// The floating buttons beside the menu button, in order; at most
+    /// `QuickActionKind.limit`.
+    var quickActions = QuickActionKind.defaults
+    /// Widens games narrower than 16:9 (such as 4:3) to 16:9. Off by
+    /// default: a 4:3 game stays 4:3. Either way the game is letterboxed.
+    var stretchToScreen = false
     /// When enabled, game audio uses iOS ambient semantics and is silenced by
     /// the device Ring/Silent state. Enabled by default for native iOS behavior.
     var respectSilentMode = true
     var performance = false
+    var performanceDetail = PerformanceDetail.storageDefault
     var listLayout = false
     var sort = LibrarySort.storageDefault
     /// Skips the built-in list of localization-patch videos. Off by default:
     /// those credits are the patch authors' own work, so not showing them is
     /// the user's choice to make.
     var skipPatchVideos = false
-    /// Captured at game launch; existing Emote players keep their current mode.
-    var experimentalEmote = false
     /// Sets Playing after a session of a game that had no status or was
     /// on the wishlist or on hold.
     var autoStatus = true
@@ -51,12 +56,20 @@ struct PlayerSettings: Codable {
         floatingButton = value(.floatingButton, fallback.floatingButton)
         idleOpacity = value(.idleOpacity, fallback.idleOpacity)
         threeFingerMenu = value(.threeFingerMenu, fallback.threeFingerMenu)
+        // An action this version doesn't know decodes as the default; drop
+        // the duplicate that leaves.
+        var seen = Set<QuickActionKind>()
+        quickActions = value(.quickActions, fallback.quickActions)
+            .filter { seen.insert($0).inserted }
+            .prefix(QuickActionKind.limit)
+            .map { $0 }
+        stretchToScreen = value(.stretchToScreen, fallback.stretchToScreen)
         respectSilentMode = value(.respectSilentMode, fallback.respectSilentMode)
         performance = value(.performance, fallback.performance)
+        performanceDetail = value(.performanceDetail, fallback.performanceDetail)
         listLayout = value(.listLayout, fallback.listLayout)
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
-        experimentalEmote = value(.experimentalEmote, fallback.experimentalEmote)
         autoStatus = value(.autoStatus, fallback.autoStatus)
         syncRatings = value(.syncRatings, fallback.syncRatings)
         syncDates = value(.syncDates, fallback.syncDates)
@@ -137,6 +150,26 @@ enum RendererPreference: String, StoredSetting {
         switch self {
         case .metal: return "Metal"
         case .softwareMetal: return String(localized: "Software Compositing · Metal")
+        }
+    }
+}
+
+/// How much the in-game performance overlay shows.
+enum PerformanceDetail: String, StoredSetting {
+    /// Frame rate, frame time, CPU and memory.
+    case simple
+    /// Everything the engine reports.
+    case full
+
+    static let legacyValues: [String: Self] = [:]
+    static let storageDefault: Self = .simple
+
+    init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
+
+    var displayName: String {
+        switch self {
+        case .simple: return String(localized: "Simple")
+        case .full: return String(localized: "Full")
         }
     }
 }
