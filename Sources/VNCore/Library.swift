@@ -9,6 +9,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
     case renpy
     case artemis
     case siglus
+    case fvp
 
     public var id: String { rawValue }
 
@@ -19,6 +20,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .renpy: return "renpy"
         case .artemis: return "artemis"
         case .siglus: return "siglus"
+        case .fvp: return "fvp"
         }
     }
 
@@ -29,6 +31,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .renpy: return "Ren’Py"
         case .artemis: return "Artemis"
         case .siglus: return "Siglus"
+        case .fvp: return "FVP"
         }
     }
 
@@ -49,6 +52,21 @@ public struct StartupFile: Equatable, Sendable {
     public init(_ kind: LaunchTargetKind, _ relativePath: String) {
         self.kind = kind
         self.relativePath = relativePath
+    }
+}
+
+/// The text encoding of an FVP game's script, as rfvp names it.
+public enum FVPTextEncoding: String, Codable, CaseIterable, Sendable {
+    case shiftJIS = "sjis"
+    case gbk
+    case utf8
+
+    public var displayName: String {
+        switch self {
+        case .shiftJIS: return "Shift-JIS"
+        case .gbk: return "GBK"
+        case .utf8: return "UTF-8"
+        }
     }
 }
 
@@ -87,7 +105,7 @@ enum StartupLanguage: Equatable {
     }
 
     private static let words: [(StartupLanguage, Set<String>)] = [
-        (.simplifiedChinese, ["chs", "cn", "sc", "zh", "zhs", "zhcn", "hans", "gb", "schinese", "chinese"]),
+        (.simplifiedChinese, ["chs", "cn", "sc", "zh", "zhs", "zhcn", "hans", "gb", "gbk", "schinese", "chinese"]),
         (.traditionalChinese, ["cht", "tc", "tw", "hk", "zht", "zhtw", "hant", "big5", "tchinese"]),
         (.english, ["en", "eng", "english"]),
         (.japanese, ["jp", "ja", "jpn", "japanese"]),
@@ -193,11 +211,11 @@ public struct LibraryRepository: Sendable {
     public static let dropTipNames = ["DROP_GAMES_HERE", "把游戏放在这里"]
     static let dropTipText = """
     Put each game's folder here, directly in this folder, then return to Mikage.
-    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py or Siglus) by itself.
+    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py, Siglus or FVP) by itself.
     This file goes away once a game is found.
 
     把每个游戏的文件夹直接放在这里，然后回到 Mikage。
-    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py 或 Siglus）。
+    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py、Siglus 或 FVP）。
     找到游戏后，这个文件会自动删除。
 
     """
@@ -222,7 +240,9 @@ public struct LibraryRepository: Sendable {
         guard !fm.fileExists(atPath: flatLayoutMarkerURL.path) else { return }
         var records = try load()
         var renamed = false
-        for engine in EngineID.allCases {
+        // FVP came after the flat layout and never had a folder of its own;
+        // a game folder named fvp is just a game.
+        for engine in EngineID.allCases where engine != .fvp {
             let folder = documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
             var isDirectory = ObjCBool(false)
             guard fm.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
@@ -698,6 +718,22 @@ public struct LibraryRepository: Sendable {
         }
     }
 
+    /// Reads `game`'s script as `encoding` from now on, or as the startup
+    /// script suggests again when it is nil.
+    @discardableResult
+    public func chooseTextEncoding(_ encoding: FVPTextEncoding?, for game: GameRecord) throws -> GameRecord {
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == game.id }) else { throw LibraryError.recordNotFound }
+            records[index].textEncoding = encoding
+            return records[index]
+        }
+    }
+
+    /// The encoding `game`'s script is read with.
+    public func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+        game.textEncoding ?? GameScanner.fvpAutomaticEncoding(script: game.launchTarget)
+    }
+
     public func entryPoint(for game: GameRecord) throws -> URL {
         let directory = try directory(for: game)
         guard let target = game.launchTarget else { throw LibraryError.noGame }
@@ -783,6 +819,7 @@ public struct LibraryRepository: Sendable {
             launchTargetKind: scanned.launchTargetKind,
             launchTarget: scanned.launchTarget,
             chosenStartup: scanned.chosenStartup,
+            textEncoding: metadata.textEncoding,
             byteCount: scanned.byteCount,
             addedAt: metadata.addedAt,
             lastPlayedAt: metadata.lastPlayedAt,
@@ -809,6 +846,9 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
     /// The startup file the player picked on the game's page, relative to
     /// the game folder ("." for startup.tjs). Nil picks one automatically.
     public var chosenStartup: String?
+    /// The script encoding the player picked for an FVP game; nil follows
+    /// the startup script (see `GameScanner.fvpAutomaticEncoding`).
+    public var textEncoding: FVPTextEncoding?
     public var byteCount: Int64
     public var addedAt: Date
     public var lastPlayedAt: Date?
@@ -836,6 +876,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         launchTargetKind: LaunchTargetKind? = nil,
         launchTarget: String? = nil,
         chosenStartup: String? = nil,
+        textEncoding: FVPTextEncoding? = nil,
         byteCount: Int64 = 0,
         addedAt: Date = Date(),
         lastPlayedAt: Date? = nil,
@@ -855,6 +896,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         self.launchTargetKind = launchTargetKind
         self.launchTarget = launchTarget
         self.chosenStartup = chosenStartup
+        self.textEncoding = textEncoding
         self.byteCount = byteCount
         self.addedAt = addedAt
         self.lastPlayedAt = lastPlayedAt
@@ -879,6 +921,7 @@ public struct GameRecord: Codable, Identifiable, Equatable, Sendable {
         launchTargetKind = try container.decodeIfPresent(LaunchTargetKind.self, forKey: .launchTargetKind)
         launchTarget = try container.decodeIfPresent(String.self, forKey: .launchTarget)
         chosenStartup = try container.decodeIfPresent(String.self, forKey: .chosenStartup)
+        textEncoding = try? container.decodeIfPresent(FVPTextEncoding.self, forKey: .textEncoding)
         byteCount = try container.decode(Int64.self, forKey: .byteCount)
         addedAt = try container.decode(Date.self, forKey: .addedAt)
         lastPlayedAt = try container.decodeIfPresent(Date.self, forKey: .lastPlayedAt)
@@ -977,6 +1020,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No Ren’Py game found (a game folder with .rpy, .rpyc or .rpa files)"))
             case .siglus:
                 availability = .invalid(String(localized: "No SiglusEngine data found (Scene.pck or Gameexe.dat)"))
+            case .fvp:
+                availability = .invalid(String(localized: "No FVP script found (.hcb or .bch)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -1037,6 +1082,11 @@ public enum GameScanner {
                         || siglusResourceNames(of: $0, in: directory) != SiglusResourceNames()
                 }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
+        case .fvp:
+            // Each script in the game folder: translation patches (.bch)
+            // first, as rfvp picks them, then the original .hcb scripts.
+            let scripts = try fvpScripts(in: directory)
+            return scripts.map { StartupFile(.archive, $0.lastPathComponent) }
         case .kirikiri:
             break
         }
@@ -1253,6 +1303,7 @@ public enum GameScanner {
 
         if try isRenPyGame(in: directory) { matches.append(.renpy) }
         if try isSiglusGame(in: directory) { matches.append(.siglus) }
+        if try !fvpScripts(in: directory).isEmpty { matches.append(.fvp) }
 
         return matches
     }
@@ -1268,6 +1319,26 @@ public enum GameScanner {
             normalized($0.pathExtension) == "rpa"
         }
         return hasRenPyScript || hasRenPyArchive
+    }
+
+    /// FVP scripts in the folder: .bch translation patches, then .hcb.
+    private static func fvpScripts(in directory: URL) throws -> [URL] {
+        let files = try rootFiles(in: directory).sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        return files.filter { normalized($0.pathExtension) == "bch" }
+            + files.filter { normalized($0.pathExtension) == "hcb" }
+    }
+
+    /// The text encoding of an FVP script when the player hasn't picked
+    /// one: GBK for translation patches (.bch, or a name with GBK), UTF-8
+    /// for a name with UTF8, else Shift-JIS, the original games' encoding.
+    public static func fvpAutomaticEncoding(script: String?) -> FVPTextEncoding {
+        guard let script else { return .shiftJIS }
+        let name = script.lowercased()
+        if name.contains("utf8") || name.contains("utf-8") { return .utf8 }
+        if normalized((script as NSString).pathExtension) == "bch" || name.contains("gbk") { return .gbk }
+        return .shiftJIS
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

@@ -129,7 +129,8 @@ final class AppModel: ObservableObject {
             .onscripter: NativeONSSession(),
             .artemis: NativeArtemisSession(),
             .renpy: NativeRenPySession(),
-            .siglus: NativeSiglusSession()
+            .siglus: NativeSiglusSession(),
+            .fvp: NativeFVPSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 
@@ -304,7 +305,8 @@ final class AppModel: ObservableObject {
             gameTitle: displayTitle(game),
             skippedMovies: SkippedMovies.runtimeList(enabled: settings.skipPatchVideos),
             engine: game.engine,
-            loadSlot: takePendingLoadSlot()
+            loadSlot: takePendingLoadSlot(),
+            textEncoding: repository.textEncoding(for: game)
         )
     }
 
@@ -518,6 +520,24 @@ final class AppModel: ObservableObject {
             }
         } catch {
             alert = String(localized: "Couldn’t change the startup file: \(error.localizedDescription)")
+        }
+    }
+
+    /// The encoding an FVP game's script is read with.
+    func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+        repository.textEncoding(for: game)
+    }
+
+    /// `encoding` nil goes back to following the startup script.
+    func chooseTextEncoding(_ encoding: FVPTextEncoding?, for game: GameRecord) {
+        AppDiagnostics.shared.event("library", "encoding.choose", ["folder": game.folderName, "encoding": encoding?.rawValue ?? "auto"])
+        do {
+            let updated = try repository.chooseTextEncoding(encoding, for: game)
+            if let index = games.firstIndex(where: { $0.id == game.id }) {
+                games[index] = updated
+            }
+        } catch {
+            alert = String(localized: "Couldn’t change the text encoding: \(error.localizedDescription)")
         }
     }
 
