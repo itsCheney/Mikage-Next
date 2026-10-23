@@ -7,6 +7,7 @@ import ArtemisRuntime
 import RenPyRuntime
 import SiglusRuntime
 import RFVPRuntime
+import EthornellRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -41,6 +42,7 @@ final class AppDiagnostics: @unchecked Sendable {
         MikageRenPySetLogCallback(nil)
         siglus_mikage_set_log_callback(nil, nil, 0)
         rfvp_mikage_set_log_callback(nil, nil, 0)
+        ethornell_mikage_set_log_callback(nil, nil)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -54,6 +56,8 @@ final class AppDiagnostics: @unchecked Sendable {
             // The same for rfvp. Set before any FVP game starts, or rfvp
             // keeps its own stdout logger for the rest of the run.
             rfvp_mikage_set_log_callback(mikageRFVPDiagnosticLogCallback, nil, 2)
+            // And for ethornell-rs (BGI): its warnings, errors and panics.
+            ethornell_mikage_set_log_callback(mikageBGIDiagnosticLogCallback, nil)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -232,4 +236,12 @@ private func mikageRFVPDiagnosticLogCallback(
     guard let message else { return }
     let target = target.map { String(cString: $0) } ?? ""
     AppDiagnostics.shared.runtime(source: "FVP." + target, level: level, message: String(cString: message))
+}
+
+private func mikageBGIDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "BGI." + target, level: level, message: String(cString: message))
 }

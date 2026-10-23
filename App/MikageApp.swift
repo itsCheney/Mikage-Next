@@ -133,7 +133,8 @@ final class AppModel: ObservableObject {
             .artemis: NativeArtemisSession(),
             .renpy: NativeRenPySession(),
             .siglus: NativeSiglusSession(),
-            .fvp: NativeFVPSession()
+            .fvp: NativeFVPSession(),
+            .bgi: NativeBGISession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 
@@ -556,13 +557,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The encoding an FVP game's script is read with.
-    func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+    /// The encoding an FVP or BGI game's script is read with.
+    func textEncoding(for game: GameRecord) -> GameTextEncoding {
         repository.textEncoding(for: game)
     }
 
-    /// `encoding` nil goes back to following the startup script.
-    func chooseTextEncoding(_ encoding: FVPTextEncoding?, for game: GameRecord) {
+    /// `encoding` nil goes back to choosing automatically.
+    func chooseTextEncoding(_ encoding: GameTextEncoding?, for game: GameRecord) {
         AppDiagnostics.shared.event("library", "encoding.choose", ["folder": game.folderName, "encoding": encoding?.rawValue ?? "auto"])
         do {
             let updated = try repository.chooseTextEncoding(encoding, for: game)
