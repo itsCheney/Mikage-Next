@@ -451,6 +451,35 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try GameScanner.detectEngines(in: other), [])
     }
 
+    /// A minimal PE image with one section named `section`.
+    private func peImage(section: String) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 0x200)
+        bytes[0] = 0x4D; bytes[1] = 0x5A
+        bytes[0x3C] = 0x80
+        bytes.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        bytes[0x86] = 1
+        let name = Array(section.utf8)
+        bytes.replaceSubrange(0x98..<(0x98 + name.count), with: name)
+        return Data(bytes)
+    }
+
+    func testBGIPatchLaunchersAreStartupFiles() throws {
+        try repository.ensureStructure()
+        let bgi = repository.gamesRoot.appendingPathComponent("Subahibi")
+        try FileManager.default.createDirectory(at: bgi, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("system.arc"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("BGI.exe"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("Uninstaller.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI-CHS.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI_patch(new_episode_trans).exe"))
+        let candidates = try GameScanner.startupCandidates(in: bgi, engine: .bgi)
+        XCTAssertEqual(candidates.first, StartupFile(.directory, "."))
+        XCTAssertEqual(Set(candidates.dropFirst().map(\.relativePath)), ["BGI-CHS.exe", "BGI_patch(new_episode_trans).exe"])
+        XCTAssertEqual(candidates.dropFirst().map(\.kind), [.archive, .archive])
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["zh-Hans-CN"])?.relativePath, "BGI-CHS.exe")
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["ja-JP"])?.relativePath, ".")
+    }
+
     func testBGIAutomaticEncoding() {
         XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama 2"), .shiftJIS)
         XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama2_CHS"), .gbk)

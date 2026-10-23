@@ -703,8 +703,8 @@ public struct LibraryRepository: Sendable {
         try GameScanner.containedURL(game.folderName, in: gamesRoot)
     }
 
-    /// The files `game` can start from; more than one only for KiriKiri
-    /// games with several archives or executables.
+    /// The files `game` can start from; more than one for games with
+    /// several archives, scripts or patch executables.
     public func startupCandidates(for game: GameRecord) throws -> [StartupFile] {
         try GameScanner.startupCandidates(in: directory(for: game), engine: game.engine)
     }
@@ -1070,9 +1070,9 @@ public enum GameScanner {
     }
 
     /// Every file the engine can start this folder from, in the order used
-    /// when no language decides. Only KiriKiri games can have more than one:
-    /// startup.tjs (the folder itself), XP3 archives, and Windows executables
-    /// with an XP3 archive appended.
+    /// when no language decides. For KiriKiri: startup.tjs (the folder
+    /// itself), XP3 archives, and Windows executables with an XP3 archive
+    /// appended; the other engines are listed per case below.
     public static func startupCandidates(in directory: URL, engine: EngineID) throws -> [StartupFile] {
         switch engine {
         case .onscripter:
@@ -1108,7 +1108,14 @@ public enum GameScanner {
             return scripts.map { StartupFile(.archive, $0.lastPathComponent) }
         case .bgi:
             // ethornell-rs boots from system.arc in the game folder itself.
-            return try isBGIGame(in: directory) ? [StartupFile(.directory, ".")] : []
+            // A translation patch is often BGI.exe packed with Enigma Virtual
+            // Box together with the translated files (BGI-CHS.exe); each
+            // such executable starts the game with its files.
+            guard try isBGIGame(in: directory) else { return [] }
+            let launchers = try rootFiles(in: directory)
+                .filter { normalized($0.pathExtension) == "exe" && isEnigmaVirtualBox($0) }
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            return [StartupFile(.directory, ".")] + launchers.map { StartupFile(.archive, $0.lastPathComponent) }
         case .kirikiri:
             break
         }
@@ -1242,8 +1249,14 @@ public enum GameScanner {
     /// Whether a Windows executable carries an XP3 archive after its image,
     /// as KiriKiri's releaser writes it. KiriKiri itself looks for the archive
     /// on 16-byte boundaries; it sits where the PE sections end.
-    static func hasAppendedXP3(_ url: URL) -> Bool {
-        guard let file = try? FileHandle(forReadingFrom: url) else { return false }
+    /// A Windows executable packed with Enigma Virtual Box: it has the
+    /// ".enigma1" section that holds the packed files.
+    static func isEnigmaVirtualBox(_ url: URL) -> Bool {
+        peSections(of: url).contains { $0.name == ".enigma1" }
+    }
+
+    private static func peSections(of url: URL) -> [(name: String, pointer: UInt64, size: UInt64)] {
+        guard let file = try? FileHandle(forReadingFrom: url) else { return [] }
         defer { try? file.close() }
         func read(_ offset: UInt64, _ count: Int) -> Data? {
             guard (try? file.seek(toOffset: offset)) != nil,
@@ -1257,19 +1270,25 @@ public enum GameScanner {
             }
             return value
         }
-        guard let dos = read(0, 64), dos.prefix(2) == Data("MZ".utf8) else { return false }
+        guard let dos = read(0, 64), dos.prefix(2) == Data("MZ".utf8) else { return [] }
         let peOffset = integer(dos, 0x3C, 4)
-        guard let header = read(peOffset, 24), header.prefix(4) == Data([0x50, 0x45, 0, 0]) else { return false }
+        guard let header = read(peOffset, 24), header.prefix(4) == Data([0x50, 0x45, 0, 0]) else { return [] }
         let sectionCount = Int(integer(header, 6, 2))
         let optionalSize = integer(header, 20, 2)
         guard sectionCount > 0, sectionCount <= 96,
-              let sections = read(peOffset + 24 + optionalSize, sectionCount * 40) else { return false }
-        var imageEnd: UInt64 = 0
-        for index in 0..<sectionCount {
-            let size = integer(sections, index * 40 + 16, 4)
-            let pointer = integer(sections, index * 40 + 20, 4)
-            imageEnd = max(imageEnd, pointer + size)
+              let sections = read(peOffset + 24 + optionalSize, sectionCount * 40) else { return [] }
+        return (0..<sectionCount).map { index in
+            let raw = sections[(sections.startIndex + index * 40)..<(sections.startIndex + index * 40 + 8)]
+            let name = String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+            return (name, integer(sections, index * 40 + 20, 4), integer(sections, index * 40 + 16, 4))
         }
+    }
+
+    static func hasAppendedXP3(_ url: URL) -> Bool {
+        let sections = peSections(of: url)
+        guard !sections.isEmpty, let file = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? file.close() }
+        let imageEnd = sections.map { $0.pointer + $0.size }.max() ?? 0
         // Look a little past the image, for padding before the archive.
         let start = (imageEnd + 15) / 16 * 16
         guard (try? file.seek(toOffset: start)) != nil,

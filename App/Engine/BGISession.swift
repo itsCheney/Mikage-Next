@@ -109,10 +109,18 @@ final class NativeBGISession: NSObject, KRKRSession {
         let userRoot = gameDirectory.appendingPathComponent(LibraryRepository.savesFolderName, isDirectory: true)
         try? FileManager.default.createDirectory(at: userRoot, withIntermediateDirectories: true)
 
+        // A patch's launcher (BGI-CHS.exe): the engine reads the translated
+        // files packed into it ahead of the archives.
+        let launcher = configuration.targetKind == .archive
+            && configuration.entryPoint.pathExtension.lowercased() == "exe"
+            ? configuration.entryPoint.lastPathComponent : ""
+
         AppDiagnostics.shared.event("bridge", "ethornell.create", [
             "font": font?.path ?? "", "face": String(font?.face ?? 0), "gbk": String(gbk),
+            "launcher": launcher,
         ])
         var created: UInt64 = 0
+        _ = ethornell_mikage_set_launcher(launcher)
         let status: Int32 = withStringV1(gameDirectory.path) { resource in
             withStringV1(userRoot.path) { user in
                 withStringV1(font?.path ?? "") { fontPath in
