@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri), and, experimentally, Artemis games through [openArtemis](https://github.com/itsCheney/openartemis). Ren’Py is next: its games are already recognized and listed, but stay disabled until its runtime lands.
+Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri), and Ren’Py games through [Ren’Py 8](https://github.com/itsCheney/renpy) itself. Artemis, SiglusEngine and FVP games run experimentally, through [openArtemis](https://github.com/itsCheney/openartemis), [siglus_rs](https://github.com/itsCheney/siglus_rs) and [rfvp](https://github.com/itsCheney/rfvp).
 
 Mikage ships no game content. You bring games you own.
 
@@ -11,17 +11,21 @@ Mikage ships no game content. You bring games you own.
 **Library**
 - Put game folders straight into the app’s Documents with the Files app, or import a folder with the + button in the Library. Mikage detects each game’s engine from its files. While the library has no games of your own, Documents holds two tip files, `DROP_GAMES_HERE` and `把游戏放在这里`; they’re removed once a game is found. The per-engine folders of older versions (`krkr/`, `ons/`, `renpy/`, `artemis/`) are emptied into Documents and deleted the first time the updated app opens.
 - The library rescans on launch, when the app returns to the foreground, and on pull to refresh. Folders keep their original names; Mikage’s own records live in Application Support.
+- A Ren’Py game folder needs a `game` folder with `.rpy` or `.rpyc` scripts, or `.rpa` archives. Mikage bundles Ren’Py 8. Ren’Py can run one game each time Mikage opens: to play another Ren’Py game, close Mikage from the app switcher and open it again.
 - An Artemis game folder needs `root.pfs` (or another `.pfs` pack), or an extracted project with `system.ini`.
 - A SiglusEngine game folder needs `Scene.pck` or `Gameexe.dat`. On the first run siglus_rs works out the game's second-layer resource key and writes it to `key.toml` in the game folder. Translated releases often ship a patched executable (such as `SiglusEngineCHS.exe`) that loads renamed copies like `Scene.chs` and `Gameexe.chs`; Mikage reads those names from the exe, lists it as a startup file, and picks it automatically on a Chinese system. Repacks such as some "高压" releases are supported too: g00 images stored as UCI (H.264), translated images in `.g01` files next to the originals, and voices in `koe/uca.dat` and `uca2.dat`, which are decoded with the game's own `ucadec.dll` running in a built-in x86 interpreter. MP4 movies renamed to `.mpg` play through the system's AVFoundation.
 - An FVP game folder needs a script, `*.hcb` (or a translation patch, `*.bch`), next to its `*.bin` packs. With several scripts, Mikage starts the patch first; the game's page has a Startup file picker. FVP scripts don't record their text encoding: Automatic reads patches (and scripts with GBK in the name) as GBK and the rest as Shift-JIS, and the game's page has a Text encoding picker. rfvp keeps its saves in the game's `savedata` folder, in its own format; saves of the original Windows engine can't be loaded.
 - An ONScripter game folder needs a script such as `0.txt`, `00.txt` or `nscript.dat`. Mikage uses the folder's `default.ttf` when there is one, otherwise a system font (Hiragino Sans for Japanese games, PingFang for Chinese ones).
 - A KiriKiri game can start from `startup.tjs` at the game root, an XP3 that passes its signature check, or an `.exe` with an XP3 appended. Mikage prefers the one whose name is tagged with your language (`xxx_CHS.exe` or `启动游戏.xp3` for Chinese, `xxx_EN.exe` for English); otherwise it takes `startup.tjs`, `启动游戏.xp3`, `startup.xp3`, `start.xp3`, `boot.xp3`, an `.exe` with an XP3, then `data.xp3`. The game's page has a Startup file picker to fix one by hand.
+- When a game has several startup files (a translated release beside the original), its first launch asks which one to run. The answer is kept as the game’s startup file and can be changed on its page.
 - Covers come from an image in the game folder, a picture you choose, or artwork from Bangumi or VNDB. A cover you set yourself is never replaced.
 - Sort by recently played, date added, name or size. Games whose folder disappeared are kept as “missing” so you can relink or remove them.
 
 **Playing**
 - Games start inside the app and can be quit and relaunched, or switched for another game, without restarting Mikage.
-- An in-game menu (floating button or three-finger tap) offers a screenshot, a performance overlay, “Mark Finished” and Quit. Quit goes through the game’s own exit confirmation, so it saves the way the game expects.
+- An in-game menu (floating button or three-finger tap) has Save, Load and Backlog, Auto and Skip (read text only), Back (Esc), a screenshot, Mouse mode (the screen becomes a trackpad: drag to move the pointer, tap to click), performance stats, “Mark Finished” and Quit. Actions a game’s engine can’t do right now are dimmed. Quit goes through the game’s own exit confirmation, so it saves the way the game expects.
+- Up to two quick actions (quick save, quick load, skip, auto, backlog, mouse, stats, screenshot, back) float beside the game and run with one tap. Skip there also skips unread text, like holding Ctrl. Settings › Floating Button picks them and sets the button’s idle opacity; the button and actions can be dragged anywhere and snap to an edge.
+- ONScripter games get Mikage’s own backlog and save/load screens, and the game’s page has a Saves list to start from a slot, export it or delete it.
 - The game pauses fully in the background and resumes where it was.
 - Rendering is native Metal by default, including Emote animations, D3D layers and the built-in transitions. Software compositing presented through Metal is available as a fallback in Settings › Advanced.
 - Saves stay in the game’s own `savedata/` folder.
@@ -45,7 +49,7 @@ Mikage ships no game content. You bring games you own.
 | --- | --- | --- |
 | KiriKiri (KRKRSDL3) | Yes | Yes |
 | ONScripter (ONScripter Yuri) | Yes | Yes |
-| Ren’Py | Yes | Not yet |
+| Ren’Py (Ren’Py 8) | Yes | Yes, one game per app launch |
 | Artemis (openArtemis) | Yes | Experimental |
 | SiglusEngine (siglus_rs) | Yes | Experimental |
 | FVP (rfvp) | Yes | Experimental |
@@ -76,12 +80,15 @@ Choose the Mikage scheme, set your own signing team, and run. The deployment tar
 
 To use Bangumi website sign-in instead of pasted tokens, register an app at [bgm.tv/dev/app](https://bgm.tv/dev/app) and pass `BANGUMI_APP_ID` and `BANGUMI_APP_SECRET` as build settings (see `project.yml`). Left empty, Bangumi falls back to access tokens.
 
-Every push to `main` or `beta` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
+Every push to `main`, `beta` or `runtime-dev` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
 
 ## Branches
 
 - `main`: stable.
 - `beta`: testing ahead of `main`.
+- `runtime-dev`: development. New engine and runtime work lands here first, then merges into `beta`, and `beta` into `main`.
+
+Each branch pins the KiriKiri runtime from its own branch of [krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) and [krkrsdl3](https://github.com/itsCheney/krkrsdl3): `mikage` for `main`, `mikage-beta` for `beta`, `runtime-dev` for `runtime-dev`. The other engine submodules follow their `mikage` branch on every branch.
 
 ## Repository layout
 

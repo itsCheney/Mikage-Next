@@ -2,7 +2,7 @@
 
 简体中文 · [English](README.en.md)
 
-Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏，通过 [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri) 支持 ONScripter 游戏，通过 [openArtemis](https://github.com/itsCheney/openartemis) 试验性地支持 Artemis 游戏。Ren’Py 是接下来的目标：这类游戏已经能被识别并显示在游戏库中，但在运行时接入之前暂时无法启动。
+Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏，通过 [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri) 支持 ONScripter 游戏，通过 [Ren’Py 8](https://github.com/itsCheney/renpy) 本身支持 Ren’Py 游戏。Artemis、SiglusEngine 和 FVP 游戏分别通过 [openArtemis](https://github.com/itsCheney/openartemis)、[siglus_rs](https://github.com/itsCheney/siglus_rs) 和 [rfvp](https://github.com/itsCheney/rfvp) 试验性地运行。
 
 Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 
@@ -11,17 +11,21 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 **游戏库**
 - 用“文件”App 把游戏文件夹直接放进 App 的“文稿”，或者在游戏库右上角点 + 导入文件夹。Mikage 会根据文件自动识别引擎。游戏库里还没有自己的游戏时，“文稿”里会有 `DROP_GAMES_HERE` 和 `把游戏放在这里` 两个提示文件，找到游戏后自动删除。旧版本按引擎分开的 `krkr/`、`ons/`、`renpy/`、`artemis/` 文件夹会在更新后首次打开时移到“文稿”并删除。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
+- Ren’Py 游戏文件夹中需要有 `game` 文件夹，里面有 `.rpy` 或 `.rpyc` 脚本，或 `.rpa` 包。Mikage 内置 Ren’Py 8。每次打开 Mikage 只能运行一个 Ren’Py 游戏：要玩另一个 Ren’Py 游戏，请先在 App 切换器中关闭 Mikage 再重新打开。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
 - SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件，中文系统下自动选用。部分“高压”重打包版把 g00 图片换成了 UCI（H.264）格式，把汉化图片放在同名的 `.g01` 里，语音放在 `koe/uca.dat`、`uca2.dat` 中；Mikage 都能读取，语音用游戏自带的 `ucadec.dll` 解码（在内置的 x86 解释器中运行）；改名为 `.mpg` 的 MP4 片头动画由系统的 AVFoundation 播放。
 - FVP 游戏文件夹中需要有脚本 `*.hcb`（或汉化补丁脚本 `*.bch`），以及 `*.bin` 资源包。有多个脚本时优先启动补丁脚本，游戏详情页可以用“启动文件”手动指定。FVP 脚本不记录文字编码：“自动”会把补丁脚本（以及文件名含 GBK 的脚本）按 GBK 读取，其余按 Shift-JIS 读取；游戏详情页有“文本编码”选项可以手动指定。rfvp 的存档以自己的格式保存在游戏文件夹的 `savedata` 中，无法读取原版 Windows 引擎的存档。
 - ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏可以从根目录的 `startup.tjs`、通过签名校验的 XP3，或末尾附带 XP3 的 `.exe` 启动。Mikage 会优先选择文件名标明了你的语言的那个（如中文的 `xxx_CHS.exe`、`启动游戏.xp3`，英文的 `xxx_EN.exe`）；都没有标明时，依次选 `startup.tjs`、`启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、带 XP3 的 `.exe`、`data.xp3`。在游戏详情页的“启动文件”里也可以手动指定。
+- 游戏有多个启动文件时（例如汉化版与原版放在一起），首次启动会询问运行哪一个。选择会保存为该游戏的启动文件，之后可以在游戏页面中更改。
 - 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。
 - 可按最近游玩、添加日期、名称或大小排序。文件夹不见了的游戏会标为“缺失”，可以重新关联或删除。
 
 **游玩**
 - 游戏在 App 内运行，可以退出后重新启动或切换到另一个游戏，无需重启 Mikage。
-- 游戏内菜单（悬浮按钮或三指轻点）提供截图、性能信息、“标为已通关”和退出。退出会走游戏自己的退出确认，按游戏原本的方式存档。
+- 游戏内菜单（悬浮球或三指轻点）提供存档、读档、回看、自动、快进（仅已读）、返回（Esc）、截图、鼠标模式（屏幕变成触控板：拖动移动指针，轻点即点击）、性能统计、“标记通关”和退出。引擎当前无法执行的操作会显示为灰色。退出会走游戏自己的退出确认，按游戏原本的方式存档。
+- 最多两个快捷操作（快速存档、快速读档、快进、自动、回看、鼠标、性能统计、截图、返回）悬浮在游戏旁，轻点一下即可执行；这里的快进也会跳过未读文本，相当于按住 Ctrl。在设置 › 悬浮球中选择快捷操作并调整悬浮球闲置时的透明度；悬浮球和快捷操作可以拖到任意位置，松手后贴靠最近的边缘。
+- ONScripter 游戏使用 Mikage 自己的回看和存档/读档界面，游戏页面中的“存档”列表可以从某个存档开始游戏、导出或删除存档。
 - 切到后台时游戏完全暂停，回来后从原处继续。
 - 默认使用原生 Metal 渲染，包括 Emote 动画、D3D 图层和内置转场效果。设置 › 高级中可以改用“软件合成 · Metal”作为备选。
 - 存档保存在游戏自己的 `savedata/` 文件夹中。
@@ -45,7 +49,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 | --- | --- | --- |
 | KiriKiri（KRKRSDL3） | 支持 | 支持 |
 | ONScripter（ONScripter Yuri） | 支持 | 支持 |
-| Ren’Py | 支持 | 尚未支持 |
+| Ren’Py（Ren’Py 8） | 支持 | 支持，每次打开 App 限一个游戏 |
 | Artemis（openArtemis） | 支持 | 试验性 |
 | SiglusEngine（siglus_rs） | 支持 | 试验性 |
 | FVP（rfvp） | 支持 | 试验性 |
@@ -76,12 +80,15 @@ open Mikage.xcodeproj
 
 如需通过 Bangumi 网页登录（而不是粘贴 Token），请在 [bgm.tv/dev/app](https://bgm.tv/dev/app) 注册应用，并通过构建设置传入 `BANGUMI_APP_ID` 和 `BANGUMI_APP_SECRET`（见 `project.yml`）。留空时 Bangumi 使用 Access Token 登录。
 
-每次推送到 `main` 或 `beta` 时，GitHub Actions 会运行 [iOS 构建流程](.github/workflows/ios.yml)：运行测试、构建运行时和 App，并上传未签名的 `Mikage-unsigned-<编号>.ipa`。安装前需要自行签名。
+每次推送到 `main`、`beta` 或 `runtime-dev` 时，GitHub Actions 会运行 [iOS 构建流程](.github/workflows/ios.yml)：运行测试、构建运行时和 App，并上传未签名的 `Mikage-unsigned-<编号>.ipa`。安装前需要自行签名。
 
 ## 分支
 
 - `main`：稳定版。
 - `beta`：先于 `main` 的测试版。
+- `runtime-dev`：开发分支。新的引擎和运行时改动先合入这里，再合并到 `beta`，`beta` 再合并到 `main`。
+
+每个分支从 [krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) 和 [krkrsdl3](https://github.com/itsCheney/krkrsdl3) 各自对应的分支固定 KiriKiri 运行时：`main` 用 `mikage`，`beta` 用 `mikage-beta`，`runtime-dev` 用 `runtime-dev`。其他引擎的子模块在所有分支上都跟随各自的 `mikage` 分支。
 
 ## 目录结构
 
