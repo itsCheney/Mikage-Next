@@ -946,6 +946,12 @@ final class SiglusViewController: UIViewController {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // A touch whose end never reached this view (a gesture or the system
+        // took it) would otherwise block every later touch.
+        if let stale = activeTouch, stale.phase == .ended || stale.phase == .cancelled {
+            activeTouch = nil
+            send(3, stale)
+        }
         // One finger plays; more fingers are the menu gesture.
         guard activeTouch == nil, (event?.allTouches?.count ?? 1) == 1, let touch = touches.first else { return }
         activeTouch = touch
