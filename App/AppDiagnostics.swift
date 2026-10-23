@@ -6,6 +6,7 @@ import ONSRuntime
 import ArtemisRuntime
 import RenPyRuntime
 import SiglusRuntime
+import RFVPRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -39,6 +40,7 @@ final class AppDiagnostics: @unchecked Sendable {
         MikageArtemisSetLogCallback(nil)
         MikageRenPySetLogCallback(nil)
         siglus_mikage_set_log_callback(nil, nil, 0)
+        rfvp_mikage_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -49,6 +51,9 @@ final class AppDiagnostics: @unchecked Sendable {
             // Warnings and errors: siglus_rs logs what it couldn't load or
             // draw there; info and below are per-frame chatter.
             siglus_mikage_set_log_callback(mikageSiglusDiagnosticLogCallback, nil, 2)
+            // The same for rfvp. Set before any FVP game starts, or rfvp
+            // keeps its own stdout logger for the rest of the run.
+            rfvp_mikage_set_log_callback(mikageRFVPDiagnosticLogCallback, nil, 2)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -219,4 +224,12 @@ private func mikageSiglusDiagnosticLogCallback(
     guard let message else { return }
     let target = target.map { String(cString: $0) } ?? ""
     AppDiagnostics.shared.runtime(source: "Siglus." + target, level: level, message: String(cString: message))
+}
+
+private func mikageRFVPDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "FVP." + target, level: level, message: String(cString: message))
 }

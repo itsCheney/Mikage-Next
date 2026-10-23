@@ -1570,6 +1570,22 @@
         }
       }
     },
+    "Couldn’t change the text encoding: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字コードを変更できませんでした：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更改文本编码：%@"
+          }
+        }
+      }
+    },
     "Couldn’t clear logs: %@" : {
       "localizations" : {
         "ja" : {
@@ -2870,6 +2886,70 @@
         }
       }
     },
+    "FVP failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP 启动失败。"
+          }
+        }
+      }
+    },
+    "FVP failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP 启动失败：%@"
+          }
+        }
+      }
+    },
+    "FVP stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP 已停止。"
+          }
+        }
+      }
+    },
+    "FVP stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP 已停止：%@"
+          }
+        }
+      }
+    },
     "Game Cover" : {
       "localizations" : {
         "ja" : {
@@ -4059,18 +4139,18 @@
         }
       }
     },
-    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games and siglus_rs for SiglusEngine games.\n\nThe app includes no game content." : {
+    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games, siglus_rs for SiglusEngine games and rfvp for FVP games.\n\nThe app includes no game content." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs を内蔵しています。\n\nアプリにゲームは含まれていません。"
+            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs、FVP ゲーム用の rfvp を内蔵しています。\n\nアプリにゲームは含まれていません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8，以及用于 SiglusEngine 游戏的 siglus_rs。\n\n应用不附带游戏内容。"
+            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8、用于 SiglusEngine 游戏的 siglus_rs，以及用于 FVP 游戏的 rfvp。\n\n应用不附带游戏内容。"
           }
         }
       }
@@ -4299,6 +4379,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无诊断日志，请开启记录并复现问题。"
+          }
+        }
+      }
+    },
+    "No FVP script found (.hcb or .bch)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FVP のスクリプト（.hcb または .bch）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 FVP 脚本（.hcb 或 .bch）"
           }
         }
       }
@@ -5397,6 +5495,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "三指轻点即可让按钮重新出现"
+          }
+        }
+      }
+    },
+    "Text encoding" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字コード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本编码"
           }
         }
       }
@@ -8145,6 +8259,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原版"
+          }
+        }
+      }
+    },
+    "%@ (Suggested)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（おすすめ）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（推荐）"
+          }
+        }
+      }
+    },
+    "Which file should this game start from?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このゲームをどのファイルから起動しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个游戏要从哪个文件启动？"
+          }
+        }
+      }
+    },
+    "Mikage remembers your choice. You can change it later under Startup file on the game’s page." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択は保存されます。あとからゲームのページの「起動ファイル」で変更できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikage 会记住你的选择，之后可在游戏页面的“启动文件”中更改。"
           }
         }
       }
