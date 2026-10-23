@@ -704,6 +704,7 @@ public struct LibraryRepository: Sendable {
     @discardableResult
     public func chooseStartup(_ relativePath: String?, for game: GameRecord) throws -> GameRecord {
         let candidates = try startupCandidates(for: game)
+        let folder = try directory(for: game)
         let chosen = try relativePath.map { path in
             guard let match = candidates.first(where: { $0.relativePath == path }) else { throw LibraryError.noGame }
             return match
@@ -711,7 +712,7 @@ public struct LibraryRepository: Sendable {
         let launch = chosen ?? GameScanner.preferredStartup(
             among: candidates,
             languages: Locale.preferredLanguages,
-            translating: GameScanner.translatingStartups(among: candidates, in: directory(for: game), engine: game.engine)
+            translating: GameScanner.translatingStartups(among: candidates, in: folder, engine: game.engine)
         )
         return try mutate { records in
             guard let index = records.firstIndex(where: { $0.id == game.id }) else { throw LibraryError.recordNotFound }
