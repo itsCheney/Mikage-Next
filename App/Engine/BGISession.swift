@@ -115,29 +115,43 @@ final class NativeBGISession: NSObject, KRKRSession {
             && configuration.entryPoint.pathExtension.lowercased() == "exe"
             ? configuration.entryPoint.lastPathComponent : ""
 
-        AppDiagnostics.shared.event("bridge", "ethornell.create", [
-            "font": font?.path ?? "", "face": String(font?.face ?? 0), "gbk": String(gbk),
-            "launcher": launcher,
-        ])
+        // The game's own font (font.ttf) draws its text, PingFang what it
+        // lacks; Chinese patches re-code their text into codes only their
+        // font draws. Should the engine refuse it, start with PingFang alone.
+        let gameFont = GameScanner.bgiGameFont(in: gameDirectory)
+        var attempts: [(path: String, face: UInt32, fallback: (path: String, face: UInt32)?)] = []
+        if let gameFont { attempts.append((gameFont.path, 0, font)) }
+        attempts.append((font?.path ?? "", font?.face ?? 0, nil))
+
         var created: UInt64 = 0
-        _ = ethornell_mikage_set_launcher(launcher)
-        let status: Int32 = withStringV1(gameDirectory.path) { resource in
-            withStringV1(userRoot.path) { user in
-                withStringV1(font?.path ?? "") { fontPath in
-                    var config = EthornellConfigV1(
-                        struct_size: UInt32(MemoryLayout<EthornellConfigV1>.size),
-                        abi_version: ETHORNELL_IOS_ABI_VERSION,
-                        resource_root: resource,
-                        user_root: user,
-                        font_path: fontPath,
-                        text_encoding: gbk ? 1 : 0,
-                        font_face_index: font?.face ?? 0,
-                        backend: 0,
-                        flags: 0,
-                        reserved: (0, 0, 0, 0))
-                    return ethornell_ios_create(&config, &created)
+        var status: Int32 = -1
+        for attempt in attempts {
+            AppDiagnostics.shared.event("bridge", "ethornell.create", [
+                "font": attempt.path, "face": String(attempt.face),
+                "fallbackFont": attempt.fallback?.path ?? "", "gbk": String(gbk), "launcher": launcher,
+            ])
+            _ = ethornell_mikage_set_launcher(launcher)
+            _ = ethornell_mikage_set_fallback_font(attempt.fallback?.path ?? "", attempt.fallback?.face ?? 0)
+            status = withStringV1(gameDirectory.path) { resource in
+                withStringV1(userRoot.path) { user in
+                    withStringV1(attempt.path) { fontPath in
+                        var config = EthornellConfigV1(
+                            struct_size: UInt32(MemoryLayout<EthornellConfigV1>.size),
+                            abi_version: ETHORNELL_IOS_ABI_VERSION,
+                            resource_root: resource,
+                            user_root: user,
+                            font_path: fontPath,
+                            text_encoding: gbk ? 1 : 0,
+                            font_face_index: attempt.face,
+                            backend: 0,
+                            flags: 0,
+                            reserved: (0, 0, 0, 0))
+                        return ethornell_ios_create(&config, &created)
+                    }
                 }
             }
+            if status == 0, created != 0 { break }
+            AppDiagnostics.shared.event("bridge", "ethornell.create.failed", ["status": String(status), "error": Self.lastError()])
         }
         guard status == 0, created != 0 else {
             let message = Self.lastError()

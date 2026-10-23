@@ -745,7 +745,9 @@ public struct LibraryRepository: Sendable {
             return chosen
         }
         switch game.engine {
-        case .bgi: return GameScanner.bgiAutomaticEncoding(folderName: game.folderName)
+        case .bgi:
+            let launcher = game.launchTargetKind == .archive ? game.launchTarget : nil
+            return GameScanner.bgiAutomaticEncoding(folderName: game.folderName, launcher: launcher)
         default: return GameScanner.fvpAutomaticEncoding(script: game.launchTarget)
         }
     }
@@ -1391,10 +1393,26 @@ public enum GameScanner {
 
     /// The text encoding of a BGI game when the player hasn't picked one:
     /// GBK when the folder's name says it is a Chinese release (CHS, 汉化,
-    /// GBK...), else Shift-JIS, the original games' encoding.
-    public static func bgiAutomaticEncoding(folderName: String) -> GameTextEncoding {
+    /// GBK...) or it starts from a patch's packed launcher (BGI-CHS.exe)
+    /// not named for another language, else Shift-JIS, the original games'
+    /// encoding. Packed patches are Chinese ones: their text is GBK bytes
+    /// drawn with the patch's own font.
+    public static func bgiAutomaticEncoding(folderName: String, launcher: String? = nil) -> GameTextEncoding {
         // tags(in:) drops an extension; a folder name has none.
-        StartupLanguage.tags(in: folderName + ".dir").contains(where: \.isChinese) ? .gbk : .shiftJIS
+        if StartupLanguage.tags(in: folderName + ".dir").contains(where: \.isChinese) { return .gbk }
+        guard let launcher else { return .shiftJIS }
+        let tags = StartupLanguage.tags(in: launcher)
+        return tags.isEmpty || tags.contains(where: \.isChinese) ? .gbk : .shiftJIS
+    }
+
+    /// The font a BGI game brings in its folder (font.ttf, which the game
+    /// registers itself): the one named font, else the only font file.
+    public static func bgiGameFont(in directory: URL) -> URL? {
+        let fonts = ((try? rootFiles(in: directory)) ?? []).filter {
+            ["ttf", "otf", "ttc"].contains(normalized($0.pathExtension))
+        }
+        return fonts.first { normalized($0.deletingPathExtension().lastPathComponent) == "font" }
+            ?? (fonts.count == 1 ? fonts[0] : nil)
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

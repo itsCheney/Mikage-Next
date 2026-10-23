@@ -478,6 +478,12 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(candidates.dropFirst().map(\.kind), [.archive, .archive])
         XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["zh-Hans-CN"])?.relativePath, "BGI-CHS.exe")
         XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["ja-JP"])?.relativePath, ".")
+
+        XCTAssertNil(GameScanner.bgiGameFont(in: bgi))
+        try Data().write(to: bgi.appendingPathComponent("other.otf"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "other.otf")
+        try Data().write(to: bgi.appendingPathComponent("Font.TTF"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "Font.TTF")
     }
 
     func testBGIAutomaticEncoding() {
@@ -486,6 +492,9 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "千恋万花汉化版"), .gbk)
         XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game GBK v1.2"), .gbk)
         XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game EN"), .shiftJIS)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI-CHS.exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_patch(new_episode_trans).exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_EN.exe"), .shiftJIS)
     }
 
     func testBuiltInGamesInstallOnceAndStayDeleted() throws {

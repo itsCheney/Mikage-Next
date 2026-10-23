@@ -100,7 +100,7 @@ EOF
     for symbol in ethornell_ios_abi_version ethornell_ios_create ethornell_ios_set_surface ethornell_ios_detach_surface \
         ethornell_ios_step ethornell_ios_input ethornell_ios_set_paused ethornell_ios_request_close \
         ethornell_ios_poll_event ethornell_ios_complete_request ethornell_ios_request_payload \
-        ethornell_ios_last_error ethornell_ios_destroy ethornell_mikage_set_log_callback ethornell_mikage_screen_size ethornell_mikage_set_launcher; do
+        ethornell_ios_last_error ethornell_ios_destroy ethornell_mikage_set_log_callback ethornell_mikage_screen_size ethornell_mikage_set_launcher ethornell_mikage_set_fallback_font; do
         if ! nm -gU "${binary}" | grep " _${symbol}$" >/dev/null; then
             echo "${binary} does not export ${symbol}." >&2
             exit 1
