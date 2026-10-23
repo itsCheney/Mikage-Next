@@ -383,6 +383,44 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(game.launchTarget, ".")
     }
 
+    func testFVPGameStartsFromItsScripts() throws {
+        try repository.ensureStructure()
+        let fvp = repository.gamesRoot.appendingPathComponent("FVP Game")
+        try FileManager.default.createDirectory(at: fvp, withIntermediateDirectories: true)
+        try Data("hcb".utf8).write(to: fvp.appendingPathComponent("Memoria.hcb"))
+        try Data("bin".utf8).write(to: fvp.appendingPathComponent("graph.bin"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: fvp), [.fvp])
+        var game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .fvp)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .archive)
+        XCTAssertEqual(game.launchTarget, "Memoria.hcb")
+        XCTAssertEqual(repository.textEncoding(for: game), .shiftJIS)
+
+        // A translation patch starts first and is read as GBK.
+        try Data("bch".utf8).write(to: fvp.appendingPathComponent("Memoria.bch"))
+        _ = try repository.scan()
+        game = try repository.load().first { $0.engine == .fvp }!
+        XCTAssertEqual(try GameScanner.startupCandidates(in: fvp, engine: .fvp).map(\.relativePath), ["Memoria.bch", "Memoria.hcb"])
+        XCTAssertEqual(game.launchTarget, "Memoria.bch")
+        XCTAssertEqual(repository.textEncoding(for: game), .gbk)
+
+        // The player's choice wins and survives a rescan.
+        game = try repository.chooseTextEncoding(.utf8, for: game)
+        _ = try repository.scan()
+        game = try repository.load().first { $0.id == game.id }!
+        XCTAssertEqual(game.textEncoding, .utf8)
+        XCTAssertEqual(repository.textEncoding(for: game), .utf8)
+    }
+
+    func testFVPAutomaticEncoding() {
+        XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "Sakura.hcb"), .shiftJIS)
+        XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "MemoriaGBK.hcb"), .gbk)
+        XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "Patch.BCH"), .gbk)
+        XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "game_utf8.hcb"), .utf8)
+        XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: nil), .shiftJIS)
+    }
+
     func testBuiltInGamesInstallOnceAndStayDeleted() throws {
         let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
         try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))

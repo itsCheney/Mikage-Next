@@ -566,6 +566,9 @@ struct GameDetailView: View {
             if startupChoices.count > 1 {
                 DetailRow(label: "Startup file") { startupMenu }
             }
+            if current.engine == .fvp {
+                DetailRow(label: "Text encoding") { encodingMenu }
+            }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
             DetailRow("Launches", value: String(localized: "\(current.launchCount) times"))
             if !current.availability.canLaunch {
@@ -605,13 +608,37 @@ struct GameDetailView: View {
         }
     }
 
+    /// FVP scripts don't say how their text is encoded: Automatic reads
+    /// translation patches (.bch) as GBK and original scripts as Shift-JIS.
+    private var encodingMenu: some View {
+        Menu {
+            Picker("Text encoding", selection: Binding(
+                get: { current.textEncoding?.rawValue ?? "" },
+                set: { model.chooseTextEncoding(FVPTextEncoding(rawValue: $0), for: current) }
+            )) {
+                Text("Automatic").tag("")
+                ForEach(FVPTextEncoding.allCases, id: \.rawValue) { encoding in
+                    Text(verbatim: encoding.displayName).tag(encoding.rawValue)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if current.textEncoding == nil {
+                    Text("Automatic (\(model.textEncoding(for: current).displayName))")
+                } else {
+                    Text(verbatim: model.textEncoding(for: current).displayName)
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote)
+            }
+            .lineLimit(1)
+        }
+    }
+
     /// "." is the folder itself: startup.tjs for KiriKiri, the original
     /// files (Scene.pck and Gameexe.dat) for Siglus.
     private func startupName(_ relativePath: String?) -> String {
-        guard let relativePath, relativePath != "." else {
-            return current.engine == .kirikiri ? "startup.tjs" : String(localized: "Original")
-        }
-        return relativePath
+        AppModel.startupName(relativePath, engine: current.engine)
     }
 
     private var links: some View {

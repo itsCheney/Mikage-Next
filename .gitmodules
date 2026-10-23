@@ -22,3 +22,7 @@
 	path = Engine/SiglusRuntime/Source
 	url = https://github.com/itsCheney/siglus_rs.git
 	branch = mikage
+[submodule "Engine/RFVPRuntime/Source"]
+	path = Engine/RFVPRuntime/Source
+	url = https://github.com/itsCheney/rfvp.git
+	branch = mikage
