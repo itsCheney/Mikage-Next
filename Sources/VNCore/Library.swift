@@ -1088,7 +1088,8 @@ public enum GameScanner {
             // Every executable that may be the game's own becomes a startup
             // file: one that loads renamed copies, one named for a language
             // (xxx中文.exe, xxx_CHS.exe), one named Siglus or SiglusEngine,
-            // and one carrying the game's (folder's) name in any language.
+            // one carrying the game's (folder's) name in any language, and
+            // one packing files with Enigma Virtual Box.
             guard try isSiglusGame(in: directory) else { return [] }
             let gameName = nameKey(directory.lastPathComponent)
             let executables = try rootFiles(in: directory)
@@ -1099,6 +1100,7 @@ public enum GameScanner {
                     return !StartupLanguage.tags(in: name).isEmpty
                         || nameKey(name).contains("siglus")
                         || carriesGameName(name, gameName: gameName)
+                        || isEnigmaPacked($0)
                         || siglusResourceNames(of: $0, in: directory) != SiglusResourceNames()
                 }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
@@ -1185,13 +1187,44 @@ public enum GameScanner {
     }
 
     /// The startup files among `candidates` that load a translation: Siglus
-    /// executables that load renamed copies of Scene.pck or Gameexe.dat.
+    /// executables that load renamed copies of Scene.pck or Gameexe.dat, or
+    /// pack their own with Enigma Virtual Box.
     public static func translatingStartups(among candidates: [StartupFile], in directory: URL, engine: EngineID) -> Set<String> {
         guard engine == .siglus else { return [] }
         return Set(candidates.filter {
-            $0.kind == .archive
-                && siglusResourceNames(of: directory.appendingPathComponent($0.relativePath), in: directory) != SiglusResourceNames()
+            guard $0.kind == .archive else { return false }
+            let executable = directory.appendingPathComponent($0.relativePath)
+            return isEnigmaPacked(executable)
+                || siglusResourceNames(of: executable, in: directory) != SiglusResourceNames()
         }.map(\.relativePath))
+    }
+
+    /// Whether a Windows executable carries files packed with Enigma Virtual
+    /// Box (a ".enigma1" section), which hide the game folder's own files
+    /// when it runs.
+    public static func isEnigmaPacked(_ executable: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: executable) else { return false }
+        defer { try? handle.close() }
+        guard let headers = try? handle.read(upToCount: 0x1000), headers.count >= 0x40,
+              headers.starts(with: [0x4D, 0x5A]) else { return false }
+        func u16(_ at: Int) -> Int? {
+            at + 2 <= headers.count ? Int(headers[at]) | Int(headers[at + 1]) << 8 : nil
+        }
+        func u32(_ at: Int) -> Int? {
+            guard let low = u16(at), let high = u16(at + 2) else { return nil }
+            return low | high << 16
+        }
+        guard let pe = u32(0x3C), pe + 24 <= headers.count,
+              headers[pe..<pe + 4].elementsEqual([0x50, 0x45, 0, 0]),
+              let sections = u16(pe + 6), let optional = u16(pe + 20) else { return false }
+        let table = pe + 24 + optional
+        let name = Array(".enigma1".utf8)
+        for index in 0..<sections {
+            let at = table + index * 40
+            guard at + 40 <= headers.count else { return false }
+            if headers[at..<at + 8].elementsEqual(name) { return true }
+        }
+        return false
     }
 
     /// A file or folder name reduced to its lowercased letters and digits, in
@@ -1218,11 +1251,13 @@ public enum GameScanner {
     /// read from the file names stored in it (UTF-16 or ASCII), as patched
     /// executables of translated releases rename them (Scene.chs and the
     /// like). Only names present in `directory` count; the original names
-    /// give nil. When nothing readable names them (a packed executable), an
-    /// executable named for a language takes the folder's only renamed copy.
+    /// give nil. When nothing readable names them (a protected executable),
+    /// an executable named for a language takes the folder's only renamed
+    /// copy, unless it packs its own files with Enigma Virtual Box.
     public static func siglusResourceNames(of executable: URL, in directory: URL) -> SiglusResourceNames {
         let found = siglusResourceNamesStored(in: executable, directory: directory)
-        guard found == SiglusResourceNames(), !StartupLanguage.tags(in: executable.lastPathComponent).isEmpty else {
+        guard found == SiglusResourceNames(), !StartupLanguage.tags(in: executable.lastPathComponent).isEmpty,
+              !isEnigmaPacked(executable) else {
             return found
         }
         let files = ((try? rootFiles(in: directory)) ?? []).map(\.lastPathComponent)

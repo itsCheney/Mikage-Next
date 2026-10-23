@@ -289,6 +289,34 @@ final class LibraryTests: XCTestCase {
         )
     }
 
+    func testSiglusExecutablesPackedWithEnigmaVirtualBoxAreTranslations() throws {
+        let folder = try directory("Packed")
+        for file in ["Scene.pck", "Gameexe.dat"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(file))
+        }
+        // A PE image whose only section is ".enigma1".
+        var image = [UInt8](repeating: 0, count: 0x200)
+        image[0] = 0x4D
+        image[1] = 0x5A
+        image[0x3C] = 0x80
+        image.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        image[0x86] = 1
+        image.replaceSubrange(0x98..<0xA0, with: Array(".enigma1".utf8))
+        try Data(image).write(to: folder.appendingPathComponent("Patch.exe"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("Other.exe"))
+
+        XCTAssertTrue(GameScanner.isEnigmaPacked(folder.appendingPathComponent("Patch.exe")))
+        XCTAssertFalse(GameScanner.isEnigmaPacked(folder.appendingPathComponent("Other.exe")))
+        XCTAssertEqual(
+            try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath),
+            [".", "Patch.exe"]
+        )
+        XCTAssertEqual(
+            try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["zh-Hans-CN"]),
+            StartupFile(.archive, "Patch.exe")
+        )
+    }
+
     func testTranslatingStartupWinsAmongTheSameLanguage() {
         let candidates = [
             StartupFile(.directory, "."),
