@@ -70,10 +70,16 @@ VENV_PYTHON="${HOST_VENV}/bin/python"
 (cd "${SOURCE_DIR}" && "${VENV_PYTHON}" setup.py generate)
 test -f "${SOURCE_DIR}/src/Setup"
 
-# The Ren'Py version, from the source checkout (renpy/vc_version.py).
-(cd "${SOURCE_DIR}" && "${VENV_PYTHON}" -c 'import renpy.versions as v; v.generate_vc_version()')
-RENPY_VERSION="$(cd "${SOURCE_DIR}" && "${VENV_PYTHON}" -c \
-    'import renpy.vc_version as v; print(".".join(v.version.split(".")[:3]))')"
+# The Ren'Py version, from the source checkout (renpy/vc_version.py). The
+# files are loaded by path: importing the renpy package on the host needs
+# its compiled extension modules.
+(cd "${SOURCE_DIR}" && "${VENV_PYTHON}" -c '
+import runpy
+runpy.run_path("renpy/versions.py")["generate_vc_version"]()')
+RENPY_VERSION="$(cd "${SOURCE_DIR}" && "${VENV_PYTHON}" -c '
+import runpy
+v = runpy.run_path("renpy/vc_version.py")
+print(".".join(v["version"].split(".")[:3]))')"
 echo "Ren'Py ${RENPY_VERSION}"
 
 PYOBJUS_SRC="${BUILD_ROOT}/pyobjus-src"
