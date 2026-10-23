@@ -708,7 +708,11 @@ public struct LibraryRepository: Sendable {
             guard let match = candidates.first(where: { $0.relativePath == path }) else { throw LibraryError.noGame }
             return match
         }
-        let launch = chosen ?? GameScanner.preferredStartup(among: candidates, languages: Locale.preferredLanguages)
+        let launch = chosen ?? GameScanner.preferredStartup(
+            among: candidates,
+            languages: Locale.preferredLanguages,
+            translating: GameScanner.translatingStartups(among: candidates, in: directory(for: game), engine: game.engine)
+        )
         return try mutate { records in
             guard let index = records.firstIndex(where: { $0.id == game.id }) else { throw LibraryError.recordNotFound }
             records[index].chosenStartup = chosen?.relativePath
@@ -1006,7 +1010,11 @@ public enum GameScanner {
 
         let candidates = try startupCandidates(in: directory, engine: engine)
         let chosen = candidates.first { $0.relativePath == chosenStartup }
-        let launch = chosen ?? preferredStartup(among: candidates, languages: preferredLanguages)
+        let launch = chosen ?? preferredStartup(
+            among: candidates,
+            languages: preferredLanguages,
+            translating: translatingStartups(among: candidates, in: directory, engine: engine)
+        )
         let availability: GameAvailability
         if !engine.isLaunchSupported {
             availability = .unsupported
@@ -1047,7 +1055,12 @@ public enum GameScanner {
         engine: EngineID,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) throws -> StartupFile? {
-        preferredStartup(among: try startupCandidates(in: directory, engine: engine), languages: preferredLanguages)
+        let candidates = try startupCandidates(in: directory, engine: engine)
+        return preferredStartup(
+            among: candidates,
+            languages: preferredLanguages,
+            translating: translatingStartups(among: candidates, in: directory, engine: engine)
+        )
     }
 
     /// Every file the engine can start this folder from, in the order used
@@ -1070,15 +1083,21 @@ public enum GameScanner {
             return try isRenPyGame(in: directory) ? [StartupFile(.directory, ".")] : []
         case .siglus:
             // siglus_rs finds Scene.pck and Gameexe.dat in the game folder.
-            // Patched executables of translated releases load renamed copies;
-            // each one present, or named for a language (xxx中文.exe,
-            // xxx_CHS.exe), becomes a startup file of its own.
+            // Patched executables of translated releases load renamed copies.
+            // Every executable that may be the game's own becomes a startup
+            // file: one that loads renamed copies, one named for a language
+            // (xxx中文.exe, xxx_CHS.exe), one named Siglus or SiglusEngine,
+            // and one carrying the game's (folder's) name in any language.
             guard try isSiglusGame(in: directory) else { return [] }
+            let gameName = nameKey(directory.lastPathComponent)
             let executables = try rootFiles(in: directory)
                 .filter { normalized($0.pathExtension) == "exe" }
                 .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
                 .filter {
-                    !StartupLanguage.tags(in: $0.lastPathComponent).isEmpty
+                    let name = $0.lastPathComponent
+                    return !StartupLanguage.tags(in: name).isEmpty
+                        || nameKey(name).contains("siglus")
+                        || carriesGameName(name, gameName: gameName)
                         || siglusResourceNames(of: $0, in: directory) != SiglusResourceNames()
                 }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
@@ -1121,18 +1140,33 @@ public enum GameScanner {
     /// The candidate whose name is tagged with the player's language
     /// (xxx_CHS.exe, 启动游戏.xp3, xxx_EN.exe...), else the first untagged
     /// one, else the first one. Languages earlier in `languages` win.
-    public static func preferredStartup(among candidates: [StartupFile], languages: [String]) -> StartupFile? {
+    ///
+    /// `translating` names the candidates known to load a translation (a
+    /// Siglus executable that loads renamed copies). Among files tagged with
+    /// the same language they win, and an untagged one beats the untagged
+    /// original unless the player reads Japanese first.
+    public static func preferredStartup(
+        among candidates: [StartupFile],
+        languages: [String],
+        translating: Set<String> = []
+    ) -> StartupFile? {
         let wanted = languages.compactMap(StartupLanguage.init(languageTag:))
         func score(_ candidate: StartupFile) -> Int {
             let tags = StartupLanguage.tags(in: candidate.relativePath)
-            guard !tags.isEmpty else { return 0 }
+            let translates = translating.contains(candidate.relativePath)
+            guard !tags.isEmpty else {
+                return translates && wanted.first != .japanese ? 1 : 0
+            }
+            // Language scores step by 4, so a translation's bonus never
+            // outranks a better-placed language.
+            let bonus = translates ? 2 : 0
             for (rank, language) in wanted.enumerated() where tags.contains(language) {
-                return 100 - rank * 2
+                return 200 - rank * 4 + bonus
             }
             // Simplified and Traditional Chinese readers take either over
             // another language.
             for (rank, language) in wanted.enumerated() where language.isChinese && tags.contains(where: \.isChinese) {
-                return 99 - rank * 2
+                return 199 - rank * 4 + bonus
             }
             return -1
         }
@@ -1147,6 +1181,36 @@ public enum GameScanner {
             }
         }
         return best
+    }
+
+    /// The startup files among `candidates` that load a translation: Siglus
+    /// executables that load renamed copies of Scene.pck or Gameexe.dat.
+    public static func translatingStartups(among candidates: [StartupFile], in directory: URL, engine: EngineID) -> Set<String> {
+        guard engine == .siglus else { return [] }
+        return Set(candidates.filter {
+            $0.kind == .archive
+                && siglusResourceNames(of: directory.appendingPathComponent($0.relativePath), in: directory) != SiglusResourceNames()
+        }.map(\.relativePath))
+    }
+
+    /// A file or folder name reduced to its lowercased letters and digits, in
+    /// any script, for comparing game names.
+    static func nameKey(_ name: String) -> String {
+        let stem = name.lowercased().hasSuffix(".exe") ? String(name.dropLast(4)) : name
+        return String(normalized(stem).unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(Character.init))
+    }
+
+    /// Whether an executable's name and the game's name contain one another,
+    /// as in Rewrite.exe or RewriteHF.exe for a folder named Rewrite. Names of
+    /// fewer than three Latin letters, or two other letters, are too short to
+    /// tell anything.
+    static func carriesGameName(_ fileName: String, gameName: String) -> Bool {
+        let exeName = nameKey(fileName)
+        func long(_ key: String) -> Bool {
+            key.count >= (key.unicodeScalars.allSatisfy(\.isASCII) ? 3 : 2)
+        }
+        guard long(exeName), long(gameName) else { return false }
+        return exeName.contains(gameName) || gameName.contains(exeName)
     }
 
     /// The renamed Scene.pck and Gameexe.dat a SiglusEngine executable loads,
