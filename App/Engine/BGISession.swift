@@ -637,21 +637,49 @@ final class BGIViewController: UIViewController {
     // MARK: Commands
 
     /// The game menu's and quick actions' commands. BGI games draw their own
-    /// menus, save screens and auto mode in script, so only the backlog (the
-    /// mouse wheel) has a way in.
+    /// menus, save screens and auto mode in script: the backlog is the mouse
+    /// wheel, and save/load go through the game's icon bar where the engine
+    /// knows it (it clicks the icon, so the game's own screens follow).
     func runCommand(_ command: GameCommand) -> Bool {
         guard handle != 0 else { return false }
         switch command {
         case .backlog:
             input(6, value: 1)
             return true
+        case .save, .load, .quickSave, .quickLoad:
+            guard let id = Self.gameCommandID(command) else { return false }
+            return ethornell_mikage_run_game_command(handle, id) == 1
         default:
             return false
         }
     }
 
     func controlState() -> UInt32 {
-        handle == 0 ? 0 : GameControlState.canBacklog.rawValue
+        guard handle != 0 else { return 0 }
+        var state = GameControlState.canBacklog
+        var enabled: UInt32 = 0
+        if ethornell_mikage_game_commands(handle, &enabled) == 0 {
+            for (command, flag) in [(GameCommand.save, GameControlState.canSave),
+                                    (.load, .canLoad),
+                                    (.quickSave, .canQuickSave),
+                                    (.quickLoad, .canQuickLoad)] {
+                if let id = Self.gameCommandID(command), enabled & (1 << (id - 1)) != 0 {
+                    state.insert(flag)
+                }
+            }
+        }
+        return state.rawValue
+    }
+
+    /// ethornell_mikage_run_game_command's ids.
+    private static func gameCommandID(_ command: GameCommand) -> UInt32? {
+        switch command {
+        case .save: return 1
+        case .load: return 2
+        case .quickSave: return 3
+        case .quickLoad: return 4
+        default: return nil
+        }
     }
 
     /// Ctrl held, which BGI games read as skip.
