@@ -16,6 +16,8 @@ The engine runs on its own stack on the main thread and hands control back to th
 
 MIDI music plays through Apple's MIDI synthesizer with GeneralUser GS (about 31 MB), which the build copies into `ONSRuntime.framework` with its license. Movies are decoded with FFmpeg and drawn over the game; a tap skips them when the game allows it.
 
+ONScripter draws each frame on the CPU, with NEON blending. The engine uses SDL's GPU renderer (Metal) so that crossfades and mask transitions run as a shader instead: the old and new frames are uploaded once per transition rather than the whole blended frame every frame. The performance HUD's renderer reads `gpu` when that is on; other renderers keep the CPU path.
+
 Games keep their aspect ratio with black bars. The Settings switch "Stretch 4:3 Games to 16:9" (off by default) widens a game narrower than 16:9 to 16:9 first. The game menu's Back tile presses Escape, which ONScripter treats as a right-click.
 
 The game's lookback (backlog), save and load screens open as Mikage's own panels (`App/Engine/ONSPanels.swift`), from the game's right-click menu or `systemcall`, or from the game menu's Backlog, Save and Load tiles while the game waits on its text. The backlog lists the session's lines with their voices; the newest 200 can be jumped back to, which loads the save point ONScripter kept at the start of that page. Saves stay the game's own `saveN.dat` in `savedata`, so its own menus still read them; the runtime writes `savedata/Mikage/saveN.jpg` and `saveN.json` (screen and line) beside them. Game details › Saves lists them (`App/Storage/GameSavesView.swift`) and can start the game from one: the runtime loads it when the script's define section ends.
