@@ -86,7 +86,7 @@ final class NativeYurisSession: NSObject, KRKRSession {
         AppDiagnostics.shared.beginGame(["engine": EngineID.yuris.rawValue,
                                          "folder": configuration.gameDirectory.lastPathComponent,
                                          "launcher": launcher.map { ($0 as NSString).lastPathComponent } ?? "",
-                                         "encoding": configuration.textEncoding.rawValue,
+                                         "encoding": configuration.textEncoding?.rawValue ?? "auto",
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -113,9 +113,10 @@ final class NativeYurisSession: NSObject, KRKRSession {
         // Booting reads every script once; keep it off the main thread.
         let encoding: UInt32
         switch configuration.textEncoding {
+        case .shiftJIS: encoding = 0
         case .gbk: encoding = 1
         case .utf8: encoding = 2
-        default: encoding = 0
+        case nil: encoding = 3
         }
         let offset = Int64(TimeZone.current.secondsFromGMT()) * 1000
         let gamePath = gameDirectory.path

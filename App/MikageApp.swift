@@ -557,8 +557,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The encoding an FVP game's script is read with.
-    func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+    /// The encoding an FVP or YU-RIS game's script is read with; nil when
+    /// the YU-RIS runtime tells it from the scripts.
+    func textEncoding(for game: GameRecord) -> FVPTextEncoding? {
         repository.textEncoding(for: game)
     }
 

@@ -609,8 +609,8 @@ struct GameDetailView: View {
     }
 
     /// FVP and YU-RIS scripts don't say how their text is encoded:
-    /// Automatic reads translation patches (.bch, a Chinese patch's
-    /// executable) as GBK and original scripts as Shift-JIS.
+    /// Automatic reads FVP translation patches (.bch) as GBK and original
+    /// scripts as Shift-JIS; the YU-RIS runtime tells from the text.
     private var encodingMenu: some View {
         Menu {
             Picker("Text encoding", selection: Binding(
@@ -624,10 +624,14 @@ struct GameDetailView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                if current.textEncoding == nil {
-                    Text("Automatic (\(model.textEncoding(for: current).displayName))")
+                if let encoding = model.textEncoding(for: current) {
+                    if current.textEncoding == nil {
+                        Text("Automatic (\(encoding.displayName))")
+                    } else {
+                        Text(verbatim: encoding.displayName)
+                    }
                 } else {
-                    Text(verbatim: model.textEncoding(for: current).displayName)
+                    Text("Automatic")
                 }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.footnote)

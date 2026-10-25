@@ -40,8 +40,9 @@ struct KRKRLaunchConfiguration {
     var engine: EngineID = .kirikiri
     /// ONScripter save slot to start from instead of the title.
     var loadSlot: Int? = nil
-    /// The script encoding of an FVP game.
-    var textEncoding: FVPTextEncoding = .shiftJIS
+    /// The script encoding of an FVP or YU-RIS game; nil lets the YU-RIS
+    /// runtime tell it from the scripts.
+    var textEncoding: FVPTextEncoding? = .shiftJIS
 }
 
 enum KRKRSessionState: Equatable {

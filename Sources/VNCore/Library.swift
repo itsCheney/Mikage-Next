@@ -737,12 +737,12 @@ public struct LibraryRepository: Sendable {
         }
     }
 
-    /// The encoding `game`'s script is read with.
-    public func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+    /// The encoding `game`'s script is read with, or nil when the runtime
+    /// tells from the scripts themselves (YU-RIS: a patch's file names often
+    /// don't say it is Chinese).
+    public func textEncoding(for game: GameRecord) -> FVPTextEncoding? {
         if let chosen = game.textEncoding { return chosen }
-        if game.engine == .yuris {
-            return GameScanner.yurisAutomaticEncoding(startup: game.launchTarget, folder: game.folderName)
-        }
+        if game.engine == .yuris { return nil }
         return GameScanner.fvpAutomaticEncoding(script: game.launchTarget)
     }
 
@@ -1478,14 +1478,6 @@ public enum GameScanner {
         }
         let pac = directory.appendingPathComponent("pac", isDirectory: true)
         return try rootFiles(in: pac).contains { normalized($0.pathExtension) == "ypf" }
-    }
-
-    /// The text encoding of a YU-RIS game when the player hasn't picked
-    /// one: GBK when the startup file or the folder is named for a Chinese
-    /// translation (erewhon_chs.exe, xxx汉化), else Shift-JIS.
-    public static func yurisAutomaticEncoding(startup: String?, folder: String) -> FVPTextEncoding {
-        let names = [startup, folder].compactMap { $0 }
-        return names.contains { StartupLanguage.tags(in: $0).contains(where: \.isChinese) } ? .gbk : .shiftJIS
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

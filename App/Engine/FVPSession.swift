@@ -78,7 +78,7 @@ final class NativeFVPSession: NSObject, KRKRSession {
         AppDiagnostics.shared.beginGame(["engine": EngineID.fvp.rawValue,
                                          "folder": configuration.gameDirectory.lastPathComponent,
                                          "script": configuration.entryPoint.lastPathComponent,
-                                         "encoding": configuration.textEncoding.rawValue,
+                                         "encoding": (configuration.textEncoding ?? .shiftJIS).rawValue,
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
@@ -124,7 +124,7 @@ final class NativeFVPSession: NSObject, KRKRSession {
         let viewPointer = Unmanaged.passUnretained(metalView).toOpaque()
         AppDiagnostics.shared.event("bridge", "rfvp.create", ["drawable": "\(drawable.width)x\(drawable.height)", "scale": String(Double(scale))])
         let created = gameDirectory.path.withCString { game in
-            configuration.textEncoding.rawValue.withCString { nls in
+            (configuration.textEncoding ?? .shiftJIS).rawValue.withCString { nls in
                 rfvp_ios_create(viewPointer, drawable.width, drawable.height, Double(scale), game, nls)
             }
         }

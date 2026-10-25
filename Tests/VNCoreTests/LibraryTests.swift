@@ -516,9 +516,6 @@ final class LibraryTests: XCTestCase {
         )
         XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["zh-Hans-CN"])?.relativePath, "erewhon_chs.exe")
         XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["ja-JP"])?.relativePath, ".")
-        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: "erewhon_chs.exe", folder: "Erewhon"), .gbk)
-        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: ".", folder: "エレホン"), .shiftJIS)
-        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: ".", folder: "Erewhon 汉化"), .gbk)
     }
 
     func testFVPAutomaticEncoding() {
