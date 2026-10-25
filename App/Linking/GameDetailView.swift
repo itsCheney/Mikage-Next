@@ -566,7 +566,7 @@ struct GameDetailView: View {
             if startupChoices.count > 1 {
                 DetailRow(label: "Startup file") { startupMenu }
             }
-            if current.engine == .fvp {
+            if current.engine == .fvp || current.engine == .yuris {
                 DetailRow(label: "Text encoding") { encodingMenu }
             }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
@@ -608,8 +608,9 @@ struct GameDetailView: View {
         }
     }
 
-    /// FVP scripts don't say how their text is encoded: Automatic reads
-    /// translation patches (.bch) as GBK and original scripts as Shift-JIS.
+    /// FVP and YU-RIS scripts don't say how their text is encoded:
+    /// Automatic reads translation patches (.bch, a Chinese patch's
+    /// executable) as GBK and original scripts as Shift-JIS.
     private var encodingMenu: some View {
         Menu {
             Picker("Text encoding", selection: Binding(

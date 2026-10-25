@@ -26,3 +26,7 @@
 	path = Engine/RFVPRuntime/Source
 	url = https://github.com/itsCheney/rfvp.git
 	branch = mikage
+[submodule "Engine/YurisRuntime/Source"]
+	path = Engine/YurisRuntime/Source
+	url = https://github.com/itsCheney/MikageYURIS.git
+	branch = mikage

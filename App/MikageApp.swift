@@ -133,7 +133,8 @@ final class AppModel: ObservableObject {
             .artemis: NativeArtemisSession(),
             .renpy: NativeRenPySession(),
             .siglus: NativeSiglusSession(),
-            .fvp: NativeFVPSession()
+            .fvp: NativeFVPSession(),
+            .yuris: NativeYurisSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 

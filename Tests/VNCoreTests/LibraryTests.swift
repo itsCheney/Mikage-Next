@@ -491,6 +491,36 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(repository.textEncoding(for: game), .utf8)
     }
 
+    func testYurisGameStartsFromItsFolderOrAPackedPatch() throws {
+        let folder = try directory("Erewhon")
+        let pac = folder.appendingPathComponent("pac", isDirectory: true)
+        try FileManager.default.createDirectory(at: pac, withIntermediateDirectories: true)
+        try Data("YPF".utf8).write(to: pac.appendingPathComponent("bn.ypf"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.yuris])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .yuris).map(\.relativePath), ["."])
+
+        // A Chinese patch packed with Enigma Virtual Box starts for Chinese
+        // readers and is read as GBK; a plain executable is no startup file.
+        var image = [UInt8](repeating: 0, count: 0x200)
+        image[0] = 0x4D
+        image[1] = 0x5A
+        image[0x3C] = 0x80
+        image.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        image[0x86] = 1
+        image.replaceSubrange(0x98..<0xA0, with: Array(".enigma1".utf8))
+        try Data(image).write(to: folder.appendingPathComponent("erewhon_chs.exe"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("erewhon.exe"))
+        XCTAssertEqual(
+            try GameScanner.startupCandidates(in: folder, engine: .yuris).map(\.relativePath),
+            [".", "erewhon_chs.exe"]
+        )
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["zh-Hans-CN"])?.relativePath, "erewhon_chs.exe")
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["ja-JP"])?.relativePath, ".")
+        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: "erewhon_chs.exe", folder: "Erewhon"), .gbk)
+        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: ".", folder: "エレホン"), .shiftJIS)
+        XCTAssertEqual(GameScanner.yurisAutomaticEncoding(startup: ".", folder: "Erewhon 汉化"), .gbk)
+    }
+
     func testFVPAutomaticEncoding() {
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "Sakura.hcb"), .shiftJIS)
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "MemoriaGBK.hcb"), .gbk)

@@ -4139,18 +4139,18 @@
         }
       }
     },
-    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games, siglus_rs for SiglusEngine games and rfvp for FVP games.\n\nThe app includes no game content." : {
+    "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games, siglus_rs for SiglusEngine games, rfvp for FVP games and MikageYURIS for YU-RIS games.\n\nThe app includes no game content." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs、FVP ゲーム用の rfvp を内蔵しています。\n\nアプリにゲームは含まれていません。"
+            "value" : "Mikage 0.1 · マルチエンジン対応ビジュアルノベルプレイヤー\n\nKiriKiri ゲーム用の KRKRSDL3 ランタイム、ONScripter ゲーム用の ONScripter Yuri、Artemis ゲーム用の openArtemis、Ren’Py ゲーム用の Ren’Py 8、SiglusEngine ゲーム用の siglus_rs、FVP ゲーム用の rfvp、YU-RIS ゲーム用の MikageYURIS を内蔵しています。\n\nアプリにゲームは含まれていません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8、用于 SiglusEngine 游戏的 siglus_rs，以及用于 FVP 游戏的 rfvp。\n\n应用不附带游戏内容。"
+            "value" : "Mikage 0.1 · 多引擎视觉小说播放器\n\n内置用于 KiriKiri 游戏的 KRKRSDL3 runtime、用于 ONScripter 游戏的 ONScripter Yuri、用于 Artemis 游戏的 openArtemis、用于 Ren’Py 游戏的 Ren’Py 8、用于 SiglusEngine 游戏的 siglus_rs、用于 FVP 游戏的 rfvp，以及用于 YU-RIS 游戏的 MikageYURIS。\n\n应用不附带游戏内容。"
           }
         }
       }
@@ -4397,6 +4397,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到 FVP 脚本（.hcb 或 .bch）"
+          }
+        }
+      }
+    },
+    "No YU-RIS data found (.ypf archives or ysbin)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS のデータ（.ypf アーカイブまたは ysbin）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 YU-RIS 数据（.ypf 归档或 ysbin）"
           }
         }
       }
@@ -8129,6 +8147,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "故事，从这里开始"
+          }
+        }
+      }
+    },
+    "YU-RIS failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS 启动失败。"
+          }
+        }
+      }
+    },
+    "YU-RIS failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS 启动失败：%@"
+          }
+        }
+      }
+    },
+    "YU-RIS stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS 已停止。"
+          }
+        }
+      }
+    },
+    "YU-RIS stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YU-RIS 已停止：%@"
           }
         }
       }

@@ -41,6 +41,8 @@ targets:
         embed: true
       - framework: build/RFVPRuntime.xcframework
         embed: true
+      - framework: build/YurisRuntime.xcframework
+        embed: true
       # OpenGL ES on Metal, which the shared SDL3 links for GL windows
       # (Ren'Py) instead of Apple's deprecated OpenGLES.
       - framework: build/MetalANGLE.xcframework

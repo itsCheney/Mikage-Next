@@ -10,6 +10,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
     case artemis
     case siglus
     case fvp
+    case yuris
 
     public var id: String { rawValue }
 
@@ -21,6 +22,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .artemis: return "artemis"
         case .siglus: return "siglus"
         case .fvp: return "fvp"
+        case .yuris: return "yuris"
         }
     }
 
@@ -32,6 +34,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .artemis: return "Artemis"
         case .siglus: return "Siglus"
         case .fvp: return "FVP"
+        case .yuris: return "YU-RIS"
         }
     }
 
@@ -211,11 +214,11 @@ public struct LibraryRepository: Sendable {
     public static let dropTipNames = ["DROP_GAMES_HERE", "把游戏放在这里"]
     static let dropTipText = """
     Put each game's folder here, directly in this folder, then return to Mikage.
-    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py, Siglus or FVP) by itself.
+    Mikage finds the engine (KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP or YU-RIS) by itself.
     This file goes away once a game is found.
 
     把每个游戏的文件夹直接放在这里，然后回到 Mikage。
-    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py、Siglus 或 FVP）。
+    Mikage 会自动识别引擎（KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP 或 YU-RIS）。
     找到游戏后，这个文件会自动删除。
 
     """
@@ -240,9 +243,9 @@ public struct LibraryRepository: Sendable {
         guard !fm.fileExists(atPath: flatLayoutMarkerURL.path) else { return }
         var records = try load()
         var renamed = false
-        // FVP came after the flat layout and never had a folder of its own;
-        // a game folder named fvp is just a game.
-        for engine in EngineID.allCases where engine != .fvp {
+        // FVP and YU-RIS came after the flat layout and never had folders
+        // of their own; a game folder named fvp or yuris is just a game.
+        for engine in EngineID.allCases where engine != .fvp && engine != .yuris {
             let folder = documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
             var isDirectory = ObjCBool(false)
             guard fm.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
@@ -736,7 +739,11 @@ public struct LibraryRepository: Sendable {
 
     /// The encoding `game`'s script is read with.
     public func textEncoding(for game: GameRecord) -> FVPTextEncoding {
-        game.textEncoding ?? GameScanner.fvpAutomaticEncoding(script: game.launchTarget)
+        if let chosen = game.textEncoding { return chosen }
+        if game.engine == .yuris {
+            return GameScanner.yurisAutomaticEncoding(startup: game.launchTarget, folder: game.folderName)
+        }
+        return GameScanner.fvpAutomaticEncoding(script: game.launchTarget)
     }
 
     public func entryPoint(for game: GameRecord) throws -> URL {
@@ -1031,6 +1038,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No SiglusEngine data found (Scene.pck or Gameexe.dat)"))
             case .fvp:
                 availability = .invalid(String(localized: "No FVP script found (.hcb or .bch)"))
+            case .yuris:
+                availability = .invalid(String(localized: "No YU-RIS data found (.ypf archives or ysbin)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -1109,6 +1118,16 @@ public enum GameScanner {
             // first, as rfvp picks them, then the original .hcb scripts.
             let scripts = try fvpScripts(in: directory)
             return scripts.map { StartupFile(.archive, $0.lastPathComponent) }
+        case .yuris:
+            // The runtime opens the game folder itself. A translation patch
+            // packed into an executable with Enigma Virtual Box (with the
+            // translated scripts in it or beside it) is a startup file of
+            // its own: its packed files win over the game's.
+            guard try isYurisGame(in: directory) else { return [] }
+            let executables = try rootFiles(in: directory)
+                .filter { normalized($0.pathExtension) == "exe" && isEnigmaPacked($0) }
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
         case .kirikiri:
             break
         }
@@ -1190,6 +1209,10 @@ public enum GameScanner {
     /// executables that load renamed copies of Scene.pck or Gameexe.dat, or
     /// pack their own with Enigma Virtual Box.
     public static func translatingStartups(among candidates: [StartupFile], in directory: URL, engine: EngineID) -> Set<String> {
+        if engine == .yuris {
+            // Only packed patches are startup files besides the folder.
+            return Set(candidates.filter { $0.kind == .archive }.map(\.relativePath))
+        }
         guard engine == .siglus else { return [] }
         return Set(candidates.filter {
             guard $0.kind == .archive else { return false }
@@ -1404,6 +1427,7 @@ public enum GameScanner {
         if try isRenPyGame(in: directory) { matches.append(.renpy) }
         if try isSiglusGame(in: directory) { matches.append(.siglus) }
         if try !fvpScripts(in: directory).isEmpty { matches.append(.fvp) }
+        if try isYurisGame(in: directory) { matches.append(.yuris) }
 
         return matches
     }
@@ -1439,6 +1463,29 @@ public enum GameScanner {
         if name.contains("utf8") || name.contains("utf-8") { return .utf8 }
         if normalized((script as NSString).pathExtension) == "bch" || name.contains("gbk") { return .gbk }
         return .shiftJIS
+    }
+
+    /// A YU-RIS game keeps its scripts and data in YPF archives, in the
+    /// game folder or its pac folder, or extracted in a ysbin folder.
+    private static func isYurisGame(in directory: URL) throws -> Bool {
+        let entries = try rootFiles(in: directory)
+        if entries.contains(where: { normalized($0.pathExtension) == "ypf" }) { return true }
+        let fm = FileManager.default
+        var isDirectory = ObjCBool(false)
+        if fm.fileExists(atPath: directory.appendingPathComponent("ysbin").path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return true
+        }
+        let pac = directory.appendingPathComponent("pac", isDirectory: true)
+        return try rootFiles(in: pac).contains { normalized($0.pathExtension) == "ypf" }
+    }
+
+    /// The text encoding of a YU-RIS game when the player hasn't picked
+    /// one: GBK when the startup file or the folder is named for a Chinese
+    /// translation (erewhon_chs.exe, xxx汉化), else Shift-JIS.
+    public static func yurisAutomaticEncoding(startup: String?, folder: String) -> FVPTextEncoding {
+        let names = [startup, folder].compactMap { $0 }
+        return names.contains { StartupLanguage.tags(in: $0).contains(where: \.isChinese) } ? .gbk : .shiftJIS
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

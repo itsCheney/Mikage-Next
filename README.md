@@ -2,7 +2,7 @@
 
 简体中文 · [English](README.en.md)
 
-Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏，通过 [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri) 支持 ONScripter 游戏，通过 [Ren’Py 8](https://github.com/itsCheney/renpy) 本身支持 Ren’Py 游戏。Artemis、SiglusEngine 和 FVP 游戏分别通过 [openArtemis](https://github.com/itsCheney/openartemis)、[siglus_rs](https://github.com/itsCheney/siglus_rs) 和 [rfvp](https://github.com/itsCheney/rfvp) 试验性地运行。
+Mikage Next 是一款适用于 iPhone 和 iPad 的视觉小说播放器。所有游戏集中在同一个游戏库里，每个游戏用它原本的引擎运行。目前通过内嵌的 [KRKRSDL3](https://github.com/itsCheney/krkrsdl3) 支持 KiriKiri（吉里吉里，KAG / TJS）游戏，通过 [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri) 支持 ONScripter 游戏，通过 [Ren’Py 8](https://github.com/itsCheney/renpy) 本身支持 Ren’Py 游戏。Artemis、SiglusEngine、FVP 和 YU-RIS 游戏分别通过 [openArtemis](https://github.com/itsCheney/openartemis)、[siglus_rs](https://github.com/itsCheney/siglus_rs)、[rfvp](https://github.com/itsCheney/rfvp) 和 [MikageYURIS](https://github.com/itsCheney/MikageYURIS) 试验性地运行。
 
 Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 
@@ -15,6 +15,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
 - SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件。名字带语言标记（`_CHS`、`中文`等）、带 Siglus 或 SiglusEngine、或含有游戏（文件夹）名的 exe 也会列为启动文件。用 Enigma Virtual Box 把汉化文件打包进 exe 的版本同样列为启动文件，从它启动时，exe 内的文件优先于游戏文件夹里的同名文件（与在 Windows 上一致），首次用到时解包到 App 的缓存中。自动选择时优先选与系统语言一致的启动文件，同语言中优先选确实读取改名文件或自带打包文件的那个；没有语言标记但读取改名文件或自带打包文件的 exe，除日语用户外都优先于原版。部分“高压”重打包版把 g00 图片换成了 UCI（H.264）格式，把汉化图片放在同名的 `.g01` 里，语音放在 `koe/uca.dat`、`uca2.dat` 中；Mikage 都能读取，语音用游戏自带的 `ucadec.dll` 解码（在内置的 x86 解释器中运行）；改名为 `.mpg` 的 MP4 片头动画由系统的 AVFoundation 播放。
 - FVP 游戏文件夹中需要有脚本 `*.hcb`（或汉化补丁脚本 `*.bch`），以及 `*.bin` 资源包。有多个脚本时优先启动补丁脚本，游戏详情页可以用“启动文件”手动指定。FVP 脚本不记录文字编码：“自动”会把补丁脚本（以及文件名含 GBK 的脚本）按 GBK 读取，其余按 Shift-JIS 读取；游戏详情页有“文本编码”选项可以手动指定。rfvp 的存档以自己的格式保存在游戏文件夹的 `savedata` 中，无法读取原版 Windows 引擎的存档。
+- YU-RIS 游戏文件夹中需要有 `*.ypf` 资源包（放在游戏文件夹或其中的 `pac` 文件夹里）。用 Enigma Virtual Box 打包的汉化补丁启动程序（如 `erewhon_chs.exe`）会作为单独的启动文件，补丁里的文件优先于游戏原有文件。“自动”编码会把以中文命名的启动文件或文件夹按 GBK 读取，其余按 Shift-JIS 读取。存档保存在游戏文件夹的 `savedata` 中。目前只用《エレホン》（Erewhon）测试过。
 - ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏可以从根目录的 `startup.tjs`、通过签名校验的 XP3，或末尾附带 XP3 的 `.exe` 启动。Mikage 会优先选择文件名标明了你的语言的那个（如中文的 `xxx_CHS.exe`、`启动游戏.xp3`，英文的 `xxx_EN.exe`）；都没有标明时，依次选 `startup.tjs`、`启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、带 XP3 的 `.exe`、`data.xp3`。在游戏详情页的“启动文件”里也可以手动指定。
 - 游戏有多个启动文件时（例如汉化版与原版放在一起），首次启动会询问运行哪一个。选择会保存为该游戏的启动文件，之后可以在游戏页面中更改。
@@ -53,6 +54,7 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 | Artemis（openArtemis） | 支持 | 试验性 |
 | SiglusEngine（siglus_rs） | 支持 | 试验性 |
 | FVP（rfvp） | 支持 | 试验性 |
+| YU-RIS（MikageYURIS） | 支持 | 试验性 |
 
 ZIP 导入和 Wi-Fi 上传暂未实现。后续引擎的接入计划见 [docs/PHASE-2-MULTI-ENGINE-PLAN.md](docs/PHASE-2-MULTI-ENGINE-PLAN.md)。
 
@@ -72,6 +74,7 @@ bash scripts/build-artemis-ios.sh  # 生成 build/ArtemisRuntime.xcframework
 bash scripts/build-renpy-ios.sh  # 生成 build/RenPyRuntime.xcframework（需要 Python 3.12）
 bash scripts/build-siglus-ios.sh # 生成 build/SiglusRuntime.xcframework（需要 Rust 及 iOS target）
 bash scripts/build-rfvp-ios.sh   # 生成 build/RFVPRuntime.xcframework（需要 Rust 及 iOS target）
+bash scripts/build-yuris-ios.sh  # 生成 build/YurisRuntime.xcframework（需要 Rust 及 iOS target）
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -95,7 +98,7 @@ open Mikage.xcodeproj
 | 路径 | 内容 |
 | --- | --- |
 | `App/` | SwiftUI App：游戏库、游戏详情、播放器、设置、存储空间、Bangumi/VNDB 关联、字符串目录 |
-| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter、Artemis、Ren’Py、SiglusEngine 和 FVP 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
+| `App/Engine/` | 在 App 内承载 KiriKiri、ONScripter、Artemis、Ren’Py、SiglusEngine、FVP 和 YU-RIS 运行时的桥接层；`SDLHost/` 是各 SDL 引擎共用的部分（横屏、窗口切换、逐帧驱动、前后台） |
 | `Sources/VNCore/` | Swift 包：游戏库扫描与导入、路径安全、Bangumi 和 VNDB 客户端、条目匹配 |
 | `Engine/KRKRRuntime/` | 以子模块固定版本的 KRKRSDL3 运行时（[krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)） |
 | `Engine/ONSRuntime/` | 以子模块固定版本的 ONScripter Yuri（[Mikage 分支](https://github.com/itsCheney/OnscripterYuri)），经 sdl2-compat 运行在共享的 SDL3 上 |
@@ -103,6 +106,7 @@ open Mikage.xcodeproj
 | `Engine/RenPyRuntime/` | 以子模块固定版本的 Ren’Py 8（[mikage 分支](https://github.com/itsCheney/renpy)），连同 CPython 3.12 运行在共享的 SDL3 上，OpenGL ES 由 MetalANGLE 提供 |
 | `Engine/SiglusRuntime/` | 以子模块固定版本的 siglus_rs（[mikage 分支](https://github.com/itsCheney/siglus_rs)），Rust 实现，用 wgpu 直接渲染到 Metal，不使用 SDL |
 | `Engine/RFVPRuntime/` | 以子模块固定版本的 rfvp（[mikage 分支](https://github.com/itsCheney/rfvp)），Rust 实现，用 wgpu 直接渲染到 Metal，不使用 SDL |
+| `Engine/YurisRuntime/` | 以子模块固定版本的 MikageYURIS（[mikage 分支](https://github.com/itsCheney/MikageYURIS)），Rust 实现的 YU-RIS 运行时，用 wgpu 直接渲染到 Metal，不使用 SDL |
 | `Engine/SDL3/patches/`、`Engine/MetalANGLE/` | 让共享 SDL3 的 OpenGL ES 窗口使用 MetalANGLE 而非 Apple 已弃用的 OpenGLES 的补丁，以及 MetalANGLE 的许可证 |
 | `Engine/MikageSDLHost/` | 基于 SDL 主回调的引擎运行时编译进去的共享宿主层（KiriKiri 和 Artemis）：驱动 SDL 主回调、停止与前后台、音频会话、每局之间的复位 |
 | `Tests/` | Swift 单元测试和原生运行时测试 |
@@ -113,6 +117,6 @@ open Mikage.xcodeproj
 
 Mikage Next 是自由软件，以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](LICENSE) 发布。
 
-内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。内置的 Ren’Py 以 MIT 为主（部分组件为 LGPL），CPython 使用 PSF 许可证，MetalANGLE 使用 BSD 许可证，见 [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md)。内置的 siglus_rs 以 MPL-2.0 发布（WMV 解码的部分文件为 LGPL-2.1-or-later），见 [Engine/SiglusRuntime/README.md](Engine/SiglusRuntime/README.md)。内置的 rfvp 以 MPL-2.0 发布（WMA、VC-1 解码的部分文件为 LGPL-2.1-or-later），见 [Engine/RFVPRuntime/README.md](Engine/RFVPRuntime/README.md)。分发构建产物前请先阅读。
+内置的 KiriKiri 运行时有其自身的许可证，见 [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) 以及运行时子模块中的声明。内置的 ONScripter Yuri 以 GPL-2.0-or-later 发布，它播放 MIDI 用的 GeneralUser GS 音色库有自己的许可证，均见 [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md)。内置的 openArtemis 以 MIT 或 GPL-3.0-or-later 双许可发布，Mikage 按 GPL-3.0-or-later 使用，见 [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md)。内置的 Ren’Py 以 MIT 为主（部分组件为 LGPL），CPython 使用 PSF 许可证，MetalANGLE 使用 BSD 许可证，见 [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md)。内置的 siglus_rs 以 MPL-2.0 发布（WMV 解码的部分文件为 LGPL-2.1-or-later），见 [Engine/SiglusRuntime/README.md](Engine/SiglusRuntime/README.md)。内置的 rfvp 以 MPL-2.0 发布（WMA、VC-1 解码的部分文件为 LGPL-2.1-or-later），见 [Engine/RFVPRuntime/README.md](Engine/RFVPRuntime/README.md)。内置的 MikageYURIS 以 GPL-3.0-or-later 发布（其中一个文件为 MPL-2.0），见 [Engine/YurisRuntime/README.md](Engine/YurisRuntime/README.md)。分发构建产物前请先阅读。
 
-KiriKiri、ONScripter、Ren’Py、Artemis、SiglusEngine、FVP、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。
+KiriKiri、ONScripter、Ren’Py、Artemis、SiglusEngine、FVP、YU-RIS、Bangumi 和 VNDB 归各自作者所有，Mikage 与它们没有任何关联。

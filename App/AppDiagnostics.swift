@@ -7,6 +7,7 @@ import ArtemisRuntime
 import RenPyRuntime
 import SiglusRuntime
 import RFVPRuntime
+import YurisRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -41,6 +42,7 @@ final class AppDiagnostics: @unchecked Sendable {
         MikageRenPySetLogCallback(nil)
         siglus_mikage_set_log_callback(nil, nil, 0)
         rfvp_mikage_set_log_callback(nil, nil, 0)
+        yuris_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -54,6 +56,9 @@ final class AppDiagnostics: @unchecked Sendable {
             // The same for rfvp. Set before any FVP game starts, or rfvp
             // keeps its own stdout logger for the rest of the run.
             rfvp_mikage_set_log_callback(mikageRFVPDiagnosticLogCallback, nil, 2)
+            // YU-RIS: warnings name the commands and images the runtime
+            // doesn't support yet.
+            yuris_set_log_callback(mikageYurisDiagnosticLogCallback, nil, 2)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -232,4 +237,12 @@ private func mikageRFVPDiagnosticLogCallback(
     guard let message else { return }
     let target = target.map { String(cString: $0) } ?? ""
     AppDiagnostics.shared.runtime(source: "FVP." + target, level: level, message: String(cString: message))
+}
+
+private func mikageYurisDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "YURIS." + target, level: level, message: String(cString: message))
 }
