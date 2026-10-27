@@ -56,9 +56,9 @@ final class AppDiagnostics: @unchecked Sendable {
             // The same for rfvp. Set before any FVP game starts, or rfvp
             // keeps its own stdout logger for the rest of the run.
             rfvp_mikage_set_log_callback(mikageRFVPDiagnosticLogCallback, nil, 2)
-            // YU-RIS: warnings name the commands and images the runtime
-            // doesn't support yet.
-            yuris_set_log_callback(mikageYurisDiagnosticLogCallback, nil, 2)
+            // INFO includes startup layout evidence and system-variable mapping
+            // decisions; install before opening the player so failures retain them.
+            yuris_set_log_callback(mikageYurisDiagnosticLogCallback, nil, 3)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
