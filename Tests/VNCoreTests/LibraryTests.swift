@@ -346,6 +346,52 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngine.exe"), [])
     }
 
+    func testPrepareLaunchRefreshesAutomaticChoiceAndUsesLatestPreference() throws {
+        try repository.ensureStructure()
+        let folder = try directory("Documents/Example")
+        try xp3(named: "data.xp3", in: folder)
+        let game = try XCTUnwrap(repository.scan().active.first)
+
+        // A patch added after scanning is immediately eligible at launch.
+        try xp3(named: "Game_CHS.xp3", in: folder)
+        let automatic = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(automatic.launchTarget, "Game_CHS.xp3")
+        XCTAssertNil(automatic.chosenStartup)
+
+        // Launch reads the persisted choice, not the stale caller's record.
+        _ = try repository.chooseStartup("data.xp3", for: game)
+        let manual = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(manual.launchTarget, "data.xp3")
+        XCTAssertEqual(manual.chosenStartup, "data.xp3")
+
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("data.xp3"))
+        let fallback = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(fallback.launchTarget, "Game_CHS.xp3")
+        XCTAssertNil(fallback.chosenStartup)
+        XCTAssertNil(try repository.load().first?.chosenStartup)
+    }
+
+    func testPrepareLaunchPreservesChoiceWhenDirectoryIsUnavailable() throws {
+        try repository.ensureStructure()
+        let folder = try directory("Documents/Example")
+        try xp3(named: "data.xp3", in: folder)
+        let game = try XCTUnwrap(repository.scan().active.first)
+        _ = try repository.chooseStartup("data.xp3", for: game)
+        try FileManager.default.moveItem(at: folder, to: sandbox.appendingPathComponent("Moved"))
+        XCTAssertThrowsError(try repository.prepareLaunch(for: game.id))
+        XCTAssertEqual(try repository.load().first?.chosenStartup, "data.xp3")
+    }
+
+    func testResolutionReportsMissingChoiceAndNoCandidates() throws {
+        let folder = try directory("Empty")
+        let result = try GameScanner.resolveStartup(
+            in: folder, engine: .kirikiri, chosenStartup: "gone.xp3"
+        )
+        XCTAssertNil(result.selected)
+        XCTAssertEqual(result.reason, .noCandidate)
+        XCTAssertEqual(result.discardedUserChoice, "gone.xp3")
+    }
+
     func testChosenStartupSurvivesScansUntilItsFileIsGone() throws {
         try repository.ensureStructure()
         let folder = repository.gamesRoot.appendingPathComponent("Example")

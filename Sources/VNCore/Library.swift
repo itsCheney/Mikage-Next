@@ -693,8 +693,7 @@ public struct LibraryRepository: Sendable {
         try GameScanner.containedURL(game.folderName, in: gamesRoot)
     }
 
-    /// The files `game` can start from; more than one only for KiriKiri
-    /// games with several archives or executables.
+    /// The files this game can start from.
     public func startupCandidates(for game: GameRecord) throws -> [StartupFile] {
         try GameScanner.startupCandidates(in: directory(for: game), engine: game.engine)
     }
@@ -703,22 +702,41 @@ public struct LibraryRepository: Sendable {
     /// automatically again when it is nil.
     @discardableResult
     public func chooseStartup(_ relativePath: String?, for game: GameRecord) throws -> GameRecord {
-        let candidates = try startupCandidates(for: game)
         let folder = try directory(for: game)
-        let chosen = try relativePath.map { path in
-            guard let match = candidates.first(where: { $0.relativePath == path }) else { throw LibraryError.noGame }
-            return match
-        }
-        let launch = chosen ?? GameScanner.preferredStartup(
-            among: candidates,
-            languages: Locale.preferredLanguages,
-            translating: GameScanner.translatingStartups(among: candidates, in: folder, engine: game.engine)
+        let resolution = try GameScanner.resolveStartup(
+            in: folder, engine: game.engine, chosenStartup: relativePath
         )
-        return try mutate { records in
-            guard let index = records.firstIndex(where: { $0.id == game.id }) else { throw LibraryError.recordNotFound }
-            records[index].chosenStartup = chosen?.relativePath
-            records[index].launchTargetKind = launch?.kind
-            records[index].launchTarget = launch?.relativePath
+        // A newly requested choice must succeed exactly; only old preferences
+        // are allowed to fall back automatically.
+        if relativePath != nil && resolution.validUserChoice == nil { throw LibraryError.noGame }
+        return try update(game.id) { record in
+            record.chosenStartup = resolution.validUserChoice
+            record.launchTargetKind = resolution.selected?.kind
+            record.launchTarget = resolution.selected?.relativePath
+        }
+    }
+
+    /// Revalidates just this game's startup files and returns the exact record
+    /// the player must use. Does not scan covers or measure folder sizes.
+    public func prepareLaunch(
+        for gameID: UUID,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) throws -> GameRecord {
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == gameID }) else {
+                throw LibraryError.recordNotFound
+            }
+            let game = records[index]
+            guard game.engine.isLaunchSupported else { throw LibraryError.noGame }
+            let resolution = try GameScanner.resolveStartup(
+                in: directory(for: game), engine: game.engine,
+                chosenStartup: game.chosenStartup, preferredLanguages: preferredLanguages
+            )
+            guard let selected = resolution.selected else { throw LibraryError.noGame }
+            records[index].chosenStartup = resolution.validUserChoice
+            records[index].launchTargetKind = selected.kind
+            records[index].launchTarget = selected.relativePath
+            records[index].availability = .ready
             return records[index]
         }
     }
@@ -985,7 +1003,43 @@ public enum LibraryError: LocalizedError, Equatable {
     }
 }
 
+public struct StartupResolution {
+    public enum Reason: String {
+        case userSelected, automatic, noCandidate
+    }
+    public let selected: StartupFile?
+    public let validUserChoice: String?
+    public let reason: Reason
+    public let discardedUserChoice: String?
+}
+
 public enum GameScanner {
+    /// Resolves an existing preference without persisting it. Read failures
+    /// propagate so temporary access problems never erase a user's choice.
+    public static func resolveStartup(
+        in directory: URL,
+        engine: EngineID,
+        chosenStartup: String? = nil,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) throws -> StartupResolution {
+        let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true else { throw LibraryError.noGame }
+        guard values.isSymbolicLink != true else { throw LibraryError.symbolicLink }
+        let candidates = try startupCandidates(in: directory, engine: engine)
+        if let chosenStartup,
+           let selected = candidates.first(where: { $0.relativePath == chosenStartup }) {
+            return StartupResolution(selected: selected, validUserChoice: chosenStartup,
+                                     reason: .userSelected, discardedUserChoice: nil)
+        }
+        let selected = preferredStartup(
+            among: candidates, languages: preferredLanguages,
+            translating: translatingStartups(among: candidates, in: directory, engine: engine)
+        )
+        return StartupResolution(selected: selected, validUserChoice: nil,
+                                 reason: selected == nil ? .noCandidate : .automatic,
+                                 discardedUserChoice: chosenStartup)
+    }
+
     private static let xp3Signature = Data([0x58, 0x50, 0x33, 0x0D, 0x0A, 0x20, 0x0A, 0x1A, 0x8B, 0x67, 0x01])
     private static let preferredXP3Names = ["启动游戏.xp3", "startup.xp3", "start.xp3", "boot.xp3"]
     /// Script files ONScripter Yuri opens, plain or obfuscated.
@@ -1009,13 +1063,11 @@ public enum GameScanner {
         guard values.isDirectory == true else { throw LibraryError.noGame }
         guard values.isSymbolicLink != true else { throw LibraryError.symbolicLink }
 
-        let candidates = try startupCandidates(in: directory, engine: engine)
-        let chosen = candidates.first { $0.relativePath == chosenStartup }
-        let launch = chosen ?? preferredStartup(
-            among: candidates,
-            languages: preferredLanguages,
-            translating: translatingStartups(among: candidates, in: directory, engine: engine)
+        let resolution = try resolveStartup(
+            in: directory, engine: engine, chosenStartup: chosenStartup,
+            preferredLanguages: preferredLanguages
         )
+        let launch = resolution.selected
         let availability: GameAvailability
         if !engine.isLaunchSupported {
             availability = .unsupported
@@ -1044,7 +1096,7 @@ public enum GameScanner {
             folderName: directory.lastPathComponent,
             launchTargetKind: launch?.kind,
             launchTarget: launch?.relativePath,
-            chosenStartup: chosen?.relativePath,
+            chosenStartup: resolution.validUserChoice,
             byteCount: try reusableSize ?? byteCount(in: directory),
             detectedCoverPath: try detectedCover(in: directory),
             availability: availability
@@ -1056,18 +1108,12 @@ public enum GameScanner {
         engine: EngineID,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) throws -> StartupFile? {
-        let candidates = try startupCandidates(in: directory, engine: engine)
-        return preferredStartup(
-            among: candidates,
-            languages: preferredLanguages,
-            translating: translatingStartups(among: candidates, in: directory, engine: engine)
-        )
+        try resolveStartup(in: directory, engine: engine,
+                           preferredLanguages: preferredLanguages).selected
     }
 
     /// Every file the engine can start this folder from, in the order used
-    /// when no language decides. Only KiriKiri games can have more than one:
-    /// startup.tjs (the folder itself), XP3 archives, and Windows executables
-    /// with an XP3 archive appended.
+    /// when no language decides. KiriKiri, Siglus and FVP may have several.
     public static func startupCandidates(in directory: URL, engine: EngineID) throws -> [StartupFile] {
         switch engine {
         case .onscripter:
