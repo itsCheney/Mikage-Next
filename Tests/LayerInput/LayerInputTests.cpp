@@ -161,6 +161,9 @@ public:
     }
 #include "ProductionManagerMembers.inc"
     tTJSNI_BaseLayer* GetPrimaryLayer() override { return Primary; }
+    // DrawDeviceD3D composites with HoldAlpha off and restores it on detach.
+    bool HoldAlpha = true;
+    void SetHoldAlpha(bool b) { HoldAlpha = b; }
     void RegisterSelfToWindow();
     void UnregisterSelfFromWindow();
     void NotifyMouseCursorChange(tTJSNI_BaseLayer*, tjs_int);
@@ -226,7 +229,9 @@ public:
     DummyBackend* Backend = nullptr;
     void *PresentScratchTexture = nullptr, *CompositeTarget = nullptr;
     void *PrevCompositeTarget = nullptr, *ScratchTexture = nullptr;
+    int ScratchW = 0, ScratchH = 0;
     virtual ~DrawDeviceD3D();
+    void ReleaseBackendResources();
     void SetWindowInterface(TVPWindow*);
     void UpdatePointerPresentationHitTesting();
     void AddLayerManager(iTVPLayerManager*);
@@ -475,9 +480,11 @@ static void multipleManagers() {
         device.AddLayerManager(&first);
         device.AddLayerManager(&second);
         device.AddLayerManager(&foreign);
+        first.HoldAlpha = second.HoldAlpha = false; // as after a composition
         require(!first.PointerPresentationHitTestingEnabled && !second.PointerPresentationHitTestingEnabled &&
                 foreign.PointerPresentationHitTestingEnabled, "multi-manager capability crossed owners");
         device.RemoveLayerManager(&first);
+        require(first.HoldAlpha && !second.HoldAlpha, "manager removal did not restore HoldAlpha");
         require(first.PointerPresentationHitTestingEnabled && !second.PointerPresentationHitTestingEnabled,
                 "removing one manager changed retained manager behavior");
         device.SetWindowInterface(nullptr);
@@ -485,6 +492,7 @@ static void multipleManagers() {
                 "window detach failed to reset all managers");
         device.SetWindowInterface(&window);
     }
+    require(second.HoldAlpha, "device destructor did not restore HoldAlpha");
     require(first.refs == 1 && second.refs == 1 && foreign.refs == 1 &&
             second.PointerPresentationHitTestingEnabled && foreign.PointerPresentationHitTestingEnabled,
             "multi-manager destruction leaked state or references");

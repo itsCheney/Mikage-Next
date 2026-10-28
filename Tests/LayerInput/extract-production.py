@@ -47,6 +47,7 @@ for source, cls in [(basic, "tTVPBasicDrawDevice"), (d3d, "DrawDeviceD3D")]:
                  "RemoveLayerManager"]:
         methods.append(definition(source, "void " + cls + "::" + name + "("))
     methods.append(definition(source, cls + "::~" + cls + "()"))
+methods.append(definition(d3d, "void DrawDeviceD3D::ReleaseBackendResources("))
 (args.output / "ProductionInputMethods.inc").write_text("\n\n".join(methods), encoding="utf-8")
 (args.output / "ProductionInputHitTest.inc").write_text("\n\n".join(
     definition(native, signature) for signature in [
