@@ -496,7 +496,10 @@ final class NativeKRKRSession: NSObject, KRKRSession {
                     "progressControlNS:\(diagnosticStats.emoteProgressControlTimeNS)",
                     "progressSampleNS:\(diagnosticStats.emoteProgressSampleTimeNS)",
                     "progressPhysicsNS:\(diagnosticStats.emoteProgressPhysicsTimeNS)",
-                    "progressMaxNS:\(diagnosticStats.emoteProgressMaxTimeNS)"
+                    "progressMaxNS:\(diagnosticStats.emoteProgressMaxTimeNS)",
+                    "iconTextures:\(diagnosticStats.emoteIconTextures)",
+                    "iconTextureBytes:\(diagnosticStats.emoteIconTextureBytes)",
+                    "iconTextureShares:\(diagnosticStats.emoteIconTextureShares)"
                 ].joined(separator: ",")
 
                 let emotePrepareDetail: String = [

@@ -29,12 +29,12 @@ void BoundedStackTests() {
     const auto check=[](bool v){if(!v)throw std::runtime_error("production bounded stack");};
     FakeContext c;c.block.name=u"scene.ks";int instructions[8]{};int* current=instructions+3;
     Tracer tracer;
-    for(int i=0;i<8;++i)tracer.Stack.push_back({&c,instructions,&current});
+    for(int i=0;i<10;++i)tracer.Stack.push_back({&c,instructions,&current});
     char out[514];std::memset(out,0x7f,sizeof(out));
     check(tracer.GetTraceUTF8(out,513,100));std::string value(out);
     check(value.find("scene.ks:4[nested]")!=std::string::npos);
     size_t count=0,pos=0;while((pos=value.find("scene.ks",pos))!=std::string::npos){++count;pos+=8;}
-    check(count==4 && out[513]==0x7f);
+    check(count==8 && out[513]==0x7f); // capped at eight frames
     tracer.FreezeCodePointer();check(!tracer.Stack.back().CodePtr && tracer.Stack.back().SavedPosition==3);
     current=instructions;check(tracer.GetTraceUTF8(out,513,1));check(std::string(out).find(":4[")!=std::string::npos);
     c.block.name=std::u16string(1024,u'\u8857')+u"\U0001f600";
