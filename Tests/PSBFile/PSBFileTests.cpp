@@ -2,9 +2,12 @@
 #include "tjsArray.h"
 #include "tjsDictionary.h"
 #include "psbfile/PSBFile.h"
+#include "psbfile/psbsession.h"
+#include "TVPEvent.h"
 #include "UtilStreams.h"
 #include "../../Engine/KRKRRuntime/Source/cpp/core/render/CPUFrameDiagnostics.h"
 #include <zlib.h>
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -15,6 +18,21 @@ using namespace TJS;
 namespace cpu = krkrsdl3::cpu_frame;
 void TVPConsoleLog(const tjs_char*, ...) {}
 tjs_uint64 TVPGetRoughTickCount() { return 1; }
+// The frame loop is the only event double: production PSBFile hooks itself to
+// free released trees, and the tests run its frames.
+std::vector<tTVPContinuousEventCallbackIntf*> continuousHooks;
+void TVPAddContinuousEventHook(tTVPContinuousEventCallbackIntf* cb) { continuousHooks.push_back(cb); }
+void TVPRemoveContinuousEventHook(tTVPContinuousEventCallbackIntf* cb) {
+    continuousHooks.erase(std::remove(continuousHooks.begin(), continuousHooks.end(), cb), continuousHooks.end());
+}
+// Runs frames until the deferred release unhooks; returns the frame count.
+int drainDeferred() {
+    int frames = 0;
+    while (!continuousHooks.empty() && frames < 100000) { continuousHooks.front()->OnContinuousCallback(0); ++frames; }
+    return frames;
+}
+// Queued containers belong to their VM, so each test drains before its VM goes.
+struct DrainOnExit { ~DrainOnExit() { drainDeferred(); } };
 
 // Only external allocation-error reporting is doubled. Memory allocation,
 // copying, seeking and inputReads below execute the exact production methods.
@@ -122,7 +140,7 @@ void checkContent(tTJS& vm) {
 }
 std::vector<std::string> lifecycle(bool on, bool compressed) {
     setMode(on); const auto plain = scene(); input = compressed ? mdf(plain) : plain;
-    tTJS vm; install(vm);
+    tTJS vm; DrainOnExit drain; install(vm);
     {
         cpu::StepScope step;
         vm.ExecScript("var p=new PSBFile('fixture.scn');", nullptr, nullptr, "scene.tjs");
@@ -137,6 +155,9 @@ std::vector<std::string> lifecycle(bool on, bool compressed) {
         root.Clear(); owner.Clear();
         vm.ExecScript("invalidate p; p=void;", nullptr, nullptr, "clear.tjs");
         vm.DoGarbageCollection();
+        // The owner's release leaves the tree to later frames.
+        require(markerDeaths == 0, "owner release freed the tree at once");
+        require(drainDeferred() >= 1 && continuousHooks.empty(), "deferred tree release did not finish");
     }
     if (!(opens == 1 && streamDeaths == 1 && markerDeaths == 1 && markerGetters == 0))
         std::cerr << "lifecycle on=" << on << " compressed=" << compressed << " opens=" << opens
@@ -151,8 +172,8 @@ std::vector<std::string> lifecycle(bool on, bool compressed) {
                 "PSB tables/materialization scope not singular");
         require(metric(cpu::Kind::PSBInvalidate).calls == 1 && metric(cpu::Kind::PSBDestroy).calls == 1,
                 "PSB invalidation/destruction scope missing");
-        require(metric(cpu::Kind::PSBDestroy).wallNS >= 20000000,
-                "destroy scope did not include _root member destruction");
+        require(metric(cpu::Kind::PSBDestroy).wallNS < 20000000,
+                "destroy scope still freed the tree");
         require(metric(cpu::Kind::PSBRead).calls == (compressed ? 3 : 2), "PSB read replayed");
         // MDF inflates straight into the parse buffer: no separate copy.
         require(metric(cpu::Kind::PSBDecompress).calls == unsigned(compressed) &&
@@ -163,9 +184,6 @@ std::vector<std::string> lifecycle(bool on, bool compressed) {
         if (compressed) require(metric(cpu::Kind::PSBDecompress).workBytes == input.size() - 8,
             "MDF byte accounting wrong");
         cpu::TakeWindow(1,2);
-        require(std::any_of(diagnostics.begin(),diagnostics.end(),[](const auto& line){
-            return line.find("cpu.slow ")==0 && line.find("kind=psb.destroy ")!=std::string::npos;
-        }), "production owner destruction did not survive bounded detail selection");
         for(const auto& line:diagnostics)require(line.size()<=960,"PSB diagnostic line exceeded budget");
     } else {
         for (const auto& m : cpu::window.metrics) require(m.calls == 0, "disabled instrumentation recorded work");
@@ -173,7 +191,7 @@ std::vector<std::string> lifecycle(bool on, bool compressed) {
     return behavior;
 }
 void finalizerOrdering(bool on) {
-    setMode(on); input = scene(); tTJS vm; install(vm);
+    setMode(on); input = scene(); tTJS vm; DrainOnExit drain; install(vm);
     vm.ExecScript(
         "class StorageData { var data; function StorageData(){data=new PSBFile('fixture.scn');}"
         "function finalize(){trace('script.finalize'); invalidate data; trace('script.afterInvalidate');}}"
@@ -189,7 +207,7 @@ void finalizerOrdering(bool on) {
 }
 
 std::vector<std::string> retainedRootBoundary(bool on) {
-    setMode(on); input=scene(); tTJS vm; install(vm);
+    setMode(on); input=scene(); tTJS vm; DrainOnExit drain; install(vm);
     {
         cpu::StepScope step;
         vm.ExecScript("var p=new PSBFile('fixture.scn');");
@@ -204,6 +222,8 @@ std::vector<std::string> retainedRootBoundary(bool on) {
         const auto measured=metric(cpu::Kind::PSBDestroy).wallNS;
         if(on)require(metric(cpu::Kind::PSBDestroy).calls==1 && measured<20000000,
                       "PSB destroy attributed externally retained tree destruction");
+        drainDeferred();
+        require(markerDeaths==0,"deferred release freed a still-owned root tree");
         retainedRoot.Clear();
         require(markerDeaths==1,"last external root release did not destroy the tree");
         if(on)require(metric(cpu::Kind::PSBDestroy).wallNS==measured,
@@ -219,7 +239,7 @@ std::vector<std::string> failure(bool on, Failure mode) {
     if (mode == Failure::Short) input = {1, 2, 3};
     if (mode == Failure::MDF) input = {'M', 'D', 'F', 0, 8, 0, 0, 0, 0, 0};
     if (mode == Failure::Version) { input[4] = 4; input[5] = 0; }
-    tTJS vm; install(vm); bool thrown = false;
+    tTJS vm; DrainOnExit drain; install(vm); bool thrown = false;
     vm.ExecScript("var p=void;");
     try { vm.ExecScript("p=new PSBFile('fixture.scn');", nullptr, nullptr, "failure.tjs"); }
     catch (...) { thrown = true; }
@@ -257,7 +277,7 @@ void numbersAndWideArrays() {
         {"n3", Node::number(-70000, 3)}, {"p3", Node::number(70000, 3)},
         {"n5", Node::number(-5000000000LL, 5)}, {"n6", Node::number(-100000000000000LL, 6)},
         {"n7", Node::number(-30000000000000000LL, 7)}, {"wide", Node::raw(wide)}}));
-    tTJS vm; install(vm);
+    tTJS vm; DrainOnExit drain; install(vm);
     const auto value = evaluate(vm, "var p=new PSBFile('fixture.scn'); var r=p.root;"
         "return ''+r.n3+','+r.p3+','+r.n5+','+r.n6+','+r.n7+','+r.wide.count+','+r.wide[0]+','+r.wide[1];");
     if (value != "-70000,70000,-5000000000,-100000000000000,-30000000000000000,2,7,9")
@@ -306,7 +326,7 @@ void versionOne() {
         integer(header, field, 4);
     std::copy(header.begin(), header.end(), bytes.begin());
     input = bytes;
-    tTJS vm; install(vm);
+    tTJS vm; DrainOnExit drain; install(vm);
     const auto value = evaluate(vm, "var p=new PSBFile('fixture.scn'); var r=p.root; return r.alpha+','+r.beta+','+r.n299;");
     if (value != "one,300,last") std::cerr << "v1: " << value << '\n';
     require(value == "one,300,last", "PSB v1 names or object entries wrong");
@@ -330,7 +350,7 @@ void mediaSharing() {
         return bytes;
     };
     {
-        tTJS vm; install(vm);
+        tTJS vm; DrainOnExit drain; install(vm);
         vm.ExecScript("var p=new PSBFile('data/Fixture.scn');");
         auto owner = get(vm.GetGlobalNoAddRef(), "p");
         auto root = get(owner.AsObjectNoAddRef(), "root");
@@ -369,7 +389,7 @@ void failedReload() {
         input = fixture.buildFullFile(Node::object({{"a.txt", Node::resource(0)}}));
         auto* media = new PSB::PSBMedia(); psbVar = media;
         {
-            tTJS vm; install(vm);
+            tTJS vm; DrainOnExit drain; install(vm);
             vm.ExecScript("var p=new PSBFile('fixture.scn');");
             require(media->CheckExistentStorage("fixture.scn/a.txt"), "loaded PSB not served");
             const Bytes good = input;
@@ -402,7 +422,7 @@ void releasedOpensReadOnce() {
     input = mdf(fixture.buildFullFile(Node::object({{"img.png", Node::resource(1)}, {"a.txt", Node::resource(0)}})));
     auto* media = new PSB::PSBMedia(); psbVar = media;
     {
-        tTJS vm; install(vm);
+        tTJS vm; DrainOnExit drain; install(vm);
         vm.ExecScript("var p=new PSBFile('fixture.scn'); invalidate p; p=void;"); vm.DoGarbageCollection();
         require(opens == 1, "PSB load opened the file more than once");
         require(streamBytes(media->Open("fixture.scn/img.png", 0)) == image, "released PSB resource wrong");
@@ -433,7 +453,7 @@ void unregisteredExistence() {
             "open after an existence check reread the PSB");
     {
         // A PSBFile loaded afterwards registers and serves from its tree.
-        tTJS vm; install(vm);
+        tTJS vm; DrainOnExit drain; install(vm);
         vm.ExecScript("var p=new PSBFile('fixture.scn');");
         require(opens == 2 && metric(cpu::Kind::PSBLoad).calls == 1, "PSBFile load after probe changed");
         require(streamBytes(media->Open("fixture.scn/img.png", 0)) == image && opens == 2,
@@ -462,7 +482,7 @@ void repeatedNames() {
                                                 {"two", Node::object({{"pixel", Node::resource(1)}})}}));
     auto* media = new PSB::PSBMedia(); psbVar = media;
     {
-        tTJS vm; install(vm);
+        tTJS vm; DrainOnExit drain; install(vm);
         vm.ExecScript("var p=new PSBFile('fixture.scn');");
         std::unique_ptr<tTJSBinaryStream> stream(media->Open("fixture.scn/pixel", 0));
         require(stream != nullptr && stream->GetSize() == 1, "psb:// did not open a repeated name");
