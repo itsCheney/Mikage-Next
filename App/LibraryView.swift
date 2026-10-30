@@ -6,6 +6,8 @@ import VNCore
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(WelcomeGuideView.seenKey) private var welcomeSeen = false
+    @State private var showingWelcome = false
 
     var body: some View {
         tabs
@@ -33,6 +35,12 @@ struct RootView: View {
             }
             .sheet(item: $model.importReview) { review in
                 ImportReviewView(review: review).environmentObject(model)
+            }
+            .sheet(isPresented: $showingWelcome) {
+                WelcomeGuideView().environmentObject(model)
+            }
+            .onAppear {
+                if !welcomeSeen { showingWelcome = true }
             }
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
