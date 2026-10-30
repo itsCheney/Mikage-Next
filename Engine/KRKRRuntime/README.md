@@ -19,4 +19,4 @@ The host patch deliberately removes only `sdl3_entry.cpp` from the framework bui
 
 The KRKRSDL3 license is reproduced in `KRKRSDL3-LICENSE.txt`. Distributors must review its source-availability condition before distributing modified KRKRSDL3 binaries with commercial game ports.
 
-Ordinary GPU Layer composition is experimental and stays on app `beta` and core/build `mikage-beta` until device validation. Stable Metal presentation remains on app `main` and core/build `mikage`. See [implementation and validation notes](Source/docs/metal-layer-composition.md).
+Ordinary GPU Layer composition: see [implementation and validation notes](Source/docs/metal-layer-composition.md).
