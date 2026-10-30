@@ -8,7 +8,7 @@ struct PlayerSettings: Codable {
     var renderer = RendererPreference.storageDefault
     var background = PlayerBackground.storageDefault
     var floatingButton = true
-    var idleOpacity = 0.38
+    var idleOpacity = 0.6
     var threeFingerMenu = true
     /// The floating buttons beside the menu button, in order; at most
     /// `QuickActionKind.limit`.
@@ -106,7 +106,7 @@ enum Appearance: String, StoredSetting {
     static let legacyValues: [String: Self] = [
         "跟随系统": .system, "浅色": .light, "深色": .dark
     ]
-    static let storageDefault: Self = .dark
+    static let storageDefault: Self = .system
 
     init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
 

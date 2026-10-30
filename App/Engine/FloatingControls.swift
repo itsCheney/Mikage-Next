@@ -51,7 +51,7 @@ final class FloatingControlsView: UIView {
     var obstacles: () -> [CGRect] = { [] }
     /// The game's rectangle in this view when letterboxed, or nil.
     var gameRect: () -> CGRect? = { nil }
-    var idleOpacity: CGFloat = 0.38 {
+    var idleOpacity: CGFloat = 0.6 {
         didSet { applyIdle(animated: false) }
     }
 

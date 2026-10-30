@@ -139,7 +139,7 @@ enum QuickSaveTimes {
 /// The overlay's settings for one session.
 struct GameOverlayOptions {
     var floatingButton = true
-    var idleOpacity = 0.38
+    var idleOpacity = 0.6
     var threeFingerMenu = true
     var quickActions: [QuickActionKind] = QuickActionKind.defaults
 
