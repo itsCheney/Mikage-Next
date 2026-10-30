@@ -545,6 +545,82 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: nil), .shiftJIS)
     }
 
+    func testBGIGameStartsFromItsFolder() throws {
+        try repository.ensureStructure()
+        let bgi = repository.gamesRoot.appendingPathComponent("BGI Game")
+        try FileManager.default.createDirectory(at: bgi, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("SYSTEM.ARC"))
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("data01000.arc"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: bgi), [.bgi])
+        var game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .bgi)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(game.launchTarget, ".")
+        XCTAssertEqual(repository.textEncoding(for: game), .shiftJIS)
+
+        // UTF-8 isn't a BGI encoding: a stored choice of it is ignored.
+        game = try repository.chooseTextEncoding(.utf8, for: game)
+        XCTAssertEqual(repository.textEncoding(for: game), .shiftJIS)
+        game = try repository.chooseTextEncoding(.gbk, for: game)
+        _ = try repository.scan()
+        game = try repository.load().first { $0.id == game.id }!
+        XCTAssertEqual(repository.textEncoding(for: game), .gbk)
+        XCTAssertEqual(GameTextEncoding.choices(for: .bgi), [.shiftJIS, .gbk])
+
+        // Archives alone aren't a BGI game.
+        let other = repository.gamesRoot.appendingPathComponent("Other")
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: other.appendingPathComponent("data01000.arc"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: other), [])
+    }
+
+    /// A minimal PE image with one section named `section`.
+    private func peImage(section: String) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 0x200)
+        bytes[0] = 0x4D; bytes[1] = 0x5A
+        bytes[0x3C] = 0x80
+        bytes.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        bytes[0x86] = 1
+        let name = Array(section.utf8)
+        bytes.replaceSubrange(0x98..<(0x98 + name.count), with: name)
+        return Data(bytes)
+    }
+
+    func testBGIPatchLaunchersAreStartupFiles() throws {
+        try repository.ensureStructure()
+        let bgi = repository.gamesRoot.appendingPathComponent("Subahibi")
+        try FileManager.default.createDirectory(at: bgi, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("system.arc"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("BGI.exe"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("Uninstaller.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI-CHS.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI_patch(new_episode_trans).exe"))
+        let candidates = try GameScanner.startupCandidates(in: bgi, engine: .bgi)
+        XCTAssertEqual(candidates.first, StartupFile(.directory, "."))
+        XCTAssertEqual(Set(candidates.dropFirst().map(\.relativePath)), ["BGI-CHS.exe", "BGI_patch(new_episode_trans).exe"])
+        XCTAssertEqual(candidates.dropFirst().map(\.kind), [.archive, .archive])
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["zh-Hans-CN"])?.relativePath, "BGI-CHS.exe")
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["ja-JP"])?.relativePath, ".")
+
+        XCTAssertNil(GameScanner.bgiGameFont(in: bgi))
+        try Data().write(to: bgi.appendingPathComponent("other.otf"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "other.otf")
+        try Data().write(to: bgi.appendingPathComponent("Font.TTF"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "Font.TTF")
+    }
+
+    func testBGIAutomaticEncoding() {
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama 2"), .shiftJIS)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama2_CHS"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "千恋万花汉化版"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game GBK v1.2"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game EN"), .shiftJIS)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI-CHS.exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_patch(new_episode_trans).exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_EN.exe"), .shiftJIS)
+    }
+
     func testBuiltInGamesInstallOnceAndStayDeleted() throws {
         let bundled = try directory("Bundle/BuiltInGames/renpy/The Question/game")
         try Data("label start:".utf8).write(to: bundled.appendingPathComponent("script.rpy"))

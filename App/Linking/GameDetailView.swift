@@ -566,7 +566,7 @@ struct GameDetailView: View {
             if startupChoices.count > 1 {
                 DetailRow(label: "Startup file") { startupMenu }
             }
-            if current.engine == .fvp {
+            if current.engine == .fvp || current.engine == .bgi {
                 DetailRow(label: "Text encoding") { encodingMenu }
             }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
@@ -610,14 +610,15 @@ struct GameDetailView: View {
 
     /// FVP scripts don't say how their text is encoded: Automatic reads
     /// translation patches (.bch) as GBK and original scripts as Shift-JIS.
+    /// BGI games read GBK when the folder is named as a Chinese release.
     private var encodingMenu: some View {
         Menu {
             Picker("Text encoding", selection: Binding(
                 get: { current.textEncoding?.rawValue ?? "" },
-                set: { model.chooseTextEncoding(FVPTextEncoding(rawValue: $0), for: current) }
+                set: { model.chooseTextEncoding(GameTextEncoding(rawValue: $0), for: current) }
             )) {
                 Text("Automatic").tag("")
-                ForEach(FVPTextEncoding.allCases, id: \.rawValue) { encoding in
+                ForEach(GameTextEncoding.choices(for: current.engine), id: \.rawValue) { encoding in
                     Text(verbatim: encoding.displayName).tag(encoding.rawValue)
                 }
             }

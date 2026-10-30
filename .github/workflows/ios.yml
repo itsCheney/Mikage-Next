@@ -52,6 +52,9 @@ jobs:
       - name: Record FVP runtime revision
         id: rfvp-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/RFVPRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record BGI runtime revision
+        id: ethornell-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/EthornellRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -491,6 +494,51 @@ jobs:
         with:
           path: build/RFVPRuntime.xcframework
           key: ${{ steps.cache-rfvp-runtime.outputs.cache-primary-key }}
+      # BGI: the ethornell-rs fork (Rust, wgpu on Metal, kira audio) as a
+      # dynamic framework of its own. ruffle_core's build script needs Java.
+      - name: Restore BGI runtime framework
+        id: cache-ethornell-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/EthornellRuntime.xcframework
+          key: ethornell-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ethornell-ios.sh') }}-${{ steps.ethornell-revision.outputs.rev }}
+      - name: Install Rust for BGI
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Install Java for BGI
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Cache BGI Rust builds
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/ethornell/target
+          key: ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/EthornellRuntime/Source/Cargo.lock') }}-${{ steps.ethornell-revision.outputs.rev }}
+          restore-keys: |
+            ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/EthornellRuntime/Source/Cargo.lock') }}-
+            ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build BGI runtime framework
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-ethornell-ios.sh 2>&1 | tee build/ethornell-runtime-build.log
+      - name: Save BGI runtime framework
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/EthornellRuntime.xcframework
+          key: ${{ steps.cache-ethornell-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py
