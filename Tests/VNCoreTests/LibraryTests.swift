@@ -224,7 +224,11 @@ final class LibraryTests: XCTestCase {
             SiglusResourceNames(scene: "Scene.chs", gameexe: "Gameexe.chs")
         )
         XCTAssertEqual(GameScanner.siglusResourceNames(of: folder.appendingPathComponent("SiglusEngine.exe"), in: folder), SiglusResourceNames())
-        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath), [".", "SiglusEngineCHS.exe"])
+        // SiglusEngine.exe is listed for its name; it loads the originals.
+        XCTAssertEqual(
+            try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath),
+            [".", "SiglusEngine.exe", "SiglusEngineCHS.exe"]
+        )
 
         func pick(_ languages: [String]) throws -> StartupFile? {
             try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: languages)
@@ -245,7 +249,7 @@ final class LibraryTests: XCTestCase {
 
         XCTAssertEqual(
             Set(try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath)),
-            [".", "Rewrite_CHS.exe", "Rewrite中文.exe"]
+            [".", "Rewrite_CHS.exe", "Rewrite中文.exe", "SiglusEngine.exe"]
         )
         // The folder's only renamed copies are the ones they load.
         XCTAssertEqual(
@@ -259,6 +263,80 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(StartupLanguage.tags(in: "Rewrite汉化.exe"), [.simplifiedChinese])
     }
 
+    func testSiglusExecutablesNamedForTheGameAreStartupFiles() throws {
+        let folder = try directory("銀色、遥か")
+        for file in ["Scene.pck", "Gameexe.dat", "Scene.chs", "Gameexe.chs"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(file))
+        }
+        for name in ["銀色遥か.exe", "銀色遥か設定.exe", "unins000.exe", "Config.exe"] {
+            try Data("MZ".utf8).write(to: folder.appendingPathComponent(name))
+        }
+        // An untagged executable that loads the renamed copies.
+        try siglusExecutable(named: "GinHaru.exe", in: folder, naming: ["Scene.chs", "Gameexe.chs"])
+
+        XCTAssertEqual(
+            Set(try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath)),
+            [".", "GinHaru.exe", "銀色遥か.exe", "銀色遥か設定.exe"]
+        )
+        // A translation beats the original for anyone but a Japanese reader.
+        XCTAssertEqual(
+            try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["zh-Hans-CN"]),
+            StartupFile(.archive, "GinHaru.exe")
+        )
+        XCTAssertEqual(
+            try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["ja-JP", "zh-Hans-CN"]),
+            StartupFile(.directory, ".")
+        )
+    }
+
+    func testSiglusExecutablesPackedWithEnigmaVirtualBoxAreTranslations() throws {
+        let folder = try directory("Packed")
+        for file in ["Scene.pck", "Gameexe.dat"] {
+            try Data("x".utf8).write(to: folder.appendingPathComponent(file))
+        }
+        // A PE image whose only section is ".enigma1".
+        var image = [UInt8](repeating: 0, count: 0x200)
+        image[0] = 0x4D
+        image[1] = 0x5A
+        image[0x3C] = 0x80
+        image.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        image[0x86] = 1
+        image.replaceSubrange(0x98..<0xA0, with: Array(".enigma1".utf8))
+        try Data(image).write(to: folder.appendingPathComponent("Patch.exe"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("Other.exe"))
+
+        XCTAssertTrue(GameScanner.isEnigmaPacked(folder.appendingPathComponent("Patch.exe")))
+        XCTAssertFalse(GameScanner.isEnigmaPacked(folder.appendingPathComponent("Other.exe")))
+        XCTAssertEqual(
+            try GameScanner.startupCandidates(in: folder, engine: .siglus).map(\.relativePath),
+            [".", "Patch.exe"]
+        )
+        XCTAssertEqual(
+            try GameScanner.launchTarget(in: folder, engine: .siglus, preferredLanguages: ["zh-Hans-CN"]),
+            StartupFile(.archive, "Patch.exe")
+        )
+    }
+
+    func testTranslatingStartupWinsAmongTheSameLanguage() {
+        let candidates = [
+            StartupFile(.directory, "."),
+            StartupFile(.archive, "Game_CHS.exe"),
+            StartupFile(.archive, "SiglusEngineCHS.exe"),
+            StartupFile(.archive, "Game_EN.exe"),
+        ]
+        XCTAssertEqual(
+            GameScanner.preferredStartup(among: candidates, languages: ["zh-Hans"], translating: ["SiglusEngineCHS.exe"]),
+            StartupFile(.archive, "SiglusEngineCHS.exe")
+        )
+        // The bonus never outranks a language the player puts first.
+        XCTAssertEqual(
+            GameScanner.preferredStartup(among: candidates, languages: ["en", "zh-Hans"], translating: ["SiglusEngineCHS.exe"]),
+            StartupFile(.archive, "Game_EN.exe")
+        )
+        XCTAssertTrue(GameScanner.carriesGameName("RewriteHF.exe", gameName: GameScanner.nameKey("Rewrite")))
+        XCTAssertFalse(GameScanner.carriesGameName("ab.exe", gameName: GameScanner.nameKey("ab")))
+    }
+
     func testCapitalTagsRunIntoANameCount() {
         XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngineCHS.exe"), [.simplifiedChinese])
         XCTAssertEqual(StartupLanguage.tags(in: "GameEN.exe"), [.english])
@@ -266,6 +344,52 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(StartupLanguage.tags(in: "Golden.exe"), [])
         XCTAssertEqual(StartupLanguage.tags(in: "ScEngine.exe"), [])
         XCTAssertEqual(StartupLanguage.tags(in: "SiglusEngine.exe"), [])
+    }
+
+    func testPrepareLaunchRefreshesAutomaticChoiceAndUsesLatestPreference() throws {
+        try repository.ensureStructure()
+        let folder = try directory("Documents/Example")
+        try xp3(named: "data.xp3", in: folder)
+        let game = try XCTUnwrap(repository.scan().active.first)
+
+        // A patch added after scanning is immediately eligible at launch.
+        try xp3(named: "Game_CHS.xp3", in: folder)
+        let automatic = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(automatic.launchTarget, "Game_CHS.xp3")
+        XCTAssertNil(automatic.chosenStartup)
+
+        // Launch reads the persisted choice, not the stale caller's record.
+        _ = try repository.chooseStartup("data.xp3", for: game)
+        let manual = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(manual.launchTarget, "data.xp3")
+        XCTAssertEqual(manual.chosenStartup, "data.xp3")
+
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("data.xp3"))
+        let fallback = try repository.prepareLaunch(for: game.id, preferredLanguages: ["zh-Hans"])
+        XCTAssertEqual(fallback.launchTarget, "Game_CHS.xp3")
+        XCTAssertNil(fallback.chosenStartup)
+        XCTAssertNil(try repository.load().first?.chosenStartup)
+    }
+
+    func testPrepareLaunchPreservesChoiceWhenDirectoryIsUnavailable() throws {
+        try repository.ensureStructure()
+        let folder = try directory("Documents/Example")
+        try xp3(named: "data.xp3", in: folder)
+        let game = try XCTUnwrap(repository.scan().active.first)
+        _ = try repository.chooseStartup("data.xp3", for: game)
+        try FileManager.default.moveItem(at: folder, to: sandbox.appendingPathComponent("Moved"))
+        XCTAssertThrowsError(try repository.prepareLaunch(for: game.id))
+        XCTAssertEqual(try repository.load().first?.chosenStartup, "data.xp3")
+    }
+
+    func testResolutionReportsMissingChoiceAndNoCandidates() throws {
+        let folder = try directory("Empty")
+        let result = try GameScanner.resolveStartup(
+            in: folder, engine: .kirikiri, chosenStartup: "gone.xp3"
+        )
+        XCTAssertNil(result.selected)
+        XCTAssertEqual(result.reason, .noCandidate)
+        XCTAssertEqual(result.discardedUserChoice, "gone.xp3")
     }
 
     func testChosenStartupSurvivesScansUntilItsFileIsGone() throws {

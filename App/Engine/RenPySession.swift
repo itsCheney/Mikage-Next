@@ -314,9 +314,13 @@ final class NativeRenPySession: NSObject, KRKRSession {
             elapsedSeconds += 1
         }
         var raw = MikageRenPyStats()
-        guard performanceEnabled, MikageRenPyGetStats(&raw) else {
+        let hasStats = MikageRenPyGetStats(&raw)
+        // Ren'Py fits the game into the window keeping its shape, so the
+        // stats and floating buttons can settle in the bars beside it.
+        let gameSize = hasStats ? CGSize(width: Int(raw.gameWidth), height: Int(raw.gameHeight)) : .zero
+        guard performanceEnabled, hasStats else {
             overlayCoordinator?.update(
-                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds)
+                KRKRPerformanceSnapshot(renderer: Self.rendererLabel, elapsedSeconds: elapsedSeconds, gameSize: gameSize)
             )
             return
         }
@@ -338,7 +342,8 @@ final class NativeRenPySession: NSObject, KRKRSession {
                 busiestThreads: Array(cpuSample?.groups.prefix(2) ?? []),
                 elapsedSeconds: elapsedSeconds,
                 showsLayerCompositing: false,
-                gpuMemoryBytes: metalAllocatedBytes()
+                gpuMemoryBytes: metalAllocatedBytes(),
+                gameSize: gameSize
             )
         )
     }

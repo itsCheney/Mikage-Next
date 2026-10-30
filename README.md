@@ -13,11 +13,11 @@ Mikage 不附带任何游戏内容，请使用你自己拥有的游戏。
 - 启动、回到前台和下拉刷新时会重新扫描。游戏文件夹保持原名，Mikage 自己的记录保存在 Application Support 中。
 - Ren’Py 游戏文件夹中需要有 `game` 文件夹，里面有 `.rpy` 或 `.rpyc` 脚本，或 `.rpa` 包。Mikage 内置 Ren’Py 8。每次打开 Mikage 只能运行一个 Ren’Py 游戏：要玩另一个 Ren’Py 游戏，请先在 App 切换器中关闭 Mikage 再重新打开。
 - Artemis 游戏文件夹中需要有 `root.pfs`（或其他 `.pfs` 包），或解包后带 `system.ini` 的工程目录。
-- SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件，中文系统下自动选用。部分“高压”重打包版把 g00 图片换成了 UCI（H.264）格式，把汉化图片放在同名的 `.g01` 里，语音放在 `koe/uca.dat`、`uca2.dat` 中；Mikage 都能读取，语音用游戏自带的 `ucadec.dll` 解码（在内置的 x86 解释器中运行）；改名为 `.mpg` 的 MP4 片头动画由系统的 AVFoundation 播放。
+- SiglusEngine 游戏文件夹中需要有 `Scene.pck` 或 `Gameexe.dat`。首次运行时 siglus_rs 会自动求出资源的二级密钥，写入游戏文件夹的 `key.toml`。汉化版常附带改过的启动程序（如 `SiglusEngineCHS.exe`），它读取改名后的 `Scene.chs`、`Gameexe.chs` 等文件；Mikage 会从 exe 中读出这些文件名，把它列为启动文件。名字带语言标记（`_CHS`、`中文`等）、带 Siglus 或 SiglusEngine、或含有游戏（文件夹）名的 exe 也会列为启动文件。用 Enigma Virtual Box 把汉化文件打包进 exe 的版本同样列为启动文件，从它启动时，exe 内的文件优先于游戏文件夹里的同名文件（与在 Windows 上一致），首次用到时解包到 App 的缓存中。自动选择时优先选与系统语言一致的启动文件，同语言中优先选确实读取改名文件或自带打包文件的那个；没有语言标记但读取改名文件或自带打包文件的 exe，除日语用户外都优先于原版。部分“高压”重打包版把 g00 图片换成了 UCI（H.264）格式，把汉化图片放在同名的 `.g01` 里，语音放在 `koe/uca.dat`、`uca2.dat` 中；Mikage 都能读取，语音用游戏自带的 `ucadec.dll` 解码（在内置的 x86 解释器中运行）；改名为 `.mpg` 的 MP4 片头动画由系统的 AVFoundation 播放。
 - FVP 游戏文件夹中需要有脚本 `*.hcb`（或汉化补丁脚本 `*.bch`），以及 `*.bin` 资源包。有多个脚本时优先启动补丁脚本，游戏详情页可以用“启动文件”手动指定。FVP 脚本不记录文字编码：“自动”会把补丁脚本（以及文件名含 GBK 的脚本）按 GBK 读取，其余按 Shift-JIS 读取；游戏详情页有“文本编码”选项可以手动指定。rfvp 的存档以自己的格式保存在游戏文件夹的 `savedata` 中，无法读取原版 Windows 引擎的存档。
 - ONScripter 游戏文件夹中需要有 `0.txt`、`00.txt` 或 `nscript.dat` 等脚本文件。文件夹里有 `default.ttf` 时使用它，否则使用系统字体（日文游戏用冬青黑体，中文游戏用苹方）。
 - KiriKiri 游戏可以从根目录的 `startup.tjs`、通过签名校验的 XP3，或末尾附带 XP3 的 `.exe` 启动。Mikage 会优先选择文件名标明了你的语言的那个（如中文的 `xxx_CHS.exe`、`启动游戏.xp3`，英文的 `xxx_EN.exe`）；都没有标明时，依次选 `startup.tjs`、`启动游戏.xp3`、`startup.xp3`、`start.xp3`、`boot.xp3`、带 XP3 的 `.exe`、`data.xp3`。在游戏详情页的“启动文件”里也可以手动指定。
-- 游戏有多个启动文件时（例如汉化版与原版放在一起），首次启动会询问运行哪一个。选择会保存为该游戏的启动文件，之后可以在游戏页面中更改。
+- KiriKiri、SiglusEngine 和 FVP 游戏可能有多个启动文件（例如汉化版与原版放在一起）。每次启动游戏时，Mikage 会根据系统语言和上述规则自动选定要运行的文件，不会再询问。你在游戏页面中手动选的文件始终优先，且仅在文件消失时才会失效。
 - 封面可以来自游戏文件夹里的图片、你自己选的图片，或者 Bangumi / VNDB 的封面。你手动设置的封面不会被覆盖。
 - 可按最近游玩、添加日期、名称或大小排序。文件夹不见了的游戏会标为“缺失”，可以重新关联或删除。
 

@@ -117,6 +117,25 @@ final class NativeSiglusSession: NSObject, KRKRSession {
             }
         }
 
+        // A startup executable packed with Enigma Virtual Box carries its own
+        // Scene.pck, Gameexe.dat and images, which hide the loose ones as
+        // they do on Windows. siglus_rs unpacks them once into Caches.
+        let launcher = configuration.targetKind == .archive ? configuration.entryPoint : nil
+        let packedCache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("SiglusPacked", isDirectory: true)
+            .appendingPathComponent(gameDirectory.lastPathComponent, isDirectory: true)
+            .appendingPathComponent(launcher?.deletingPathExtension().lastPathComponent ?? "", isDirectory: true)
+        let packed = gameDirectory.path.withCString { root in
+            withOptionalCString(launcher?.path) { executable in
+                packedCache.path.withCString { cache in
+                    siglus_mikage_set_launcher(root, executable, cache)
+                }
+            }
+        }
+        if packed != 0 {
+            AppDiagnostics.shared.event("bridge", "siglus.packedLauncher", ["executable": launcher?.lastPathComponent ?? ""])
+        }
+
         let controller = SiglusViewController()
         controller.loadViewIfNeeded()
         let engineWindow = UIWindow(windowScene: scene)

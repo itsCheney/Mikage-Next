@@ -18,7 +18,7 @@ add_executable(psb-file-tests PSBFileTests.cpp "${MEMORY_STREAM}"
 include("${CMAKE_CURRENT_LIST_DIR}/../TJSBytecodeHash.cmake")
 mikage_add_tjs_bytecode_hash(psb-file-tests "${CORE}")
 target_include_directories(psb-file-tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-    "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins" "${CORE}/core/archive")
+    "${CORE}/tjs2" "${CORE}/environ" "${CORE}/plugins" "${CORE}/core/archive" "${CORE}/core/main")
 target_compile_definitions(psb-file-tests PRIVATE TJS_NO_REGEXP=1 _ONLYCONSOLE=1)
 target_link_libraries(psb-file-tests PRIVATE ZLIB::ZLIB)
 if(WIN32)

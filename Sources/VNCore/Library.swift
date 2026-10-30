@@ -693,8 +693,7 @@ public struct LibraryRepository: Sendable {
         try GameScanner.containedURL(game.folderName, in: gamesRoot)
     }
 
-    /// The files `game` can start from; more than one only for KiriKiri
-    /// games with several archives or executables.
+    /// The files this game can start from.
     public func startupCandidates(for game: GameRecord) throws -> [StartupFile] {
         try GameScanner.startupCandidates(in: directory(for: game), engine: game.engine)
     }
@@ -703,17 +702,41 @@ public struct LibraryRepository: Sendable {
     /// automatically again when it is nil.
     @discardableResult
     public func chooseStartup(_ relativePath: String?, for game: GameRecord) throws -> GameRecord {
-        let candidates = try startupCandidates(for: game)
-        let chosen = try relativePath.map { path in
-            guard let match = candidates.first(where: { $0.relativePath == path }) else { throw LibraryError.noGame }
-            return match
+        let folder = try directory(for: game)
+        let resolution = try GameScanner.resolveStartup(
+            in: folder, engine: game.engine, chosenStartup: relativePath
+        )
+        // A newly requested choice must succeed exactly; only old preferences
+        // are allowed to fall back automatically.
+        if relativePath != nil && resolution.validUserChoice == nil { throw LibraryError.noGame }
+        return try update(game.id) { record in
+            record.chosenStartup = resolution.validUserChoice
+            record.launchTargetKind = resolution.selected?.kind
+            record.launchTarget = resolution.selected?.relativePath
         }
-        let launch = chosen ?? GameScanner.preferredStartup(among: candidates, languages: Locale.preferredLanguages)
-        return try mutate { records in
-            guard let index = records.firstIndex(where: { $0.id == game.id }) else { throw LibraryError.recordNotFound }
-            records[index].chosenStartup = chosen?.relativePath
-            records[index].launchTargetKind = launch?.kind
-            records[index].launchTarget = launch?.relativePath
+    }
+
+    /// Revalidates just this game's startup files and returns the exact record
+    /// the player must use. Does not scan covers or measure folder sizes.
+    public func prepareLaunch(
+        for gameID: UUID,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) throws -> GameRecord {
+        try mutate { records in
+            guard let index = records.firstIndex(where: { $0.id == gameID }) else {
+                throw LibraryError.recordNotFound
+            }
+            let game = records[index]
+            guard game.engine.isLaunchSupported else { throw LibraryError.noGame }
+            let resolution = try GameScanner.resolveStartup(
+                in: directory(for: game), engine: game.engine,
+                chosenStartup: game.chosenStartup, preferredLanguages: preferredLanguages
+            )
+            guard let selected = resolution.selected else { throw LibraryError.noGame }
+            records[index].chosenStartup = resolution.validUserChoice
+            records[index].launchTargetKind = selected.kind
+            records[index].launchTarget = selected.relativePath
+            records[index].availability = .ready
             return records[index]
         }
     }
@@ -980,7 +1003,43 @@ public enum LibraryError: LocalizedError, Equatable {
     }
 }
 
+public struct StartupResolution {
+    public enum Reason: String {
+        case userSelected, automatic, noCandidate
+    }
+    public let selected: StartupFile?
+    public let validUserChoice: String?
+    public let reason: Reason
+    public let discardedUserChoice: String?
+}
+
 public enum GameScanner {
+    /// Resolves an existing preference without persisting it. Read failures
+    /// propagate so temporary access problems never erase a user's choice.
+    public static func resolveStartup(
+        in directory: URL,
+        engine: EngineID,
+        chosenStartup: String? = nil,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) throws -> StartupResolution {
+        let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true else { throw LibraryError.noGame }
+        guard values.isSymbolicLink != true else { throw LibraryError.symbolicLink }
+        let candidates = try startupCandidates(in: directory, engine: engine)
+        if let chosenStartup,
+           let selected = candidates.first(where: { $0.relativePath == chosenStartup }) {
+            return StartupResolution(selected: selected, validUserChoice: chosenStartup,
+                                     reason: .userSelected, discardedUserChoice: nil)
+        }
+        let selected = preferredStartup(
+            among: candidates, languages: preferredLanguages,
+            translating: translatingStartups(among: candidates, in: directory, engine: engine)
+        )
+        return StartupResolution(selected: selected, validUserChoice: nil,
+                                 reason: selected == nil ? .noCandidate : .automatic,
+                                 discardedUserChoice: chosenStartup)
+    }
+
     private static let xp3Signature = Data([0x58, 0x50, 0x33, 0x0D, 0x0A, 0x20, 0x0A, 0x1A, 0x8B, 0x67, 0x01])
     private static let preferredXP3Names = ["启动游戏.xp3", "startup.xp3", "start.xp3", "boot.xp3"]
     /// Script files ONScripter Yuri opens, plain or obfuscated.
@@ -1004,9 +1063,11 @@ public enum GameScanner {
         guard values.isDirectory == true else { throw LibraryError.noGame }
         guard values.isSymbolicLink != true else { throw LibraryError.symbolicLink }
 
-        let candidates = try startupCandidates(in: directory, engine: engine)
-        let chosen = candidates.first { $0.relativePath == chosenStartup }
-        let launch = chosen ?? preferredStartup(among: candidates, languages: preferredLanguages)
+        let resolution = try resolveStartup(
+            in: directory, engine: engine, chosenStartup: chosenStartup,
+            preferredLanguages: preferredLanguages
+        )
+        let launch = resolution.selected
         let availability: GameAvailability
         if !engine.isLaunchSupported {
             availability = .unsupported
@@ -1035,7 +1096,7 @@ public enum GameScanner {
             folderName: directory.lastPathComponent,
             launchTargetKind: launch?.kind,
             launchTarget: launch?.relativePath,
-            chosenStartup: chosen?.relativePath,
+            chosenStartup: resolution.validUserChoice,
             byteCount: try reusableSize ?? byteCount(in: directory),
             detectedCoverPath: try detectedCover(in: directory),
             availability: availability
@@ -1047,13 +1108,12 @@ public enum GameScanner {
         engine: EngineID,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) throws -> StartupFile? {
-        preferredStartup(among: try startupCandidates(in: directory, engine: engine), languages: preferredLanguages)
+        try resolveStartup(in: directory, engine: engine,
+                           preferredLanguages: preferredLanguages).selected
     }
 
     /// Every file the engine can start this folder from, in the order used
-    /// when no language decides. Only KiriKiri games can have more than one:
-    /// startup.tjs (the folder itself), XP3 archives, and Windows executables
-    /// with an XP3 archive appended.
+    /// when no language decides. KiriKiri, Siglus and FVP may have several.
     public static func startupCandidates(in directory: URL, engine: EngineID) throws -> [StartupFile] {
         switch engine {
         case .onscripter:
@@ -1070,15 +1130,23 @@ public enum GameScanner {
             return try isRenPyGame(in: directory) ? [StartupFile(.directory, ".")] : []
         case .siglus:
             // siglus_rs finds Scene.pck and Gameexe.dat in the game folder.
-            // Patched executables of translated releases load renamed copies;
-            // each one present, or named for a language (xxx中文.exe,
-            // xxx_CHS.exe), becomes a startup file of its own.
+            // Patched executables of translated releases load renamed copies.
+            // Every executable that may be the game's own becomes a startup
+            // file: one that loads renamed copies, one named for a language
+            // (xxx中文.exe, xxx_CHS.exe), one named Siglus or SiglusEngine,
+            // one carrying the game's (folder's) name in any language, and
+            // one packing files with Enigma Virtual Box.
             guard try isSiglusGame(in: directory) else { return [] }
+            let gameName = nameKey(directory.lastPathComponent)
             let executables = try rootFiles(in: directory)
                 .filter { normalized($0.pathExtension) == "exe" }
                 .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
                 .filter {
-                    !StartupLanguage.tags(in: $0.lastPathComponent).isEmpty
+                    let name = $0.lastPathComponent
+                    return !StartupLanguage.tags(in: name).isEmpty
+                        || nameKey(name).contains("siglus")
+                        || carriesGameName(name, gameName: gameName)
+                        || isEnigmaPacked($0)
                         || siglusResourceNames(of: $0, in: directory) != SiglusResourceNames()
                 }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
@@ -1121,18 +1189,33 @@ public enum GameScanner {
     /// The candidate whose name is tagged with the player's language
     /// (xxx_CHS.exe, 启动游戏.xp3, xxx_EN.exe...), else the first untagged
     /// one, else the first one. Languages earlier in `languages` win.
-    public static func preferredStartup(among candidates: [StartupFile], languages: [String]) -> StartupFile? {
+    ///
+    /// `translating` names the candidates known to load a translation (a
+    /// Siglus executable that loads renamed copies). Among files tagged with
+    /// the same language they win, and an untagged one beats the untagged
+    /// original unless the player reads Japanese first.
+    public static func preferredStartup(
+        among candidates: [StartupFile],
+        languages: [String],
+        translating: Set<String> = []
+    ) -> StartupFile? {
         let wanted = languages.compactMap(StartupLanguage.init(languageTag:))
         func score(_ candidate: StartupFile) -> Int {
             let tags = StartupLanguage.tags(in: candidate.relativePath)
-            guard !tags.isEmpty else { return 0 }
+            let translates = translating.contains(candidate.relativePath)
+            guard !tags.isEmpty else {
+                return translates && wanted.first != .japanese ? 1 : 0
+            }
+            // Language scores step by 4, so a translation's bonus never
+            // outranks a better-placed language.
+            let bonus = translates ? 2 : 0
             for (rank, language) in wanted.enumerated() where tags.contains(language) {
-                return 100 - rank * 2
+                return 200 - rank * 4 + bonus
             }
             // Simplified and Traditional Chinese readers take either over
             // another language.
             for (rank, language) in wanted.enumerated() where language.isChinese && tags.contains(where: \.isChinese) {
-                return 99 - rank * 2
+                return 199 - rank * 4 + bonus
             }
             return -1
         }
@@ -1149,15 +1232,78 @@ public enum GameScanner {
         return best
     }
 
+    /// The startup files among `candidates` that load a translation: Siglus
+    /// executables that load renamed copies of Scene.pck or Gameexe.dat, or
+    /// pack their own with Enigma Virtual Box.
+    public static func translatingStartups(among candidates: [StartupFile], in directory: URL, engine: EngineID) -> Set<String> {
+        guard engine == .siglus else { return [] }
+        return Set(candidates.filter {
+            guard $0.kind == .archive else { return false }
+            let executable = directory.appendingPathComponent($0.relativePath)
+            return isEnigmaPacked(executable)
+                || siglusResourceNames(of: executable, in: directory) != SiglusResourceNames()
+        }.map(\.relativePath))
+    }
+
+    /// Whether a Windows executable carries files packed with Enigma Virtual
+    /// Box (a ".enigma1" section), which hide the game folder's own files
+    /// when it runs.
+    public static func isEnigmaPacked(_ executable: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: executable) else { return false }
+        defer { try? handle.close() }
+        guard let headers = try? handle.read(upToCount: 0x1000), headers.count >= 0x40,
+              headers.starts(with: [0x4D, 0x5A]) else { return false }
+        func u16(_ at: Int) -> Int? {
+            at + 2 <= headers.count ? Int(headers[at]) | Int(headers[at + 1]) << 8 : nil
+        }
+        func u32(_ at: Int) -> Int? {
+            guard let low = u16(at), let high = u16(at + 2) else { return nil }
+            return low | high << 16
+        }
+        guard let pe = u32(0x3C), pe + 24 <= headers.count,
+              headers[pe..<pe + 4].elementsEqual([0x50, 0x45, 0, 0]),
+              let sections = u16(pe + 6), let optional = u16(pe + 20) else { return false }
+        let table = pe + 24 + optional
+        let name = Array(".enigma1".utf8)
+        for index in 0..<sections {
+            let at = table + index * 40
+            guard at + 40 <= headers.count else { return false }
+            if headers[at..<at + 8].elementsEqual(name) { return true }
+        }
+        return false
+    }
+
+    /// A file or folder name reduced to its lowercased letters and digits, in
+    /// any script, for comparing game names.
+    static func nameKey(_ name: String) -> String {
+        let stem = name.lowercased().hasSuffix(".exe") ? String(name.dropLast(4)) : name
+        return String(normalized(stem).unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(Character.init))
+    }
+
+    /// Whether an executable's name and the game's name contain one another,
+    /// as in Rewrite.exe or RewriteHF.exe for a folder named Rewrite. Names of
+    /// fewer than three Latin letters, or two other letters, are too short to
+    /// tell anything.
+    static func carriesGameName(_ fileName: String, gameName: String) -> Bool {
+        let exeName = nameKey(fileName)
+        func long(_ key: String) -> Bool {
+            key.count >= (key.unicodeScalars.allSatisfy(\.isASCII) ? 3 : 2)
+        }
+        guard long(exeName), long(gameName) else { return false }
+        return exeName.contains(gameName) || gameName.contains(exeName)
+    }
+
     /// The renamed Scene.pck and Gameexe.dat a SiglusEngine executable loads,
     /// read from the file names stored in it (UTF-16 or ASCII), as patched
     /// executables of translated releases rename them (Scene.chs and the
     /// like). Only names present in `directory` count; the original names
-    /// give nil. When nothing readable names them (a packed executable), an
-    /// executable named for a language takes the folder's only renamed copy.
+    /// give nil. When nothing readable names them (a protected executable),
+    /// an executable named for a language takes the folder's only renamed
+    /// copy, unless it packs its own files with Enigma Virtual Box.
     public static func siglusResourceNames(of executable: URL, in directory: URL) -> SiglusResourceNames {
         let found = siglusResourceNamesStored(in: executable, directory: directory)
-        guard found == SiglusResourceNames(), !StartupLanguage.tags(in: executable.lastPathComponent).isEmpty else {
+        guard found == SiglusResourceNames(), !StartupLanguage.tags(in: executable.lastPathComponent).isEmpty,
+              !isEnigmaPacked(executable) else {
             return found
         }
         let files = ((try? rootFiles(in: directory)) ?? []).map(\.lastPathComponent)

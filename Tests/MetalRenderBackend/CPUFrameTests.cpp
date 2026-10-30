@@ -21,7 +21,7 @@ void CPUFrameTests() {
     clockNS=[](){return timeNS;};
     rawLine=[](const char* s){lines.emplace_back(s);};
     captureStack=[](char* out,size_t bytes,unsigned frames){
-        check(bytes==513 && frames==4);
+        check(bytes==513 && frames==stackFrames);
         std::snprintf(out,bytes,"scene.ks:7[call%llu]",(unsigned long long)callID);return true;
     };
     SetEnabled(true,1,10);lines.clear();
@@ -59,6 +59,20 @@ void CPUFrameTests() {
     check(number(find("cpu.summary"),"emitted")==4 && number(find("cpu.summary"),"frameDropped")==6);
     check(number(find("kind=vm wallNS=170000000"),"role")==1);
     check(number(find("kind=psb.destroy wallNS=30000000"),"role")==2);
+
+    // The child slot keeps the innermost call that holds at least half of
+    // each enclosing call: its stack names the real work, not the handler.
+    SetEnabled(true,21,210);lines.clear();
+    {
+        StepScope step;CallScope outer;
+        {CallScope handler;{CallScope work;{CallScope small;timeNS+=20000000;}timeNS+=60000000;}timeNS+=20000000;}
+    }
+    TakeWindow(210,211);
+    check(number(find("kind=vm wallNS=80000000"),"role")==3);
+    check(std::none_of(lines.begin(),lines.end(),[](const auto& line){
+        return line.find("kind=vm wallNS=100000000")!=std::string::npos && number(line,"role")==3;}));
+    check(std::none_of(lines.begin(),lines.end(),[](const auto& line){
+        return line.find("kind=vm wallNS=20000000")!=std::string::npos;}));
 
     // Window selection favors a late 900ms step over an early 100ms step.
     SetEnabled(true,3,30);lines.clear();
