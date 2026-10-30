@@ -105,11 +105,17 @@ struct RoundButton: View {
     }
 }
 
+/// A game's card art, or a cover drawn from its folder name when it has
+/// none (no link, no image in the folder, none picked).
 struct GameCover: View {
     @EnvironmentObject private var model: AppModel
     let game: GameRecord
 
     var body: some View {
-        ArtworkImage(url: model.coverURL(game))
+        if let url = model.coverURL(game) {
+            ArtworkImage(url: url)
+        } else {
+            GeneratedCover(game: game)
+        }
     }
 }

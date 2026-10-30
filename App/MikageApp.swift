@@ -61,6 +61,8 @@ final class AppModel: ObservableObject {
     @Published var toast: LibraryToast?
     /// Game folders a rescan found, offered for import.
     @Published var newGamesToast: NewGamesToast?
+    /// The new games being reviewed one by one before they are added.
+    @Published var importReview: ImportReview?
     /// A just-imported game waiting for its Bangumi/VNDB match.
     @Published var matchRequest: GameRecord?
     /// A game marked finished from the in-game menu, waiting for its rating.

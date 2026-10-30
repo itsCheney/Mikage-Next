@@ -31,6 +31,9 @@ struct RootView: View {
             .sheet(item: $model.matchRequest) { game in
                 MatchView(game: game).environmentObject(model)
             }
+            .sheet(item: $model.importReview) { review in
+                ImportReviewView(review: review).environmentObject(model)
+            }
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
                     if let toast = model.newGamesToast {
@@ -103,6 +106,18 @@ struct LibraryView: View {
     /// launch target stay here, disabled, with the reason under the title.
     private var playableGames: [GameRecord] {
         model.sortedGames.filter { $0.availability != .unsupported }
+    }
+
+    /// Games added in the last week and not played yet, newest first. They
+    /// stay above the rest until they're played or a week has passed. When
+    /// every game is new, as on a first scan, there is nothing to set apart.
+    private var recentlyAdded: [GameRecord] {
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        let playable = playableGames
+        let recent = playable
+            .filter { $0.addedAt > cutoff && $0.launchCount == 0 && $0.availability.canLaunch }
+            .sorted { $0.addedAt > $1.addedAt }
+        return recent.count < playable.count ? recent : []
     }
 
     /// Recognised engines whose runtime has not landed yet.
@@ -306,8 +321,24 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var sections: some View {
-        let playable = playableGames
+        let recent = recentlyAdded
+        let recentIDs = Set(recent.map(\.id))
+        let playable = playableGames.filter { !recentIDs.contains($0.id) }
         let comingSoon = comingSoonGames
+
+        if !recent.isEmpty {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recently Added")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Text("\(recent.count) games")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            GameGrid(games: recent)
+                .padding(.bottom, 12)
+        }
 
         if !playable.isEmpty {
             HStack(alignment: .firstTextBaseline) {
@@ -661,6 +692,7 @@ struct GameGrid: View {
     @State private var artGame: GameRecord?
     @State private var showCoverPicker = false
     @State private var coverPhoto: PhotosPickerItem?
+    @State private var deleteRequest: GameRecord?
     let games: [GameRecord]
 
     private var columns: [GridItem] {
@@ -701,6 +733,25 @@ struct GameGrid: View {
         }
         .sheet(item: $artGame) {
             ArtworkChoiceView(game: $0).environmentObject(model)
+        }
+        .confirmationDialog(
+            Text("Delete “\(deleteRequest.map { model.displayTitle($0) } ?? "")”?"),
+            isPresented: Binding(
+                get: { deleteRequest != nil },
+                set: { if !$0 { deleteRequest = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deleteRequest
+        ) { game in
+            Button("Delete Game, Keep Saves", role: .destructive) {
+                Task { await model.offload(game) }
+            }
+            Button("Delete Game and Saves", role: .destructive) {
+                Task { await model.deleteGame(game) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { game in
+            Text("The game folder (\(AppModel.librarySize(game.byteCount))) is removed from this device. Kept saves come back if you add the game again. Your Bangumi and VNDB lists don’t change.")
         }
         .photosPicker(isPresented: $showCoverPicker, selection: $coverPhoto, matching: .images)
         .onChange(of: coverPhoto) { item in
@@ -765,6 +816,10 @@ struct GameGrid: View {
                 game.link == nil ? LocalizedStringKey("Find on Bangumi & VNDB") : LocalizedStringKey("Match Again"),
                 systemImage: "link"
             )
+        }
+        Divider()
+        Button(role: .destructive) { deleteRequest = game } label: {
+            Label("Delete Game", systemImage: "trash")
         }
     }
 }

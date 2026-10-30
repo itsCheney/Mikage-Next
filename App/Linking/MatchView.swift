@@ -111,62 +111,8 @@ struct MatchView: View {
     }
 
     private func row(_ candidate: MatchCandidate, best: Bool) -> some View {
-        let selected = selection == candidate.id
-        return Button {
+        MatchCandidateRow(candidate: candidate, best: best, selected: selection == candidate.id) {
             selection = candidate.id
-        } label: {
-            HStack(spacing: 14) {
-                RemoteThumbnail(
-                    url: candidate.thumbnailURL,
-                    blurred: candidate.thumbnailIsSensitive && model.settings.hideSensitiveImages
-                )
-                .frame(width: 54, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(candidate.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    let subtitle = [candidate.originalTitle, candidate.year].compactMap { $0 }.joined(separator: " · ")
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    HStack(spacing: 6) {
-                        if best {
-                            Text("Best Match")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tint)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.14), in: Capsule())
-                        }
-                        Text(sources(candidate))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 4)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundStyle(selected ? Color.accentColor : Color(uiColor: .tertiaryLabel))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-
-    private func sources(_ candidate: MatchCandidate) -> String {
-        switch (candidate.vndb != nil, candidate.bangumi != nil) {
-        case (true, true): return "VNDB · Bangumi"
-        case (true, false): return String(localized: "VNDB only")
-        default: return String(localized: "Bangumi only")
         }
     }
 
@@ -263,6 +209,96 @@ struct MatchView: View {
             }
         } catch {
             model.alert = error.localizedDescription
+        }
+    }
+}
+
+/// One Bangumi/VNDB search result: thumbnail, titles, studio and sources,
+/// with a check when chosen. Shared by the match sheet and import review.
+struct MatchCandidateRow: View {
+    @EnvironmentObject private var model: AppModel
+    let candidate: MatchCandidate
+    let best: Bool
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                RemoteThumbnail(
+                    url: candidate.thumbnailURL,
+                    blurred: candidate.thumbnailIsSensitive && model.settings.hideSensitiveImages
+                )
+                .frame(width: 54, height: 76)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(candidate.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    let subtitle = [candidate.originalTitle, candidate.year].compactMap { $0 }.joined(separator: " · ")
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let studio = candidate.studio {
+                        Label {
+                            Text(studio)
+                        } icon: {
+                            Image(systemName: "building.2")
+                                .foregroundStyle(.secondary)
+                        }
+                        .labelStyle(StudioLabelStyle())
+                        .font(.footnote)
+                        .foregroundStyle(.primary.opacity(0.8))
+                        .lineLimit(1)
+                        .accessibilityLabel(Text("Studio: \(studio)"))
+                    }
+                    HStack(spacing: 6) {
+                        if best {
+                            Text("Best Match")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tint)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.14), in: Capsule())
+                        }
+                        Text(sources)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 4)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(selected ? Color.accentColor : Color(uiColor: .tertiaryLabel))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private var sources: String {
+        switch (candidate.vndb != nil, candidate.bangumi != nil) {
+        case (true, true): return "VNDB · Bangumi"
+        case (true, false): return String(localized: "VNDB only")
+        default: return String(localized: "Bangumi only")
+        }
+    }
+}
+
+/// Icon and title tight together, like a caption.
+private struct StudioLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon.imageScale(.small)
+            configuration.title
         }
     }
 }
