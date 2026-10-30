@@ -10,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <unordered_set>
 #include <utility>
 
 using namespace TJS;
@@ -352,6 +353,10 @@ void releasedFilesArePooled()
     require(again->_metadata->variable == 0 && loaderTreesCreated == trees, "pooled file not reset or tree rebuilt");
     require(marker(*again) == "mark-A", "pooled file lost its data");
     emoteplayer::ReleaseEmoteFile(again);
+    // Writing a save file or another archive keeps the pool and the cache.
+    emoteplayer::InvalidateSharedEmoteResource("savedata/system.ksd");
+    emoteplayer::InvalidateSharedEmoteResource("unused-patch.xp3");
+    require(emoteplayer::PooledEmoteFileCount() == 1, "an unrelated write flushed the pool");
     emoteplayer::ClearSharedEmoteResourceCache();
     require(emoteplayer::PooledEmoteFileCount() == 0 && loaderLiveTrees == 0, "cache clear kept pooled files");
 

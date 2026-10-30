@@ -13,13 +13,14 @@ ctest --test-dir build/psb-file-tests --output-on-failure
 
 Tests compare diagnostic on/off content, stream calls and ownership, script
 finalizer order, plain/MDF parsing and null/open/read/short/decode/version failure
-paths. Native owner deletion must include the root tree's member destruction;
-a marker advances the test clock while being deleted to prove the scope covers
-that work. This is a mechanism test, not a device performance measurement.
+paths. Native owner deletion must not free the root tree: its containers are
+released over later frames, and the test runs those frames itself (the frame
+loop is the only event double). A marker advances the test clock when it is
+deleted, so the destroy scope staying under that cost proves the tree left it.
 
 A separate retained-root test keeps the root alive after deleting its PSB owner.
-Its final external release destroys the tree outside psb.destroy; a small PSB
-destroy metric therefore cannot exclude general script/container release cost.
+Its final external release destroys the tree outside psb.destroy, after the
+deferred release has dropped the PSBFile's own references.
 
 Production VM register blocks retain temporary variants until compaction. The
 fixture explicitly compacts after clearing script references, so the last owner

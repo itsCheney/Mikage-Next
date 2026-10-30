@@ -48,9 +48,6 @@ final class AppModel: ObservableObject {
     @Published var player: GameRecord?
     /// The ONScripter save slot the next launch starts from, if any.
     var pendingLoadSlot: Int?
-    /// A game with several startup files and none picked yet, waiting for
-    /// the player to pick the one it starts from.
-    @Published var startupRequest: StartupRequest?
     @Published var pendingImport: PendingGameImport?
 
     // MARK: Bangumi and VNDB
@@ -278,32 +275,19 @@ final class AppModel: ObservableObject {
     /// ONScripter games start from a save).
     func launch(_ game: GameRecord, fromSaveSlot slot: Int? = nil) {
         AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName, "slot": slot.map(String.init) ?? ""])
-        guard game.engine.isLaunchSupported, game.availability.canLaunch else {
-            alert = availabilityText(game)
-            return
-        }
-        // The first launch of a game with several startup files (a
-        // translated release beside the original) asks which one to run;
-        // the answer is kept like a pick on the game's page.
-        if game.chosenStartup == nil {
-            let choices = startupChoices(game)
-            if choices.count > 1 {
-                startupRequest = StartupRequest(game: game, choices: choices, slot: slot)
-                return
+        do {
+            let prepared = try repository.prepareLaunch(for: game.id)
+            if let index = games.firstIndex(where: { $0.id == prepared.id }) {
+                games[index] = prepared
             }
-        }
-        pendingLoadSlot = slot
-        player = game
-    }
-
-    /// Keeps `file` as the startup file of the asked game and plays it.
-    func launch(_ request: StartupRequest, from file: StartupFile) {
-        chooseStartup(file.relativePath, for: request.game)
-        guard let game = games.first(where: { $0.id == request.game.id }),
-              game.chosenStartup == file.relativePath else { return }
-        // The player covers the whole app; present it once the dialog is gone.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            self.launch(game, fromSaveSlot: request.slot)
+            AppDiagnostics.shared.event("library", "startup.resolved", [
+                "target": prepared.launchTarget ?? "",
+                "reason": prepared.chosenStartup == nil ? "automatic" : "userSelected"
+            ])
+            pendingLoadSlot = slot
+            player = prepared
+        } catch {
+            alert = error.localizedDescription
         }
     }
 
@@ -602,14 +586,4 @@ final class AppModel: ObservableObject {
         games = snapshot.active
         missingGames = snapshot.missing
     }
-}
-
-/// The startup files offered when `game` first launches; `slot` is the save
-/// the launch was asked to start from.
-struct StartupRequest: Identifiable {
-    let game: GameRecord
-    let choices: [StartupFile]
-    let slot: Int?
-
-    var id: UUID { game.id }
 }

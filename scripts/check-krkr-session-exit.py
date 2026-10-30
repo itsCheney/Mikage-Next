@@ -38,6 +38,8 @@ bool systemAlive, pluginsAlive, vmAlive, backendAlive, emoteCacheRetained;
 bool throwInCompact, throwSilentInUninit, TVPSystemUninitCalled;
 int exitLogs;
 bool graphicCacheRetained, emoteSessionRetained;
+bool psbDeferring=true;
+void TVPSetPSBDeferredRelease(bool enabled) { psbDeferring=enabled; }
 int saves, stoppedLoaders, nullHolders, cacheAdds, emoteCacheClears, emoteCacheTrims;
 const int TVP_COMPACT_LEVEL_MINIMIZE=15;
 const int TVP_COMPACT_LEVEL_MAX=100;
@@ -80,7 +82,8 @@ void TVPUnloadPlugins() { pluginsAlive=false; }
 void TVPResetEventState() {}
 void TVPResetGraphicSessionState() { graphicCacheRetained=false; }
 void TVPUninitScriptEngine() {
-    assert(!emoteSessionRetained);
+    // Released PSB trees must be freed while the VM is alive, not queued.
+    assert(!emoteSessionRetained && !psbDeferring);
     vmAlive=false; emoteCacheRetained=true; graphicCacheRetained=true;
 }
 void TVPClearAllAutoPath() {} void TVPClearAllWindows() {}
@@ -134,7 +137,7 @@ int main() {
         tTVPApplication application;application.image_load_thread_=new Loader;
         application.OnExit();assert(!vmAlive && !systemAlive && !pluginsAlive);
         assert(application.image_load_thread_==nullptr && backendAlive && !emoteCacheRetained &&
-               !graphicCacheRetained && !emoteSessionRetained);
+               !graphicCacheRetained && !emoteSessionRetained && psbDeferring);
     }
     assert(saves==50 && stoppedLoaders==50);
     assert(emoteCacheClears==100);
