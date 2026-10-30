@@ -108,7 +108,10 @@ struct AccountsSettingsView: View {
         } message: {
             Text("Games you clear the status of will stay in your Bangumi collection until you sign in again.")
         }
-        .task { await model.refreshBangumiWebSession() }
+        .task {
+            await model.refreshBangumiWebSession()
+            await model.refreshAccountAvatar()
+        }
         .confirmationDialog(
             "Disconnect this account?",
             isPresented: Binding(
@@ -139,7 +142,7 @@ struct AccountsSettingsView: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    badge(service, connected: true)
+                    ServiceAccountIcon(service: service, account: account)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(service.displayName)
                             .font(.body.weight(.semibold))
@@ -169,7 +172,7 @@ struct AccountsSettingsView: View {
             }
         } else {
             HStack(spacing: 12) {
-                badge(service, connected: false)
+                ServiceAccountIcon(service: service, account: nil)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(service.displayName)
                         .font(.body.weight(.semibold))
@@ -226,18 +229,6 @@ struct AccountsSettingsView: View {
             }
         }
         .padding(.vertical, 6)
-    }
-
-    private func badge(_ service: MetadataService, connected: Bool) -> some View {
-        Text(verbatim: service == .bangumi ? "B" : "V")
-            .font(.headline)
-            .frame(width: 40, height: 40)
-            .foregroundStyle(connected ? Color.accentColor : Color.secondary)
-            .background(
-                (connected ? Color.accentColor.opacity(0.16) : Color(uiColor: .tertiarySystemFill)),
-                in: Circle()
-            )
-            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -346,6 +337,76 @@ struct TokenEntryView: View {
             dismiss()
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// A service's icon, or once signed in, the account's picture with the
+/// service's icon as a badge in its corner.
+struct ServiceAccountIcon: View {
+    let service: MetadataService
+    let account: ServiceAccount?
+    var size: CGFloat = 40
+
+    var body: some View {
+        Group {
+            if let account {
+                avatar(account)
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+                    .overlay(alignment: .bottomTrailing) {
+                        Self.serviceImage(service)
+                            .frame(width: size * 0.45, height: size * 0.45)
+                            .clipShape(RoundedRectangle(cornerRadius: size * 0.12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: size * 0.12, style: .continuous)
+                                    .strokeBorder(Color(uiColor: .systemBackground), lineWidth: 2)
+                            )
+                            .offset(x: size * 0.08, y: size * 0.08)
+                    }
+            } else {
+                Self.serviceImage(service)
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                    )
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func avatar(_ account: ServiceAccount) -> some View {
+        let initial = Text(verbatim: account.username.first.map { String($0).uppercased() } ?? "?")
+            .font(.system(size: size * 0.42, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(LinearGradient(
+                colors: [Color.accentColor.opacity(0.7), Color.accentColor],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
+        if let url = account.avatarURL.flatMap(URL.init(string:)) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                initial
+            }
+        } else {
+            initial
+        }
+    }
+
+    /// The services' own icons. VNDB only publishes a 16 px favicon, so
+    /// it is scaled without smoothing to keep its pixels crisp.
+    static func serviceImage(_ service: MetadataService) -> some View {
+        switch service {
+        case .bangumi:
+            return Image("BangumiIcon").resizable().interpolation(.high)
+        case .vndb:
+            return Image("VNDBIcon").resizable().interpolation(.none)
         }
     }
 }

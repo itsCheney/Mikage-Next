@@ -249,15 +249,17 @@ public struct BangumiClient: Sendable {
 
     public func account() async throws -> ServiceAccount {
         struct Me: Decodable {
+            struct Avatar: Decodable { var large: String?; var medium: String? }
             var username: String
             var nickname: String?
+            var avatar: Avatar?
         }
         let request = try http.request(
             Self.baseURL.appendingPathComponent("v0/me"),
             authorization: authorization
         )
         let me = try http.decode(Me.self, from: try await http.send(request))
-        return ServiceAccount(service: .bangumi, username: me.username)
+        return ServiceAccount(service: .bangumi, username: me.username, avatarURL: me.avatar?.large ?? me.avatar?.medium)
     }
 
     /// The user's existing collection entry, or nil when it isn't collected.

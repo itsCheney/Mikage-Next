@@ -101,11 +101,14 @@ public struct ServiceAccount: Codable, Equatable, Sendable {
     public var username: String
     /// VNDB's user id, such as "u2"; list queries need it.
     public var userID: String?
+    /// The profile picture, where the service has one (Bangumi).
+    public var avatarURL: String?
 
-    public init(service: MetadataService, username: String, userID: String? = nil) {
+    public init(service: MetadataService, username: String, userID: String? = nil, avatarURL: String? = nil) {
         self.service = service
         self.username = username
         self.userID = userID
+        self.avatarURL = avatarURL
     }
 }
 

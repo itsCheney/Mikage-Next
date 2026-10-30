@@ -106,6 +106,15 @@ extension AppModel {
         Task { await syncPending() }
     }
 
+    /// Fills in the Bangumi profile picture for an account saved before
+    /// Mikage kept one. Failing quietly leaves the initial in its place.
+    func refreshAccountAvatar() async {
+        guard let account = accounts[.bangumi], account.avatarURL == nil,
+              let fresh = try? await bangumiClient().account(), fresh.username == account.username else { return }
+        accounts[.bangumi]?.avatarURL = fresh.avatarURL
+        saveAccounts()
+    }
+
     func disconnect(_ service: MetadataService) {
         AppDiagnostics.shared.event("accounts", "disconnect", ["service": service.rawValue])
         tokens.removeToken(for: service)
