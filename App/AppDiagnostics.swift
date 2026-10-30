@@ -8,6 +8,7 @@ import RenPyRuntime
 import SiglusRuntime
 import RFVPRuntime
 import EthornellRuntime
+import YurisRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -43,6 +44,7 @@ final class AppDiagnostics: @unchecked Sendable {
         siglus_mikage_set_log_callback(nil, nil, 0)
         rfvp_mikage_set_log_callback(nil, nil, 0)
         ethornell_mikage_set_log_callback(nil, nil)
+        yuris_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -58,6 +60,9 @@ final class AppDiagnostics: @unchecked Sendable {
             rfvp_mikage_set_log_callback(mikageRFVPDiagnosticLogCallback, nil, 2)
             // And for ethornell-rs (BGI): its warnings, errors and panics.
             ethornell_mikage_set_log_callback(mikageBGIDiagnosticLogCallback, nil)
+            // INFO includes startup layout evidence and system-variable mapping
+            // decisions; install before opening the player so failures retain them.
+            yuris_set_log_callback(mikageYurisDiagnosticLogCallback, nil, 3)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -244,4 +249,12 @@ private func mikageBGIDiagnosticLogCallback(
     guard let message else { return }
     let target = target.map { String(cString: $0) } ?? ""
     AppDiagnostics.shared.runtime(source: "BGI." + target, level: level, message: String(cString: message))
+}
+
+private func mikageYurisDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "YURIS." + target, level: level, message: String(cString: message))
 }

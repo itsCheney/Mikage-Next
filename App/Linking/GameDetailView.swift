@@ -566,7 +566,7 @@ struct GameDetailView: View {
             if startupChoices.count > 1 {
                 DetailRow(label: "Startup file") { startupMenu }
             }
-            if current.engine == .fvp || current.engine == .bgi {
+            if current.engine == .fvp || current.engine == .bgi || current.engine == .yuris {
                 DetailRow(label: "Text encoding") { encodingMenu }
             }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))
@@ -608,9 +608,10 @@ struct GameDetailView: View {
         }
     }
 
-    /// FVP scripts don't say how their text is encoded: Automatic reads
-    /// translation patches (.bch) as GBK and original scripts as Shift-JIS.
-    /// BGI games read GBK when the folder is named as a Chinese release.
+    /// FVP, BGI and YU-RIS scripts don't say how their text is encoded:
+    /// Automatic reads FVP translation patches (.bch) as GBK and original
+    /// scripts as Shift-JIS; BGI games read GBK when the folder is named as a
+    /// Chinese release; the YU-RIS runtime tells from the text.
     private var encodingMenu: some View {
         Menu {
             Picker("Text encoding", selection: Binding(
@@ -624,10 +625,14 @@ struct GameDetailView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                if current.textEncoding == nil {
-                    Text("Automatic (\(model.textEncoding(for: current).displayName))")
+                if let encoding = model.textEncoding(for: current) {
+                    if current.textEncoding == nil {
+                        Text("Automatic (\(encoding.displayName))")
+                    } else {
+                        Text(verbatim: encoding.displayName)
+                    }
                 } else {
-                    Text(verbatim: model.textEncoding(for: current).displayName)
+                    Text("Automatic")
                 }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.footnote)

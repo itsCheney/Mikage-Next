@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, master, beta, dev, runtime-dev, metal_dev, codex/emote-perf]
+    branches: [main, master, beta, dev, runtime-dev, yuris, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -55,6 +55,9 @@ jobs:
       - name: Record BGI runtime revision
         id: ethornell-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/EthornellRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record YU-RIS runtime revision
+        id: yuris-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/YurisRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -539,6 +542,45 @@ jobs:
         with:
           path: build/EthornellRuntime.xcframework
           key: ${{ steps.cache-ethornell-runtime.outputs.cache-primary-key }}
+      # YU-RIS: the MikageYURIS runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore YU-RIS runtime framework
+        id: cache-yuris-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/YurisRuntime.xcframework
+          key: yuris-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-yuris-ios.sh') }}-${{ steps.yuris-revision.outputs.rev }}
+      - name: Install Rust for YU-RIS
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache YU-RIS Rust builds
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/yuris/target
+          key: yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/YurisRuntime/Source/Cargo.lock') }}-${{ steps.yuris-revision.outputs.rev }}
+          restore-keys: |
+            yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/YurisRuntime/Source/Cargo.lock') }}-
+            yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build YU-RIS runtime framework
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-yuris-ios.sh 2>&1 | tee build/yuris-runtime-build.log
+      - name: Save YU-RIS runtime framework
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/YurisRuntime.xcframework
+          key: ${{ steps.cache-yuris-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

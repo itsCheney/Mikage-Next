@@ -30,3 +30,7 @@
 	path = Engine/EthornellRuntime/Source
 	url = https://github.com/itsCheney/ethornell-rs.git
 	branch = mikage
+[submodule "Engine/YurisRuntime/Source"]
+	path = Engine/YurisRuntime/Source
+	url = https://github.com/itsCheney/MikageYURIS.git
+	branch = mikage

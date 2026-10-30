@@ -131,7 +131,8 @@ final class AppModel: ObservableObject {
             .renpy: NativeRenPySession(),
             .siglus: NativeSiglusSession(),
             .fvp: NativeFVPSession(),
-            .bgi: NativeBGISession()
+            .bgi: NativeBGISession(),
+            .yuris: NativeYurisSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 
@@ -541,8 +542,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The encoding an FVP or BGI game's script is read with.
-    func textEncoding(for game: GameRecord) -> GameTextEncoding {
+    /// The encoding an FVP, BGI or YU-RIS game's script is read with; nil when
+    /// the YU-RIS runtime tells it from the scripts.
+    func textEncoding(for game: GameRecord) -> GameTextEncoding? {
         repository.textEncoding(for: game)
     }
 

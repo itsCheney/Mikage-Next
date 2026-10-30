@@ -82,7 +82,7 @@ final class NativeBGISession: NSObject, KRKRSession {
 
         AppDiagnostics.shared.beginGame(["engine": EngineID.bgi.rawValue,
                                          "folder": configuration.gameDirectory.lastPathComponent,
-                                         "encoding": configuration.textEncoding.rawValue,
+                                         "encoding": (configuration.textEncoding ?? .shiftJIS).rawValue,
                                          "performanceHUD": String(configuration.performance),
                                          "floatingButton": String(configuration.floatingButton),
                                          "threeFingerMenu": String(configuration.threeFingerMenu),
