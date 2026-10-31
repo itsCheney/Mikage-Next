@@ -68,7 +68,7 @@ struct WelcomeGuideView: View {
                 feature("folder.fill.badge.plus", .blue,
                         Text("Drop In Game Folders"),
                         Text("Copy a game’s folder into Mikage in the Files app. It shows up the next time you open the app."))
-                feature("checkmark.magnifyingglass", .orange,
+                feature("magnifyingglass.circle.fill", .orange,
                         Text("Matched with Bangumi & VNDB"),
                         Text("Covers, studio and synopsis are filled in. You confirm each match."))
                 feature("circle.grid.cross.fill", .green,
