@@ -94,7 +94,10 @@ struct ArtworkImage: View {
                             .font(.system(size: min(34, max(14, proxy.size.width / 4))))
                             .foregroundStyle(.secondary)
                     )
-                if let image {
+                // A cache hit draws on the first frame, before the load task
+                // runs, so a cover shown again (as when a launch moves it to
+                // a new view) never flashes the placeholder.
+                if let image = image ?? cachedImage(size: proxy.size) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -109,6 +112,11 @@ struct ArtworkImage: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private func cachedImage(size: CGSize) -> UIImage? {
+        guard let url, size.width > 0, size.height > 0 else { return nil }
+        return CoverCache.shared.cached(url, size: size, scale: displayScale)
     }
 
     private func load(size: CGSize) async {
@@ -146,7 +154,7 @@ struct AdaptiveArtworkImage: View {
                             .font(.system(size: min(34, max(14, proxy.size.width / 4))))
                             .foregroundStyle(.secondary)
                     )
-                if let artwork {
+                if let artwork = artwork ?? cachedArtwork(size: proxy.size) {
                     content(artwork, size: proxy.size)
                         .transition(.opacity)
                 }
@@ -187,6 +195,11 @@ struct AdaptiveArtworkImage: View {
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
                 .clipped()
         }
+    }
+
+    private func cachedArtwork(size: CGSize) -> CardArtwork? {
+        guard let url, size.width > 0, size.height > 0 else { return nil }
+        return CoverCache.shared.cachedCardArtwork(url, size: size, scale: displayScale)
     }
 
     private func load(size: CGSize) async {

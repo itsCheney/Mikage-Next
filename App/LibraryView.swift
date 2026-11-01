@@ -11,6 +11,12 @@ struct RootView: View {
 
     var body: some View {
         tabs
+            .overlay {
+                if let transition = model.launchTransition {
+                    LaunchTransitionOverlay(transition: transition)
+                        .id(transition.id)
+                }
+            }
             .fullScreenCover(item: $model.player) { game in
                 PlayerView(game: game).environmentObject(model)
             }
@@ -545,6 +551,8 @@ private struct ContinueBanner: View {
             .resizable()
             .scaledToFit()
             .frame(width: frame.width, height: frame.height)
+            // Where Resume grows the cover from.
+            .background(LaunchSourceReader(key: LaunchSourceFrames.heroKey))
             // Fade the top into the color band and the bottom into the
             // darkened info area, so no edge of the cover shows.
             .mask(
@@ -602,7 +610,13 @@ private struct ContinueBanner: View {
             }
             .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
             Spacer(minLength: 0)
-            Button { model.launch(game) } label: {
+            Button {
+                model.launch(
+                    game,
+                    source: LaunchSourceFrames.shared.frame(for: LaunchSourceFrames.heroKey),
+                    sourceRadius: 0
+                )
+            } label: {
                 Label("Resume", systemImage: "play.fill")
                     .font(.headline)
                     .padding(.horizontal, 4)
@@ -838,7 +852,13 @@ struct GameGrid: View {
     private var minimumCardWidth: CGFloat { sizeClass == .regular ? 180 : 150 }
 
     private func card(for game: GameRecord, coverAspect: CGFloat?) -> some View {
-        Button { model.launch(game) } label: {
+        Button {
+            model.launch(
+                game,
+                source: LaunchSourceFrames.shared.frame(for: LaunchSourceFrames.cardKey(game.id)),
+                sourceRadius: model.settings.listLayout ? 10 : 20
+            )
+        } label: {
             GameCard(game: game, list: model.settings.listLayout, coverAspect: coverAspect)
         }
         .buttonStyle(.plain)
@@ -1006,6 +1026,8 @@ struct GameCard: View {
         GameCover(game: game, adaptive: model.settings.coverLayout == .adaptive)
             .grayscale(comingSoon ? 0.9 : 0)
             .opacity(comingSoon ? 0.55 : 1)
+            // Where a launch grows this cover from.
+            .background(LaunchSourceReader(key: LaunchSourceFrames.cardKey(game.id)))
     }
 
     /// The status leads the line when the player set one, as in the

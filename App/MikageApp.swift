@@ -46,6 +46,8 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var player: GameRecord?
+    /// The cover animating between the library and the player, if any.
+    @Published var launchTransition: LaunchTransition?
     /// The ONScripter save slot the next launch starts from, if any.
     var pendingLoadSlot: Int?
     @Published var pendingImport: PendingGameImport?
@@ -278,7 +280,16 @@ final class AppModel: ObservableObject {
 
     /// Plays the game, from one of its saves when `slot` is given (only
     /// ONScripter games start from a save).
-    func launch(_ game: GameRecord, fromSaveSlot slot: Int? = nil) {
+    /// Starts a game. `source` is where its cover is on screen (a library
+    /// card or the Continue Playing hero) for the cover to grow from.
+    func launch(
+        _ game: GameRecord,
+        fromSaveSlot slot: Int? = nil,
+        source: CGRect? = nil,
+        sourceRadius: CGFloat = 20
+    ) {
+        // A second tap while the cover is still growing, or a game already up.
+        guard player == nil, launchTransition?.direction != .entering else { return }
         AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName, "slot": slot.map(String.init) ?? ""])
         do {
             let prepared = try repository.prepareLaunch(for: game.id)
@@ -290,7 +301,7 @@ final class AppModel: ObservableObject {
                 "reason": prepared.chosenStartup == nil ? "automatic" : "userSelected"
             ])
             pendingLoadSlot = slot
-            player = prepared
+            presentPlayer(prepared, from: source, sourceRadius: sourceRadius)
         } catch {
             alert = error.localizedDescription
         }

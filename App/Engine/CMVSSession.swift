@@ -143,6 +143,9 @@ final class NativeCMVSSession: NSObject, KRKRSession {
         engineWindow.rootViewController = controller
         engineWindow.frame = scene.coordinateSpace.bounds
         engineWindow.isHidden = false
+        // Laid out now but kept clear; showEngineWindow fades it in over the
+        // launch stage.
+        engineWindow.alpha = 0
         engineWindow.layoutIfNeeded()
 
         var width: UInt32 = 0

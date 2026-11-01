@@ -169,6 +169,9 @@ final class NativeBGISession: NSObject, KRKRSession {
         engineWindow.rootViewController = controller
         engineWindow.frame = scene.coordinateSpace.bounds
         engineWindow.isHidden = false
+        // Laid out now but kept clear; showEngineWindow fades it in over the
+        // launch stage.
+        engineWindow.alpha = 0
         engineWindow.layoutIfNeeded()
         self.controller = controller
         self.engineWindow = engineWindow

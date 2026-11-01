@@ -60,14 +60,29 @@ final class SDLHostPresentation {
         throw SDLHostError.orientationUnavailable
     }
 
-    /// Shows the engine's SDL window in place of the app's.
+    /// Counts window swaps, so a fade that finishes after the player has
+    /// already left doesn't hide the app's window again.
+    private var swapGeneration = 0
+
+    /// Shows the engine's window in place of the app's, fading it in over
+    /// the launch stage the app's window shows meanwhile.
     func showEngineWindow(_ engineWindow: UIWindow) {
+        swapGeneration += 1
+        let generation = swapGeneration
+        let host = hostWindow
+        engineWindow.alpha = 0
         engineWindow.makeKeyAndVisible()
-        hostWindow?.isHidden = true
+        UIView.animate(withDuration: 0.35, delay: 0.05, options: [.curveEaseOut, .allowUserInteraction]) {
+            engineWindow.alpha = 1
+        } completion: { [weak self] _ in
+            guard let self, generation == self.swapGeneration, !engineWindow.isHidden else { return }
+            host?.isHidden = true
+        }
     }
 
     /// Brings the app's window back once the engine's is gone.
     func showHostWindow() {
+        swapGeneration += 1
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
     }

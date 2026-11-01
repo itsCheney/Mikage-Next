@@ -3,7 +3,6 @@ import VNCore
 
 struct PlayerView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     let game: GameRecord
@@ -11,29 +10,21 @@ struct PlayerView: View {
     @State private var engineStarted = false
     @State private var engineStarting = false
     @State private var engineStopping = false
-    @State private var backdrop: UIImage?
     /// Set by the in-game Finished tile; the rating sheet follows the quit.
     @State private var markFinished = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
-            backdropLayer
+            LaunchStage(game: game, ending: engineStopping)
             PlayerHostAttachment { controller in
                 startEngine(in: controller)
             }
             .frame(width: 1, height: 1)
             .allowsHitTesting(false)
-
-            if engineStarting || engineStopping {
-                ProgressView(engineStopping ? LocalizedStringKey("Ending game…") : LocalizedStringKey("Preparing landscape…"))
-                    .tint(.white)
-                    .foregroundStyle(.white)
-            }
         }
         .ignoresSafeArea()
         .statusBarHidden()
-        .task { await loadBackdrop() }
         .onDisappear {
             AppDiagnostics.shared.event("player", "view.disappeared")
             model.krkrSession.requestStop()
@@ -47,37 +38,6 @@ struct PlayerView: View {
                 elapsed += 1
             }
         }
-    }
-
-    /// Fills the letterbox during the launch/exit transitions, before and after
-    /// the engine window covers this view. Falls back to black when the game has
-    /// no cover, when the file cannot be decoded, or when the user chose black.
-    @ViewBuilder
-    private var backdropLayer: some View {
-        Color.black.ignoresSafeArea()
-        if let backdrop {
-            Image(uiImage: backdrop)
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-                .overlay(.black.opacity(0.45))
-                .accessibilityHidden(true)
-                .transition(.opacity)
-        }
-    }
-
-    private func loadBackdrop() async {
-        guard model.settings.background == .cover,
-              let url = model.coverURL(game) else { return }
-        // Decoded off the main thread and downsampled to the screen, so a large
-        // cover cannot stall the launch or hold a full-size bitmap.
-        let image = await CoverCache.shared.image(
-            for: url,
-            size: UIScreen.main.bounds.size,
-            scale: UIScreen.main.scale
-        )
-        guard let image, !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.25)) { backdrop = image }
     }
 
     private func startEngine(in controller: UIViewController) {
@@ -103,7 +63,7 @@ struct PlayerView: View {
                     if case .failure(let error) = result {
                         model.alert = error.localizedDescription
                     }
-                    dismiss()
+                    model.closePlayer(game)
                 }
                 try await model.krkrSession.start(
                     configuration: configuration,
@@ -116,7 +76,7 @@ struct PlayerView: View {
                 AppDiagnostics.shared.endGame()
                 engineStarting = false
                 model.alert = error.localizedDescription
-                dismiss()
+                model.closePlayer(game)
             }
         }
     }
