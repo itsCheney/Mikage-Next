@@ -136,6 +136,13 @@ struct LibraryView: View {
     /// Height of the pinned header, including the status bar area.
     @State private var headerHeight: CGFloat = 0
 
+    /// The library scroll view's coordinate space; the hero measures its
+    /// pull-down offset in it.
+    static let scrollSpace = "library-scroll"
+
+    /// The gap a pull-down opens above the hero; filled with its top color.
+    @State private var pullGap = PullGap()
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
@@ -179,6 +186,16 @@ struct LibraryView: View {
                 }
                 // Content runs under the status bar and the pinned header.
                 .ignoresSafeArea(edges: .top)
+                .coordinateSpace(name: Self.scrollSpace)
+                .onPreferenceChange(PullGapKey.self) { pullGap = $0 }
+                .background(alignment: .top) {
+                    if let color = pullGap.color, pullGap.height > 0 {
+                        Color(uiColor: color)
+                            // A point of overlap so no seam shows.
+                            .frame(height: pullGap.height + 1)
+                            .ignoresSafeArea(edges: .top)
+                    }
+                }
                 .overlay(alignment: .top) {
                     header(topInset: topInset)
                         .background(
@@ -426,6 +443,8 @@ private struct ContinueBanner: View {
     @ObservedObject private var covers = CoverCache.shared
     @State private var artwork: HeroArtwork?
 
+    private var topColor: UIColor { artwork?.topColor ?? UIColor(white: 0.22, alpha: 1) }
+
     /// Same total height as before the redesign: about 313 pt on an iPhone 13
     /// Pro (266 + its 47 pt status bar).
     private var heroHeight: CGFloat { (regular ? 380 : 266) + topInset }
@@ -457,6 +476,19 @@ private struct ContinueBanner: View {
         }
         .frame(height: heroHeight)
         .clipped()
+        // How far a pull-down, or a refresh in progress, has moved the hero
+        // below the top of the screen, and the color to fill that gap with.
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PullGapKey.self,
+                    value: PullGap(
+                        height: max(0, proxy.frame(in: .named(LibraryView.scrollSpace)).minY),
+                        color: topColor
+                    )
+                )
+            }
+        )
         .environment(\.colorScheme, .dark)
         .task(id: "\(model.coverURL(game)?.path ?? game.id.uuidString)|\(covers.generation)") {
             await load()
@@ -466,7 +498,7 @@ private struct ContinueBanner: View {
     // MARK: Layers
 
     private func backdrop(size: CGSize) -> some View {
-        let top = Color(uiColor: artwork?.topColor ?? UIColor(white: 0.22, alpha: 1))
+        let top = Color(uiColor: topColor)
         // The color band covers the status bar and about 70 pt more.
         let band = min(1, (topInset + 70) / max(size.height, 1))
         return ZStack {
@@ -604,6 +636,22 @@ private struct ContinueBanner: View {
     }
 }
 
+/// The gap a pull-down opens above the Continue Playing hero, and the hero's
+/// top color. The library fills the gap behind the scroll view, where the
+/// refresh spinner still draws over it, instead of showing black.
+struct PullGap: Equatable {
+    var height: CGFloat = 0
+    var color: UIColor?
+}
+
+private struct PullGapKey: PreferenceKey {
+    static var defaultValue = PullGap()
+    static func reduce(value: inout PullGap, nextValue: () -> PullGap) {
+        let next = nextValue()
+        if next.color != nil { value = next }
+    }
+}
+
 private struct HeaderHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -701,35 +749,25 @@ struct GameGrid: View {
     @State private var showCoverPicker = false
     @State private var coverPhoto: PhotosPickerItem?
     @State private var deleteRequest: GameRecord?
+    @ObservedObject private var covers = CoverCache.shared
     let games: [GameRecord]
 
     private var columns: [GridItem] {
         if model.settings.listLayout {
             return [GridItem(.flexible())]
         }
-        return [GridItem(.adaptive(minimum: sizeClass == .regular ? 180 : 150), spacing: 12)]
+        return [GridItem(.adaptive(minimum: minimumCardWidth), spacing: 12)]
     }
 
+    private var masonry: Bool {
+        model.settings.coverLayout == .masonry && !model.settings.listLayout
+    }
+
+    /// Bumped when Masonry has read more cover shapes, to lay out again.
+    @State private var aspectsRead = 0
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(games) { game in
-                Button { model.launch(game) } label: {
-                    GameCard(game: game, list: model.settings.listLayout)
-                }
-                .buttonStyle(.plain)
-                .disabled(!game.availability.canLaunch)
-                .contextMenu {
-                    menu(for: game)
-                } preview: {
-                    GamePreview(game: game).environmentObject(model)
-                }
-                .accessibilityLabel(
-                    game.availability.canLaunch
-                        ? Text("Play \(model.displayTitle(game))")
-                        : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
-                )
-            }
-        }
+        cards
         .sheet(item: $selectedGame) {
             GameDetailView(game: $0).environmentObject(model)
         }
@@ -775,6 +813,72 @@ struct GameGrid: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var cards: some View {
+        if masonry {
+            MasonryLayout(minimumColumnWidth: minimumCardWidth, spacing: 12) {
+                ForEach(games) { game in
+                    card(for: game, coverAspect: masonryAspect(game))
+                }
+            }
+            .task(id: masonryTaskID) {
+                await readCoverShapes()
+            }
+        } else {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(games) { game in
+                    card(for: game, coverAspect: nil)
+                }
+            }
+        }
+    }
+
+    private var minimumCardWidth: CGFloat { sizeClass == .regular ? 180 : 150 }
+
+    private func card(for game: GameRecord, coverAspect: CGFloat?) -> some View {
+        Button { model.launch(game) } label: {
+            GameCard(game: game, list: model.settings.listLayout, coverAspect: coverAspect)
+        }
+        .buttonStyle(.plain)
+        .disabled(!game.availability.canLaunch)
+        .contextMenu {
+            menu(for: game)
+        } preview: {
+            GamePreview(game: game).environmentObject(model)
+        }
+        .accessibilityLabel(
+            game.availability.canLaunch
+                ? Text("Play \(model.displayTitle(game))")
+                : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
+        )
+    }
+
+    /// A Masonry card takes its cover's shape, within limits so a banner or
+    /// a very tall image can't take over a column. Covers drawn from the
+    /// folder name, and those not read yet, are 16:9.
+    private func masonryAspect(_ game: GameRecord) -> CGFloat {
+        _ = aspectsRead
+        guard let url = model.coverURL(game),
+              let aspect = CoverCache.shared.cachedAspectRatio(url)
+        else { return 16 / 9 }
+        return min(max(aspect, 0.5), 2.4)
+    }
+
+    private var masonryTaskID: String {
+        games.map { model.coverURL($0)?.path ?? $0.id.uuidString }.joined(separator: "|")
+            + "|\(covers.generation)"
+    }
+
+    private func readCoverShapes() async {
+        var read = false
+        for game in games {
+            guard let url = model.coverURL(game), CoverCache.shared.cachedAspectRatio(url) == nil else { continue }
+            if await CoverCache.shared.aspectRatio(of: url) != nil { read = true }
+            if Task.isCancelled { return }
+        }
+        if read { aspectsRead += 1 }
     }
 
     @ViewBuilder
@@ -872,6 +976,9 @@ struct GameCard: View {
     @EnvironmentObject private var model: AppModel
     let game: GameRecord
     let list: Bool
+    /// The cover frame's width over height in the Masonry layout; nil for
+    /// the 16:9 frame of the other layouts.
+    var coverAspect: CGFloat?
 
     private var comingSoon: Bool { game.availability == .unsupported }
 
@@ -896,7 +1003,7 @@ struct GameCard: View {
     }
 
     private var cover: some View {
-        GameCover(game: game)
+        GameCover(game: game, adaptive: model.settings.coverLayout == .adaptive)
             .grayscale(comingSoon ? 0.9 : 0)
             .opacity(comingSoon ? 0.55 : 1)
     }
@@ -929,7 +1036,7 @@ struct GameCard: View {
     private var tile: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear
-                .aspectRatio(16 / 9, contentMode: .fit)
+                .aspectRatio(coverAspect ?? 16 / 9, contentMode: .fit)
                 .overlay { cover }
                 .clipped()
             VStack(alignment: .leading, spacing: 2) {

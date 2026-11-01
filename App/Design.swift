@@ -110,10 +110,17 @@ struct RoundButton: View {
 struct GameCover: View {
     @EnvironmentObject private var model: AppModel
     let game: GameRecord
+    /// Fits covers of other shapes as the Adaptive layout does, instead of
+    /// cropping them around the center.
+    var adaptive = false
 
     var body: some View {
         if let url = model.coverURL(game) {
-            ArtworkImage(url: url)
+            if adaptive {
+                AdaptiveArtworkImage(url: url)
+            } else {
+                ArtworkImage(url: url)
+            }
         } else {
             GeneratedCover(game: game)
         }

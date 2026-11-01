@@ -24,6 +24,19 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("Cover Layout", selection: $model.settings.coverLayout) {
+                        ForEach(CoverLayout.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text(model.settings.coverLayout.footer)
+                }
+
+                Section {
                     NavigationLink {
                         AccountsSettingsView()
                     } label: {

@@ -674,6 +674,22 @@
         }
       }
     },
+    "Adaptive" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アダプティブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自适应"
+          }
+        }
+      }
+    },
     "Add %@" : {
       "localizations" : {
         "ja" : {
@@ -1890,6 +1906,22 @@
         }
       }
     },
+    "Cover Layout" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カバーのレイアウト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封面布局"
+          }
+        }
+      }
+    },
     "Covers & Details" : {
       "localizations" : {
         "ja" : {
@@ -2402,6 +2434,22 @@
         }
       }
     },
+    "Each card takes the shape of its cover, so nothing is cropped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各カードはカバー本来の比率で表示され、トリミングされません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每张卡片按封面原本的比例显示，不做裁切。"
+          }
+        }
+      }
+    },
     "Each game’s savedata" : {
       "localizations" : {
         "ja" : {
@@ -2560,6 +2608,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已识别引擎，运行时接入后即可游玩"
+          }
+        }
+      }
+    },
+    "Every cover fills a 16:9 card and is cropped around its center." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのカバーを 16:9 のカードいっぱいに表示し、中央を基準にトリミングします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有封面铺满 16:9 卡片，从中间裁切。"
           }
         }
       }
@@ -4091,6 +4155,22 @@
         }
       }
     },
+    "Masonry" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メーソンリー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀑布流"
+          }
+        }
+      }
+    },
     "Masterpiece" : {
       "localizations" : {
         "ja" : {
@@ -5147,6 +5227,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "峰值"
+          }
+        }
+      }
+    },
+    "Portrait covers show whole over a blurred copy of themselves; wider covers are cropped around their subject." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縦長のカバーは全体を表示し、背景に同じ画像のぼかしを敷きます。横長のカバーは被写体を中心にトリミングします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "竖版封面完整显示，背后铺一层自身的模糊图；较宽的封面围绕画面主体裁切。"
           }
         }
       }
