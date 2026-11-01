@@ -12,6 +12,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
     case fvp
     case bgi
     case yuris
+    case cmvs
 
     public var id: String { rawValue }
 
@@ -25,6 +26,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .fvp: return "fvp"
         case .bgi: return "bgi"
         case .yuris: return "yuris"
+        case .cmvs: return "cmvs"
         }
     }
 
@@ -38,6 +40,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .fvp: return "FVP"
         case .bgi: return "BGI"
         case .yuris: return "YU-RIS"
+        case .cmvs: return "CMVS"
         }
     }
 
@@ -76,10 +79,10 @@ public enum GameTextEncoding: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// The encodings `engine` can read: BGI (ethornell-rs) knows Shift-JIS
-    /// and GBK only.
+    /// The encodings `engine` can read: BGI (ethornell-rs) and CMVS
+    /// (MikageCMVS) know Shift-JIS and GBK only.
     public static func choices(for engine: EngineID) -> [GameTextEncoding] {
-        engine == .bgi ? [.shiftJIS, .gbk] : allCases
+        engine == .bgi || engine == .cmvs ? [.shiftJIS, .gbk] : allCases
     }
 }
 
@@ -253,10 +256,10 @@ public struct LibraryRepository: Sendable {
         guard !fm.fileExists(atPath: flatLayoutMarkerURL.path) else { return }
         var records = try load()
         var renamed = false
-        // FVP, BGI and YU-RIS came after the flat layout and never had a
-        // folder of their own; a game folder named fvp, bgi or yuris is just
-        // a game.
-        for engine in EngineID.allCases where engine != .fvp && engine != .bgi && engine != .yuris {
+        // FVP, BGI, YU-RIS and CMVS came after the flat layout and never had
+        // a folder of their own; a game folder named fvp, bgi, yuris or cmvs
+        // is just a game.
+        for engine in EngineID.allCases where ![.fvp, .bgi, .yuris, .cmvs].contains(engine) {
             let folder = documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
             var isDirectory = ObjCBool(false)
             guard fm.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
@@ -774,7 +777,7 @@ public struct LibraryRepository: Sendable {
             return chosen
         }
         switch game.engine {
-        case .yuris:
+        case .yuris, .cmvs:
             return nil
         case .bgi:
             let launcher = game.launchTargetKind == .archive ? game.launchTarget : nil
@@ -1114,6 +1117,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No BGI data found (system.arc)"))
             case .yuris:
                 availability = .invalid(String(localized: "No YU-RIS data found (.ypf archives or ysbin)"))
+            case .cmvs:
+                availability = .invalid(String(localized: "No CMVS data found (data/pack/start.ps3)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -1206,6 +1211,12 @@ public enum GameScanner {
                 .filter { normalized($0.pathExtension) == "exe" && isEnigmaPacked($0) }
                 .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
             return [StartupFile(.directory, ".")] + executables.map { StartupFile(.archive, $0.lastPathComponent) }
+        case .cmvs:
+            // MikageCMVS opens the game folder and finds a translation patch
+            // there itself (Pk/*.pk or Longinus.dat), so the patch's
+            // launcher executable is not a startup file of its own.
+            guard try isCMVSGame(in: directory) else { return [] }
+            return [StartupFile(.directory, ".")]
         case .kirikiri:
             break
         }
@@ -1519,6 +1530,7 @@ public enum GameScanner {
         if try !fvpScripts(in: directory).isEmpty { matches.append(.fvp) }
         if try isBGIGame(in: directory) { matches.append(.bgi) }
         if try isYurisGame(in: directory) { matches.append(.yuris) }
+        if try isCMVSGame(in: directory) { matches.append(.cmvs) }
 
         return matches
     }
@@ -1599,6 +1611,21 @@ public enum GameScanner {
         }
         let pac = directory.appendingPathComponent("pac", isDirectory: true)
         return try rootFiles(in: pac).contains { normalized($0.pathExtension) == "ypf" }
+    }
+
+    /// A CMVS game starts from data/pack/start.ps3, beside its CPZ archives.
+    /// Folder names are matched without case, as Windows does.
+    private static func isCMVSGame(in directory: URL) throws -> Bool {
+        func folder(_ name: String, in parent: URL) -> URL? {
+            let children = (try? FileManager.default.contentsOfDirectory(
+                at: parent, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+            return children.first {
+                normalized($0.lastPathComponent) == name
+                    && (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            }
+        }
+        guard let data = folder("data", in: directory), let pack = folder("pack", in: data) else { return false }
+        return try rootFiles(in: pack).contains { normalized($0.lastPathComponent) == normalized("start.ps3") }
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

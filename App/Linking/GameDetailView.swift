@@ -566,7 +566,7 @@ struct GameDetailView: View {
             if startupChoices.count > 1 {
                 DetailRow(label: "Startup file") { startupMenu }
             }
-            if current.engine == .fvp || current.engine == .bgi || current.engine == .yuris {
+            if current.engine == .fvp || current.engine == .bgi || current.engine == .yuris || current.engine == .cmvs {
                 DetailRow(label: "Text encoding") { encodingMenu }
             }
             DetailRow("Size", value: AppModel.librarySize(current.byteCount))

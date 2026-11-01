@@ -34,3 +34,7 @@
 	path = Engine/YurisRuntime/Source
 	url = https://github.com/itsCheney/MikageYURIS.git
 	branch = mikage
+[submodule "Engine/CMVSRuntime/Source"]
+	path = Engine/CMVSRuntime/Source
+	url = https://github.com/itsCheney/MikageCMVS.git
+	branch = mikage

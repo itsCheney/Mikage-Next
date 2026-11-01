@@ -1202,6 +1202,70 @@
         }
       }
     },
+    "CMVS failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS 启动失败。"
+          }
+        }
+      }
+    },
+    "CMVS failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS 启动失败：%@"
+          }
+        }
+      }
+    },
+    "CMVS stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS 已停止。"
+          }
+        }
+      }
+    },
+    "CMVS stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS 已停止：%@"
+          }
+        }
+      }
+    },
     "Can Free" : {
       "localizations" : {
         "ja" : {
@@ -4327,6 +4391,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最新的在前"
+          }
+        }
+      }
+    },
+    "No CMVS data found (data/pack/start.ps3)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CMVS のデータ（data/pack/start.ps3）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 CMVS 数据（data/pack/start.ps3）"
           }
         }
       }
@@ -9245,18 +9327,18 @@
         }
       }
     },
-    "KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI and YU-RIS games run natively." : {
+    "KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI, YU-RIS and CMVS games run natively." : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI 和 YU-RIS 游戏均可原生运行。"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS のゲームがネイティブで動きます。"
+            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS、CMVS のゲームがネイティブで動きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS 和 CMVS 游戏均可原生运行。"
           }
         }
       }

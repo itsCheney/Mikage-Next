@@ -134,7 +134,8 @@ final class AppModel: ObservableObject {
             .siglus: NativeSiglusSession(),
             .fvp: NativeFVPSession(),
             .bgi: NativeBGISession(),
-            .yuris: NativeYurisSession()
+            .yuris: NativeYurisSession(),
+            .cmvs: NativeCMVSSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 

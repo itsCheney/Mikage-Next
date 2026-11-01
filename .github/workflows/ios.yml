@@ -58,6 +58,9 @@ jobs:
       - name: Record YU-RIS runtime revision
         id: yuris-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/YurisRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record CMVS runtime revision
+        id: cmvs-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/CMVSRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -581,6 +584,45 @@ jobs:
         with:
           path: build/YurisRuntime.xcframework
           key: ${{ steps.cache-yuris-runtime.outputs.cache-primary-key }}
+      # CMVS: the MikageCMVS runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore CMVS runtime framework
+        id: cache-cmvs-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/CMVSRuntime.xcframework
+          key: cmvs-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-cmvs-ios.sh') }}-${{ steps.cmvs-revision.outputs.rev }}
+      - name: Install Rust for CMVS
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache CMVS Rust builds
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/cmvs/target
+          key: cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/CMVSRuntime/Source/Cargo.lock') }}-${{ steps.cmvs-revision.outputs.rev }}
+          restore-keys: |
+            cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/CMVSRuntime/Source/Cargo.lock') }}-
+            cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build CMVS runtime framework
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-cmvs-ios.sh 2>&1 | tee build/cmvs-runtime-build.log
+      - name: Save CMVS runtime framework
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/CMVSRuntime.xcframework
+          key: ${{ steps.cache-cmvs-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

@@ -537,6 +537,27 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(repository.textEncoding(for: game), .utf8)
     }
 
+    func testCMVSGameStartsFromItsFolder() throws {
+        let folder = try directory("Aoitori")
+        // Windows-cased folders, a patch launcher and its Longinus.dat.
+        let pack = folder.appendingPathComponent("Data/Pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: pack, withIntermediateDirectories: true)
+        try Data("PS2A".utf8).write(to: pack.appendingPathComponent("start.ps3"))
+        try Data("CPZ7".utf8).write(to: pack.appendingPathComponent("script.cpz"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("cmvs64.exe"))
+        try Data("Longinus".utf8).write(to: folder.appendingPathComponent("Longinus.dat"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.cmvs])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .cmvs).map(\.relativePath), ["."])
+        XCTAssertEqual(GameTextEncoding.choices(for: .cmvs), [.shiftJIS, .gbk])
+
+        // CPZ archives without the start script are not a game yet.
+        let incomplete = try directory("Incomplete")
+        let incompletePack = incomplete.appendingPathComponent("data/pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: incompletePack, withIntermediateDirectories: true)
+        try Data("CPZ7".utf8).write(to: incompletePack.appendingPathComponent("script.cpz"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: incomplete), [])
+    }
+
     func testYurisGameStartsFromItsFolderOrAPackedPatch() throws {
         let folder = try directory("Erewhon")
         let pac = folder.appendingPathComponent("pac", isDirectory: true)
