@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Copy the hash-pinned upstream tree and strictly apply the production patch."""
 from pathlib import Path
-import argparse, re, shutil, hashlib, tarfile, urllib.request, json
+import argparse, re, shutil, hashlib, tarfile, time, urllib.request, json
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--source',type=Path)
 p.add_argument('--archive',type=Path)
@@ -14,7 +14,14 @@ if a.source is None or not (a.source/'include/plutovg.h').is_file():
     if not archive.is_file():
         if not a.download: raise SystemExit('Required plutovg archive/source missing; use --download to fetch pinned v1.3.3')
         archive.parent.mkdir(parents=True,exist_ok=True)
-        archive.write_bytes(urllib.request.urlopen('https://github.com/sammycage/plutovg/archive/refs/tags/v1.3.3.tar.gz',timeout=90).read())
+        # CI runners sometimes fail DNS for a moment; try a few times before giving up.
+        for attempt in range(4):
+            try:
+                archive.write_bytes(urllib.request.urlopen('https://github.com/sammycage/plutovg/archive/refs/tags/v1.3.3.tar.gz',timeout=90).read())
+                break
+            except OSError:
+                if attempt==3: raise
+                time.sleep(5*2**attempt)
     if hashlib.sha512(archive.read_bytes()).hexdigest()!='57349751bfc9020e63042f472d828ddc509f724d0c82cdaf34e2047f6333de192c5a4cc6aed376e98a000bd68b3b05f1c00ca84bf7163a16c6c2860bc33fb8d0':
         raise SystemExit('Pinned official plutovg 1.3.3 SHA512 mismatch')
     requested=a.source
