@@ -196,7 +196,12 @@ final class NativeCMVSSession: NSObject, KRKRSession {
             ),
             onExit: { [weak self] in
                 self?.overlayCoordinator?.hideMenu()
-                self?.requestStop()
+                // The game's own quit confirmation when it has one, as its
+                // window's close box would; the session ends if the player
+                // agrees. Otherwise Mikage closes the game itself.
+                if self?.controller?.requestClose() != true {
+                    self?.requestStop()
+                }
             },
             onBack: { [weak self] in
                 // CMVS games hide the text window, open their menu and
@@ -605,6 +610,14 @@ final class CMVSViewController: UIViewController {
 
     func controlState() -> UInt32 {
         handle == nil ? 0 : GameControlState.canBacklog.rawValue
+    }
+
+    /// Runs the game's close confirmation; false when it has none now.
+    func requestClose() -> Bool {
+        guard let handle else { return false }
+        let handled = cmvs_request_close(handle) != 0
+        AppDiagnostics.shared.event("session", "cmvs.closeRequested", ["handledByGame": String(handled)])
+        return handled
     }
 
     /// Ctrl held, which CMVS games read as skip.

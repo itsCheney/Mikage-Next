@@ -93,7 +93,7 @@ EOF
     local binary="${framework}/${FRAMEWORK_NAME}"
     for symbol in cmvs_abi_version cmvs_last_error cmvs_set_log_callback cmvs_register_font cmvs_clear_fonts \
         cmvs_open cmvs_screen_size cmvs_set_surface cmvs_detach_surface cmvs_step cmvs_pointer cmvs_wheel \
-        cmvs_key cmvs_set_focused cmvs_audio cmvs_audio_sample_rate cmvs_audio_render cmvs_audio_release cmvs_close; do
+        cmvs_key cmvs_set_focused cmvs_request_close cmvs_audio cmvs_audio_sample_rate cmvs_audio_render cmvs_audio_release cmvs_close; do
         if ! nm -gU "${binary}" | grep " _${symbol}$" >/dev/null; then
             echo "${binary} does not export ${symbol}." >&2
             exit 1
