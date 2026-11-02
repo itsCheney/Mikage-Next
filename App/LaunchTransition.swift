@@ -154,17 +154,23 @@ struct LaunchStage: View {
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
+            let isLandscape = size.width > size.height
+            // Both layouts are always laid out at the current size and only
+            // crossfade, so while the scene rotates neither keeps the old
+            // orientation's frame (a portrait cover stuck at portrait width
+            // beside black).
             ZStack {
                 Color.black
-                if size.width > size.height {
-                    landscape(size)
-                        .transition(.opacity)
-                } else {
-                    portrait
-                        .transition(.opacity)
-                }
+                portrait
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .opacity(isLandscape ? 0 : 1)
+                landscape(size)
+                    .opacity(isLandscape ? 1 : 0)
             }
-            .animation(.easeInOut(duration: 0.3), value: size.width > size.height)
+            .animation(.easeInOut(duration: 0.4), value: isLandscape)
+            .onAppear { revealInfo(isLandscape) }
+            .onChange(of: isLandscape) { revealInfo($0) }
         }
         .ignoresSafeArea()
         .task(id: model.coverURL(game)?.path) { await load() }
@@ -185,14 +191,23 @@ struct LaunchStage: View {
     private func landscape(_ size: CGSize) -> some View {
         let coverHeight = size.height * 0.74
         return ZStack(alignment: .leading) {
-            if model.settings.background == .cover, let artwork {
-                Image(uiImage: artwork.blurred)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .overlay(Color.black.opacity(0.35))
-                    .accessibilityHidden(true)
+            if model.settings.background == .cover {
+                Group {
+                    if let artwork {
+                        Image(uiImage: artwork.blurred)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        // Until the hero artwork is ready, the card's cover
+                        // blurred, so the stage is never black beside it.
+                        LaunchArtwork(game: game)
+                            .blur(radius: 30)
+                    }
+                }
+                .frame(width: size.width, height: size.height)
+                .clipped()
+                .overlay(Color.black.opacity(0.35))
+                .accessibilityHidden(true)
             }
             HStack(spacing: size.width * 0.05) {
                 cover
@@ -205,9 +220,14 @@ struct LaunchStage: View {
             .padding(.leading, size.width * 0.1)
             .frame(width: size.width, height: size.height, alignment: .leading)
         }
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.4).delay(0.15)) { infoShown = true }
-        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
+    }
+
+    /// The title and loading bar rise in once the stage is landscape.
+    private func revealInfo(_ isLandscape: Bool) {
+        guard isLandscape, !infoShown else { return }
+        withAnimation(.easeOut(duration: 0.4).delay(0.3)) { infoShown = true }
     }
 
     @ViewBuilder
