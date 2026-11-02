@@ -60,8 +60,8 @@ struct LaunchTransition: Identifiable, Equatable {
     static func == (lhs: LaunchTransition, rhs: LaunchTransition) -> Bool { lhs.id == rhs.id }
 
     /// How long the cover takes to fill the screen.
-    static let enterDuration: TimeInterval = 0.42
-    static let leaveDuration: TimeInterval = 0.32
+    static let enterDuration: TimeInterval = 0.6
+    static let leaveDuration: TimeInterval = 0.55
 }
 
 /// A game's cover drawn the way its library card draws it: center-cropped,
@@ -103,6 +103,8 @@ struct LaunchTransitionOverlay: View {
             .frame(width: frame.width, height: frame.height)
             .clipShape(RoundedRectangle(cornerRadius: expanded ? 0 : transition.sourceRadius, style: .continuous))
             .position(x: frame.midX, y: frame.midY)
+            // Leaving, the cover sinks back a little as it dissolves.
+            .scaleEffect(transition.direction == .leaving && !visible ? 0.92 : 1)
             .opacity(visible ? 1 : 0)
         }
         .ignoresSafeArea()
@@ -126,7 +128,7 @@ struct LaunchTransitionOverlay: View {
             }
         case .leaving:
             expanded = true
-            withAnimation(.easeOut(duration: LaunchTransition.leaveDuration)) {
+            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: LaunchTransition.leaveDuration)) {
                 visible = false
             }
             Task { @MainActor in

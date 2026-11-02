@@ -142,13 +142,6 @@ struct LibraryView: View {
     /// Height of the pinned header, including the status bar area.
     @State private var headerHeight: CGFloat = 0
 
-    /// The library scroll view's coordinate space; the hero measures its
-    /// pull-down offset in it.
-    static let scrollSpace = "library-scroll"
-
-    /// The gap a pull-down opens above the hero; filled with its top color.
-    @State private var pullGap = PullGap()
-
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
@@ -192,16 +185,6 @@ struct LibraryView: View {
                 }
                 // Content runs under the status bar and the pinned header.
                 .ignoresSafeArea(edges: .top)
-                .coordinateSpace(name: Self.scrollSpace)
-                .onPreferenceChange(PullGapKey.self) { pullGap = $0 }
-                .background(alignment: .top) {
-                    if let color = pullGap.color, pullGap.height > 0 {
-                        Color(uiColor: color)
-                            // A point of overlap so no seam shows.
-                            .frame(height: pullGap.height + 1)
-                            .ignoresSafeArea(edges: .top)
-                    }
-                }
                 .overlay(alignment: .top) {
                     header(topInset: topInset)
                         .background(
@@ -482,19 +465,14 @@ private struct ContinueBanner: View {
         }
         .frame(height: heroHeight)
         .clipped()
-        // How far a pull-down, or a refresh in progress, has moved the hero
-        // below the top of the screen, and the color to fill that gap with.
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: PullGapKey.self,
-                    value: PullGap(
-                        height: max(0, proxy.frame(in: .named(LibraryView.scrollSpace)).minY),
-                        color: topColor
-                    )
-                )
-            }
-        )
+        // The hero's top color continues above it, so pulling the library
+        // down reveals more of the band instead of the page background.
+        .background(alignment: .top) {
+            Color(uiColor: topColor)
+                .frame(height: 1200)
+                .offset(y: -1200 + 1)
+                .accessibilityHidden(true)
+        }
         .environment(\.colorScheme, .dark)
         .task(id: "\(model.coverURL(game)?.path ?? game.id.uuidString)|\(covers.generation)") {
             await load()
@@ -647,22 +625,6 @@ private struct ContinueBanner: View {
         )
         guard !Task.isCancelled else { return }
         withAnimation(.easeOut(duration: 0.25)) { artwork = processed }
-    }
-}
-
-/// The gap a pull-down opens above the Continue Playing hero, and the hero's
-/// top color. The library fills the gap behind the scroll view, where the
-/// refresh spinner still draws over it, instead of showing black.
-struct PullGap: Equatable {
-    var height: CGFloat = 0
-    var color: UIColor?
-}
-
-private struct PullGapKey: PreferenceKey {
-    static var defaultValue = PullGap()
-    static func reduce(value: inout PullGap, nextValue: () -> PullGap) {
-        let next = nextValue()
-        if next.color != nil { value = next }
     }
 }
 

@@ -19,12 +19,22 @@ final class SDLHostPresentation {
     private weak var hostWindow: UIWindow?
     private weak var windowScene: UIWindowScene?
     private var previousOrientation: UIInterfaceOrientation = .unknown
+    /// When the launch began, so the app's launch stage stays up long enough
+    /// to be read before the game fades in over it.
+    private var beganAt = Date.distantPast
+    /// The engine window on screen, faded out over the app on the way back.
+    private weak var shownEngineWindow: UIWindow?
+
+    /// The shortest time from the start of a launch until the game appears,
+    /// rotation included. Most engines are ready well before this.
+    private static let minimumLaunchStage: TimeInterval = 1.3
 
     /// Remembers the app's window and the orientation to come back to.
     func begin(hostWindow window: UIWindow, scene: UIWindowScene) {
         hostWindow = window
         windowScene = scene
         previousOrientation = scene.interfaceOrientation
+        beganAt = Date()
     }
 
     func prepareLandscape(
@@ -70,9 +80,11 @@ final class SDLHostPresentation {
         swapGeneration += 1
         let generation = swapGeneration
         let host = hostWindow
+        shownEngineWindow = engineWindow
         engineWindow.alpha = 0
         engineWindow.makeKeyAndVisible()
-        UIView.animate(withDuration: 0.35, delay: 0.05, options: [.curveEaseOut, .allowUserInteraction]) {
+        let delay = max(0.05, Self.minimumLaunchStage - Date().timeIntervalSince(beganAt))
+        UIView.animate(withDuration: 0.5, delay: delay, options: [.curveEaseInOut, .allowUserInteraction]) {
             engineWindow.alpha = 1
         } completion: { [weak self] _ in
             guard let self, generation == self.swapGeneration, !engineWindow.isHidden else { return }
@@ -83,8 +95,25 @@ final class SDLHostPresentation {
     /// Brings the app's window back once the engine's is gone.
     func showHostWindow() {
         swapGeneration += 1
+        // The game's last frame, laid over the app's window and faded out,
+        // so leaving dissolves into the launch stage instead of cutting.
+        let lastFrame = shownEngineWindow.flatMap { window in
+            window.isHidden ? nil : window.snapshotView(afterScreenUpdates: false)
+        }
+        shownEngineWindow = nil
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
+        if let lastFrame, let host = hostWindow {
+            lastFrame.frame = host.bounds
+            lastFrame.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            lastFrame.isUserInteractionEnabled = false
+            host.addSubview(lastFrame)
+            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseInOut]) {
+                lastFrame.alpha = 0
+            } completion: { _ in
+                lastFrame.removeFromSuperview()
+            }
+        }
     }
 
     func restorePreviousOrientation() async {
