@@ -242,6 +242,7 @@ enum AboutCredits {
         item("BGI", "ethornell-rs", "MPL-2.0", "https://www.mozilla.org/MPL/2.0/"),
         item("YU-RIS", "MikageYURIS", "GPL-3.0+", "https://github.com/itsCheney/MikageYURIS/blob/HEAD/LICENSE"),
         item("CMVS", "MikageCMVS", "MIT / Apache-2.0", "https://github.com/itsCheney/MikageCMVS/blob/HEAD/LICENSE-MIT"),
+        item("SoftPAL", "MikageSoftPAL", "MPL-2.0", "https://github.com/itsCheney/MikageSoftPAL/blob/HEAD/LICENSE-MPL-2.0"),
     ]
 
     static let libraries: [Item] = [

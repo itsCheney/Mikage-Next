@@ -63,8 +63,8 @@ struct WelcomeGuideView: View {
                 .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 26) {
                 feature("books.vertical.fill", .indigo,
-                        Text("Eight Engines, One Library"),
-                        Text("KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI, YU-RIS and CMVS games run natively."))
+                        Text("Ten Engines, One Library"),
+                        Text("KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI, YU-RIS, CMVS and SoftPAL games run natively."))
                 feature("folder.fill.badge.plus", .blue,
                         Text("Drop In Game Folders"),
                         Text("Copy a game’s folder into Mikage in the Files app. It shows up the next time you open the app."))

@@ -565,6 +565,22 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try GameScanner.detectEngines(in: incomplete), [])
     }
 
+    func testSoftPALGameStartsFromItsFolder() throws {
+        let folder = try directory("Koikake")
+        // The script archive beside the others, the launcher in dll/.
+        try Data("PAC \u{0}\u{0}".utf8).write(to: folder.appendingPathComponent("DATA.PAC"))
+        try Data("PAC ".utf8).write(to: folder.appendingPathComponent("bgm.pac"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("koikake.exe"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.softpal])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .softpal).map(\.relativePath), ["."])
+        XCTAssertEqual(GameTextEncoding.choices(for: .softpal), [.shiftJIS, .gbk])
+
+        // Another engine's data.pac is not a SoftPAL game.
+        let other = try directory("Other")
+        try Data("KCAP".utf8).write(to: other.appendingPathComponent("data.pac"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: other), [])
+    }
+
     func testYurisGameStartsFromItsFolderOrAPackedPatch() throws {
         let folder = try directory("Erewhon")
         let pac = folder.appendingPathComponent("pac", isDirectory: true)

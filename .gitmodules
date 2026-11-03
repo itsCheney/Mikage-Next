@@ -38,3 +38,7 @@
 	path = Engine/CMVSRuntime/Source
 	url = https://github.com/itsCheney/MikageCMVS.git
 	branch = mikage
+[submodule "Engine/SoftPALRuntime/Source"]
+	path = Engine/SoftPALRuntime/Source
+	url = https://github.com/itsCheney/MikageSoftPAL.git
+	branch = mikage

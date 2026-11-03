@@ -10,6 +10,7 @@ import RFVPRuntime
 import EthornellRuntime
 import YurisRuntime
 import CMVSRuntime
+import SoftPALRuntime
 import VNCore
 
 final class AppDiagnostics: @unchecked Sendable {
@@ -47,6 +48,7 @@ final class AppDiagnostics: @unchecked Sendable {
         ethornell_mikage_set_log_callback(nil, nil)
         yuris_set_log_callback(nil, nil, 0)
         cmvs_set_log_callback(nil, nil, 0)
+        sena_mobile_set_log_callback(nil, nil, 0)
         try log.setEnabled(enabled)
         lock.lock(); recording = enabled; suppressScriptDump = false; lock.unlock()
         if enabled {
@@ -68,6 +70,9 @@ final class AppDiagnostics: @unchecked Sendable {
             // CMVS INFO names the chosen engine profile and every command run
             // on presumed semantics, which compatibility reports need.
             cmvs_set_log_callback(mikageCMVSDiagnosticLogCallback, nil, 3)
+            // SoftPAL INFO has the opened game, encoding and language; WARN
+            // the script commands and system calls the runtime stubs.
+            sena_mobile_set_log_callback(mikageSoftPALDiagnosticLogCallback, nil, 3)
             recordEnvironment()
             windows("recording.enabled.windows")
         }
@@ -270,4 +275,12 @@ private func mikageCMVSDiagnosticLogCallback(
     guard let message else { return }
     let target = target.map { String(cString: $0) } ?? ""
     AppDiagnostics.shared.runtime(source: "CMVS." + target, level: level, message: String(cString: message))
+}
+
+private func mikageSoftPALDiagnosticLogCallback(
+    _ level: Int32, _ target: UnsafePointer<CChar>?, _ message: UnsafePointer<CChar>?, _ context: UnsafeMutableRawPointer?
+) {
+    guard let message else { return }
+    let target = target.map { String(cString: $0) } ?? ""
+    AppDiagnostics.shared.runtime(source: "SOFTPAL." + target, level: level, message: String(cString: message))
 }

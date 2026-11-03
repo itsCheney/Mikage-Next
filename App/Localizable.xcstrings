@@ -4579,6 +4579,24 @@
         }
       }
     },
+    "No SoftPAL data found (data.pac)" : {
+      "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL のデータ（data.pac）が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 SoftPAL 数据（data.pac）"
+          }
+        }
+      }
+    },
     "No YU-RIS data found (.ypf archives or ysbin)" : {
       "comment" : "Shown by VNCore; the package resolves strings against the app's catalog.",
       "extractionState" : "manual",
@@ -5627,6 +5645,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快进"
+          }
+        }
+      }
+    },
+    "SoftPAL failed to start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL の起動に失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL 启动失败。"
+          }
+        }
+      }
+    },
+    "SoftPAL failed to start: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL の起動に失敗しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL 启动失败：%@"
+          }
+        }
+      }
+    },
+    "SoftPAL stopped." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL が停止しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL 已停止。"
+          }
+        }
+      }
+    },
+    "SoftPAL stopped: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL が停止しました：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SoftPAL 已停止：%@"
           }
         }
       }
@@ -9423,34 +9505,34 @@
         }
       }
     },
-    "Eight Engines, One Library" : {
+    "Ten Engines, One Library" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "八种引擎，一个游戏库"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "8 つのエンジン、ひとつのライブラリ"
+            "value" : "10 のエンジン、ひとつのライブラリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "十种引擎，一个游戏库"
           }
         }
       }
     },
-    "KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI, YU-RIS and CMVS games run natively." : {
+    "KiriKiri, ONScripter, Artemis, Ren’Py, Siglus, FVP, BGI, YU-RIS, CMVS and SoftPAL games run natively." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS、CMVS のゲームがネイティブで動きます。"
+            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS、CMVS、SoftPAL のゲームがネイティブで動きます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS 和 CMVS 游戏均可原生运行。"
+            "value" : "KiriKiri、ONScripter、Artemis、Ren’Py、Siglus、FVP、BGI、YU-RIS、CMVS 和 SoftPAL 游戏均可原生运行。"
           }
         }
       }

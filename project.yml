@@ -47,6 +47,8 @@ targets:
         embed: true
       - framework: build/CMVSRuntime.xcframework
         embed: true
+      - framework: build/SoftPALRuntime.xcframework
+        embed: true
       # OpenGL ES on Metal, which the shared SDL3 links for GL windows
       # (Ren'Py) instead of Apple's deprecated OpenGLES.
       - framework: build/MetalANGLE.xcframework

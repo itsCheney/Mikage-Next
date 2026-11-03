@@ -13,6 +13,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
     case bgi
     case yuris
     case cmvs
+    case softpal
 
     public var id: String { rawValue }
 
@@ -27,6 +28,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .bgi: return "bgi"
         case .yuris: return "yuris"
         case .cmvs: return "cmvs"
+        case .softpal: return "softpal"
         }
     }
 
@@ -41,6 +43,7 @@ public enum EngineID: String, Codable, CaseIterable, Identifiable, Sendable {
         case .bgi: return "BGI"
         case .yuris: return "YU-RIS"
         case .cmvs: return "CMVS"
+        case .softpal: return "SoftPAL"
         }
     }
 
@@ -82,7 +85,7 @@ public enum GameTextEncoding: String, Codable, CaseIterable, Sendable {
     /// The encodings `engine` can read: BGI (ethornell-rs) and CMVS
     /// (MikageCMVS) know Shift-JIS and GBK only.
     public static func choices(for engine: EngineID) -> [GameTextEncoding] {
-        engine == .bgi || engine == .cmvs ? [.shiftJIS, .gbk] : allCases
+        [.bgi, .cmvs, .softpal].contains(engine) ? [.shiftJIS, .gbk] : allCases
     }
 }
 
@@ -256,10 +259,10 @@ public struct LibraryRepository: Sendable {
         guard !fm.fileExists(atPath: flatLayoutMarkerURL.path) else { return }
         var records = try load()
         var renamed = false
-        // FVP, BGI, YU-RIS and CMVS came after the flat layout and never had
-        // a folder of their own; a game folder named fvp, bgi, yuris or cmvs
-        // is just a game.
-        for engine in EngineID.allCases where ![.fvp, .bgi, .yuris, .cmvs].contains(engine) {
+        // FVP, BGI, YU-RIS, CMVS and SoftPAL came after the flat layout and
+        // never had a folder of their own; a game folder named fvp, bgi,
+        // yuris, cmvs or softpal is just a game.
+        for engine in EngineID.allCases where ![.fvp, .bgi, .yuris, .cmvs, .softpal].contains(engine) {
             let folder = documentsRoot.appendingPathComponent(engine.documentsDirectoryName, isDirectory: true)
             var isDirectory = ObjCBool(false)
             guard fm.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
@@ -777,7 +780,7 @@ public struct LibraryRepository: Sendable {
             return chosen
         }
         switch game.engine {
-        case .yuris, .cmvs:
+        case .yuris, .cmvs, .softpal:
             return nil
         case .bgi:
             let launcher = game.launchTargetKind == .archive ? game.launchTarget : nil
@@ -1119,6 +1122,8 @@ public enum GameScanner {
                 availability = .invalid(String(localized: "No YU-RIS data found (.ypf archives or ysbin)"))
             case .cmvs:
                 availability = .invalid(String(localized: "No CMVS data found (data/pack/start.ps3)"))
+            case .softpal:
+                availability = .invalid(String(localized: "No SoftPAL data found (data.pac)"))
             default:
                 availability = .invalid(String(localized: "No valid startup.tjs or XP3 found"))
             }
@@ -1216,6 +1221,11 @@ public enum GameScanner {
             // there itself (Pk/*.pk or Longinus.dat), so the patch's
             // launcher executable is not a startup file of its own.
             guard try isCMVSGame(in: directory) else { return [] }
+            return [StartupFile(.directory, ".")]
+        case .softpal:
+            // MikageSoftPAL opens the game folder (data.pac and the other
+            // PAC archives) and reads a patch there itself.
+            guard try isSoftPALGame(in: directory) else { return [] }
             return [StartupFile(.directory, ".")]
         case .kirikiri:
             break
@@ -1531,6 +1541,7 @@ public enum GameScanner {
         if try isBGIGame(in: directory) { matches.append(.bgi) }
         if try isYurisGame(in: directory) { matches.append(.yuris) }
         if try isCMVSGame(in: directory) { matches.append(.cmvs) }
+        if try isSoftPALGame(in: directory) { matches.append(.softpal) }
 
         return matches
     }
@@ -1628,6 +1639,15 @@ public enum GameScanner {
         guard let data = folder("data", in: directory), let pack = folder("pack", in: data) else { return false }
         let starts = Set(["start.ps3", "start.ps2"].map(normalized))
         return try rootFiles(in: pack).contains { starts.contains(normalized($0.lastPathComponent)) }
+    }
+
+    /// A SoftPAL game keeps its script and tables in data.pac, a PAC
+    /// archive ("PAC " magic), beside the other archives (bgm.pac, ...).
+    private static func isSoftPALGame(in directory: URL) throws -> Bool {
+        guard let data = try rootFiles(in: directory).first(where: { normalized($0.lastPathComponent) == normalized("data.pac") }),
+              let file = try? FileHandle(forReadingFrom: data) else { return false }
+        defer { try? file.close() }
+        return try file.read(upToCount: 4) == Data("PAC ".utf8)
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

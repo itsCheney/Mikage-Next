@@ -61,6 +61,9 @@ jobs:
       - name: Record CMVS runtime revision
         id: cmvs-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/CMVSRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record SoftPAL runtime revision
+        id: softpal-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SoftPALRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -623,6 +626,45 @@ jobs:
         with:
           path: build/CMVSRuntime.xcframework
           key: ${{ steps.cache-cmvs-runtime.outputs.cache-primary-key }}
+      # SoftPAL: the MikageSoftPAL runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore SoftPAL runtime framework
+        id: cache-softpal-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SoftPALRuntime.xcframework
+          key: softpal-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-softpal-ios.sh') }}-${{ steps.softpal-revision.outputs.rev }}
+      - name: Install Rust for SoftPAL
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache SoftPAL Rust builds
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/softpal/target
+          key: softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SoftPALRuntime/Source/Cargo.lock') }}-${{ steps.softpal-revision.outputs.rev }}
+          restore-keys: |
+            softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SoftPALRuntime/Source/Cargo.lock') }}-
+            softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build SoftPAL runtime framework
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-softpal-ios.sh 2>&1 | tee build/softpal-runtime-build.log
+      - name: Save SoftPAL runtime framework
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SoftPALRuntime.xcframework
+          key: ${{ steps.cache-softpal-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py
