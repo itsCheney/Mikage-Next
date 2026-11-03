@@ -61,13 +61,49 @@ final class SDLHostPresentation {
                sceneBounds.width > sceneBounds.height,
                windowBounds.width > windowBounds.height {
                 AppDiagnostics.shared.windows("geometry.landscape.ready")
-                await Task.yield()
+                // Let the launch stage redraw at landscape size and the
+                // rotation finish before the engine starts loading on the
+                // main thread, or the stage stays drawn at portrait size
+                // beside black until the game covers it.
+                Self.fitPresentedViews(in: window)
+                try? await Task.sleep(nanoseconds: Self.rotationSettle)
+                Self.fitPresentedViews(in: window)
                 return
             }
             try await Task.sleep(nanoseconds: 50_000_000)
         }
         AppDiagnostics.shared.windows("geometry.landscape.timeout")
         throw SDLHostError.orientationUnavailable
+    }
+
+    /// About as long as the system's rotation animation.
+    private static let rotationSettle: UInt64 = 400_000_000
+
+    /// Sizes the app's root and presented views (the player's full-screen
+    /// cover) to the window and lays them out now. A window that was hidden
+    /// or not key while the scene turned can keep its views at the old
+    /// orientation's size, which shows as the launch stage drawn for the
+    /// other orientation with black beside it.
+    private static func fitPresentedViews(in window: UIWindow) {
+        let bounds = window.bounds
+        var controller = window.rootViewController
+        while let current = controller {
+            if let view = current.viewIfLoaded,
+               current === window.rootViewController || current.modalPresentationStyle == .fullScreen
+                || current.modalPresentationStyle == .overFullScreen {
+                // The presentation's container views fill the window too.
+                var container = view.superview
+                while let parent = container, parent !== window {
+                    if parent.frame != bounds { parent.frame = bounds }
+                    container = parent.superview
+                }
+                if view.frame != bounds { view.frame = bounds }
+                view.setNeedsLayout()
+                view.layoutIfNeeded()
+            }
+            controller = current.presentedViewController
+        }
+        window.layoutIfNeeded()
     }
 
     /// Counts window swaps, so a fade that finishes after the player has
@@ -103,6 +139,7 @@ final class SDLHostPresentation {
         shownEngineWindow = nil
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
+        if let host = hostWindow { Self.fitPresentedViews(in: host) }
         if let lastFrame, let host = hostWindow {
             lastFrame.frame = host.bounds
             lastFrame.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -160,6 +197,7 @@ final class SDLHostPresentation {
                 layoutMatches = true
             }
 
+            if let host = hostWindow { Self.fitPresentedViews(in: host) }
             if layoutMatches {
                 stableLayoutSamples += 1
                 if stableLayoutSamples >= 3 { break }
@@ -168,7 +206,7 @@ final class SDLHostPresentation {
             }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        hostWindow?.layoutIfNeeded()
+        if let host = hostWindow { Self.fitPresentedViews(in: host) }
         AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
         try? await Task.sleep(nanoseconds: 100_000_000)
         windowScene = nil
