@@ -128,33 +128,51 @@ final class SDLHostPresentation {
         }
     }
 
+    /// Covers the screen while the scene turns back from landscape after a
+    /// game: the game's last frame, filling whatever shape the screen has.
+    /// A plain UIKit window, so it follows the rotation exactly, while the
+    /// app's window (hidden all game) catches up underneath.
+    private var curtain: UIWindow?
+
     /// Brings the app's window back once the engine's is gone.
     func showHostWindow() {
         swapGeneration += 1
-        // The game's last frame, laid over the app's window and faded out,
-        // so leaving dissolves into the launch stage instead of cutting.
         let lastFrame = shownEngineWindow.flatMap { window in
             window.isHidden ? nil : window.snapshotView(afterScreenUpdates: false)
         }
         shownEngineWindow = nil
+        if let scene = windowScene ?? hostWindow?.windowScene {
+            curtain?.isHidden = true
+            let window = UIWindow(windowScene: scene)
+            window.windowLevel = .normal + 1
+            window.backgroundColor = .black
+            window.rootViewController = CurtainController(content: lastFrame)
+            window.isUserInteractionEnabled = false
+            window.isHidden = false
+            curtain = window
+        }
         hostWindow?.isHidden = false
         hostWindow?.makeKeyAndVisible()
         if let host = hostWindow { Self.fitPresentedViews(in: host) }
-        if let lastFrame, let host = hostWindow {
-            lastFrame.frame = host.bounds
-            lastFrame.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            lastFrame.isUserInteractionEnabled = false
-            host.addSubview(lastFrame)
-            UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseInOut]) {
-                lastFrame.alpha = 0
-            } completion: { _ in
-                lastFrame.removeFromSuperview()
-            }
+    }
+
+    /// Fades the curtain out over the app, now laid out for its orientation.
+    private func liftCurtain() {
+        guard let window = curtain else { return }
+        curtain = nil
+        UIView.animate(withDuration: 0.4, delay: 0, options: [.curveEaseInOut]) {
+            window.alpha = 0
+        } completion: { _ in
+            window.isHidden = true
+            window.rootViewController = nil
         }
     }
 
     func restorePreviousOrientation() async {
-        guard let scene = windowScene else { return }
+        guard let scene = windowScene else {
+            liftCurtain()
+            return
+        }
         let targetOrientation = previousOrientation
         let mask: UIInterfaceOrientationMask
         switch targetOrientation {
@@ -208,8 +226,46 @@ final class SDLHostPresentation {
         }
         if let host = hostWindow { Self.fitPresentedViews(in: host) }
         AppDiagnostics.shared.event("UIKit", "geometry.restore.completed", ["stableSamples": String(stableLayoutSamples)])
+        // One more frame for SwiftUI to draw the app at its new size before
+        // the curtain lifts off it.
         try? await Task.sleep(nanoseconds: 100_000_000)
+        liftCurtain()
         windowScene = nil
         previousOrientation = .unknown
+    }
+}
+
+/// The curtain's content: the game's last frame scaled to fill the screen,
+/// centered, whichever way the screen faces.
+private final class CurtainController: UIViewController {
+    private let content: UIView?
+
+    init(content: UIView?) {
+        self.content = content
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .all }
+    override var prefersStatusBarHidden: Bool { true }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        if let content {
+            content.isUserInteractionEnabled = false
+            view.addSubview(content)
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard let content, content.bounds.width > 0, content.bounds.height > 0 else { return }
+        let bounds = view.bounds
+        let scale = max(bounds.width / content.bounds.width, bounds.height / content.bounds.height)
+        content.transform = CGAffineTransform(scaleX: scale, y: scale)
+        content.center = CGPoint(x: bounds.midX, y: bounds.midY)
     }
 }
