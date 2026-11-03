@@ -1613,7 +1613,8 @@ public enum GameScanner {
         return try rootFiles(in: pac).contains { normalized($0.pathExtension) == "ypf" }
     }
 
-    /// A CMVS game starts from data/pack/start.ps3, beside its CPZ archives.
+    /// A CMVS game starts from data/pack/start.ps3 (start.ps2 for builds before
+    /// 2013, such as Miranosu), beside its CPZ archives.
     /// Folder names are matched without case, as Windows does.
     private static func isCMVSGame(in directory: URL) throws -> Bool {
         func folder(_ name: String, in parent: URL) -> URL? {
@@ -1625,7 +1626,8 @@ public enum GameScanner {
             }
         }
         guard let data = folder("data", in: directory), let pack = folder("pack", in: data) else { return false }
-        return try rootFiles(in: pack).contains { normalized($0.lastPathComponent) == normalized("start.ps3") }
+        let starts = Set(["start.ps3", "start.ps2"].map(normalized))
+        return try rootFiles(in: pack).contains { starts.contains(normalized($0.lastPathComponent)) }
     }
 
     private static func isSiglusGame(in directory: URL) throws -> Bool {

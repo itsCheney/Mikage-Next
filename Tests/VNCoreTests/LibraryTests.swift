@@ -550,6 +550,13 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .cmvs).map(\.relativePath), ["."])
         XCTAssertEqual(GameTextEncoding.choices(for: .cmvs), [.shiftJIS, .gbk])
 
+        // Builds before 2013 (Miranosu) start from start.ps2.
+        let older = try directory("Miranosu")
+        let olderPack = older.appendingPathComponent("data/pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: olderPack, withIntermediateDirectories: true)
+        try Data("PS2A".utf8).write(to: olderPack.appendingPathComponent("start.ps2"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: older), [.cmvs])
+
         // CPZ archives without the start script are not a game yet.
         let incomplete = try directory("Incomplete")
         let incompletePack = incomplete.appendingPathComponent("data/pack", isDirectory: true)
