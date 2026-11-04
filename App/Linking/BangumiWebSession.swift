@@ -43,14 +43,10 @@ final class BangumiWebSession {
     private var signInFormhash: String?
 
     /// Cookies are sent and stored by hand, so redirects can be read and
-    /// nothing leaks into the shared cookie storage.
-    private let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpShouldSetCookies = false
-        configuration.timeoutIntervalForRequest = 20
-        return URLSession(configuration: configuration)
-    }()
+    /// nothing leaks into the shared cookie storage. BangumiNetwork picks
+    /// the route (system DNS or the built-in one) and the website domain;
+    /// the session's cookies work on both bgm.tv and bangumi.tv.
+    private let network = BangumiNetwork.shared
 
     private init() {
         cookies = keychain.read()
@@ -95,7 +91,7 @@ final class BangumiWebSession {
         var method = method
         var form = form
         for _ in 0..<6 {
-            var request = URLRequest(url: url)
+            var request = URLRequest(url: url, timeoutInterval: 20)
             request.httpMethod = method
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
             if !cookies.isEmpty {
@@ -111,8 +107,9 @@ final class BangumiWebSession {
                 request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
                 request.httpBody = form
             }
-            let (data, response) = try await session.data(for: request, delegate: NoRedirects.shared)
-            guard let http = response as? HTTPURLResponse else { throw BangumiWebError.http(0) }
+            let (data, http) = try await network.data(for: request)
+            // A fallback may have answered from the other website domain.
+            url = http.url ?? url
             absorbCookies(from: http, for: url)
             saveCookies()
             if followRedirects, (300..<400).contains(http.statusCode),
@@ -237,21 +234,6 @@ final class BangumiWebSession {
         cookies = [:]
         signInFormhash = nil
         saveCookies()
-    }
-}
-
-/// Keeps a request's redirect as the response.
-private final class NoRedirects: NSObject, URLSessionTaskDelegate {
-    static let shared = NoRedirects()
-
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        completionHandler(nil)
     }
 }
 

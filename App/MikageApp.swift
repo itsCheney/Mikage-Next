@@ -124,6 +124,11 @@ final class AppModel: ObservableObject {
         configureDiagnostics: Bool = true
     ) {
         self.defaults = defaults
+        if configureDiagnostics {
+            BangumiNetwork.shared.onEvent = { name, fields in
+                AppDiagnostics.shared.event("network", name, fields)
+            }
+        }
         self.repository = repository ?? Self.appRepository()
         builtInGamesRoot = repository == nil
             ? Bundle.main.resourceURL?.appendingPathComponent("BuiltInGames", isDirectory: true)

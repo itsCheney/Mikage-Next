@@ -456,21 +456,77 @@ struct RemoteThumbnail: View {
     let blurred: Bool
 
     var body: some View {
-        AsyncImage(url: url.flatMap { URL(string: $0) }) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: blurred ? 12 : 0)
-            } else {
-                Color(uiColor: .tertiarySystemFill)
-                    .overlay(
-                        Image(systemName: "book.closed.fill")
-                            .foregroundStyle(.secondary)
-                    )
-            }
+        RemoteImage(url: url.flatMap { URL(string: $0) }) { image in
+            image
+                .resizable()
+                .scaledToFill()
+                .blur(radius: blurred ? 12 : 0)
+        } placeholder: {
+            Color(uiColor: .tertiarySystemFill)
+                .overlay(
+                    Image(systemName: "book.closed.fill")
+                        .foregroundStyle(.secondary)
+                )
         }
         .clipped()
         .accessibilityHidden(true)
+    }
+}
+
+/// Downloads remote images. Bangumi's image host goes through
+/// BangumiNetwork, so covers still load where its DNS is poisoned;
+/// everything else uses the shared URLSession and its cache.
+enum RemoteImageLoader {
+    private static let cache: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.countLimit = 200
+        return cache
+    }()
+
+    static func cached(_ url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    /// The body and status code of a GET for the URL.
+    static func data(_ url: URL, timeout: TimeInterval = 30) async throws -> (Data, Int) {
+        let request = URLRequest(url: url, timeoutInterval: timeout)
+        if let host = url.host, BangumiHosts.isBangumi(host) {
+            let (data, response) = try await BangumiNetwork.shared.data(for: request, followRedirects: true)
+            return (data, response.statusCode)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 200)
+    }
+
+    static func image(_ url: URL) async -> UIImage? {
+        if let hit = cached(url) { return hit }
+        guard let result = try? await data(url), (200..<300).contains(result.1),
+              let image = UIImage(data: result.0) else { return nil }
+        cache.setObject(image, forKey: url as NSURL)
+        return image
+    }
+}
+
+/// AsyncImage, loading through RemoteImageLoader.
+struct RemoteImage<Content: View, Placeholder: View>: View {
+    let url: URL?
+    @ViewBuilder let content: (Image) -> Content
+    @ViewBuilder let placeholder: () -> Placeholder
+    @State private var loaded: (url: URL, image: UIImage)?
+
+    var body: some View {
+        Group {
+            if let url, let image = loaded?.url == url ? loaded?.image : RemoteImageLoader.cached(url) {
+                content(Image(uiImage: image))
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: url) {
+            guard let url, loaded?.url != url else { return }
+            if let image = await RemoteImageLoader.image(url) {
+                loaded = (url, image)
+            }
+        }
     }
 }

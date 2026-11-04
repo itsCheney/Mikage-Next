@@ -568,8 +568,7 @@ extension AppModel {
         guard let source, let url = URL(string: source) else { return (nil, nil) }
         let data: Data
         do {
-            let (body, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 30))
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+            let (body, status) = try await RemoteImageLoader.data(url)
             guard (200..<300).contains(status) else {
                 AppDiagnostics.shared.event("linking", "artwork.rejected", ["kind": kind, "status": String(status)])
                 return (nil, String(localized: "The image server answered with error \(status)."))

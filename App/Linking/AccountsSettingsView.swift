@@ -41,6 +41,14 @@ struct AccountsSettingsView: View {
             }
 
             Section {
+                NavigationLink("Bangumi Connection") {
+                    BangumiConnectionView()
+                }
+            } footer: {
+                Text("If Bangumi doesn’t load in your region, test the connection here.")
+            }
+
+            Section {
                 Toggle("Update Status While Playing", isOn: $model.settings.autoStatus)
                 Toggle("Sync Ratings and Comments", isOn: $model.settings.syncRatings)
                 Toggle("Record Start and Finish Dates", isOn: $model.settings.syncDates)
@@ -389,7 +397,7 @@ struct ServiceAccountIcon: View {
                 endPoint: .bottomTrailing
             ))
         if let url = account.avatarURL.flatMap(URL.init(string:)) {
-            AsyncImage(url: url) { image in
+            RemoteImage(url: url) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 initial

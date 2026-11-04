@@ -58,10 +58,12 @@ public struct BangumiToken: Codable, Equatable, Sendable {
 /// A lapsed access token is refreshed with the refresh token, and when that
 /// fails too, the website session approves Mikage again.
 public enum BangumiOAuth {
-    public static let tokenURL = URL(string: "https://bgm.tv/oauth/access_token")!
+    /// On the website domain in use (bgm.tv or bangumi.tv); both serve
+    /// the same OAuth endpoints and accounts.
+    public static var tokenURL: URL { BangumiNetwork.shared.webURL("oauth/access_token") }
 
     public static func authorizeURL(_ app: BangumiAppCredentials) -> URL {
-        var components = URLComponents(string: "https://bgm.tv/oauth/authorize")!
+        var components = URLComponents(url: BangumiNetwork.shared.webURL("oauth/authorize"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: app.clientID),
             URLQueryItem(name: "response_type", value: "code"),
