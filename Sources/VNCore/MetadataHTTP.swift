@@ -56,10 +56,7 @@ struct MetadataHTTP: Sendable {
     /// Sends the request and returns the body of a 2xx response.
     @discardableResult
     func send(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MetadataError.invalidResponse(service)
-        }
+        let (data, http) = try await exchange(request)
         switch http.statusCode {
         case 200..<300:
             return data
@@ -70,6 +67,18 @@ struct MetadataHTTP: Sendable {
         default:
             throw MetadataError.http(service, http.statusCode, Self.message(in: data))
         }
+    }
+
+    private func exchange(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if service == .bangumi, session === URLSession.shared {
+            // Bangumi's hosts may need the built-in DNS; see BangumiNetwork.
+            return try await BangumiNetwork.shared.data(for: request, followRedirects: true)
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw MetadataError.invalidResponse(service)
+        }
+        return (data, http)
     }
 
     func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
@@ -101,11 +110,14 @@ public struct ServiceAccount: Codable, Equatable, Sendable {
     public var username: String
     /// VNDB's user id, such as "u2"; list queries need it.
     public var userID: String?
+    /// The profile picture, where the service has one (Bangumi).
+    public var avatarURL: String?
 
-    public init(service: MetadataService, username: String, userID: String? = nil) {
+    public init(service: MetadataService, username: String, userID: String? = nil, avatarURL: String? = nil) {
         self.service = service
         self.username = username
         self.userID = userID
+        self.avatarURL = avatarURL
     }
 }
 

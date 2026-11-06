@@ -41,6 +41,14 @@ targets:
         embed: true
       - framework: build/RFVPRuntime.xcframework
         embed: true
+      - framework: build/EthornellRuntime.xcframework
+        embed: true
+      - framework: build/YurisRuntime.xcframework
+        embed: true
+      - framework: build/CMVSRuntime.xcframework
+        embed: true
+      - framework: build/SoftPALRuntime.xcframework
+        embed: true
       # OpenGL ES on Metal, which the shared SDL3 links for GL windows
       # (Ren'Py) instead of Apple's deprecated OpenGLES.
       - framework: build/MetalANGLE.xcframework
@@ -53,6 +61,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: moe.cheney233.mikage
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        # The asset catalog holds only service icons; the app has no icon set yet.
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES

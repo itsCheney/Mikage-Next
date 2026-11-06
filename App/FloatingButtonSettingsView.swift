@@ -16,11 +16,17 @@ struct FloatingButtonSettingsView: View {
     var body: some View {
         Form {
             Section {
-                FloatingButtonPreview(
-                    enabled: model.settings.floatingButton,
-                    opacity: idleOpacity,
-                    actions: actions
-                )
+                VStack(spacing: 10) {
+                    FloatingControlsMap(
+                        showsMenuButton: model.settings.floatingButton,
+                        opacity: idleOpacity,
+                        actions: actions,
+                        showsStats: model.settings.performance,
+                        revision: positionsReset ? 1 : 0
+                    )
+                    FloatingControlsLegend(showsStats: model.settings.performance)
+                }
+                .padding(.vertical, 4)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }
@@ -138,64 +144,5 @@ private struct QuickActionLabel: View {
             Image(systemName: action.symbol)
                 .foregroundStyle(.tint)
         }
-    }
-}
-
-/// A landscape screen with the buttons where they start: the menu button
-/// top right, quick actions in the bottom corners.
-private struct FloatingButtonPreview: View {
-    let enabled: Bool
-    let opacity: Double
-    let actions: [QuickActionKind]
-
-    private static let accent = Color(FloatingButtonStyle.accent)
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(LinearGradient(
-                colors: [Color(white: 0.22), Color(white: 0.08)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ))
-            .overlay {
-                // The game, letterboxed.
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.06))
-                    .padding(.horizontal, 56)
-                    .padding(.vertical, 10)
-            }
-            .overlay(alignment: .topTrailing) {
-                if enabled {
-                    button(symbol: "moon.stars.fill", size: 34, fill: Self.accent.opacity(0.7))
-                        .opacity(opacity)
-                        .padding(10)
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if let action = actions.first {
-                    button(symbol: action.symbol, size: 30, fill: Color.black.opacity(0.55))
-                        .opacity(opacity)
-                        .padding(10)
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                if actions.count > 1 {
-                    button(symbol: actions[1].symbol, size: 30, fill: Color.black.opacity(0.55))
-                        .opacity(opacity)
-                        .padding(10)
-                }
-            }
-            .aspectRatio(19.5 / 9, contentMode: .fit)
-            .padding(.vertical, 4)
-            .accessibilityHidden(true)
-    }
-
-    private func button(symbol: String, size: CGFloat, fill: Color) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(Circle().fill(fill))
-            .overlay(Circle().strokeBorder(Color.white.opacity(0.18)))
     }
 }

@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri), and Ren’Py games through [Ren’Py 8](https://github.com/itsCheney/renpy) itself. Artemis, SiglusEngine and FVP games run experimentally, through [openArtemis](https://github.com/itsCheney/openartemis), [siglus_rs](https://github.com/itsCheney/siglus_rs) and [rfvp](https://github.com/itsCheney/rfvp).
+Mikage Next is a visual novel player for iPhone and iPad. It keeps all your games in one library and runs each one with the engine it was made for. KiriKiri (KAG / TJS) games play today, through an embedded build of [KRKRSDL3](https://github.com/itsCheney/krkrsdl3), ONScripter games through [ONScripter Yuri](https://github.com/YuriSizuku/OnscripterYuri), and Ren’Py games through [Ren’Py 8](https://github.com/itsCheney/renpy) itself. Artemis, SiglusEngine, FVP, BGI, YU-RIS, CMVS and SoftPAL games run experimentally, through [openArtemis](https://github.com/itsCheney/openartemis), [siglus_rs](https://github.com/itsCheney/siglus_rs), [rfvp](https://github.com/itsCheney/rfvp), [ethornell-rs](https://github.com/itsCheney/ethornell-rs), [MikageYURIS](https://github.com/itsCheney/MikageYURIS), [MikageCMVS](https://github.com/itsCheney/MikageCMVS) and [MikageSoftPAL](https://github.com/itsCheney/MikageSoftPAL).
 
 Mikage ships no game content. You bring games you own.
 
@@ -11,10 +11,16 @@ Mikage ships no game content. You bring games you own.
 **Library**
 - Put game folders straight into the app’s Documents with the Files app, or import a folder with the + button in the Library. Mikage detects each game’s engine from its files. While the library has no games of your own, Documents holds two tip files, `DROP_GAMES_HERE` and `把游戏放在这里`; they’re removed once a game is found. The per-engine folders of older versions (`krkr/`, `ons/`, `renpy/`, `artemis/`) are emptied into Documents and deleted the first time the updated app opens.
 - The library rescans on launch, when the app returns to the foreground, and on pull to refresh. Folders keep their original names; Mikage’s own records live in Application Support.
+- New games show up in a toast that opens a review sheet: each game lists its Bangumi and VNDB candidates, a title search and a generated cover, then a summary before the games are added. Games with no art get a typeset cover drawn from the folder name, and new unplayed games sit in Recently Added for a week.
+- Settings › Library › Cover Layout picks how cards show covers of different shapes: Original (a 16:9 center crop, the default), Adaptive or Masonry.
 - A Ren’Py game folder needs a `game` folder with `.rpy` or `.rpyc` scripts, or `.rpa` archives. Mikage bundles Ren’Py 8. Ren’Py can run one game each time Mikage opens: to play another Ren’Py game, close Mikage from the app switcher and open it again.
 - An Artemis game folder needs `root.pfs` (or another `.pfs` pack), or an extracted project with `system.ini`.
 - A SiglusEngine game folder needs `Scene.pck` or `Gameexe.dat`. On the first run siglus_rs works out the game's second-layer resource key and writes it to `key.toml` in the game folder. Translated releases often ship a patched executable (such as `SiglusEngineCHS.exe`) that loads renamed copies like `Scene.chs` and `Gameexe.chs`; Mikage reads those names from the exe and lists it as a startup file. Executables named for a language (`_CHS`, `中文`...), named Siglus or SiglusEngine, or carrying the game's (folder's) name are listed too. So are executables that pack the translated files with Enigma Virtual Box: started from one, the files it packs win over the game folder's files of the same name, as on Windows, and are unpacked into the app's caches the first time they are used. Automatic picks the file tagged with the system language, preferring among those the one that really loads renamed copies or packs its own files; an untagged executable that does either beats the original for anyone who doesn't read Japanese first. Repacks such as some "高压" releases are supported too: g00 images stored as UCI (H.264), translated images in `.g01` files next to the originals, and voices in `koe/uca.dat` and `uca2.dat`, which are decoded with the game's own `ucadec.dll` running in a built-in x86 interpreter. MP4 movies renamed to `.mpg` play through the system's AVFoundation.
 - An FVP game folder needs a script, `*.hcb` (or a translation patch, `*.bch`), next to its `*.bin` packs. With several scripts, Mikage starts the patch first; the game's page has a Startup file picker. FVP scripts don't record their text encoding: Automatic reads patches (and scripts with GBK in the name) as GBK and the rest as Shift-JIS, and the game's page has a Text encoding picker. rfvp keeps its saves in the game's `savedata` folder, in its own format; saves of the original Windows engine can't be loaded.
+- A BGI (Ethornell) game folder needs `system.arc`. The game's page has a Text encoding picker (Shift-JIS or GBK); Automatic uses GBK when the folder's name marks a Chinese release (CHS, 汉化, GBK...) and Shift-JIS otherwise. Saves go to the game's `savedata` folder in the game's own format; saves the original Windows engine left in the game folder aren't imported. Movies play without sound for now, and WMV and MP4 movies don't play.
+- A YU-RIS game folder needs its `*.ypf` packs, in the folder itself or in its `pac` folder. A translation patch's launcher packed with Enigma Virtual Box (such as `erewhon_chs.exe`) is a startup file of its own; its packed files win over the game's. Automatic lets the runtime tell GBK from Shift-JIS by reading the scripts; the game’s page has a Text encoding picker to fix one. Saves go to the game's `savedata` folder. Only Erewhon (エレホン) has been tested so far.
+- A CMVS (Purple software) game folder needs `data/pack/start.ps3` and its `*.cpz` packs. A translation patch in the game folder is picked up by itself, its files win over the game's, and there is no patch launcher to choose. 茶组's PKP archives (アマツツミ's `Pk/*.pk`) and Longinus's `Longinus.dat` (アオイトリ's 天之圣杯 patch) are recognized by content, even renamed or in a subfolder. Any other patch can be unpacked (with GARbro, for example) into a `patch` folder in the game folder, with files named like the game's own: scripts `.ps3`, images `.pb3` or a `.png` of the same name, movies `.cmv`, in subfolders if you like. Automatic reads GBK when a patch is there, else Shift-JIS; the game’s page has a Text encoding picker to fix one. Saves go to the game's `savedata` folder. Tested with アマツツミ and アオイトリ, Japanese and Chinese, not yet on a device.
+- A SoftPAL game folder needs `data.pac` next to its other `*.pac` archives. The game's page has a Text encoding picker (Shift-JIS or GBK). Saves go to the game's `savedata` folder; the first launch copies the original engine's `save` folder there, so those saves load. A Longinus translation patch (`Longinus.ini`, such as 魔女こいにっき's Chinese patch) is picked up by itself, and Automatic then reads GBK. Keep the game's `.exe` in the folder: older builds check a value stored in it at start-up. Tested with 恋×シンアイ彼女 (Japanese) and 魔女こいにっき (Japanese and Chinese), not yet on a device; 恋×シンアイ彼女's XmoeLinker Chinese patch isn't read.
 - An ONScripter game folder needs a script such as `0.txt`, `00.txt` or `nscript.dat`. Mikage uses the folder's `default.ttf` when there is one, otherwise a system font (Hiragino Sans for Japanese games, PingFang for Chinese ones).
 - A KiriKiri game can start from `startup.tjs` at the game root, an XP3 that passes its signature check, or an `.exe` with an XP3 appended. Mikage prefers the one whose name is tagged with your language (`xxx_CHS.exe` or `启动游戏.xp3` for Chinese, `xxx_EN.exe` for English); otherwise it takes `startup.tjs`, `启动游戏.xp3`, `startup.xp3`, `start.xp3`, `boot.xp3`, an `.exe` with an XP3, then `data.xp3`. The game's page has a Startup file picker to fix one by hand.
 - KiriKiri, SiglusEngine and FVP games can have several startup files (a translated release beside the original). Mikage works out which one to run each time a game launches, from your system language and the rules above, so it never asks. A file you pick on the game’s page always wins, and is kept unless the file disappears.
@@ -53,6 +59,10 @@ Mikage ships no game content. You bring games you own.
 | Artemis (openArtemis) | Yes | Experimental |
 | SiglusEngine (siglus_rs) | Yes | Experimental |
 | FVP (rfvp) | Yes | Experimental |
+| BGI / Ethornell (ethornell-rs) | Yes | Experimental |
+| YU-RIS (MikageYURIS) | Yes | Experimental |
+| CMVS (MikageCMVS) | Yes | Experimental |
+| SoftPAL (MikageSoftPAL) | Yes | Experimental |
 
 ZIP import and Wi-Fi upload aren’t available yet. The plan for the next engines is in [docs/PHASE-2-MULTI-ENGINE-PLAN.md](docs/PHASE-2-MULTI-ENGINE-PLAN.md).
 
@@ -72,6 +82,8 @@ bash scripts/build-artemis-ios.sh  # builds build/ArtemisRuntime.xcframework
 bash scripts/build-renpy-ios.sh  # builds build/RenPyRuntime.xcframework (needs Python 3.12)
 bash scripts/build-siglus-ios.sh # builds build/SiglusRuntime.xcframework (needs Rust with the iOS targets)
 bash scripts/build-rfvp-ios.sh   # builds build/RFVPRuntime.xcframework (needs Rust with the iOS targets)
+bash scripts/build-ethornell-ios.sh # builds build/EthornellRuntime.xcframework (needs Rust with the iOS targets, and Java)
+bash scripts/build-yuris-ios.sh  # builds build/YurisRuntime.xcframework (needs Rust with the iOS targets)
 xcodegen generate
 open Mikage.xcodeproj
 ```
@@ -80,22 +92,21 @@ Choose the Mikage scheme, set your own signing team, and run. The deployment tar
 
 To use Bangumi website sign-in instead of pasted tokens, register an app at [bgm.tv/dev/app](https://bgm.tv/dev/app) and pass `BANGUMI_APP_ID` and `BANGUMI_APP_SECRET` as build settings (see `project.yml`). Left empty, Bangumi falls back to access tokens.
 
-Every push to `main`, `beta` or `runtime-dev` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
+Every push to `main` or `runtime-dev` also runs the [iOS build workflow](.github/workflows/ios.yml) on GitHub Actions. It runs the tests, builds the runtime and the app, and uploads an unsigned `Mikage-unsigned-<run>.ipa`. Sign it yourself before installing.
 
 ## Branches
 
 - `main`: stable.
-- `beta`: testing ahead of `main`.
-- `runtime-dev`: development. New engine and runtime work lands here first, then merges into `beta`, and `beta` into `main`.
+- `runtime-dev`: development. New engine and runtime work lands here first, then merges into `main`.
 
-Each branch pins the KiriKiri runtime from its own branch of [krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) and [krkrsdl3](https://github.com/itsCheney/krkrsdl3): `mikage` for `main`, `mikage-beta` for `beta`, `runtime-dev` for `runtime-dev`. The other engine submodules follow their `mikage` branch on every branch.
+Each branch pins the KiriKiri runtime from its own branch of [krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) and [krkrsdl3](https://github.com/itsCheney/krkrsdl3): `mikage` for `main`, `runtime-dev` for `runtime-dev`. The other engine submodules follow their `mikage` branch on every branch.
 
 ## Repository layout
 
 | Path | Contents |
 | --- | --- |
 | `App/` | The SwiftUI app: library, game details, player, settings, storage, Bangumi/VNDB linking, string catalog |
-| `App/Engine/` | The bridges that host the KiriKiri, ONScripter, Artemis, Ren’Py, SiglusEngine and FVP runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
+| `App/Engine/` | The bridges that host the KiriKiri, ONScripter, Artemis, Ren’Py, SiglusEngine, FVP, BGI, YU-RIS, CMVS and SoftPAL runtimes inside the app; `SDLHost/` is the part every SDL engine shares (landscape, window switching, frame stepping, foreground changes) |
 | `Sources/VNCore/` | Swift package: library scanning and import, path safety, Bangumi and VNDB clients, matching |
 | `Engine/KRKRRuntime/` | The KRKRSDL3 runtime, pinned as a submodule ([krkrsdl3_build](https://github.com/itsCheney/krkrsdl3_build) → [krkrsdl3](https://github.com/itsCheney/krkrsdl3)) |
 | `Engine/ONSRuntime/` | ONScripter Yuri, pinned as a submodule ([Mikage branch](https://github.com/itsCheney/OnscripterYuri)), running on the shared SDL3 through sdl2-compat |
@@ -104,6 +115,10 @@ Each branch pins the KiriKiri runtime from its own branch of [krkrsdl3_build](ht
 | `Engine/SDL3/patches/`, `Engine/MetalANGLE/` | The patches that make the shared SDL3 run OpenGL ES windows on MetalANGLE instead of Apple's deprecated OpenGLES, and MetalANGLE's license |
 | `Engine/SiglusRuntime/` | siglus_rs, pinned as a submodule ([mikage branch](https://github.com/itsCheney/siglus_rs)): Rust, rendering with wgpu straight to Metal, without SDL |
 | `Engine/RFVPRuntime/` | rfvp, pinned as a submodule ([mikage branch](https://github.com/itsCheney/rfvp)): Rust, rendering with wgpu straight to Metal, without SDL |
+| `Engine/EthornellRuntime/` | ethornell-rs, pinned as a submodule ([mikage branch](https://github.com/itsCheney/ethornell-rs)): Rust, rendering with wgpu straight to Metal, without SDL |
+| `Engine/YurisRuntime/` | MikageYURIS, pinned as a submodule ([mikage branch](https://github.com/itsCheney/MikageYURIS)): a YU-RIS runtime in Rust, rendering with wgpu straight to Metal, without SDL |
+| `Engine/CMVSRuntime/` | MikageCMVS, pinned as a submodule ([mikage branch](https://github.com/itsCheney/MikageCMVS), a fork of cmvs-rs): a CMVS runtime in Rust, rendering with wgpu straight to Metal, without SDL |
+| `Engine/SoftPALRuntime/` | MikageSoftPAL, pinned as a submodule ([mikage branch](https://github.com/itsCheney/MikageSoftPAL), a fork of sena-rs): a SoftPAL runtime in Rust, rendering with wgpu straight to Metal, without SDL |
 | `Engine/MikageSDLHost/` | The shared native host an SDL engine runtime built on SDL's main callbacks compiles in (KiriKiri and Artemis): drives SDL's main callbacks, stopping, foreground changes, the audio session and the reset between games |
 | `Tests/` | Swift unit tests and native runtime tests |
 | `scripts/` | Build scripts and diagnostic analysis tools |
@@ -113,6 +128,6 @@ Each branch pins the KiriKiri runtime from its own branch of [krkrsdl3_build](ht
 
 Mikage Next is free software, released under the [GNU General Public License v3.0 or later](LICENSE).
 
-The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). The bundled openArtemis is MIT OR GPL-3.0-or-later, used under GPL-3.0-or-later; see [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md). The bundled Ren’Py is mostly MIT (some parts LGPL), CPython is under the PSF license and MetalANGLE under BSD; see [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md). The bundled siglus_rs is MPL-2.0 (a few WMV decoder files are LGPL-2.1-or-later); see [Engine/SiglusRuntime/README.md](Engine/SiglusRuntime/README.md). The bundled rfvp is MPL-2.0 (a few WMA and VC-1 decoder files are LGPL-2.1-or-later); see [Engine/RFVPRuntime/README.md](Engine/RFVPRuntime/README.md). Read them before distributing builds.
+The bundled KiriKiri runtime carries its own licenses: see [Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt](Engine/KRKRRuntime/KRKRSDL3-LICENSE.txt) and the notices inside the runtime submodule. The bundled ONScripter Yuri is GPL-2.0-or-later and the GeneralUser GS SoundFont it plays MIDI with has its own license; see [Engine/ONSRuntime/README.md](Engine/ONSRuntime/README.md). The bundled openArtemis is MIT OR GPL-3.0-or-later, used under GPL-3.0-or-later; see [Engine/ArtemisRuntime/README.md](Engine/ArtemisRuntime/README.md). The bundled Ren’Py is mostly MIT (some parts LGPL), CPython is under the PSF license and MetalANGLE under BSD; see [Engine/RenPyRuntime/README.md](Engine/RenPyRuntime/README.md). The bundled siglus_rs is MPL-2.0 (a few WMV decoder files are LGPL-2.1-or-later); see [Engine/SiglusRuntime/README.md](Engine/SiglusRuntime/README.md). The bundled rfvp is MPL-2.0 (a few WMA and VC-1 decoder files are LGPL-2.1-or-later); see [Engine/RFVPRuntime/README.md](Engine/RFVPRuntime/README.md). The bundled ethornell-rs is MPL-2.0; see [Engine/EthornellRuntime/README.md](Engine/EthornellRuntime/README.md). The bundled MikageYURIS is GPL-3.0-or-later (one file MPL-2.0); see [Engine/YurisRuntime/README.md](Engine/YurisRuntime/README.md). The bundled MikageCMVS is MIT OR Apache-2.0; see [Engine/CMVSRuntime/README.md](Engine/CMVSRuntime/README.md). The bundled MikageSoftPAL is MPL-2.0; see [Engine/SoftPALRuntime/README.md](Engine/SoftPALRuntime/README.md). Read them before distributing builds.
 
-KiriKiri, ONScripter, Ren’Py, Artemis, SiglusEngine, FVP, Bangumi and VNDB are the work of their respective authors. Mikage is not affiliated with any of them.
+KiriKiri, ONScripter, Ren’Py, Artemis, SiglusEngine, FVP, BGI (Ethornell), YU-RIS, CMVS, SoftPAL, Bangumi and VNDB are the work of their respective authors. Mikage is not affiliated with any of them.

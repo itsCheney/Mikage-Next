@@ -46,6 +46,8 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var player: GameRecord?
+    /// The cover animating between the library and the player, if any.
+    @Published var launchTransition: LaunchTransition?
     /// The ONScripter save slot the next launch starts from, if any.
     var pendingLoadSlot: Int?
     @Published var pendingImport: PendingGameImport?
@@ -61,6 +63,8 @@ final class AppModel: ObservableObject {
     @Published var toast: LibraryToast?
     /// Game folders a rescan found, offered for import.
     @Published var newGamesToast: NewGamesToast?
+    /// The new games being reviewed one by one before they are added.
+    @Published var importReview: ImportReview?
     /// A just-imported game waiting for its Bangumi/VNDB match.
     @Published var matchRequest: GameRecord?
     /// A game marked finished from the in-game menu, waiting for its rating.
@@ -120,6 +124,11 @@ final class AppModel: ObservableObject {
         configureDiagnostics: Bool = true
     ) {
         self.defaults = defaults
+        if configureDiagnostics {
+            BangumiNetwork.shared.onEvent = { name, fields in
+                AppDiagnostics.shared.event("network", name, fields)
+            }
+        }
         self.repository = repository ?? Self.appRepository()
         builtInGamesRoot = repository == nil
             ? Bundle.main.resourceURL?.appendingPathComponent("BuiltInGames", isDirectory: true)
@@ -130,7 +139,11 @@ final class AppModel: ObservableObject {
             .artemis: NativeArtemisSession(),
             .renpy: NativeRenPySession(),
             .siglus: NativeSiglusSession(),
-            .fvp: NativeFVPSession()
+            .fvp: NativeFVPSession(),
+            .bgi: NativeBGISession(),
+            .yuris: NativeYurisSession(),
+            .cmvs: NativeCMVSSession(),
+            .softpal: NativeSoftPALSession()
         ])
         self.tokens = tokens ?? KeychainTokenStore()
 
@@ -273,7 +286,16 @@ final class AppModel: ObservableObject {
 
     /// Plays the game, from one of its saves when `slot` is given (only
     /// ONScripter games start from a save).
-    func launch(_ game: GameRecord, fromSaveSlot slot: Int? = nil) {
+    /// Starts a game. `source` is where its cover is on screen (a library
+    /// card or the Continue Playing hero) for the cover to grow from.
+    func launch(
+        _ game: GameRecord,
+        fromSaveSlot slot: Int? = nil,
+        source: CGRect? = nil,
+        sourceRadius: CGFloat = 20
+    ) {
+        // A second tap while the cover is still growing, or a game already up.
+        guard player == nil, launchTransition?.direction != .entering else { return }
         AppDiagnostics.shared.event("library", "launch.requested", ["engine": game.engine.rawValue, "folder": game.folderName, "slot": slot.map(String.init) ?? ""])
         do {
             let prepared = try repository.prepareLaunch(for: game.id)
@@ -285,7 +307,7 @@ final class AppModel: ObservableObject {
                 "reason": prepared.chosenStartup == nil ? "automatic" : "userSelected"
             ])
             pendingLoadSlot = slot
-            player = prepared
+            presentPlayer(prepared, from: source, sourceRadius: sourceRadius)
         } catch {
             alert = error.localizedDescription
         }
@@ -540,13 +562,14 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The encoding an FVP game's script is read with.
-    func textEncoding(for game: GameRecord) -> FVPTextEncoding {
+    /// The encoding an FVP, BGI or YU-RIS game's script is read with; nil when
+    /// the YU-RIS runtime tells it from the scripts.
+    func textEncoding(for game: GameRecord) -> GameTextEncoding? {
         repository.textEncoding(for: game)
     }
 
-    /// `encoding` nil goes back to following the startup script.
-    func chooseTextEncoding(_ encoding: FVPTextEncoding?, for game: GameRecord) {
+    /// `encoding` nil goes back to choosing automatically.
+    func chooseTextEncoding(_ encoding: GameTextEncoding?, for game: GameRecord) {
         AppDiagnostics.shared.event("library", "encoding.choose", ["folder": game.folderName, "encoding": encoding?.rawValue ?? "auto"])
         do {
             let updated = try repository.chooseTextEncoding(encoding, for: game)

@@ -537,12 +537,159 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(repository.textEncoding(for: game), .utf8)
     }
 
+    func testCMVSGameStartsFromItsFolder() throws {
+        let folder = try directory("Aoitori")
+        // Windows-cased folders, a patch launcher and its Longinus.dat.
+        let pack = folder.appendingPathComponent("Data/Pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: pack, withIntermediateDirectories: true)
+        try Data("PS2A".utf8).write(to: pack.appendingPathComponent("start.ps3"))
+        try Data("CPZ7".utf8).write(to: pack.appendingPathComponent("script.cpz"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("cmvs64.exe"))
+        try Data("Longinus".utf8).write(to: folder.appendingPathComponent("Longinus.dat"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.cmvs])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .cmvs).map(\.relativePath), ["."])
+        XCTAssertEqual(GameTextEncoding.choices(for: .cmvs), [.shiftJIS, .gbk])
+
+        // Builds before 2013 (Miranosu) start from start.ps2.
+        let older = try directory("Miranosu")
+        let olderPack = older.appendingPathComponent("data/pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: olderPack, withIntermediateDirectories: true)
+        try Data("PS2A".utf8).write(to: olderPack.appendingPathComponent("start.ps2"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: older), [.cmvs])
+
+        // CPZ archives without the start script are not a game yet.
+        let incomplete = try directory("Incomplete")
+        let incompletePack = incomplete.appendingPathComponent("data/pack", isDirectory: true)
+        try FileManager.default.createDirectory(at: incompletePack, withIntermediateDirectories: true)
+        try Data("CPZ7".utf8).write(to: incompletePack.appendingPathComponent("script.cpz"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: incomplete), [])
+    }
+
+    func testSoftPALGameStartsFromItsFolder() throws {
+        let folder = try directory("Koikake")
+        // The script archive beside the others, the launcher in dll/.
+        try Data("PAC \u{0}\u{0}".utf8).write(to: folder.appendingPathComponent("DATA.PAC"))
+        try Data("PAC ".utf8).write(to: folder.appendingPathComponent("bgm.pac"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("koikake.exe"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.softpal])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .softpal).map(\.relativePath), ["."])
+        XCTAssertEqual(GameTextEncoding.choices(for: .softpal), [.shiftJIS, .gbk])
+
+        // Another engine's data.pac is not a SoftPAL game.
+        let other = try directory("Other")
+        try Data("KCAP".utf8).write(to: other.appendingPathComponent("data.pac"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: other), [])
+    }
+
+    func testYurisGameStartsFromItsFolderOrAPackedPatch() throws {
+        let folder = try directory("Erewhon")
+        let pac = folder.appendingPathComponent("pac", isDirectory: true)
+        try FileManager.default.createDirectory(at: pac, withIntermediateDirectories: true)
+        try Data("YPF".utf8).write(to: pac.appendingPathComponent("bn.ypf"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: folder), [.yuris])
+        XCTAssertEqual(try GameScanner.startupCandidates(in: folder, engine: .yuris).map(\.relativePath), ["."])
+
+        // A Chinese patch packed with Enigma Virtual Box starts for Chinese
+        // readers and is read as GBK; a plain executable is no startup file.
+        var image = [UInt8](repeating: 0, count: 0x200)
+        image[0] = 0x4D
+        image[1] = 0x5A
+        image[0x3C] = 0x80
+        image.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        image[0x86] = 1
+        image.replaceSubrange(0x98..<0xA0, with: Array(".enigma1".utf8))
+        try Data(image).write(to: folder.appendingPathComponent("erewhon_chs.exe"))
+        try Data("MZ".utf8).write(to: folder.appendingPathComponent("erewhon.exe"))
+        XCTAssertEqual(
+            try GameScanner.startupCandidates(in: folder, engine: .yuris).map(\.relativePath),
+            [".", "erewhon_chs.exe"]
+        )
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["zh-Hans-CN"])?.relativePath, "erewhon_chs.exe")
+        XCTAssertEqual(try GameScanner.launchTarget(in: folder, engine: .yuris, preferredLanguages: ["ja-JP"])?.relativePath, ".")
+    }
+
     func testFVPAutomaticEncoding() {
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "Sakura.hcb"), .shiftJIS)
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "MemoriaGBK.hcb"), .gbk)
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "Patch.BCH"), .gbk)
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: "game_utf8.hcb"), .utf8)
         XCTAssertEqual(GameScanner.fvpAutomaticEncoding(script: nil), .shiftJIS)
+    }
+
+    func testBGIGameStartsFromItsFolder() throws {
+        try repository.ensureStructure()
+        let bgi = repository.gamesRoot.appendingPathComponent("BGI Game")
+        try FileManager.default.createDirectory(at: bgi, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("SYSTEM.ARC"))
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("data01000.arc"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: bgi), [.bgi])
+        var game = try repository.scan().active[0]
+        XCTAssertEqual(game.engine, .bgi)
+        XCTAssertEqual(game.availability, .ready)
+        XCTAssertEqual(game.launchTargetKind, .directory)
+        XCTAssertEqual(game.launchTarget, ".")
+        XCTAssertEqual(repository.textEncoding(for: game), .shiftJIS)
+
+        // UTF-8 isn't a BGI encoding: a stored choice of it is ignored.
+        game = try repository.chooseTextEncoding(.utf8, for: game)
+        XCTAssertEqual(repository.textEncoding(for: game), .shiftJIS)
+        game = try repository.chooseTextEncoding(.gbk, for: game)
+        _ = try repository.scan()
+        game = try repository.load().first { $0.id == game.id }!
+        XCTAssertEqual(repository.textEncoding(for: game), .gbk)
+        XCTAssertEqual(GameTextEncoding.choices(for: .bgi), [.shiftJIS, .gbk])
+
+        // Archives alone aren't a BGI game.
+        let other = repository.gamesRoot.appendingPathComponent("Other")
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: other.appendingPathComponent("data01000.arc"))
+        XCTAssertEqual(try GameScanner.detectEngines(in: other), [])
+    }
+
+    /// A minimal PE image with one section named `section`.
+    private func peImage(section: String) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 0x200)
+        bytes[0] = 0x4D; bytes[1] = 0x5A
+        bytes[0x3C] = 0x80
+        bytes.replaceSubrange(0x80..<0x84, with: [0x50, 0x45, 0, 0])
+        bytes[0x86] = 1
+        let name = Array(section.utf8)
+        bytes.replaceSubrange(0x98..<(0x98 + name.count), with: name)
+        return Data(bytes)
+    }
+
+    func testBGIPatchLaunchersAreStartupFiles() throws {
+        try repository.ensureStructure()
+        let bgi = repository.gamesRoot.appendingPathComponent("Subahibi")
+        try FileManager.default.createDirectory(at: bgi, withIntermediateDirectories: true)
+        try Data("arc".utf8).write(to: bgi.appendingPathComponent("system.arc"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("BGI.exe"))
+        try peImage(section: ".text").write(to: bgi.appendingPathComponent("Uninstaller.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI-CHS.exe"))
+        try peImage(section: ".enigma1").write(to: bgi.appendingPathComponent("BGI_patch(new_episode_trans).exe"))
+        let candidates = try GameScanner.startupCandidates(in: bgi, engine: .bgi)
+        XCTAssertEqual(candidates.first, StartupFile(.directory, "."))
+        XCTAssertEqual(Set(candidates.dropFirst().map(\.relativePath)), ["BGI-CHS.exe", "BGI_patch(new_episode_trans).exe"])
+        XCTAssertEqual(candidates.dropFirst().map(\.kind), [.archive, .archive])
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["zh-Hans-CN"])?.relativePath, "BGI-CHS.exe")
+        XCTAssertEqual(GameScanner.preferredStartup(among: candidates, languages: ["ja-JP"])?.relativePath, ".")
+
+        XCTAssertNil(GameScanner.bgiGameFont(in: bgi))
+        try Data().write(to: bgi.appendingPathComponent("other.otf"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "other.otf")
+        try Data().write(to: bgi.appendingPathComponent("Font.TTF"))
+        XCTAssertEqual(GameScanner.bgiGameFont(in: bgi)?.lastPathComponent, "Font.TTF")
+    }
+
+    func testBGIAutomaticEncoding() {
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama 2"), .shiftJIS)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Tayutama2_CHS"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "千恋万花汉化版"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game GBK v1.2"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Game EN"), .shiftJIS)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI-CHS.exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_patch(new_episode_trans).exe"), .gbk)
+        XCTAssertEqual(GameScanner.bgiAutomaticEncoding(folderName: "Subahibi", launcher: "BGI_EN.exe"), .shiftJIS)
     }
 
     func testBuiltInGamesInstallOnceAndStayDeleted() throws {

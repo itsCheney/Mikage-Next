@@ -105,11 +105,24 @@ struct RoundButton: View {
     }
 }
 
+/// A game's card art, or a cover drawn from its folder name when it has
+/// none (no link, no image in the folder, none picked).
 struct GameCover: View {
     @EnvironmentObject private var model: AppModel
     let game: GameRecord
+    /// Fits covers of other shapes as the Adaptive layout does, instead of
+    /// cropping them around the center.
+    var adaptive = false
 
     var body: some View {
-        ArtworkImage(url: model.coverURL(game))
+        if let url = model.coverURL(game) {
+            if adaptive {
+                AdaptiveArtworkImage(url: url)
+            } else {
+                ArtworkImage(url: url)
+            }
+        } else {
+            GeneratedCover(game: game)
+        }
     }
 }

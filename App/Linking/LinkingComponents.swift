@@ -94,7 +94,10 @@ struct ArtworkImage: View {
                             .font(.system(size: min(34, max(14, proxy.size.width / 4))))
                             .foregroundStyle(.secondary)
                     )
-                if let image {
+                // A cache hit draws on the first frame, before the load task
+                // runs, so a cover shown again (as when a launch moves it to
+                // a new view) never flashes the placeholder.
+                if let image = image ?? cachedImage(size: proxy.size) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -111,6 +114,11 @@ struct ArtworkImage: View {
         .accessibilityHidden(true)
     }
 
+    private func cachedImage(size: CGSize) -> UIImage? {
+        guard let url, size.width > 0, size.height > 0 else { return nil }
+        return CoverCache.shared.cached(url, size: size, scale: displayScale)
+    }
+
     private func load(size: CGSize) async {
         guard size.width > 0, size.height > 0, let url else {
             image = nil
@@ -124,6 +132,156 @@ struct ArtworkImage: View {
         let decoded = await CoverCache.shared.image(for: url, size: size, scale: displayScale)
         guard !Task.isCancelled else { return }
         withAnimation(.easeOut(duration: 0.18)) { image = decoded }
+    }
+}
+
+/// Cover art for the Adaptive card layout. A cover narrower than
+/// `CardArtwork.fitBelow` shows whole, centered over a blurred copy of
+/// itself, as the Continue Playing hero does; a wider one fills the frame,
+/// cropped around what Vision finds most salient rather than the center.
+struct AdaptiveArtworkImage: View {
+    @Environment(\.displayScale) private var displayScale
+    let url: URL?
+    @ObservedObject private var covers = CoverCache.shared
+    @State private var artwork: CardArtwork?
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color(uiColor: .secondarySystemGroupedBackground)
+                    .overlay(
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: min(34, max(14, proxy.size.width / 4))))
+                            .foregroundStyle(.secondary)
+                    )
+                if let artwork = artwork ?? cachedArtwork(size: proxy.size) {
+                    content(artwork, size: proxy.size)
+                        .transition(.opacity)
+                }
+            }
+            .task(id: "\(url?.path ?? "none")|\(covers.generation)|\(Int(proxy.size.width))x\(Int(proxy.size.height))") {
+                await load(size: proxy.size)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func content(_ artwork: CardArtwork, size: CGSize) -> some View {
+        if let backdrop = artwork.backdrop {
+            ZStack {
+                Image(uiImage: backdrop)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .overlay(Color.black.opacity(0.22))
+                Image(uiImage: artwork.cover)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size.width, height: size.height)
+                    .shadow(color: .black.opacity(0.35), radius: 8)
+            }
+        } else {
+            let rect = CardArtwork.fillRect(
+                aspect: artwork.aspect,
+                in: size,
+                focus: artwork.focus ?? CGPoint(x: 0.5, y: 0.5)
+            )
+            Image(uiImage: artwork.cover)
+                .resizable()
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .clipped()
+        }
+    }
+
+    private func cachedArtwork(size: CGSize) -> CardArtwork? {
+        guard let url, size.width > 0, size.height > 0 else { return nil }
+        return CoverCache.shared.cachedCardArtwork(url, size: size, scale: displayScale)
+    }
+
+    private func load(size: CGSize) async {
+        guard size.width > 0, size.height > 0, let url else {
+            artwork = nil
+            return
+        }
+        if let hit = CoverCache.shared.cachedCardArtwork(url, size: size, scale: displayScale) {
+            artwork = hit
+            return
+        }
+        let prepared = await CoverCache.shared.cardArtwork(for: url, size: size, scale: displayScale)
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.18)) { artwork = prepared }
+    }
+}
+
+/// Columns of equal width; each child goes under the shortest column, at
+/// the height it asks for at that width.
+struct MasonryLayout: Layout {
+    var minimumColumnWidth: CGFloat
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? minimumColumnWidth * 2 + spacing
+        let frames = arrange(subviews, width: width)
+        return CGSize(width: width, height: frames.map(\.maxY).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (index, frame) in arrange(subviews, width: bounds.width).enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height)
+            )
+        }
+    }
+
+    /// Matches `GridItem(.adaptive(minimum:))`: as many columns as fit.
+    static func columnCount(width: CGFloat, minimum: CGFloat, spacing: CGFloat) -> Int {
+        guard width.isFinite, width > 0 else { return 1 }
+        return max(1, Int((width + spacing) / (minimum + spacing)))
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> [CGRect] {
+        let heights: [(CGFloat) -> CGFloat] = subviews.map { subview in
+            { columnWidth in
+                subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
+            }
+        }
+        return Self.frames(
+            width: width,
+            columns: Self.columnCount(width: width, minimum: minimumColumnWidth, spacing: spacing),
+            spacing: spacing,
+            heights: heights
+        )
+    }
+
+    /// The frame of each child, given its height at a column width.
+    static func frames(
+        width: CGFloat,
+        columns: Int,
+        spacing: CGFloat,
+        heights: [(CGFloat) -> CGFloat]
+    ) -> [CGRect] {
+        let columns = max(1, columns)
+        let columnWidth = max(0, (width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        var bottoms = [CGFloat](repeating: 0, count: columns)
+        return heights.map { height in
+            // The leftmost of the shortest columns, so equal heights read
+            // left to right.
+            let column = bottoms.indices.min { bottoms[$0] < bottoms[$1] } ?? 0
+            let h = height(columnWidth)
+            let frame = CGRect(
+                x: CGFloat(column) * (columnWidth + spacing),
+                y: bottoms[column],
+                width: columnWidth,
+                height: h
+            )
+            bottoms[column] += h + spacing
+            return frame
+        }
     }
 }
 
@@ -298,21 +456,77 @@ struct RemoteThumbnail: View {
     let blurred: Bool
 
     var body: some View {
-        AsyncImage(url: url.flatMap { URL(string: $0) }) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: blurred ? 12 : 0)
-            } else {
-                Color(uiColor: .tertiarySystemFill)
-                    .overlay(
-                        Image(systemName: "book.closed.fill")
-                            .foregroundStyle(.secondary)
-                    )
-            }
+        RemoteImage(url: url.flatMap { URL(string: $0) }) { image in
+            image
+                .resizable()
+                .scaledToFill()
+                .blur(radius: blurred ? 12 : 0)
+        } placeholder: {
+            Color(uiColor: .tertiarySystemFill)
+                .overlay(
+                    Image(systemName: "book.closed.fill")
+                        .foregroundStyle(.secondary)
+                )
         }
         .clipped()
         .accessibilityHidden(true)
+    }
+}
+
+/// Downloads remote images. Bangumi's image host goes through
+/// BangumiNetwork, so covers still load where its DNS is poisoned;
+/// everything else uses the shared URLSession and its cache.
+enum RemoteImageLoader {
+    private static let cache: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.countLimit = 200
+        return cache
+    }()
+
+    static func cached(_ url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    /// The body and status code of a GET for the URL.
+    static func data(_ url: URL, timeout: TimeInterval = 30) async throws -> (Data, Int) {
+        let request = URLRequest(url: url, timeoutInterval: timeout)
+        if let host = url.host, BangumiHosts.isBangumi(host) {
+            let (data, response) = try await BangumiNetwork.shared.data(for: request, followRedirects: true)
+            return (data, response.statusCode)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 200)
+    }
+
+    static func image(_ url: URL) async -> UIImage? {
+        if let hit = cached(url) { return hit }
+        guard let result = try? await data(url), (200..<300).contains(result.1),
+              let image = UIImage(data: result.0) else { return nil }
+        cache.setObject(image, forKey: url as NSURL)
+        return image
+    }
+}
+
+/// AsyncImage, loading through RemoteImageLoader.
+struct RemoteImage<Content: View, Placeholder: View>: View {
+    let url: URL?
+    @ViewBuilder let content: (Image) -> Content
+    @ViewBuilder let placeholder: () -> Placeholder
+    @State private var loaded: (url: URL, image: UIImage)?
+
+    var body: some View {
+        Group {
+            if let url, let image = loaded?.url == url ? loaded?.image : RemoteImageLoader.cached(url) {
+                content(Image(uiImage: image))
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: url) {
+            guard let url, loaded?.url != url else { return }
+            if let image = await RemoteImageLoader.image(url) {
+                loaded = (url, image)
+            }
+        }
     }
 }

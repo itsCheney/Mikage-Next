@@ -46,6 +46,11 @@ public struct MatchCandidate: Identifiable, Equatable, Sendable {
         bangumi?.thumbnailURL ?? vndb?.image?.url
     }
 
+    /// The developer or brand, from VNDB or else the Bangumi infobox.
+    public var studio: String? {
+        vndb?.developerNames ?? bangumi?.infoboxValue(for: ["开发", "开发商", "制作", "品牌"])
+    }
+
     public var thumbnailIsSensitive: Bool {
         bangumi != nil ? (bangumi?.nsfw ?? false) : (vndb?.image?.isSensitive ?? false)
     }

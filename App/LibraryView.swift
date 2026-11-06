@@ -6,9 +6,17 @@ import VNCore
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(WelcomeGuideView.seenKey) private var welcomeSeen = false
+    @State private var showingWelcome = false
 
     var body: some View {
         tabs
+            .overlay {
+                if let transition = model.launchTransition {
+                    LaunchTransitionOverlay(transition: transition)
+                        .id(transition.id)
+                }
+            }
             .fullScreenCover(item: $model.player) { game in
                 PlayerView(game: game).environmentObject(model)
             }
@@ -30,6 +38,15 @@ struct RootView: View {
             }
             .sheet(item: $model.matchRequest) { game in
                 MatchView(game: game).environmentObject(model)
+            }
+            .sheet(item: $model.importReview) { review in
+                ImportReviewView(review: review).environmentObject(model)
+            }
+            .sheet(isPresented: $showingWelcome) {
+                WelcomeGuideView().environmentObject(model)
+            }
+            .onAppear {
+                if !welcomeSeen { showingWelcome = true }
             }
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
@@ -103,6 +120,18 @@ struct LibraryView: View {
     /// launch target stay here, disabled, with the reason under the title.
     private var playableGames: [GameRecord] {
         model.sortedGames.filter { $0.availability != .unsupported }
+    }
+
+    /// Games added in the last week and not played yet, newest first. They
+    /// stay above the rest until they're played or a week has passed. When
+    /// every game is new, as on a first scan, there is nothing to set apart.
+    private var recentlyAdded: [GameRecord] {
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        let playable = playableGames
+        let recent = playable
+            .filter { $0.addedAt > cutoff && $0.launchCount == 0 && $0.availability.canLaunch }
+            .sorted { $0.addedAt > $1.addedAt }
+        return recent.count < playable.count ? recent : []
     }
 
     /// Recognised engines whose runtime has not landed yet.
@@ -306,8 +335,24 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var sections: some View {
-        let playable = playableGames
+        let recent = recentlyAdded
+        let recentIDs = Set(recent.map(\.id))
+        let playable = playableGames.filter { !recentIDs.contains($0.id) }
         let comingSoon = comingSoonGames
+
+        if !recent.isEmpty {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recently Added")
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Text("\(recent.count) games")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            GameGrid(games: recent)
+                .padding(.bottom, 12)
+        }
 
         if !playable.isEmpty {
             HStack(alignment: .firstTextBaseline) {
@@ -387,6 +432,8 @@ private struct ContinueBanner: View {
     @ObservedObject private var covers = CoverCache.shared
     @State private var artwork: HeroArtwork?
 
+    private var topColor: UIColor { artwork?.topColor ?? UIColor(white: 0.22, alpha: 1) }
+
     /// Same total height as before the redesign: about 313 pt on an iPhone 13
     /// Pro (266 + its 47 pt status bar).
     private var heroHeight: CGFloat { (regular ? 380 : 266) + topInset }
@@ -418,6 +465,14 @@ private struct ContinueBanner: View {
         }
         .frame(height: heroHeight)
         .clipped()
+        // The hero's top color continues above it, so pulling the library
+        // down reveals more of the band instead of the page background.
+        .background(alignment: .top) {
+            Color(uiColor: topColor)
+                .frame(height: 1200)
+                .offset(y: -1200 + 1)
+                .accessibilityHidden(true)
+        }
         .environment(\.colorScheme, .dark)
         .task(id: "\(model.coverURL(game)?.path ?? game.id.uuidString)|\(covers.generation)") {
             await load()
@@ -427,7 +482,7 @@ private struct ContinueBanner: View {
     // MARK: Layers
 
     private func backdrop(size: CGSize) -> some View {
-        let top = Color(uiColor: artwork?.topColor ?? UIColor(white: 0.22, alpha: 1))
+        let top = Color(uiColor: topColor)
         // The color band covers the status bar and about 70 pt more.
         let band = min(1, (topInset + 70) / max(size.height, 1))
         return ZStack {
@@ -474,6 +529,8 @@ private struct ContinueBanner: View {
             .resizable()
             .scaledToFit()
             .frame(width: frame.width, height: frame.height)
+            // Where Resume grows the cover from.
+            .background(LaunchSourceReader(key: LaunchSourceFrames.heroKey))
             // Fade the top into the color band and the bottom into the
             // darkened info area, so no edge of the cover shows.
             .mask(
@@ -531,7 +588,13 @@ private struct ContinueBanner: View {
             }
             .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
             Spacer(minLength: 0)
-            Button { model.launch(game) } label: {
+            Button {
+                model.launch(
+                    game,
+                    source: LaunchSourceFrames.shared.frame(for: LaunchSourceFrames.heroKey),
+                    sourceRadius: 0
+                )
+            } label: {
                 Label("Resume", systemImage: "play.fill")
                     .font(.headline)
                     .padding(.horizontal, 4)
@@ -661,35 +724,26 @@ struct GameGrid: View {
     @State private var artGame: GameRecord?
     @State private var showCoverPicker = false
     @State private var coverPhoto: PhotosPickerItem?
+    @State private var deleteRequest: GameRecord?
+    @ObservedObject private var covers = CoverCache.shared
     let games: [GameRecord]
 
     private var columns: [GridItem] {
         if model.settings.listLayout {
             return [GridItem(.flexible())]
         }
-        return [GridItem(.adaptive(minimum: sizeClass == .regular ? 180 : 150), spacing: 12)]
+        return [GridItem(.adaptive(minimum: minimumCardWidth), spacing: 12)]
     }
 
+    private var masonry: Bool {
+        model.settings.coverLayout == .masonry && !model.settings.listLayout
+    }
+
+    /// Bumped when Masonry has read more cover shapes, to lay out again.
+    @State private var aspectsRead = 0
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(games) { game in
-                Button { model.launch(game) } label: {
-                    GameCard(game: game, list: model.settings.listLayout)
-                }
-                .buttonStyle(.plain)
-                .disabled(!game.availability.canLaunch)
-                .contextMenu {
-                    menu(for: game)
-                } preview: {
-                    GamePreview(game: game).environmentObject(model)
-                }
-                .accessibilityLabel(
-                    game.availability.canLaunch
-                        ? Text("Play \(model.displayTitle(game))")
-                        : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
-                )
-            }
-        }
+        cards
         .sheet(item: $selectedGame) {
             GameDetailView(game: $0).environmentObject(model)
         }
@@ -701,6 +755,25 @@ struct GameGrid: View {
         }
         .sheet(item: $artGame) {
             ArtworkChoiceView(game: $0).environmentObject(model)
+        }
+        .confirmationDialog(
+            Text("Delete “\(deleteRequest.map { model.displayTitle($0) } ?? "")”?"),
+            isPresented: Binding(
+                get: { deleteRequest != nil },
+                set: { if !$0 { deleteRequest = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deleteRequest
+        ) { game in
+            Button("Delete Game, Keep Saves", role: .destructive) {
+                Task { await model.offload(game) }
+            }
+            Button("Delete Game and Saves", role: .destructive) {
+                Task { await model.deleteGame(game) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { game in
+            Text("The game folder (\(AppModel.librarySize(game.byteCount))) is removed from this device. Kept saves come back if you add the game again. Your Bangumi and VNDB lists don’t change.")
         }
         .photosPicker(isPresented: $showCoverPicker, selection: $coverPhoto, matching: .images)
         .onChange(of: coverPhoto) { item in
@@ -716,6 +789,78 @@ struct GameGrid: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var cards: some View {
+        if masonry {
+            MasonryLayout(minimumColumnWidth: minimumCardWidth, spacing: 12) {
+                ForEach(games) { game in
+                    card(for: game, coverAspect: masonryAspect(game))
+                }
+            }
+            .task(id: masonryTaskID) {
+                await readCoverShapes()
+            }
+        } else {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(games) { game in
+                    card(for: game, coverAspect: nil)
+                }
+            }
+        }
+    }
+
+    private var minimumCardWidth: CGFloat { sizeClass == .regular ? 180 : 150 }
+
+    private func card(for game: GameRecord, coverAspect: CGFloat?) -> some View {
+        Button {
+            model.launch(
+                game,
+                source: LaunchSourceFrames.shared.frame(for: LaunchSourceFrames.cardKey(game.id)),
+                sourceRadius: model.settings.listLayout ? 10 : 20
+            )
+        } label: {
+            GameCard(game: game, list: model.settings.listLayout, coverAspect: coverAspect)
+        }
+        .buttonStyle(.plain)
+        .disabled(!game.availability.canLaunch)
+        .contextMenu {
+            menu(for: game)
+        } preview: {
+            GamePreview(game: game).environmentObject(model)
+        }
+        .accessibilityLabel(
+            game.availability.canLaunch
+                ? Text("Play \(model.displayTitle(game))")
+                : Text("\(model.displayTitle(game)), \(model.availabilityText(game))")
+        )
+    }
+
+    /// A Masonry card takes its cover's shape, within limits so a banner or
+    /// a very tall image can't take over a column. Covers drawn from the
+    /// folder name, and those not read yet, are 16:9.
+    private func masonryAspect(_ game: GameRecord) -> CGFloat {
+        _ = aspectsRead
+        guard let url = model.coverURL(game),
+              let aspect = CoverCache.shared.cachedAspectRatio(url)
+        else { return 16 / 9 }
+        return min(max(aspect, 0.5), 2.4)
+    }
+
+    private var masonryTaskID: String {
+        games.map { model.coverURL($0)?.path ?? $0.id.uuidString }.joined(separator: "|")
+            + "|\(covers.generation)"
+    }
+
+    private func readCoverShapes() async {
+        var read = false
+        for game in games {
+            guard let url = model.coverURL(game), CoverCache.shared.cachedAspectRatio(url) == nil else { continue }
+            if await CoverCache.shared.aspectRatio(of: url) != nil { read = true }
+            if Task.isCancelled { return }
+        }
+        if read { aspectsRead += 1 }
     }
 
     @ViewBuilder
@@ -766,6 +911,10 @@ struct GameGrid: View {
                 systemImage: "link"
             )
         }
+        Divider()
+        Button(role: .destructive) { deleteRequest = game } label: {
+            Label("Delete Game", systemImage: "trash")
+        }
     }
 }
 
@@ -809,6 +958,9 @@ struct GameCard: View {
     @EnvironmentObject private var model: AppModel
     let game: GameRecord
     let list: Bool
+    /// The cover frame's width over height in the Masonry layout; nil for
+    /// the 16:9 frame of the other layouts.
+    var coverAspect: CGFloat?
 
     private var comingSoon: Bool { game.availability == .unsupported }
 
@@ -833,9 +985,11 @@ struct GameCard: View {
     }
 
     private var cover: some View {
-        GameCover(game: game)
+        GameCover(game: game, adaptive: model.settings.coverLayout == .adaptive)
             .grayscale(comingSoon ? 0.9 : 0)
             .opacity(comingSoon ? 0.55 : 1)
+            // Where a launch grows this cover from.
+            .background(LaunchSourceReader(key: LaunchSourceFrames.cardKey(game.id)))
     }
 
     /// The status leads the line when the player set one, as in the
@@ -866,7 +1020,7 @@ struct GameCard: View {
     private var tile: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear
-                .aspectRatio(16 / 9, contentMode: .fit)
+                .aspectRatio(coverAspect ?? 16 / 9, contentMode: .fit)
                 .overlay { cover }
                 .clipped()
             VStack(alignment: .leading, spacing: 2) {

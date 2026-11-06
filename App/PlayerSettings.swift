@@ -8,7 +8,7 @@ struct PlayerSettings: Codable {
     var renderer = RendererPreference.storageDefault
     var background = PlayerBackground.storageDefault
     var floatingButton = true
-    var idleOpacity = 0.38
+    var idleOpacity = 0.6
     var threeFingerMenu = true
     /// The floating buttons beside the menu button, in order; at most
     /// `QuickActionKind.limit`.
@@ -22,6 +22,8 @@ struct PlayerSettings: Codable {
     var performance = false
     var performanceDetail = PerformanceDetail.storageDefault
     var listLayout = false
+    /// How grid cards show covers that aren't 16:9.
+    var coverLayout = CoverLayout.storageDefault
     var sort = LibrarySort.storageDefault
     /// Skips the built-in list of localization-patch videos. Off by default:
     /// those credits are the patch authors' own work, so not showing them is
@@ -68,6 +70,7 @@ struct PlayerSettings: Codable {
         performance = value(.performance, fallback.performance)
         performanceDetail = value(.performanceDetail, fallback.performanceDetail)
         listLayout = value(.listLayout, fallback.listLayout)
+        coverLayout = value(.coverLayout, fallback.coverLayout)
         sort = value(.sort, fallback.sort)
         skipPatchVideos = value(.skipPatchVideos, fallback.skipPatchVideos)
         autoStatus = value(.autoStatus, fallback.autoStatus)
@@ -106,7 +109,7 @@ enum Appearance: String, StoredSetting {
     static let legacyValues: [String: Self] = [
         "跟随系统": .system, "浅色": .light, "深色": .dark
     ]
-    static let storageDefault: Self = .dark
+    static let storageDefault: Self = .system
 
     init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
 
@@ -211,6 +214,43 @@ enum LibrarySort: String, StoredSetting {
         case .dateAdded: return String(localized: "Date Added")
         case .title: return String(localized: "Name")
         case .size: return String(localized: "Size")
+        }
+    }
+}
+
+/// How library cards fit covers of different shapes: box art is often
+/// portrait (up to 9:16), older games 4:3, newer ones 16:9.
+enum CoverLayout: String, StoredSetting {
+    /// 16:9 cards, every cover cropped to fill around its center.
+    case original
+    /// 16:9 cards. Portrait covers show whole over a blurred copy of
+    /// themselves; wider ones are cropped around their subject.
+    case adaptive
+    /// Each card takes its cover's own shape, in columns.
+    case masonry
+
+    static let legacyValues: [String: Self] = [:]
+    static let storageDefault: Self = .original
+
+    init(from decoder: Decoder) throws { self = try Self.decodeLenient(from: decoder) }
+
+    var displayName: String {
+        switch self {
+        case .original: return String(localized: "Original")
+        case .adaptive: return String(localized: "Adaptive")
+        case .masonry: return String(localized: "Masonry")
+        }
+    }
+
+    /// Explains the layout under its picker.
+    var footer: String {
+        switch self {
+        case .original:
+            return String(localized: "Every cover fills a 16:9 card and is cropped around its center.")
+        case .adaptive:
+            return String(localized: "Portrait covers show whole over a blurred copy of themselves; wider covers are cropped around their subject.")
+        case .masonry:
+            return String(localized: "Each card takes the shape of its cover, so nothing is cropped.")
         }
     }
 }

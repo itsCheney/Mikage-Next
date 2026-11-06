@@ -143,6 +143,9 @@ final class NativeSiglusSession: NSObject, KRKRSession {
         engineWindow.rootViewController = controller
         engineWindow.frame = scene.coordinateSpace.bounds
         engineWindow.isHidden = false
+        // Laid out now but kept clear; showEngineWindow fades it in over the
+        // launch stage.
+        engineWindow.alpha = 0
         engineWindow.layoutIfNeeded()
 
         let metalView = controller.metalView

@@ -167,7 +167,7 @@ public struct GameLink: Codable, Equatable, Sendable {
     }
 
     public var bangumiURL: URL? {
-        bangumiID.flatMap { URL(string: "https://bgm.tv/subject/\($0)") }
+        bangumiID.map { BangumiNetwork.shared.webURL("subject/\($0)") }
     }
 
     public var vndbURL: URL? {

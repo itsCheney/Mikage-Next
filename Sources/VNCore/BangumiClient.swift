@@ -249,15 +249,17 @@ public struct BangumiClient: Sendable {
 
     public func account() async throws -> ServiceAccount {
         struct Me: Decodable {
+            struct Avatar: Decodable { var large: String?; var medium: String? }
             var username: String
             var nickname: String?
+            var avatar: Avatar?
         }
         let request = try http.request(
             Self.baseURL.appendingPathComponent("v0/me"),
             authorization: authorization
         )
         let me = try http.decode(Me.self, from: try await http.send(request))
-        return ServiceAccount(service: .bangumi, username: me.username)
+        return ServiceAccount(service: .bangumi, username: me.username, avatarURL: me.avatar?.large ?? me.avatar?.medium)
     }
 
     /// The user's existing collection entry, or nil when it isn't collected.
@@ -325,8 +327,10 @@ public struct BangumiClient: Sendable {
 /// web session. Kept apart from `BangumiClient` because it depends on page
 /// markup that can change without notice.
 public enum BangumiWeb {
-    public static let baseURL = URL(string: "https://bgm.tv")!
-    public static let loginURL = URL(string: "https://bgm.tv/login")!
+    /// The website domain in use: bgm.tv, or bangumi.tv where bgm.tv
+    /// can't be reached (see `BangumiNetwork`).
+    public static var baseURL: URL { BangumiNetwork.shared.webURL() }
+    public static var loginURL: URL { BangumiNetwork.shared.webURL("login") }
 
     public static func subjectURL(_ subjectID: Int) -> URL {
         baseURL.appendingPathComponent("subject/\(subjectID)")
@@ -371,11 +375,11 @@ public enum BangumiWeb {
         return inputValue(String(html[input]))
     }
 
-    public static let signInURL = URL(string: "https://bgm.tv/FollowTheRabbit")!
+    public static var signInURL: URL { BangumiNetwork.shared.webURL("FollowTheRabbit") }
 
     /// A fresh captcha for the sign-in form; the query only defeats caches.
     public static func captchaURL(now: Date = Date()) -> URL {
-        URL(string: "https://bgm.tv/signup/captcha?\(Int(now.timeIntervalSince1970 * 1000))\(Int.random(in: 1...6))")!
+        BangumiNetwork.shared.webURL("signup/captcha?\(Int(now.timeIntervalSince1970 * 1000))\(Int.random(in: 1...6))")
     }
 
     /// The sign-in form's formhash, from bgm.tv/login.

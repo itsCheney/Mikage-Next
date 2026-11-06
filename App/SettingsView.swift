@@ -9,6 +9,7 @@ struct SettingsView: View {
     /// Owned here rather than by the Advanced page so a logging failure is
     /// caught while that page is closed.
     @State private var diagnosticError: String?
+    @State private var showingWelcome = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,19 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section {
+                    Picker("Cover Layout", selection: $model.settings.coverLayout) {
+                        ForEach(CoverLayout.allCases, id: \.self) {
+                            Text($0.displayName).tag($0)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text(model.settings.coverLayout.footer)
                 }
 
                 Section {
@@ -131,7 +145,13 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        explain(String(localized: "Mikage 0.1 · Multi-engine visual novel player\n\nIncludes the KRKRSDL3 runtime for KiriKiri games, ONScripter Yuri for ONScripter games, openArtemis for Artemis games, Ren’Py 8 for Ren’Py games, siglus_rs for SiglusEngine games and rfvp for FVP games.\n\nThe app includes no game content."))
+                        showingWelcome = true
+                    } label: {
+                        SettingLabel("Welcome Guide", systemImage: "sparkles")
+                    }
+
+                    NavigationLink {
+                        AboutView()
                     } label: {
                         SettingLabel("About Mikage", systemImage: "info.circle")
                     }
@@ -155,6 +175,9 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("Settings")
+        }
+        .sheet(isPresented: $showingWelcome) {
+            WelcomeGuideView().environmentObject(model)
         }
         .alert("Mikage", isPresented: $showInfo) {
             Button("OK", role: .cancel) { }

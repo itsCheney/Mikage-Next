@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, master, beta, dev, runtime-dev, metal_dev, codex/emote-perf]
+    branches: [main, master, beta, dev, runtime-dev, yuris, metal_dev, codex/emote-perf]
   pull_request:
 permissions:
   contents: read
@@ -52,6 +52,18 @@ jobs:
       - name: Record FVP runtime revision
         id: rfvp-revision
         run: echo "rev=$(git rev-parse HEAD:Engine/RFVPRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record BGI runtime revision
+        id: ethornell-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/EthornellRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record YU-RIS runtime revision
+        id: yuris-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/YurisRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record CMVS runtime revision
+        id: cmvs-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/CMVSRuntime/Source)" >> "$GITHUB_OUTPUT"
+      - name: Record SoftPAL runtime revision
+        id: softpal-revision
+        run: echo "rev=$(git rev-parse HEAD:Engine/SoftPALRuntime/Source)" >> "$GITHUB_OUTPUT"
       - name: Install project generator
         run: brew install xcodegen sdl3 ccache
       # The native runtime tests below (Metal Layer comparison, Emote, TJS,
@@ -491,6 +503,168 @@ jobs:
         with:
           path: build/RFVPRuntime.xcframework
           key: ${{ steps.cache-rfvp-runtime.outputs.cache-primary-key }}
+      # BGI: the ethornell-rs fork (Rust, wgpu on Metal, kira audio) as a
+      # dynamic framework of its own. ruffle_core's build script needs Java.
+      - name: Restore BGI runtime framework
+        id: cache-ethornell-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/EthornellRuntime.xcframework
+          key: ethornell-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-ethornell-ios.sh') }}-${{ steps.ethornell-revision.outputs.rev }}
+      - name: Install Rust for BGI
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Install Java for BGI
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Cache BGI Rust builds
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/ethornell/target
+          key: ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/EthornellRuntime/Source/Cargo.lock') }}-${{ steps.ethornell-revision.outputs.rev }}
+          restore-keys: |
+            ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/EthornellRuntime/Source/Cargo.lock') }}-
+            ethornell-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build BGI runtime framework
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-ethornell-ios.sh 2>&1 | tee build/ethornell-runtime-build.log
+      - name: Save BGI runtime framework
+        if: steps.cache-ethornell-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/EthornellRuntime.xcframework
+          key: ${{ steps.cache-ethornell-runtime.outputs.cache-primary-key }}
+      # YU-RIS: the MikageYURIS runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore YU-RIS runtime framework
+        id: cache-yuris-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/YurisRuntime.xcframework
+          key: yuris-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-yuris-ios.sh') }}-${{ steps.yuris-revision.outputs.rev }}
+      - name: Install Rust for YU-RIS
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache YU-RIS Rust builds
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/yuris/target
+          key: yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/YurisRuntime/Source/Cargo.lock') }}-${{ steps.yuris-revision.outputs.rev }}
+          restore-keys: |
+            yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/YurisRuntime/Source/Cargo.lock') }}-
+            yuris-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build YU-RIS runtime framework
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-yuris-ios.sh 2>&1 | tee build/yuris-runtime-build.log
+      - name: Save YU-RIS runtime framework
+        if: steps.cache-yuris-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/YurisRuntime.xcframework
+          key: ${{ steps.cache-yuris-runtime.outputs.cache-primary-key }}
+      # CMVS: the MikageCMVS runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore CMVS runtime framework
+        id: cache-cmvs-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/CMVSRuntime.xcframework
+          key: cmvs-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-cmvs-ios.sh') }}-${{ steps.cmvs-revision.outputs.rev }}
+      - name: Install Rust for CMVS
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache CMVS Rust builds
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/cmvs/target
+          key: cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/CMVSRuntime/Source/Cargo.lock') }}-${{ steps.cmvs-revision.outputs.rev }}
+          restore-keys: |
+            cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/CMVSRuntime/Source/Cargo.lock') }}-
+            cmvs-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build CMVS runtime framework
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-cmvs-ios.sh 2>&1 | tee build/cmvs-runtime-build.log
+      - name: Save CMVS runtime framework
+        if: steps.cache-cmvs-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/CMVSRuntime.xcframework
+          key: ${{ steps.cache-cmvs-runtime.outputs.cache-primary-key }}
+      # SoftPAL: the MikageSoftPAL runtime (Rust, wgpu on Metal) as a dynamic
+      # framework of its own.
+      - name: Restore SoftPAL runtime framework
+        id: cache-softpal-runtime
+        uses: actions/cache/restore@v4
+        with:
+          path: build/SoftPALRuntime.xcframework
+          key: softpal-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('scripts/build-softpal-ios.sh') }}-${{ steps.softpal-revision.outputs.rev }}
+      - name: Install Rust for SoftPAL
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+      - name: Cache SoftPAL Rust builds
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/softpal/target
+          key: softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SoftPALRuntime/Source/Cargo.lock') }}-${{ steps.softpal-revision.outputs.rev }}
+          restore-keys: |
+            softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-${{ hashFiles('Engine/SoftPALRuntime/Source/Cargo.lock') }}-
+            softpal-cargo-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_CACHE_KEY }}-
+      - name: Build SoftPAL runtime framework
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash scripts/build-softpal-ios.sh 2>&1 | tee build/softpal-runtime-build.log
+      - name: Save SoftPAL runtime framework
+        if: steps.cache-softpal-runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/SoftPALRuntime.xcframework
+          key: ${{ steps.cache-softpal-runtime.outputs.cache-primary-key }}
       - name: Generate Xcode project
         run: |
           python3 scripts/check-krkr-work-profile-swift.py

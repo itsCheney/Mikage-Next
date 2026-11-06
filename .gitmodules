@@ -26,3 +26,19 @@
 	path = Engine/RFVPRuntime/Source
 	url = https://github.com/itsCheney/rfvp.git
 	branch = mikage
+[submodule "Engine/EthornellRuntime/Source"]
+	path = Engine/EthornellRuntime/Source
+	url = https://github.com/itsCheney/ethornell-rs.git
+	branch = mikage
+[submodule "Engine/YurisRuntime/Source"]
+	path = Engine/YurisRuntime/Source
+	url = https://github.com/itsCheney/MikageYURIS.git
+	branch = mikage
+[submodule "Engine/CMVSRuntime/Source"]
+	path = Engine/CMVSRuntime/Source
+	url = https://github.com/itsCheney/MikageCMVS.git
+	branch = mikage
+[submodule "Engine/SoftPALRuntime/Source"]
+	path = Engine/SoftPALRuntime/Source
+	url = https://github.com/itsCheney/MikageSoftPAL.git
+	branch = mikage

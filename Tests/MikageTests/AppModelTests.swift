@@ -295,6 +295,30 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(session.startedConfigurations.isEmpty)
     }
 
+    func testLaunchFromACardGrowsTheCoverBeforePresentingThePlayer() throws {
+        try XCTSkipIf(UIAccessibility.isReduceMotionEnabled, "Reduce Motion presents the player directly")
+        try addGame(named: "Example")
+        let model = makeModel()
+        settle { await model.refreshLibrary() }
+        let game = try XCTUnwrap(model.games.first)
+
+        model.launch(game, source: CGRect(x: 16, y: 300, width: 160, height: 90))
+        let transition = try XCTUnwrap(model.launchTransition)
+        XCTAssertEqual(transition.direction, .entering)
+        XCTAssertNil(model.player, "the player waits until the cover fills the screen")
+
+        // A second tap while the cover grows does nothing.
+        model.launch(game, source: CGRect(x: 16, y: 300, width: 160, height: 90))
+        XCTAssertEqual(model.launchTransition, transition)
+
+        model.coverDidFillScreen(transition)
+        XCTAssertEqual(model.player?.id, game.id)
+
+        model.closePlayer(game)
+        XCTAssertNil(model.player)
+        XCTAssertEqual(model.launchTransition?.direction, .leaving)
+    }
+
     func testUpdateCoverStoresTheImageAndKeepsTheRecordInPlace() throws {
         try addGame(named: "Example")
         let model = makeModel()
