@@ -925,7 +925,7 @@ private struct GamePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            GameCover(game: game)
+            GameCover(game: game, adaptive: model.settings.coverLayout == .adaptive)
                 .frame(width: 320, height: 180)
             VStack(alignment: .leading, spacing: 3) {
                 Text(model.displayTitle(game))

@@ -45,8 +45,13 @@ final class CoverCache: ObservableObject {
         return cache
     }()
 
-    /// Width over height of each cover file, read from its header.
-    private let aspectCache = NSCache<NSString, NSNumber>()
+    /// Width over height of each cover file, read from its header. A plain
+    /// dictionary, not an `NSCache`: Masonry lays cards out from these and
+    /// reads them only when the covers change, so an entry evicted under
+    /// memory pressure (say, while a game ran) put its card back to 16:9 until
+    /// the covers next changed. Each is one number, so keeping all of them is cheap.
+    private var aspects: [String: CGFloat] = [:]
+    private let aspectLock = NSLock()
 
     /// Shared Core Image context; creating one per render is expensive.
     private let ciContext = CIContext(options: [.cacheIntermediates: false])
@@ -95,7 +100,9 @@ final class CoverCache: ObservableObject {
         cache.removeAllObjects()
         heroCache.removeAllObjects()
         cardCache.removeAllObjects()
-        aspectCache.removeAllObjects()
+        aspectLock.lock()
+        aspects.removeAll()
+        aspectLock.unlock()
         if Thread.isMainThread {
             generation += 1
         } else {
@@ -221,7 +228,9 @@ final class CoverCache: ObservableObject {
 
     /// A cover's width over its height, if already read.
     func cachedAspectRatio(_ url: URL) -> CGFloat? {
-        aspectCache.object(forKey: url.path as NSString).map { CGFloat($0.doubleValue) }
+        aspectLock.lock()
+        defer { aspectLock.unlock() }
+        return aspects[url.path]
     }
 
     /// Reads a cover's width over its height from the file header, without
@@ -233,8 +242,15 @@ final class CoverCache: ObservableObject {
                 continuation.resume(returning: Self.headerAspectRatio(at: url))
             }
         }
-        if let aspect { aspectCache.setObject(NSNumber(value: Double(aspect)), forKey: url.path as NSString) }
+        if let aspect { storeAspectRatio(aspect, for: url) }
         return aspect
+    }
+
+    /// Synchronous so the lock is never held across a suspension point.
+    private func storeAspectRatio(_ aspect: CGFloat, for url: URL) {
+        aspectLock.lock()
+        aspects[url.path] = aspect
+        aspectLock.unlock()
     }
 
     private static func headerAspectRatio(at url: URL) -> CGFloat? {
